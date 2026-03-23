@@ -1,27 +1,33 @@
 package io.cafeai.core;
 
+import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.ai.ModelRouter;
+import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.internal.BuiltInMiddleware;
+import io.cafeai.core.internal.CafeAIApp;
+import io.cafeai.core.internal.SubRouter;
+import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Router;
-import io.cafeai.core.ai.*;
-import io.cafeai.core.memory.MemoryStrategy;
-import io.cafeai.core.rag.Retriever;
-import io.cafeai.core.rag.Source;
-import io.cafeai.core.tools.Tool;
-import io.cafeai.core.tools.McpServer;
-import io.cafeai.core.agents.AgentDefinition;
-import io.cafeai.core.guardrails.GuardRail;
-import io.cafeai.core.observability.ObserveStrategy;
-import io.cafeai.core.streaming.StreamHandler;
-
-import java.util.function.BiConsumer;
+import io.cafeai.core.spi.CafeAIConfigurer;
+import io.cafeai.core.StaticOptions;
+import io.cafeai.core.UrlEncodedOptions;
 
 /**
- * CafeAI — The main application class.
+ * CafeAI — The main application interface.
  *
- * <p>Mirrors Express.js pound-for-pound for familiar HTTP routing,
- * while introducing a rich vocabulary of AI-native primitives.
+ * <p>The entry point of every CafeAI application. Mirrors Express.js
+ * pound-for-pound for HTTP routing and middleware, while introducing
+ * a rich vocabulary of AI-native primitives.
  *
- * <p>Quick start:
+ * <p>Follows the three-tier composition model (ADR-006):
+ * <ol>
+ *   <li>Tier 1 — Application wiring (CDI, Service Loaders, manual)</li>
+ *   <li>Tier 2 — CafeAI bootstrap (this interface)</li>
+ *   <li>Tier 3 — Request handling (Router, req, res, Middleware)</li>
+ * </ol>
+ *
+ * <p>Quick start — zero DI:
  * <pre>{@code
  *   var app = CafeAI.create();
  *
@@ -29,45 +35,266 @@ import java.util.function.BiConsumer;
  *   app.memory(MemoryStrategy.mapped());
  *   app.system("You are a helpful assistant...");
  *
- *   app.post("/chat", (req, res) -> {
- *       res.stream(app.prompt(req.body("message")));
- *   });
+ *   app.filter(Middleware.json());
+ *   app.get("/health", (req, res, next) -> res.json(Map.of("status", "ok")));
+ *   app.post("/chat", (req, res, next) -> res.send("Hello CafeAI"));
  *
  *   app.listen(8080);
  * }</pre>
  *
- * @see Router   for HTTP routing primitives (get, post, put, delete, use)
- * @see AiConfig for AI provider configuration
+ * <p>Quick start — with CDI ({@code cafeai-cdi} on classpath):
+ * <pre>{@code
+ *   @ApplicationScoped
+ *   public class AppConfig implements CafeAIConfigurer {
+ *       @Inject UserService userService;
+ *
+ *       public void configure(CafeAI app) {
+ *           app.ai(OpenAI.gpt4o());
+ *           app.get("/users/:id", (req, res, next) ->
+ *               res.json(userService.find(req.params("id"))));
+ *           app.listen(8080);
+ *       }
+ *   }
+ * }</pre>
  */
 public interface CafeAI extends Router {
 
-    // ── Factory ──────────────────────────────────────────────────────────────
+    // ── Factory ───────────────────────────────────────────────────────────────
 
     /**
      * Creates a new CafeAI application instance.
-     * Mirrors: {@code const app = express()}
+     *
+     * <p>On creation, CafeAI automatically:
+     * <ol>
+     *   <li>Discovers all {@link io.cafeai.core.spi.CafeAIModule} implementations
+     *       via {@link java.util.ServiceLoader} and registers their capabilities</li>
+     *   <li>Discovers all {@link CafeAIConfigurer} implementations via
+     *       {@link java.util.ServiceLoader} and applies them in {@code order()} sequence</li>
+     * </ol>
+     *
+     * <p>Mirrors: {@code const app = express()}
      */
     static CafeAI create() {
-        return new CafeAIApp();
+        return CafeAIApp.newInstance();
     }
 
-    // ── AI Infrastructure ────────────────────────────────────────────────────
+    // ── Built-in Middleware Factories ─────────────────────────────────────────
 
     /**
-     * Registers the AI provider and model for this application.
-     * This declares: "this application is AI-powered."
+     * JSON body parsing middleware. Parses {@code application/json} request
+     * bodies and populates {@code req.body()}.
+     *
+     * <p>Bodies exceeding 100 KB are rejected with HTTP 413.
+     * Missing or non-JSON Content-Type passes through without parsing.
+     *
+     * <p>Mirrors Express: {@code express.json()}
+     *
+     * <pre>{@code
+     *   app.filter(CafeAI.json());
+     *   app.post("/echo", (req, res, next) -> res.json(req.body()));
+     * }</pre>
+     */
+    static Middleware json() {
+        return BuiltInMiddleware.jsonBody(JsonOptions.defaults());
+    }
+
+    /**
+     * JSON body parsing middleware with custom options.
+     * Mirrors Express: {@code express.json(options)}
+     */
+    static Middleware json(JsonOptions options) {
+        return BuiltInMiddleware.jsonBody(options);
+    }
+
+    /**
+     * Raw byte body parsing middleware. Parses bodies into {@code byte[]}
+     * accessible via {@code req.bodyBytes()}.
+     *
+     * <p>Mirrors Express: {@code express.raw()}
+     */
+    static Middleware raw() {
+        return BuiltInMiddleware.rawBody(RawOptions.defaults());
+    }
+
+    /**
+     * Raw body parsing middleware with custom options.
+     * Mirrors Express: {@code express.raw(options)}
+     */
+    static Middleware raw(RawOptions options) {
+        return BuiltInMiddleware.rawBody(options);
+    }
+
+    /**
+     * Plain text body parsing middleware. Parses bodies into {@code String}
+     * accessible via {@code req.bodyText()}.
+     *
+     * <p>Mirrors Express: {@code express.text()}
+     */
+    static Middleware text() {
+        return BuiltInMiddleware.textBody(TextOptions.defaults());
+    }
+
+    /**
+     * Text body parsing middleware with custom options.
+     * Mirrors Express: {@code express.text(options)}
+     */
+    static Middleware text(TextOptions options) {
+        return BuiltInMiddleware.textBody(options);
+    }
+
+    /**
+     * Creates a new standalone {@link io.cafeai.core.routing.Router}.
+     * Mount it on the application via {@code app.use(path, router)}.
+     *
+     * <p>Mirrors Express: {@code express.Router()}
+     *
+     * <pre>{@code
+     *   var api = CafeAI.Router();
+     *   api.get("/users", (req, res, next) -> res.json(users));
+     *   app.use("/api/v1", api);
+     * }</pre>
+     */
+    static Router Router() {
+        return new SubRouter();
+    }
+
+    /**
+     * URL-encoded form body parsing middleware. Parses
+     * {@code application/x-www-form-urlencoded} bodies into {@code req.body()}.
+     *
+     * <p>Mirrors Express: {@code express.urlencoded()}
+     *
+     * <pre>{@code
+     *   app.filter(CafeAI.urlencoded());
+     *   app.post("/login", (req, res, next) -> {
+     *       String user = req.body("username");
+     *       String pass = req.body("password");
+     *   });
+     * }</pre>
+     */
+    static Middleware urlencoded() {
+        return BuiltInMiddleware.urlEncodedBody(UrlEncodedOptions.defaults());
+    }
+
+    /**
+     * URL-encoded form body parsing with custom options.
+     * Mirrors Express: {@code express.urlencoded(options)}
+     */
+    static Middleware urlencoded(UrlEncodedOptions options) {
+        return BuiltInMiddleware.urlEncodedBody(options);
+    }
+
+    /**
+     * Static file serving middleware. Serves files from the given root directory.
+     *
+     * <p>Named {@code serveStatic} because {@code static} is a reserved keyword in Java.
+     * Mirrors Express: {@code express.static(root)}
+     *
+     * <pre>{@code
+     *   app.use(CafeAI.serveStatic("public"));
+     *   // GET /index.html  → serves public/index.html
+     *   // GET /            → serves public/index.html (index fallback)
+     *   // GET /.env        → 404 (dotfiles ignored by default)
+     * }</pre>
+     */
+    static Middleware serveStatic(String root) {
+        return BuiltInMiddleware.serveStatic(root, StaticOptions.defaults());
+    }
+
+    /**
+     * Static file serving middleware with custom options.
+     * Mirrors Express: {@code express.static(root, options)}
+     */
+    static Middleware serveStatic(String root, StaticOptions options) {
+        return BuiltInMiddleware.serveStatic(root, options);
+    }
+
+    // ── Filter Registration (Cross-Cutting Pre-Processing) ────────────────────
+
+    /**
+     * Registers global cross-cutting middleware that runs before all route dispatch.
+     *
+     * <p>Use {@code filter()} for concerns that must execute unconditionally for every
+     * request before any route handler sees it: body parsing, authentication, rate
+     * limiting, logging, CORS, PII scrubbing, guardrails.
+     *
+     * <p>Filter middleware executes in its own call frame, separate from route
+     * dispatch. Calling {@code next.run()} inside a filter advances the filter chain;
+     * not calling it short-circuits all further processing.
+     *
+     * <p>Post-processing works naturally — any code after {@code next.run()} executes
+     * after the entire downstream chain completes, because {@code next.run()} blocks
+     * on the virtual thread until the response is committed (ADR-009 §3).
+     *
+     * <pre>{@code
+     *   app.filter(Middleware.requestLogger());  // runs for every request
+     *   app.filter(CafeAI.json());              // parses body before routes read it
+     *   app.filter(GuardRail.pii());            // scrubs PII before LLM sees prompts
+     *
+     *   // Post-processing — code after next.run() runs after response is committed
+     *   app.filter((req, res, next) -> {
+     *       long start = System.nanoTime();
+     *       next.run();  // blocks — entire chain executes here
+     *       log.info("{}ms", (System.nanoTime() - start) / 1_000_000);
+     *   });
+     * }</pre>
+     *
+     * <p>For cross-cutting concerns that should only apply to a path prefix,
+     * use {@link #filter(String, io.cafeai.core.middleware.Middleware...)}.
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI filter(Middleware... middlewares);
+
+    /**
+     * Registers path-scoped cross-cutting middleware.
+     * Runs before route dispatch, but only for requests whose path starts with
+     * the given prefix.
+     *
+     * <pre>{@code
+     *   app.filter("/api", Middleware.auth());         // auth every /api/** request
+     *   app.filter("/api", Middleware.rateLimit(100)); // rate-limit /api/** only
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI filter(String path, Middleware... middlewares);
+
+    // ── Configurer Registration ───────────────────────────────────────────────
+
+    /**
+     * Explicitly registers a {@link CafeAIConfigurer} — the DI integration seam.
+     *
+     * <p>Service Loader-discovered configurers are applied automatically in
+     * {@link #create()}. Use this method for direct manual wiring.
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI configure(CafeAIConfigurer configurer);
+
+    /**
+     * Registers multiple configurers, applied in the order provided.
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI configure(CafeAIConfigurer... configurers);
+
+    // ── AI Infrastructure ─────────────────────────────────────────────────────
+
+    /**
+     * Registers the LLM provider. Declares: "this application is AI-powered."
      *
      * <pre>{@code
      *   app.ai(OpenAI.gpt4o());
      *   app.ai(Anthropic.claude35Sonnet());
-     *   app.ai(Ollama.llama3());       // local model
+     *   app.ai(Ollama.llama3());
      * }</pre>
      */
     CafeAI ai(AiProvider provider);
 
     /**
-     * Registers a model routing strategy — dispatch cheap vs expensive
-     * models based on query complexity. Reduces cost dramatically.
+     * Registers a smart model router — dispatches to cheap vs expensive models
+     * based on query complexity. Reduces cost without sacrificing quality.
      *
      * <pre>{@code
      *   app.ai(ModelRouter.smart()
@@ -77,226 +304,106 @@ public interface CafeAI extends Router {
      */
     CafeAI ai(ModelRouter router);
 
-    // ── Prompt Primitives ────────────────────────────────────────────────────
+    // ── Prompt Primitives ─────────────────────────────────────────────────────
 
     /**
      * Sets the system prompt — the AI's persona, rules, and constraints.
-     * System prompts are architecturally distinct from user prompts.
-     * They set the stage. They don't change per request.
-     *
-     * <pre>{@code
-     *   app.system("You are a helpful customer service agent for Acme Corp. " +
-     *              "You are empathetic, concise, and escalate unresolved issues.");
-     * }</pre>
+     * Automatically injected as the first message in every LLM call.
+     * Calling this multiple times: last call wins.
      */
     CafeAI system(String systemPrompt);
 
     /**
-     * Registers a named, reusable prompt template.
-     * Templates support variable interpolation via {{variable}} syntax.
+     * Registers a named, reusable prompt template with {@code {{variable}}} interpolation.
      *
      * <pre>{@code
-     *   app.template("classify", "Classify the following text: {{input}}");
-     *   app.template("summarize", "Summarize in {{words}} words: {{text}}");
+     *   app.template("classify", "Classify the following: {{input}}");
      * }</pre>
      */
     CafeAI template(String name, String template);
 
-    // ── Memory ───────────────────────────────────────────────────────────────
+    // ── Memory ────────────────────────────────────────────────────────────────
 
     /**
-     * Configures the tiered memory strategy for conversation context.
+     * Configures tiered context memory for multi-turn conversation state.
      *
      * <pre>{@code
-     *   // Rung 1: In-JVM (prototype)
-     *   app.memory(MemoryStrategy.inMemory());
-     *
-     *   // Rung 2: SSD-backed via Java FFM MemorySegment (production, single node)
-     *   app.memory(MemoryStrategy.mapped());
-     *
-     *   // Rung 3: Chronicle Map off-heap (high-throughput, single node)
-     *   app.memory(MemoryStrategy.chronicle());
-     *
-     *   // Rung 4: Redis (distributed escape valve)
-     *   app.memory(MemoryStrategy.redis(config));
-     *
-     *   // Rung 5: Hybrid — warm SSD + cold Redis
-     *   app.memory(MemoryStrategy.hybrid());
+     *   app.memory(MemoryStrategy.inMemory());   // Rung 1 — prototype
+     *   app.memory(MemoryStrategy.mapped());     // Rung 2 — SSD-backed via Java FFM
+     *   app.memory(MemoryStrategy.redis(cfg));   // Rung 4 — distributed escape valve
      * }</pre>
      */
     CafeAI memory(MemoryStrategy strategy);
 
-    // ── RAG ──────────────────────────────────────────────────────────────────
+    // ── Guardrails ────────────────────────────────────────────────────────────
 
     /**
-     * Attaches a retrieval pipeline. Semantic search is performed
-     * automatically on each prompt before the LLM call.
-     *
-     * <pre>{@code
-     *   app.rag(Retriever.semantic(topK(5)));
-     *   app.rag(Retriever.hybrid(topK(5)));   // dense + sparse
-     * }</pre>
-     */
-    CafeAI rag(Retriever retriever);
-
-    /**
-     * Ingests a knowledge source into the vector store.
-     * Documents are chunked, embedded, and indexed automatically.
-     *
-     * <pre>{@code
-     *   app.ingest(Source.pdf("docs/handbook.pdf"));
-     *   app.ingest(Source.url("https://docs.example.com"));
-     *   app.ingest(Source.directory("knowledge/"));
-     *   app.ingest(Source.github("owner/repo"));
-     * }</pre>
-     */
-    CafeAI ingest(Source source);
-
-    /**
-     * Registers the vector database for embedding storage and retrieval.
-     *
-     * <pre>{@code
-     *   app.vectordb(PgVector.connect(config));
-     *   app.vectordb(Chroma.local());
-     *   app.vectordb(VectorStore.inMemory());  // prototype
-     * }</pre>
-     */
-    CafeAI vectordb(Object store);
-
-    /**
-     * Configures the embedding model for document and query vectorization.
-     *
-     * <pre>{@code
-     *   app.embed(EmbeddingModel.openAi());     // remote, high quality
-     *   app.embed(EmbeddingModel.local());      // local via ONNX/FFM
-     * }</pre>
-     */
-    CafeAI embed(EmbeddingModel model);
-
-    // ── Tools and MCP ────────────────────────────────────────────────────────
-
-    /**
-     * Registers a single Java function as an LLM-callable tool.
-     * A tool is code YOU wrote. You own its trust level and lifecycle.
-     *
-     * <pre>{@code
-     *   app.tool(OrderLookupTool.create());
-     *   app.tool(new CustomerProfileTool(customerService));
-     * }</pre>
-     */
-    CafeAI tool(Tool tool);
-
-    /**
-     * Registers a suite of tools via a registry.
-     *
-     * <pre>{@code
-     *   app.tools(ToolRegistry.of(tool1, tool2, tool3));
-     * }</pre>
-     */
-    CafeAI tools(Tool... tools);
-
-    /**
-     * Registers an external MCP server as a capability provider.
-     * An MCP server is an external contract. Different trust level than a tool.
-     *
-     * <pre>{@code
-     *   app.mcp(McpServer.github());
-     *   app.mcp(McpServer.connect("http://my-mcp-server:3000"));
-     * }</pre>
-     */
-    CafeAI mcp(McpServer server);
-
-    // ── Chaining ─────────────────────────────────────────────────────────────
-
-    /**
-     * Defines a named, composable pipeline of steps.
-     * Chains are themselves middleware-composable — recursive by design.
-     *
-     * <pre>{@code
-     *   app.chain("classify-and-respond",
-     *       Steps.classify(),
-     *       Steps.route(),
-     *       Steps.respond());
-     * }</pre>
-     */
-    CafeAI chain(String name, ChainStep... steps);
-
-    // ── Guardrails ───────────────────────────────────────────────────────────
-
-    /**
-     * Attaches a guardrail to the pipeline.
-     * Guardrails are middleware — they intercept pre-LLM and/or post-LLM.
+     * Attaches a guardrail middleware — composable, pre-LLM and/or post-LLM.
      *
      * <pre>{@code
      *   app.guard(GuardRail.pii());
      *   app.guard(GuardRail.jailbreak());
-     *   app.guard(GuardRail.bias());
-     *   app.guard(GuardRail.hallucination());
-     *   app.guard(myCustomGuard);
+     *   app.guard(GuardRail.regulatory().gdpr().hipaa());
      * }</pre>
      */
     CafeAI guard(GuardRail guardRail);
 
-    // ── Agents ───────────────────────────────────────────────────────────────
+    // ── Application-Scoped Locals ─────────────────────────────────────────────
 
     /**
-     * Registers a named agent definition.
-     * Agents run in isolated StructuredTaskScope — failures are contained.
+     * Stores an application-lifetime local value — accessible from all
+     * middleware and handlers via {@code req.app().local(key, type)}.
      *
-     * <pre>{@code
-     *   app.agent("classifier", AgentDefinition.react()
-     *       .tools(classifyTool)
-     *       .maxIterations(5));
-     * }</pre>
+     * <p>Mirrors Express {@code app.locals.key = value}.
+     * Thread-safe. Backed by a {@link java.util.concurrent.ConcurrentHashMap}.
      */
-    CafeAI agent(String name, AgentDefinition definition);
+    CafeAI local(String key, Object value);
 
     /**
-     * Declares a multi-agent orchestration topology.
-     * The orchestrator delegates to specialist sub-agents via Structured Concurrency.
+     * Retrieves a typed application-scoped local.
      *
-     * <pre>{@code
-     *   app.orchestrate("support-pipeline",
-     *       "classifier",
-     *       "knowledge-retriever",
-     *       "response-generator");
-     * }</pre>
+     * @throws ClassCastException if the stored value is not assignable to {@code type}
      */
-    CafeAI orchestrate(String name, String... agentNames);
-
-    // ── Observability ────────────────────────────────────────────────────────
+    <T> T local(String key, Class<T> type);
 
     /**
-     * Attaches an observability strategy.
-     * Every LLM call becomes a traced, measured, scored event.
+     * Retrieves an untyped application-scoped local. Returns {@code null} if absent.
+     */
+    Object local(String key);
+
+    // ── Server Lifecycle ──────────────────────────────────────────────────────
+
+    /**
+     * Starts the Helidon SE server on the given port.
      *
-     * <pre>{@code
-     *   app.observe(ObserveStrategy.otel());
-     *   app.observe(ObserveStrategy.console());  // development
-     * }</pre>
-     */
-    CafeAI observe(ObserveStrategy strategy);
-
-    /**
-     * Attaches an eval harness for scoring retrieval and response quality.
+     * <p>On start:
+     * <ul>
+     *   <li>Builds and starts the Helidon {@code WebServer} with virtual thread executor</li>
+     *   <li>Registers a JVM shutdown hook for graceful stop</li>
+     *   <li>Logs confirmation that virtual threads are active</li>
+     * </ul>
      *
-     * <pre>{@code
-     *   app.eval(EvalHarness.defaults());
-     * }</pre>
-     */
-    CafeAI eval(Object harness);
-
-    // ── Server Lifecycle ─────────────────────────────────────────────────────
-
-    /**
-     * Starts the server on the given port.
-     * Mirrors: {@code app.listen(3000)}
+     * <p>Mirrors: {@code app.listen(3000)}
+     *
+     * @throws IllegalStateException if the server is already running
      */
     void listen(int port);
 
     /**
-     * Starts the server on the given port with a startup callback.
-     * Mirrors: {@code app.listen(3000, () => console.log('Running'))}
+     * Starts the server, invoking {@code onStart} once ready to accept connections.
+     *
+     * <p>Mirrors: {@code app.listen(3000, () => console.log('Running on :3000'))}
      */
     void listen(int port, Runnable onStart);
+
+    /**
+     * Stops the server gracefully, waiting for in-flight requests to complete.
+     * Invoked automatically by the JVM shutdown hook.
+     */
+    void stop();
+
+    /**
+     * Returns {@code true} if the server is currently running and accepting connections.
+     */
+    boolean isRunning();
 }

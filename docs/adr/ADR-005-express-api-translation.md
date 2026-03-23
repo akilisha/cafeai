@@ -50,7 +50,7 @@ is the idiomatic Java static factory equivalent — same intent, same result, co
 
 ```java
 CafeAI.json()          // global registration
-app.use(CafeAI.json()) // explicit registration
+app.filter(CafeAI.json()) // cross-cutting pre-processing
 ```
 
 Parses `application/json` request bodies. Populates `req.body()`.
@@ -73,8 +73,8 @@ Options supported:
 **Verdict:** ✅ **Adopted**
 
 ```java
-app.use(CafeAI.raw())
-app.use(CafeAI.raw(RawOptions.limit(1024 * 1024)))
+app.filter(CafeAI.raw())
+app.filter(CafeAI.raw(RawOptions.limit(1024 * 1024)))
 ```
 
 Parses request body as raw `byte[]`. Direct equivalent of Express's `raw()`.
@@ -140,8 +140,8 @@ CafeAI carries this recommendation forward in its documentation.
 **Verdict:** ✅ **Adopted**
 
 ```java
-app.use(CafeAI.text())
-app.use(CafeAI.text(TextOptions.charset(StandardCharsets.UTF_8)))
+app.filter(CafeAI.text())
+app.filter(CafeAI.text(TextOptions.charset(StandardCharsets.UTF_8)))
 ```
 
 Parses body as `String`. Options map directly. `defaultCharset` becomes
@@ -154,8 +154,8 @@ Parses body as `String`. Options map directly. `defaultCharset` becomes
 **Verdict:** ✅ **Adopted**
 
 ```java
-app.use(CafeAI.urlencoded())
-app.use(CafeAI.urlencoded(UrlEncodedOptions.extended(true)))
+app.filter(CafeAI.urlencoded())
+app.filter(CafeAI.urlencoded(UrlEncodedOptions.extended(true)))
 ```
 
 Parses `application/x-www-form-urlencoded` bodies. The `extended` option
@@ -374,15 +374,28 @@ This is one of the cleaner deviations from Express — the separation is actuall
 
 ---
 
-#### `app.get(path, handler)` *(HTTP GET)*
+#### `app.get(path, ...handlers)` *(HTTP GET)*
 
-**Verdict:** ✅ **Adopted**
+**Verdict:** ✅ **Adopted** — Extended with variadic handlers (ADR-009)
 
 ```java
-app.get("/user/:id", (req, res) -> {
-    res.json(userService.find(req.params("id")));
-});
+// Single handler — terminating middleware
+app.get("/user/:id",
+    (req, res, next) -> res.json(userService.find(req.params("id"))));
+
+// Multiple handlers — inline per-route middleware pipeline (Express parity)
+app.get("/user/:id",
+    authenticate,
+    authorize("admin"),
+    (req, res, next) -> res.json(userService.find(req.params("id"))));
 ```
+
+Each element is a `Middleware`. Middleware calls `next.run()` to pass control forward.
+The final handler terminates by not calling `next.run()`. This matches Express exactly.
+
+**Key change from original CafeAI spec:** Route handlers are `Middleware`, not
+`BiConsumer<Request, Response>`. This unifies the type system — everything is `Middleware`.
+See ADR-009 §1.
 
 ---
 
@@ -400,13 +413,20 @@ the blocking-style API is cost-free.
 
 ---
 
-#### `app.METHOD(path, handler)`
+#### `app.METHOD(path, ...handlers)`
 
-**Verdict:** ✅ **Adopted**
+**Verdict:** ✅ **Adopted** — Extended with variadic handlers (ADR-009)
 
-All standard HTTP methods are supported:
+All standard HTTP methods accept variadic `Middleware` handlers:
 `app.get()`, `app.post()`, `app.put()`, `app.patch()`, `app.delete()`,
-`app.head()`, `app.options()`, `app.trace()`
+`app.head()`, `app.options()`
+
+```java
+// All of these are valid:
+app.post("/upload", CafeAI.raw(), processUpload);
+app.delete("/users/:id", authenticate, authorize("admin"), deleteUser);
+app.patch("/items/:id", authenticate, validate(ItemDto.class), updateItem);
+```
 
 ---
 
@@ -471,9 +491,9 @@ supported: callback style for Express familiarity, `CompletableFuture` for Java 
 
 ```java
 app.route("/book")
-   .get((req, res) -> res.send("Get a book"))
-   .post((req, res) -> res.send("Add a book"))
-   .put((req, res) -> res.send("Update a book"));
+   .get((req, res, next) -> res.send("Get a book"))
+   .post((req, res, next) -> res.send("Add a book"))
+   .put((req, res, next) -> res.send("Update a book"));
 ```
 
 Fluent chainable route builder for a single path. Direct port. Avoids duplicate
@@ -495,17 +515,36 @@ Same `Setting` enum as `app.disable()` / `app.enable()`. Typed, safe, autocomple
 
 ---
 
-#### `app.use([path], middleware)`
+#### `app.use([path], middleware)` / `app.filter([path], middleware...)`
 
-**Verdict:** ✅ **Adopted**
+**Verdict:** ✅ **Adopted** — Split into two methods with distinct semantics (ADR-009)
+
+CafeAI refines Express's single `app.use()` into two methods with explicit, unambiguous
+execution scope:
 
 ```java
-app.use(Middleware.cors())              // global
-app.use("/api", Middleware.auth())      // path-scoped
-app.use("/api/v1", apiRouter)           // sub-router
+// app.filter() — cross-cutting pre-processing, runs before all route dispatch
+app.filter(Middleware.requestLogger());    // global, every request
+app.filter(CafeAI.json());               // body parsing — must run before routes read body
+app.filter("/api", Middleware.auth());   // path-scoped, every /api/** request
+
+// app.use() — inline route pipeline composition and router mounting
+app.use("/api/v1", apiRouter);           // sub-router mounting
+app.get("/upload", CafeAI.raw(), handler); // route-specific inline middleware (preferred)
 ```
 
-The most important method in CafeAI. Everything flows through `use()`.
+**Why the split?** Express's `app.use()` is intentionally overloaded — global middleware,
+path-scoped middleware, and router mounting all go through the same method. This causes
+real confusion about execution order and scope. CafeAI makes the intent explicit:
+
+- `app.filter()` = "this runs before anything else, in its own execution frame"
+- `app.use(path, router)` = "mount this router at this path"
+
+Cross-cutting concerns (body parsing, auth, logging, CORS, guardrails) belong in
+`app.filter()`. Router composition belongs in `app.use()`. Per-route middleware
+belongs inline in the route handler array.
+
+See ADR-009 §2 for the full rationale.
 
 ---
 
@@ -753,6 +792,8 @@ for quick reference:
 | `app.locals.x = v` | `app.local(key, value)` | Language | No dynamic property assignment in Java |
 | `res.locals.x = v` | `res.local(key, value)` + `ScopedValue` | Language + Java 21 | Thread-safe, virtual-thread-compatible scoped state |
 | `app.get(setting)` | `app.setting(Setting)` | API clarity | `app.get` overload conflict with HTTP GET |
+| `app.use(mw)` (global) | `app.filter(mw)` | Semantic clarity | Cross-cutting pre-processing has explicit scope via `filter` — see ADR-009 |
+| `app.get(path, fn)` | `app.get(path, Middleware...)` | Type unification | Handlers are Middleware varargs — `BiConsumer` removed — see ADR-009 |
 | `app.set(name, v)` | `app.set(Setting, value)` | Type safety | Enum over loose strings |
 | `app.disable(name)` | `app.disable(Setting)` | Type safety | Enum over loose strings |
 | `app.on('mount', fn)` | `app.onMount(Consumer<CafeAI>)` | Language | No EventEmitter in Java |

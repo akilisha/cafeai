@@ -75,8 +75,8 @@ app.listen(8080, () -> System.out.println("Running"));
 
 #### Output
 ```java
-app.use(CafeAI.json());
-app.post("/echo", (req, res) -> res.json(req.body()));
+app.filter(CafeAI.json());
+app.post("/echo", (req, res, next) -> res.json(req.body()));
 
 // POST /echo {"name":"cafeai"} → 200 {"name":"cafeai"}
 // POST /echo (no body)        → req.body() returns empty map
@@ -112,10 +112,13 @@ app.post("/echo", (req, res) -> res.json(req.body()));
 
 #### Output
 ```java
-app.use(CafeAI.raw());
+app.filter(CafeAI.raw());
 app.post("/upload", (req, res) -> {
     byte[] data = req.bodyBytes();
     res.send("Received " + data.length + " bytes");
+}, (req, res, next) -> {
+    // or inline:
+    res.send("Received " + req.bodyBytes().length + " bytes");
 });
 ```
 

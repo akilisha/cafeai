@@ -1,29 +1,35 @@
 package io.cafeai.examples;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.core.observability.ObserveStrategy;
-import io.cafeai.core.rag.Retriever;
-import io.cafeai.core.rag.Source;
-import io.cafeai.core.tools.McpServer;
 
 import java.util.Map;
 
 /**
  * HelloCafeAI — The canonical CafeAI bootstrap example.
  *
- * <p>This is the "hello world" that demonstrates the full CafeAI API
- * in one readable, top-to-bottom declaration. Every line is intentional.
- * Every method name is self-explanatory.
+ * <p>The living proof that the framework works end to end.
+ * Every phase of every roadmap must keep this running.
  *
- * <p>Run it. Read it. Fork it. This is your starting point.
+ * <p>Demonstrates the ADR-009 API:
+ * <ul>
+ *   <li>{@code app.filter()} for cross-cutting pre-processing</li>
+ *   <li>Variadic {@code Middleware} handlers on route methods</li>
+ *   <li>Natural post-processing via code after {@code next.run()}</li>
+ * </ul>
  *
- * <p>To run:
+ * <p>Run:
+ * <pre>./gradlew :cafeai-examples:run</pre>
+ *
+ * <p>Test:
  * <pre>
- *   ./gradlew :cafeai-examples:run
+ *   curl http://localhost:8080/health
+ *   curl -X POST http://localhost:8080/echo \
+ *        -H "Content-Type: application/json" \
+ *        -d '{"message":"hello cafeai"}'
+ *   curl http://localhost:8080/users/42
  * </pre>
  */
 public class HelloCafeAI {
@@ -32,71 +38,91 @@ public class HelloCafeAI {
 
         var app = CafeAI.create();
 
-        // ── Infrastructure ────────────────────────────────────────────────
-        // Declare the AI provider. Swap models without changing anything else.
-        app.ai(OpenAI.gpt4o());
+        // ── Memory and Safety ──────────────────────────────────────────────────
+        app.memory(MemoryStrategy.inMemory());
 
-        // Tiered memory — SSD-backed via Java FFM.
-        // No Redis. No network overhead. No cloud tax.
-        app.memory(MemoryStrategy.mapped());
+        // ── Cross-Cutting Pre-Processing (filter scope) ────────────────────────
+        // These run before any route handler, in their own execution frame.
+        // Code after next.run() is post-processing — executes after response commits.
+        app.filter(Middleware.requestLogger());
+        app.filter(Middleware.cors());
+        app.filter(CafeAI.json());        // parse JSON bodies before routes read them
+        app.filter(GuardRail.pii());      // scrub PII before any handler sees input
+        app.filter(GuardRail.jailbreak());
 
-        // Vector DB for RAG
-        // app.vectordb(PgVector.connect(config));   // production
-        // app.vectordb(VectorStore.inMemory());     // uncomment for prototype
-
-        // Embedding model — local ONNX via FFM, no external API call
-        // app.embed(EmbeddingModel.local());
-
-        // Observability — every LLM call is a traced, measured event
-        app.observe(ObserveStrategy.console()); // use .otel() in production
-
-        // ── Knowledge ─────────────────────────────────────────────────────
-        // app.ingest(Source.pdf("docs/handbook.pdf"));
-        // app.ingest(Source.url("https://docs.example.com"));
-        // app.rag(Retriever.semantic(5));
-
-        // ── Safety ────────────────────────────────────────────────────────
-        app.guard(GuardRail.pii());
-        app.guard(GuardRail.jailbreak());
-        app.guard(GuardRail.promptInjection());
-
-        // ── Persona ───────────────────────────────────────────────────────
-        app.system("""
-            You are a helpful, empathetic customer service agent for Acme Corp.
-            You are concise, accurate, and always escalate unresolved issues.
-            You never discuss competitor products or share internal pricing.
-            """);
-
-        // ── Tools ─────────────────────────────────────────────────────────
-        // app.tool(OrderLookupTool.create());
-        // app.mcp(McpServer.github());
-
-        // ── Global Middleware ─────────────────────────────────────────────
-        app.use(Middleware.requestLogger());
-        app.use(Middleware.json());
-        app.use(Middleware.rateLimit(60));
-
-        // ── Routes ────────────────────────────────────────────────────────
-
-        // Health check — no AI involved, plain HTTP
-        app.get("/health", (req, res) -> {
-            res.json(Map.of("status", "ok", "service", "cafeai"));
+        // ── Timing filter — demonstrates natural post-processing ──────────────
+        app.filter((req, res, next) -> {
+            long start = System.nanoTime();
+            next.run();                   // blocks on virtual thread until response committed
+            long ms = (System.nanoTime() - start) / 1_000_000;
+            if (ms > 500) {
+                System.out.printf("SLOW REQUEST: %s %s took %dms%n",
+                    req.method(), req.path(), ms);
+            }
         });
 
-        // The chat endpoint — AI-powered, streamed
-        app.post("/chat", (req, res) -> {
-            var message = req.body("message");
-            var sessionId = req.header("X-Session-Id");
-            res.stream(app.prompt(message)); // token-streamed SSE response
-        });
+        // ── Rate limiting scoped to /api/** ────────────────────────────────────
+        app.filter("/api", Middleware.rateLimit(100));
 
-        // ── Start ──────────────────────────────────────────────────────────
-        app.listen(8080, () ->
-            System.out.println("""
-                ☕ CafeAI is brewing on http://localhost:8080
-                   POST /chat   → AI-powered chat endpoint
-                   GET  /health → Health check
-                """)
-        );
+        // ── Routes (variadic Middleware handlers) ──────────────────────────────
+
+        // Health check — single handler, no middleware
+        app.get("/health",
+            (req, res, next) -> res.json(Map.of(
+                "status",  "ok",
+                "service", "cafeai",
+                "version", "0.1.0-SNAPSHOT")));
+
+        // Echo — demonstrates req/res round-trip with JSON body
+        app.post("/echo",
+            (req, res, next) -> res.json(Map.of(
+                "echo",   req.body("message") != null ? req.body("message") : "(no message)",
+                "method", req.method(),
+                "path",   req.path())));
+
+        // Path parameter — inline auth + handler pipeline
+        // auth is a no-op stub here; in production it would check a token
+        Middleware auth = (req, res, next) -> {
+            // Real auth would inspect req.header("Authorization") and call next.fail() on reject
+            next.run();
+        };
+
+        app.get("/users/:id",
+            auth,   // inline per-route middleware — runs before the handler below
+            (req, res, next) -> res.json(Map.of(
+                "userId",  req.params("id"),
+                "message", "User " + req.params("id") + " found")));
+
+        // Fluent route builder — multiple methods on one path
+        app.route("/items/:id")
+           .get((req, res, next) ->
+               res.json(Map.of("id", req.params("id"), "action", "get")))
+           .put((req, res, next) ->
+               res.json(Map.of("id", req.params("id"), "action", "update")))
+           .delete((req, res, next) ->
+               res.status(204).end());
+
+        // Sub-router — demonstrates app.use(path, router)
+        var apiRouter = CafeAI.Router();
+        apiRouter.get("/hello",
+            (req, res, next) -> res.json(Map.of("message", "Hello from /api/hello")));
+        apiRouter.get("/status",
+            (req, res, next) -> res.json(Map.of("api", "v1", "status", "healthy")));
+        app.use("/api", apiRouter);
+
+        // ── Start ──────────────────────────────────────────────────────────────
+        app.listen(8080, () -> System.out.println("""
+            ☕ CafeAI is brewing on http://localhost:8080
+
+               GET  /health         → health check
+               POST /echo           → echo JSON body
+               GET  /users/:id      → path param + inline auth middleware
+               GET  /items/:id      → fluent route builder (also PUT, DELETE)
+               GET  /api/hello      → sub-router, rate-limited
+               GET  /api/status     → sub-router endpoint
+
+            Filters active: requestLogger, cors, json, pii, jailbreak, timing, rateLimit(/api)
+            Press Ctrl+C to stop.
+            """));
     }
 }

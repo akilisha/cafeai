@@ -107,7 +107,7 @@ graph TD
     Client["Client (Browser / Mobile / Service)"]
 
     subgraph CafeAI["CafeAI Application (Helidon SE)"]
-        Router["Express-style Router\napp.get / app.post / app.use"]
+        Router["Express-style Router\napp.get / app.post / app.filter / app.use"]
 
         subgraph MW["Middleware Chain"]
             Auth["Auth / Rate Limit"]
@@ -154,14 +154,14 @@ Every name is guessable before you look it up. The naming philosophy is consiste
 These mirror Express.js pound-for-pound. No deviation, no ceremony.
 
 ```java
-app.get(path, handler)        // GET route
-app.post(path, handler)       // POST route
-app.put(path, handler)        // PUT route
-app.patch(path, handler)      // PATCH route
-app.delete(path, handler)     // DELETE route
-app.use(middleware)           // global middleware — applies to every request
-app.use(path, middleware)     // path-scoped middleware
-app.use(path, router)         // mount a sub-router
+app.get(path, middleware...)     // GET route — variadic middleware pipeline
+app.post(path, middleware...)    // POST route
+app.put(path, middleware...)     // PUT route
+app.patch(path, middleware...)   // PATCH route
+app.delete(path, middleware...)  // DELETE route
+app.filter(middleware...)        // cross-cutting pre-processing — before route dispatch
+app.filter(path, middleware...)  // path-scoped pre-processing
+app.use(path, router)           // mount a sub-router
 app.listen(port)              // start the server
 app.listen(port, onStart)     // start with startup callback
 ```
@@ -312,8 +312,8 @@ app.tool(OrderLookupTool.create());
 app.mcp(McpServer.github());
 
 // ── Routes ──────────────────────────────────────────────────
-app.use(Middleware.json());
-app.use(Middleware.rateLimit(60));
+app.filter(CafeAI.json());
+app.filter(Middleware.rateLimit(60));
 
 app.get("/health", (req, res) ->
     res.json(Map.of("status", "ok")));

@@ -1,51 +1,27 @@
 package io.cafeai.core.memory;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Tiered context memory strategy for CafeAI.
  *
- * <p>The memory hierarchy mirrors how hardware thinks:
+ * <p>The memory hierarchy mirrors hardware — start at the cheapest tier
+ * and escalate only when the problem demands it (ADR-003):
  * <pre>
- *   Hot    →  JVM Heap          (active turn, current conversation)
- *   Warm   →  Java FFM/Chronicle (recent sessions — SSD-backed, off-heap)
- *   Cool   →  Redis / Memcached  (distributed — the escape valve)
- *   Cold   →  Vector DB          (semantic long-term memory, RAG corpus)
+ *   Rung 1 → inMemory()    JVM HashMap — prototype, zero deps
+ *   Rung 2 → mapped()      SSD-backed via Java FFM MemorySegment
+ *   Rung 3 → chronicle()   Chronicle Map off-heap
+ *   Rung 4 → redis(cfg)    Distributed — the escape valve
+ *   Rung 5 → memcached()   Distributed alternative
+ *   Rung 6 → hybrid()      Warm SSD + cold Redis
  * </pre>
  *
- * <p>This is the incremental memory adoption ladder.
- * Start with inMemory(). Graduate to mapped() when you outgrow the heap.
- * Only reach for redis() when you genuinely need distributed state.
- * Don't pay the network tax until the problem demands it.
- *
- * <pre>{@code
- *   // Rung 1: Prototype — zero deps, zero config
- *   app.memory(MemoryStrategy.inMemory());
- *
- *   // Rung 2: SSD-backed via Java FFM MemorySegment
- *   //         Survives restarts. OS manages the page cache brilliantly.
- *   app.memory(MemoryStrategy.mapped());
- *   app.memory(MemoryStrategy.mapped(Path.of("/data/cafeai/sessions")));
- *
- *   // Rung 3: Chronicle Map — off-heap, designed for this pattern
- *   app.memory(MemoryStrategy.chronicle());
- *   app.memory(MemoryStrategy.chronicle(ChronicleConfig.defaults()));
- *
- *   // Rung 4: Redis — distributed, multi-instance
- *   app.memory(MemoryStrategy.redis(RedisConfig.of("localhost", 6379)));
- *
- *   // Rung 5: Memcached — distributed escape valve
- *   app.memory(MemoryStrategy.memcached(MemcachedConfig.of("localhost", 11211)));
- *
- *   // Rung 6: Hybrid — warm SSD tier + cold Redis tier
- *   app.memory(MemoryStrategy.hybrid()
- *       .warm(MemoryStrategy.mapped())
- *       .cold(MemoryStrategy.redis(config)));
- * }</pre>
+ * <p>Full implementations delivered in ROADMAP-07 Phase 3 (cafeai-memory module).
  */
 public interface MemoryStrategy {
 
     /**
-     * Rung 1: In-JVM HashMap.
-     * Zero dependencies. Zero configuration. Perfect for prototyping.
+     * Rung 1: In-JVM HashMap. Zero dependencies. Zero configuration.
      * Does not survive restarts. Single node only.
      */
     static MemoryStrategy inMemory() {
@@ -53,22 +29,17 @@ public interface MemoryStrategy {
     }
 
     /**
-     * Rung 2: SSD-backed via Java FFM MemorySegment.
-     * Uses {@code java.lang.foreign.MemorySegment} for off-heap,
-     * memory-mapped file storage. The OS page cache does the heavy lifting.
-     * Survives restarts. Single node. No network overhead.
-     *
-     * <p>This is where Java 21's FFM API earns its place in CafeAI.
-     * Same API surface used for native ML library bindings — skills transfer.
+     * Rung 2: SSD-backed via Java FFM {@code MemorySegment}.
+     * Off-heap, OS page-cache managed, crash-recoverable.
+     * The production single-node default. No network overhead.
      */
     static MemoryStrategy mapped() {
         return new MappedMemoryStrategy();
     }
 
     /**
-     * Rung 3: Chronicle Map off-heap storage.
-     * Designed specifically for this use case — high-throughput,
-     * off-heap, persisted key-value storage without GC pressure.
+     * Rung 3: Chronicle Map off-heap key-value store.
+     * Designed for this exact pattern — high-throughput, persisted, off-heap.
      */
     static MemoryStrategy chronicle() {
         return new ChronicleMemoryStrategy();
@@ -76,39 +47,88 @@ public interface MemoryStrategy {
 
     /**
      * Rung 4: Redis-backed distributed memory.
-     * The escape valve. Reach for this when you genuinely need
-     * state shared across multiple application instances.
+     * The escape valve. Reach for this when you need state shared across
+     * multiple application instances.
+     *
+     * @param config Redis connection configuration
      */
     static MemoryStrategy redis(RedisConfig config) {
         return new RedisMemoryStrategy(config);
     }
 
     /**
-     * Rung 5: Memcached-backed distributed memory.
-     * Alternative distributed escape valve — simpler than Redis,
-     * excellent for pure session cache use cases.
-     */
-    static MemoryStrategy memcached(MemcachedConfig config) {
-        return new MemcachedMemoryStrategy(config);
-    }
-
-    /**
-     * Rung 6: Hybrid tiered memory.
-     * Warm tier (SSD-backed) for recent sessions.
-     * Cold tier (Redis/Memcached) for distributed overflow.
+     * Rung 6: Hybrid tiered memory — warm SSD tier + cold Redis tier.
      * Promotes and demotes entries across tiers automatically.
      */
     static HybridMemoryStrategy hybrid() {
         return new HybridMemoryStrategy();
     }
 
-    // ── Core Memory Operations ───────────────────────────────────────────────
+    // ── Core Contract ─────────────────────────────────────────────────────────
 
     void store(String sessionId, ConversationContext context);
-
     ConversationContext retrieve(String sessionId);
-
     void evict(String sessionId);
-
     boolean exists(String sessionId);
+
+    // ── Stub Implementations (replaced in cafeai-memory — ROADMAP-07 Phase 3) ─
+
+    record InMemoryStrategy() implements MemoryStrategy {
+        private static final ConcurrentHashMap<String, ConversationContext>
+            store = new ConcurrentHashMap<>();
+
+        @Override public void store(String id, ConversationContext ctx) { store.put(id, ctx); }
+        @Override public ConversationContext retrieve(String id)         { return store.get(id); }
+        @Override public void evict(String id)                           { store.remove(id); }
+        @Override public boolean exists(String id)                       { return store.containsKey(id); }
+    }
+
+    /** Stub — full FFM implementation in cafeai-memory module. */
+    record MappedMemoryStrategy() implements MemoryStrategy {
+        @Override public void store(String id, ConversationContext ctx) {}
+        @Override public ConversationContext retrieve(String id)         { return null; }
+        @Override public void evict(String id)                           {}
+        @Override public boolean exists(String id)                       { return false; }
+    }
+
+    /** Stub — full Chronicle Map implementation in cafeai-memory module. */
+    record ChronicleMemoryStrategy() implements MemoryStrategy {
+        @Override public void store(String id, ConversationContext ctx) {}
+        @Override public ConversationContext retrieve(String id)         { return null; }
+        @Override public void evict(String id)                           {}
+        @Override public boolean exists(String id)                       { return false; }
+    }
+
+    /** Stub — full Lettuce/Redis implementation in cafeai-memory module. */
+    record RedisMemoryStrategy(RedisConfig config) implements MemoryStrategy {
+        @Override public void store(String id, ConversationContext ctx) {}
+        @Override public ConversationContext retrieve(String id)         { return null; }
+        @Override public void evict(String id)                           {}
+        @Override public boolean exists(String id)                       { return false; }
+    }
+
+    /** Hybrid builder — full implementation in cafeai-memory module. */
+    final class HybridMemoryStrategy implements MemoryStrategy {
+        private MemoryStrategy warm;
+        private MemoryStrategy cold;
+
+        public HybridMemoryStrategy warm(MemoryStrategy strategy) { this.warm = strategy; return this; }
+        public HybridMemoryStrategy cold(MemoryStrategy strategy) { this.cold = strategy; return this; }
+
+        @Override public void store(String id, ConversationContext ctx) {
+            if (warm != null) warm.store(id, ctx);
+        }
+        @Override public ConversationContext retrieve(String id) {
+            if (warm != null && warm.exists(id)) return warm.retrieve(id);
+            if (cold != null) return cold.retrieve(id);
+            return null;
+        }
+        @Override public void evict(String id) {
+            if (warm != null) warm.evict(id);
+            if (cold != null) cold.evict(id);
+        }
+        @Override public boolean exists(String id) {
+            return (warm != null && warm.exists(id)) || (cold != null && cold.exists(id));
+        }
+    }
 }

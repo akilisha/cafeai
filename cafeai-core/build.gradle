@@ -13,6 +13,8 @@ dependencies {
     implementation 'io.helidon.webserver:helidon-webserver'
     implementation 'io.helidon.webserver:helidon-webserver-http2'
     implementation 'io.helidon.webserver:helidon-webserver-websocket'
+    implementation 'io.helidon.http:helidon-http'               // HeaderName, HeaderValues, Status
+    implementation 'io.helidon.common:helidon-common'           // Parameters (path/query params)
     implementation 'io.helidon.http.media:helidon-http-media-jsonp'
     implementation 'io.helidon.http.media:helidon-http-media-jsonb'
     implementation 'io.helidon.config:helidon-config-yaml'

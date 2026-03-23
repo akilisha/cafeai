@@ -1,138 +1,155 @@
 package io.cafeai.core.guardrails;
 
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.middleware.Next;
+import io.cafeai.core.routing.Request;
+import java.util.ArrayList;
+import java.util.List;
+import io.cafeai.core.routing.Response;
 
 /**
  * Ethical, regulatory, and safety guardrails for CafeAI.
  *
- * <p>Guardrails are middleware. They sit in the pipeline like any other
- * concern — composable, testable, replaceable. This is intentional.
- * In regulated industries (finance, healthcare, insurance), guardrails
- * are not optional bolt-ons. They are first-class architectural requirements.
- * CafeAI treats them as such.
- *
- * <p>Two positions in the pipeline:
- * <pre>
- *   PRE-LLM  guardrails → inspect/transform the prompt before it hits the model
- *   POST-LLM guardrails → inspect/transform the response before it hits the user
- * </pre>
+ * <p>Guardrails are middleware — composable, testable, replaceable.
+ * They sit in the pipeline at {@code PRE_LLM}, {@code POST_LLM}, or both.
+ * In regulated industries, guardrails are first-class architectural requirements.
+ * CafeAI treats them as such (ADR-002).
  *
  * <pre>{@code
- *   app.guard(GuardRail.pii());               // scrub PII pre and post
- *   app.guard(GuardRail.jailbreak());         // detect adversarial prompts
- *   app.guard(GuardRail.bias());              // detect biased outputs
- *   app.guard(GuardRail.hallucination());     // score factual grounding
- *   app.guard(GuardRail.toxicity());          // filter toxic content
- *   app.guard(GuardRail.promptInjection());   // detect injection attacks
- *   app.guard(GuardRail.regulatory()          // GDPR, HIPAA, FCRA
- *       .gdpr()
- *       .hipaa());
- *   app.guard(myCustomGuard);                 // bring your own
+ *   app.guard(GuardRail.pii());
+ *   app.guard(GuardRail.jailbreak());
+ *   app.guard(GuardRail.regulatory().gdpr().hipaa());
+ *   app.guard(GuardRail.topicBoundary()
+ *       .allow("customer service", "orders")
+ *       .deny("politics", "medical advice"));
  * }</pre>
+ *
+ * <p>Full implementations delivered in ROADMAP-07 Phase 7.
  */
 public interface GuardRail extends Middleware {
 
-    // ── Built-in Guardrail Factory Methods ───────────────────────────────────
+    /** Human-readable name used in observability traces and logs. */
+    String name();
 
-    /**
-     * PII detection and scrubbing — pre and post LLM.
-     * Detects names, SSNs, emails, phone numbers, credit cards, addresses.
-     * Scrubs from prompts before they reach the model.
-     * Masks in responses before they reach the user.
-     */
+    /** Position in the pipeline — before LLM, after LLM, or both. */
+    Position position();
+
+    /** What happens when this guardrail triggers. */
+    Action action();
+
+    // ── Factory Methods ───────────────────────────────────────────────────────
+
+    /** PII detection and scrubbing — pre and post LLM. */
     static GuardRail pii() {
-        return new PiiGuardRail();
+        return StubGuardRail.of("pii", Position.BOTH);
     }
 
-    /**
-     * Jailbreak detection.
-     * Identifies adversarial prompts attempting to bypass system instructions,
-     * override the AI persona, or extract training data.
-     */
+    /** Adversarial prompt / jailbreak detection. */
     static GuardRail jailbreak() {
-        return new JailbreakGuardRail();
+        return StubGuardRail.of("jailbreak", Position.PRE_LLM);
     }
 
-    /**
-     * Prompt injection detection.
-     * Detects malicious content embedded in user input or RAG-retrieved
-     * documents that attempts to hijack the agent's instructions.
-     * Distinct from jailbreak — injection comes from data, not the user.
-     */
+    /** Data-sourced prompt injection detection. */
     static GuardRail promptInjection() {
-        return new PromptInjectionGuardRail();
+        return StubGuardRail.of("prompt-injection", Position.PRE_LLM);
     }
 
-    /**
-     * Bias detection in model outputs.
-     * Flags responses exhibiting demographic, racial, gender, or
-     * socioeconomic bias. Critical for loan, hiring, and insurance use cases.
-     */
+    /** Demographic bias detection in model outputs. */
     static GuardRail bias() {
-        return new BiasGuardRail();
+        return StubGuardRail.of("bias", Position.POST_LLM);
     }
 
-    /**
-     * Hallucination scoring.
-     * Measures factual grounding of the response against the RAG corpus
-     * and the conversation context. Scores are attached to the response
-     * as metadata and visible in the observability trace.
-     */
+    /** Factual grounding / hallucination scoring against RAG corpus. */
     static GuardRail hallucination() {
-        return new HallucinationGuardRail();
+        return StubGuardRail.of("hallucination", Position.POST_LLM);
     }
 
-    /**
-     * Toxicity and harmful content filter.
-     * Blocks or flags responses containing hate speech, violence,
-     * self-harm content, or explicit material.
-     */
+    /** Toxic and harmful content filtering. */
     static GuardRail toxicity() {
-        return new ToxicityGuardRail();
+        return StubGuardRail.of("toxicity", Position.POST_LLM);
     }
 
-    /**
-     * Regulatory compliance guardrail builder.
-     * Compose the regulations relevant to your domain.
-     *
-     * <pre>{@code
-     *   app.guard(GuardRail.regulatory()
-     *       .gdpr()    // EU data protection
-     *       .hipaa()   // US healthcare
-     *       .fcra()    // US fair credit
-     *       .ccpa()); // California privacy
-     * }</pre>
-     */
+    /** Regulatory compliance guardrail builder. */
     static RegulatoryGuardRail regulatory() {
         return new RegulatoryGuardRail();
     }
 
-    /**
-     * Topic boundary enforcer.
-     * Keeps the AI on-topic for your use case.
-     * Prevents scope creep in customer-facing deployments.
-     *
-     * <pre>{@code
-     *   app.guard(GuardRail.topicBoundary()
-     *       .allow("customer service", "product questions", "order status")
-     *       .deny("politics", "medical advice", "legal advice"));
-     * }</pre>
-     */
+    /** Topic scope enforcement builder. */
     static TopicBoundaryGuardRail topicBoundary() {
         return new TopicBoundaryGuardRail();
     }
 
-    // ── GuardRail Metadata ───────────────────────────────────────────────────
+    // ── Enums ─────────────────────────────────────────────────────────────────
 
-    /** Returns the position of this guardrail in the pipeline. */
-    Position position();
+    enum Position { PRE_LLM, POST_LLM, BOTH }
 
-    /** Returns a human-readable name for observability traces. */
-    String name();
+    enum Action { BLOCK, WARN, LOG }
 
-    enum Position {
-        PRE_LLM,
-        POST_LLM,
-        BOTH
+    // ── Stub Implementation (replaced in ROADMAP-07 Phase 7) ─────────────────
+
+    record StubGuardRail(String name, Position position) implements GuardRail {
+        static StubGuardRail of(String name, Position position) {
+            return new StubGuardRail(name, position);
+        }
+
+        @Override public Action action() { return Action.BLOCK; }
+
+        @Override
+        public void handle(Request req,
+                           Response res,
+                           Next next) {
+            // Stub: pass-through. Real implementations in ROADMAP-07 Phase 7.
+            next.run();
+        }
+    }
+
+    // ── Builder Classes ───────────────────────────────────────────────────────
+
+    /** Regulatory compliance guardrail builder — GDPR, HIPAA, FCRA, CCPA. */
+    final class RegulatoryGuardRail implements GuardRail {
+        private String flags = "";
+
+        public RegulatoryGuardRail gdpr()  { flags += "+gdpr";  return this; }
+        public RegulatoryGuardRail hipaa() { flags += "+hipaa"; return this; }
+        public RegulatoryGuardRail fcra()  { flags += "+fcra";  return this; }
+        public RegulatoryGuardRail ccpa()  { flags += "+ccpa";  return this; }
+
+        @Override public String name()     { return "regulatory" + flags; }
+        @Override public Position position() { return Position.BOTH; }
+        @Override public Action action()   { return Action.BLOCK; }
+
+        @Override
+        public void handle(Request req,
+                           Response res,
+                           Next next) {
+            next.run(); // stub — full impl in ROADMAP-07 Phase 7
+        }
+    }
+
+    /** Topic scope enforcement — keeps the AI on-topic. */
+    final class TopicBoundaryGuardRail implements GuardRail {
+        private final List<String> allowed = new ArrayList<>();
+        private final List<String> denied  = new ArrayList<>();
+
+        public TopicBoundaryGuardRail allow(String... topics) {
+            allowed.addAll(List.of(topics));
+            return this;
+        }
+
+        public TopicBoundaryGuardRail deny(String... topics) {
+            denied.addAll(List.of(topics));
+            return this;
+        }
+
+        @Override public String name()     { return "topic-boundary"; }
+        @Override public Position position() { return Position.PRE_LLM; }
+        @Override public Action action()   { return Action.BLOCK; }
+
+        @Override
+        public void handle(Request req,
+                           Response res,
+                           Next next) {
+            next.run(); // stub — full impl in ROADMAP-07 Phase 7
+        }
     }
 }
