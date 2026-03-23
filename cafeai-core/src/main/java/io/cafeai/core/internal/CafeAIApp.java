@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Concrete implementation of {@link CafeAI}.
@@ -50,7 +51,7 @@ public final class CafeAIApp implements CafeAI {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private final Map<String, Object>   locals       = new ConcurrentHashMap<>();
+    private final Map<String, Object>   locals        = new ConcurrentHashMap<>();
     private final List<FilterEntry>     filterEntries = new ArrayList<>();
     private final List<RouteEntry>      routes        = new ArrayList<>();
     private final CafeAIRegistryImpl    registry      = new CafeAIRegistryImpl();
@@ -62,6 +63,17 @@ public final class CafeAIApp implements CafeAI {
     private MemoryStrategy  memoryStrategy;
     private final List<GuardRail>         guardRails = new ArrayList<>();
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
+
+    // ROADMAP-02: Application settings
+    private final Map<io.cafeai.core.Setting, Object> settings = new ConcurrentHashMap<>();
+
+    // ROADMAP-02: Template engines
+    private final Map<String, io.cafeai.core.ResponseFormatter> engines = new ConcurrentHashMap<>();
+
+    // ROADMAP-02: Mount state
+    private final List<String>                                      mountPaths  = new ArrayList<>();
+    private final List<java.util.function.Consumer<CafeAI>>        mountCallbacks = new ArrayList<>();
+    private CafeAI                                                   parent;
 
     private WebServer server;
 
@@ -75,7 +87,14 @@ public final class CafeAIApp implements CafeAI {
         return app;
     }
 
-    private CafeAIApp() {}
+    private CafeAIApp() {
+        // Initialise settings with Express-matching defaults
+        for (io.cafeai.core.Setting s : io.cafeai.core.Setting.values()) {
+            if (s.defaultValue() != null) {
+                settings.put(s, s.defaultValue());
+            }
+        }
+    }
 
     // ── Service Loader Discovery ──────────────────────────────────────────────
 
@@ -183,6 +202,178 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public Object local(String key) {
         return locals.get(key);
+    }
+
+    @Override
+    public java.util.Map<String, Object> locals() {
+        // Return unmodifiable snapshot excluding internal CafeAI keys
+        return locals.entrySet().stream()
+            .filter(e -> !io.cafeai.core.Locals.isInternal(e.getKey()))
+            .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    // ── Application Settings (ROADMAP-02 Phase 7) ─────────────────────────────
+
+    @Override
+    public CafeAI set(io.cafeai.core.Setting setting, Object value) {
+        Objects.requireNonNull(setting, "Setting must not be null");
+        if (value == null) {
+            settings.remove(setting);
+        } else {
+            settings.put(setting, value);
+        }
+        return this;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T setting(io.cafeai.core.Setting setting, Class<T> type) {
+        Object value = settings.getOrDefault(setting, setting.defaultValue());
+        if (value == null) return null;
+        return type.cast(value);
+    }
+
+    @Override
+    public Object setting(io.cafeai.core.Setting setting) {
+        return settings.getOrDefault(setting, setting.defaultValue());
+    }
+
+    @Override
+    public CafeAI enable(io.cafeai.core.Setting setting) {
+        if (!setting.isBoolean()) {
+            throw new IllegalArgumentException(
+                "Setting." + setting.name() + " is not a boolean setting. " +
+                "Use app.set(setting, value) instead.");
+        }
+        settings.put(setting, true);
+        return this;
+    }
+
+    @Override
+    public CafeAI disable(io.cafeai.core.Setting setting) {
+        if (!setting.isBoolean()) {
+            throw new IllegalArgumentException(
+                "Setting." + setting.name() + " is not a boolean setting. " +
+                "Use app.set(setting, value) instead.");
+        }
+        settings.put(setting, false);
+        return this;
+    }
+
+    @Override
+    public boolean enabled(io.cafeai.core.Setting setting) {
+        Object value = setting(setting);
+        if (value instanceof Boolean b) return b;
+        if (value instanceof Number n)  return n.intValue() != 0;
+        return value != null;
+    }
+
+    @Override
+    public boolean disabled(io.cafeai.core.Setting setting) {
+        return !enabled(setting);
+    }
+
+    // ── Mount Path (ROADMAP-02 Phase 2 + 9) ──────────────────────────────────
+
+    @Override
+    public String mountpath() {
+        return mountPaths.isEmpty() ? "" : mountPaths.get(0);
+    }
+
+    @Override
+    public java.util.List<String> mountpaths() {
+        return java.util.Collections.unmodifiableList(mountPaths);
+    }
+
+    @Override
+    public CafeAI onMount(java.util.function.Consumer<CafeAI> callback) {
+        Objects.requireNonNull(callback, "Mount callback must not be null");
+        mountCallbacks.add(callback);
+        return this;
+    }
+
+    @Override
+    public String path() {
+        if (parent == null) return "";
+        return parent.path() + mountpath();
+    }
+
+    /** Called by parent app when this sub-app is mounted. Package-private. */
+    public void notifyMount(CafeAI parentApp, String mountPath) {
+        this.parent = parentApp;
+        this.mountPaths.add(mountPath);
+        for (var cb : mountCallbacks) {
+            cb.accept(parentApp);
+        }
+    }
+
+    // ── Template Engine (ROADMAP-02 Phase 8) ──────────────────────────────────
+
+    @Override
+    public CafeAI engine(String ext, io.cafeai.core.ResponseFormatter formatter) {
+        Objects.requireNonNull(ext,       "Extension must not be null");
+        Objects.requireNonNull(formatter, "ResponseFormatter must not be null");
+        // Normalise: strip leading dot if present
+        engines.put(ext.startsWith(".") ? ext.substring(1) : ext, formatter);
+        return this;
+    }
+
+    @Override
+    public void render(String view, java.util.Map<String, Object> locals,
+                       java.util.function.BiConsumer<Throwable, String> callback) {
+        try {
+            String result = renderView(view, locals);
+            callback.accept(null, result);
+        } catch (Exception e) {
+            callback.accept(e, null);
+        }
+    }
+
+    @Override
+    public java.util.concurrent.CompletableFuture<String> render(
+            String view, java.util.Map<String, Object> locals) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(
+            () -> renderView(view, locals));
+    }
+
+    /**
+     * Core render logic — resolves view path, selects engine, merges locals, formats.
+     */
+    private String renderView(String view, java.util.Map<String, Object> viewLocals) {
+        // Determine extension from view name, or fall back to VIEW_ENGINE setting
+        String ext;
+        int dot = view.lastIndexOf('.');
+        if (dot >= 0) {
+            ext = view.substring(dot + 1);
+        } else {
+            Object engineSetting = setting(io.cafeai.core.Setting.VIEW_ENGINE);
+            if (engineSetting == null || engineSetting.toString().isBlank()) {
+                throw new io.cafeai.core.ResponseFormatter.RenderException(
+                    "No view engine set. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
+                    "or include the extension in the view name.");
+            }
+            ext = engineSetting.toString();
+        }
+
+        io.cafeai.core.ResponseFormatter formatter = engines.get(ext);
+        if (formatter == null) {
+            throw new io.cafeai.core.ResponseFormatter.RenderException(
+                "No engine registered for extension \"" + ext + "\". " +
+                "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()).");
+        }
+
+        // Resolve template path from VIEWS setting
+        String viewsDir = (String) setting(io.cafeai.core.Setting.VIEWS);
+        String fileName = dot >= 0 ? view : view + "." + ext;
+        String templatePath = java.nio.file.Paths.get(viewsDir, fileName)
+            .toAbsolutePath().normalize().toString();
+
+        // Merge locals: app.locals() < res/view locals (view locals win on conflict)
+        java.util.Map<String, Object> merged = new java.util.LinkedHashMap<>(locals());
+        if (viewLocals != null) merged.putAll(viewLocals);
+
+        return formatter.format(templatePath, merged);
     }
 
     // ── Filter Registration (Cross-Cutting Pre-Processing) ────────────────────

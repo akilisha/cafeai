@@ -371,19 +371,156 @@ public interface CafeAI extends Router {
      */
     Object local(String key);
 
+    /**
+     * Returns an unmodifiable snapshot of all application-scoped locals,
+     * excluding CafeAI-internal keys (prefixed with {@code __cafeai.}).
+     *
+     * <p>Mirrors Express {@code app.locals} (read access).
+     */
+    java.util.Map<String, Object> locals();
+
+    // ── Application Settings (ROADMAP-02 Phase 7) ─────────────────────────────
+
+    /**
+     * Sets an application setting value.
+     * Mirrors Express: {@code app.set(name, value)}
+     *
+     * <pre>{@code
+     *   app.set(Setting.ENV, "production");
+     *   app.set(Setting.JSON_SPACES, 2);
+     * }</pre>
+     */
+    CafeAI set(Setting setting, Object value);
+
+    /**
+     * Returns the value of an application setting.
+     *
+     * <p>ADR-005 note: Express uses {@code app.get(name)} for settings retrieval,
+     * which conflicts with the HTTP GET route method. CafeAI uses {@code app.setting()}
+     * for unambiguous settings access.
+     *
+     * <pre>{@code
+     *   String env = app.setting(Setting.ENV, String.class);
+     * }</pre>
+     */
+    <T> T setting(Setting setting, Class<T> type);
+
+    /**
+     * Returns the raw (untyped) value of an application setting.
+     */
+    Object setting(Setting setting);
+
+    /**
+     * Sets a boolean setting to {@code true}.
+     * Throws {@link IllegalArgumentException} if the setting is not a boolean type.
+     * Mirrors Express: {@code app.enable(name)}
+     */
+    CafeAI enable(Setting setting);
+
+    /**
+     * Sets a boolean setting to {@code false}.
+     * Throws {@link IllegalArgumentException} if the setting is not a boolean type.
+     * Mirrors Express: {@code app.disable(name)}
+     */
+    CafeAI disable(Setting setting);
+
+    /**
+     * Returns {@code true} if the setting is truthy (non-null, non-false, non-zero).
+     * Mirrors Express: {@code app.enabled(name)}
+     */
+    boolean enabled(Setting setting);
+
+    /**
+     * Returns {@code true} if the setting is falsy (null, false, or zero).
+     * Mirrors Express: {@code app.disabled(name)}
+     */
+    boolean disabled(Setting setting);
+
+    // ── Mount Path (ROADMAP-02 Phase 2) ───────────────────────────────────────
+
+    /**
+     * Returns the path at which this application is mounted.
+     * Returns an empty string for the root application.
+     * Mirrors Express: {@code app.mountpath}
+     *
+     * <pre>{@code
+     *   var admin = CafeAI.create();
+     *   app.use("/admin", admin);
+     *   admin.mountpath(); // → "/admin"
+     * }</pre>
+     */
+    String mountpath();
+
+    /**
+     * Returns all mount paths for this application (supports multi-path mounting).
+     * Returns an empty list for the root application.
+     */
+    java.util.List<String> mountpaths();
+
+    /**
+     * Registers a callback to be invoked when this sub-application is mounted
+     * on a parent application via {@code parent.use(path, thisApp)}.
+     * Mirrors Express: {@code app.on('mount', callback)}
+     *
+     * <pre>{@code
+     *   admin.onMount(parent ->
+     *       System.out.println("Admin mounted at: " + admin.mountpath()));
+     *   app.use("/admin", admin);
+     * }</pre>
+     */
+    CafeAI onMount(java.util.function.Consumer<CafeAI> callback);
+
+    /**
+     * Returns the canonical path of this application — the full path including
+     * any parent mount paths.
+     * Returns empty string for the root application.
+     * Mirrors Express: {@code app.path()}
+     *
+     * <pre>{@code
+     *   // admin mounted at /admin, users mounted at /users inside admin
+     *   users.path(); // → "/admin/users"
+     * }</pre>
+     */
+    String path();
+
+    // ── Template Engine (ROADMAP-02 Phase 8) ──────────────────────────────────
+
+    /**
+     * Registers a {@link ResponseFormatter} for the given file extension.
+     * Mirrors Express: {@code app.engine(ext, callback)}
+     *
+     * <pre>{@code
+     *   app.engine("html", ResponseFormatter.mustache());
+     *   app.engine("md",   ResponseFormatter.markdown());
+     * }</pre>
+     */
+    CafeAI engine(String ext, ResponseFormatter formatter);
+
+    /**
+     * Renders a named view using the registered template engine.
+     * The view is resolved relative to {@code Setting.VIEWS}.
+     * Mirrors Express: {@code app.render(view, locals, callback)}
+     *
+     * <pre>{@code
+     *   app.render("welcome", Map.of("name", "Ada"),
+     *       (err, html) -> { if (err == null) System.out.println(html); });
+     * }</pre>
+     */
+    void render(String view, java.util.Map<String, Object> locals,
+                java.util.function.BiConsumer<Throwable, String> callback);
+
+    /**
+     * Renders a named view and returns the result as a {@link java.util.concurrent.CompletableFuture}.
+     * Mirrors Express: {@code app.render(view, locals)} — Java async idiom.
+     */
+    java.util.concurrent.CompletableFuture<String> render(String view,
+                                                          java.util.Map<String, Object> locals);
+
     // ── Server Lifecycle ──────────────────────────────────────────────────────
 
     /**
      * Starts the Helidon SE server on the given port.
-     *
-     * <p>On start:
-     * <ul>
-     *   <li>Builds and starts the Helidon {@code WebServer} with virtual thread executor</li>
-     *   <li>Registers a JVM shutdown hook for graceful stop</li>
-     *   <li>Logs confirmation that virtual threads are active</li>
-     * </ul>
-     *
-     * <p>Mirrors: {@code app.listen(3000)}
+     * Mirrors: {@code app.listen(3000)}
      *
      * @throws IllegalStateException if the server is already running
      */
@@ -391,8 +528,7 @@ public interface CafeAI extends Router {
 
     /**
      * Starts the server, invoking {@code onStart} once ready to accept connections.
-     *
-     * <p>Mirrors: {@code app.listen(3000, () => console.log('Running on :3000'))}
+     * Mirrors: {@code app.listen(3000, () => console.log('Running on :3000'))}
      */
     void listen(int port, Runnable onStart);
 
