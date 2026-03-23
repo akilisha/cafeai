@@ -1,0 +1,14 @@
+rootProject.name = 'cafeai'
+
+include(
+    'cafeai-core',
+    'cafeai-memory',
+    'cafeai-rag',
+    'cafeai-tools',
+    'cafeai-agents',
+    'cafeai-guardrails',
+    'cafeai-observability',
+    'cafeai-security',
+    'cafeai-streaming',
+    'cafeai-examples'
+)

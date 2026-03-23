@@ -1,0 +1,20 @@
+// ============================================================
+//  cafeai-guardrails
+//  Ethical, regulatory, and safety guardrails for CafeAI.
+//  Pre-LLM and post-LLM middleware layers.
+//  Covers: bias detection, PII scrubbing, content safety,
+//  regulatory compliance (GDPR, HIPAA, FCRA), hallucination
+//  detection, and output validation.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // ── Langchain4j ──────────────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+
+    // ── PII / NLP ────────────────────────────────────────────
+    // Apache OpenNLP for PII entity detection
+    implementation 'org.apache.opennlp:opennlp-tools:2.3.3'
+}

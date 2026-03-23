@@ -1,0 +1,49 @@
+// ============================================================
+//  cafeai-rag
+//  Retrieval Augmented Generation pipeline for CafeAI.
+//  Covers: document ingestion, chunking, embedding,
+//  semantic retrieval, and reranking.
+//
+//  Vector DB support:
+//    - PgVector   (PostgreSQL-native, great for enterprise)
+//    - Chroma     (lightweight, local-first)
+//    - Pinecone   (managed, cloud-scale)
+//    - In-memory  (prototype / testing)
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+    api project(':cafeai-memory')
+
+    // ── Langchain4j RAG ──────────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+
+    // Document parsers
+    implementation 'dev.langchain4j:langchain4j-document-parser-apache-tika'
+
+    // ── Vector Stores ────────────────────────────────────────
+    // PgVector - PostgreSQL with vector extension
+    implementation 'dev.langchain4j:langchain4j-pgvector'
+
+    // Chroma - lightweight local vector DB
+    implementation 'dev.langchain4j:langchain4j-chroma'
+
+    // Pinecone - managed cloud vector DB
+    implementation 'dev.langchain4j:langchain4j-pinecone'
+
+    // In-memory vector store (zero deps, prototype / test)
+    implementation 'dev.langchain4j:langchain4j-embeddings-all-minilm-l6-v2-q'
+
+    // ── Embedding Models ─────────────────────────────────────
+    // OpenAI embeddings
+    implementation 'dev.langchain4j:langchain4j-open-ai'
+
+    // Local embeddings via ONNX (leverages FFM internally)
+    implementation 'dev.langchain4j:langchain4j-embeddings'
+
+    // ── Test containers ──────────────────────────────────────
+    testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${rootProject.ext.testcontainersVersion}"
+}

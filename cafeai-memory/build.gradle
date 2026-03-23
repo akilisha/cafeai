@@ -1,0 +1,33 @@
+// ============================================================
+//  cafeai-memory
+//  Tiered context memory strategy for CafeAI.
+//
+//  Rung 1 → In-JVM HashMap           (prototype / zero deps)
+//  Rung 2 → FFM MemorySegment        (SSD-backed, off-heap)
+//  Rung 3 → Chronicle Map            (off-heap key-value)
+//  Rung 4 → Redis via Lettuce        (distributed escape valve)
+//  Rung 5 → Memcached via Spy        (distributed escape valve)
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // ── Langchain4j Memory ───────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+
+    // ── Off-heap / SSD-backed (Rung 3) ───────────────────────
+    // Chronicle Map - designed for off-heap, memory-mapped storage
+    implementation "net.openhft:chronicle-map:${rootProject.ext.chronicleMapVersion}"
+
+    // ── Redis (Rung 4) ───────────────────────────────────────
+    // Lettuce - reactive Redis client, non-blocking
+    implementation "io.lettuce:lettuce-core:${rootProject.ext.lettuceVersion}"
+
+    // ── Memcached (Rung 5) ───────────────────────────────────
+    implementation "net.spy:spymemcached:${rootProject.ext.spymemcachedVersion}"
+
+    // ── Test Containers for integration tests ────────────────
+    testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
+}

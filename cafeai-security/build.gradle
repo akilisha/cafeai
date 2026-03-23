@@ -1,0 +1,21 @@
+// ============================================================
+//  cafeai-security
+//  AI-specific security layer — beyond traditional guardrails.
+//  Covers: prompt injection detection, jailbreak detection,
+//  RAG data leakage prevention, PII pre/post scrubbing,
+//  token budget enforcement, and semantic cache poisoning.
+//  This is a middleware layer. Everything is composable.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+    api project(':cafeai-guardrails')
+
+    // ── Helidon Security ─────────────────────────────────────
+    implementation 'io.helidon.security:helidon-security'
+    implementation 'io.helidon.security.providers:helidon-security-providers-jwt'
+
+    // ── Langchain4j ──────────────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+}

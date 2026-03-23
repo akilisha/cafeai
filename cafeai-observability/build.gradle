@@ -1,0 +1,22 @@
+// ============================================================
+//  cafeai-observability
+//  Tracing, metrics, eval harness, and prompt versioning.
+//  Every LLM call is a traced, measured, scored event.
+//  OpenTelemetry is the primary integration — Helidon SE
+//  has first-class OTel support built in.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // ── Helidon OTel integration ─────────────────────────────
+    implementation 'io.helidon.tracing:helidon-tracing'
+    implementation 'io.helidon.tracing.providers:helidon-tracing-providers-opentelemetry'
+    implementation 'io.helidon.metrics:helidon-metrics'
+
+    // ── OpenTelemetry ────────────────────────────────────────
+    implementation "io.opentelemetry:opentelemetry-api:${rootProject.ext.opentelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk:${rootProject.ext.opentelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp:${rootProject.ext.opentelemetryVersion}"
+}

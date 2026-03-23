@@ -1,0 +1,21 @@
+// ============================================================
+//  cafeai-streaming
+//  Token streaming with backpressure for CafeAI.
+//  Real applications stream LLM responses as they generate.
+//  Covers: SSE (Server-Sent Events), WebSocket,
+//  reactive backpressure via Helidon SE's reactive core,
+//  and chunked response assembly.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // ── Helidon WebServer with SSE + WebSocket ────────────────
+    implementation 'io.helidon.webserver:helidon-webserver'
+    implementation 'io.helidon.webserver:helidon-webserver-websocket'
+
+    // ── Langchain4j Streaming ────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+    implementation 'dev.langchain4j:langchain4j-open-ai'
+}

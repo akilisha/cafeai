@@ -1,0 +1,38 @@
+// ============================================================
+//  cafeai-core
+//  The Express-inspired foundation of CafeAI.
+//  Contains: CafeAI app bootstrap, routing, middleware chain,
+//  AI primitives (ai, system, prompt, chain, guard, memory,
+//  rag, tool, mcp, agent, observe), and the request/response
+//  abstraction over Helidon SE.
+// ============================================================
+
+dependencies {
+
+    // ── Helidon SE ───────────────────────────────────────────
+    implementation 'io.helidon.webserver:helidon-webserver'
+    implementation 'io.helidon.webserver:helidon-webserver-http2'
+    implementation 'io.helidon.webserver:helidon-webserver-websocket'
+    implementation 'io.helidon.http.media:helidon-http-media-jsonp'
+    implementation 'io.helidon.http.media:helidon-http-media-jsonb'
+    implementation 'io.helidon.config:helidon-config-yaml'
+
+    // ── Langchain4j Core ─────────────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+    implementation 'dev.langchain4j:langchain4j'
+
+    // ── LLM Providers ────────────────────────────────────────
+    // OpenAI
+    implementation 'dev.langchain4j:langchain4j-open-ai'
+    // Anthropic Claude
+    implementation 'dev.langchain4j:langchain4j-anthropic'
+    // Ollama (local models via llama.cpp)
+    implementation 'dev.langchain4j:langchain4j-ollama'
+
+    // ── Serialization ────────────────────────────────────────
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
+
+    // ── Logging ──────────────────────────────────────────────
+    implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
+}

@@ -1,0 +1,22 @@
+// ============================================================
+//  cafeai-tools
+//  Tool use and MCP (Model Context Protocol) integration.
+//  A "tool"  = a Java function the LLM can invoke.
+//  An "mcp"  = an external MCP server capability contract.
+//  Different trust levels. Different lifecycles.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // ── Langchain4j Tool Support ─────────────────────────────
+    implementation 'dev.langchain4j:langchain4j-core'
+
+    // MCP client support
+    implementation 'dev.langchain4j:langchain4j-mcp'
+
+    // ── HTTP Client for MCP server calls ─────────────────────
+    implementation 'io.helidon.webclient:helidon-webclient'
+    implementation 'io.helidon.webclient:helidon-webclient-http2'
+}
