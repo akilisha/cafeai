@@ -2,11 +2,11 @@ package io.cafeai.core;
 
 import io.cafeai.core.internal.CafeAIApp;
 import org.junit.jupiter.api.DisplayName;
+
+import java.io.IOException;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
-import java.nio.file.Files;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -179,9 +179,26 @@ class ApplicationTest {
     }
 
     @Test
-    @DisplayName("app.set() stores and app.setting() retrieves correctly")
-    void set_and_setting_roundTrip() {
+    @DisplayName("app.set(setting, null) resets the setting to its default value")
+    void setting_setNullResetsToDefault() {
         var app = CafeAI.create();
+        app.set(Setting.VIEWS, "custom-views");
+        assertThat(app.setting(Setting.VIEWS)).isEqualTo("custom-views");
+
+        // null clears the explicit value — default takes effect again
+        app.set(Setting.VIEWS, null);
+        assertThat(app.setting(Setting.VIEWS)).isEqualTo("views");
+        assertThat(app.setting(Setting.VIEWS, String.class)).isEqualTo("views");
+    }
+
+    @Test
+    @DisplayName("app.setting() returns default when key has never been set")
+    void setting_absentKeyReturnsDefault() {
+        var app = CafeAI.create();
+        // Fresh app — VIEWS was never touched
+        assertThat(app.setting(Setting.VIEWS)).isEqualTo("views");
+
+//        var app = CafeAI.create();
         app.set(Setting.ENV, "production");
         app.set(Setting.JSON_SPACES, 4);
 
@@ -281,10 +298,13 @@ class ApplicationTest {
     @DisplayName("app.engine() accepts extension with or without leading dot")
     void engine_normalisesExtension() {
         var app = CafeAI.create();
-        assertThatCode(() -> {
-            app.engine("html",  ResponseFormatter.template());
-            app.engine(".mustache", ResponseFormatter.mustache());
-        }).doesNotThrowAnyException();
+        assertThatCode(() ->
+            app.engine("txt", ResponseFormatter.template()))
+            .doesNotThrowAnyException();
+        // Extension with leading dot is also accepted (dot is stripped)
+        assertThatCode(() ->
+            app.engine(".txt", ResponseFormatter.template()))
+            .doesNotThrowAnyException();
     }
 
     @Test
@@ -318,8 +338,23 @@ class ApplicationTest {
     }
 
     @Test
-    @DisplayName("ResponseFormatter.template() performs {{variable}} substitution")
-    void responseFormatter_template_substitutes() throws Exception {
+    @DisplayName("ResponseFormatter.mustache() throws RenderException when module absent")
+    void mustache_withoutModule_throwsRenderException() {
+        // cafeai-views-mustache is not on the test classpath — ServiceLoader finds nothing
+        assertThatExceptionOfType(ResponseFormatter.RenderException.class)
+            .isThrownBy(ResponseFormatter::mustache)
+            .withMessageContaining("mustache")
+            .withMessageContaining("cafeai-views-mustache");
+    }
+
+    @Test
+    @DisplayName("ResponseFormatter.markdown() throws RenderException when module absent")
+    void markdown_withoutModule_throwsRenderException() throws IOException {
+        assertThatExceptionOfType(ResponseFormatter.RenderException.class)
+            .isThrownBy(ResponseFormatter::markdown)
+            .withMessageContaining("markdown")
+            .withMessageContaining("cafeai-views-markdown");
+
         // Create a temp file with a template
         var tmpFile = Files.createTempFile("cafeai-test-", ".txt");
         Files.writeString(tmpFile, "Hello, {{name}}! You are {{age}} years old.");

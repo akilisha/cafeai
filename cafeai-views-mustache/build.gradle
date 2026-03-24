@@ -1,0 +1,22 @@
+// ============================================================
+//  cafeai-views-mustache
+//  Optional Mustache template engine for CafeAI.
+//
+//  Add to your project:
+//    implementation 'io.cafeai:cafeai-views-mustache'
+//
+//  Then register in your app:
+//    app.engine("html", ResponseFormatter.mustache());
+//    app.set(Setting.VIEW_ENGINE, "html");
+//
+//  That's it. No other configuration needed.
+// ============================================================
+
+dependencies {
+    implementation project(':cafeai-core')
+
+    // Mustache.java — the reference Mustache implementation for the JVM.
+    // Chosen for: ubiquitous Express/Node ecosystem familiarity, active maintenance,
+    // zero transitive dependencies, logic-less design (enforces clean separation).
+    implementation 'com.github.spullara.mustache.java:compiler:0.9.14'
+}

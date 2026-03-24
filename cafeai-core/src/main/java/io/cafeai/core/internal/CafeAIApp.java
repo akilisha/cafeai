@@ -229,21 +229,29 @@ public final class CafeAIApp implements CafeAI {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T setting(io.cafeai.core.Setting setting, Class<T> type) {
-        Object value = settings.getOrDefault(setting, setting.defaultValue());
+        Object value = settings.containsKey(setting)
+            ? settings.get(setting)
+            : setting.defaultValue();
         if (value == null) return null;
         return type.cast(value);
     }
 
     @Override
     public Object setting(io.cafeai.core.Setting setting) {
-        return settings.getOrDefault(setting, setting.defaultValue());
+        // getOrDefault would return null if the key maps to an explicitly stored null
+        // (e.g. after app.set(Setting.VIEW_ENGINE, null)).
+        // containsKey correctly distinguishes "key absent → use default" from
+        // "key present with null value → return null".
+        return settings.containsKey(setting)
+            ? settings.get(setting)
+            : setting.defaultValue();
     }
 
     @Override
     public CafeAI enable(io.cafeai.core.Setting setting) {
-        if (!setting.isBoolean()) {
+        if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
-                "Setting." + setting.name() + " is not a boolean setting. " +
+                "Setting." + setting.name() + " does not support enable()/disable(). " +
                 "Use app.set(setting, value) instead.");
         }
         settings.put(setting, true);
@@ -252,13 +260,26 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     public CafeAI disable(io.cafeai.core.Setting setting) {
-        if (!setting.isBoolean()) {
+        if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
-                "Setting." + setting.name() + " is not a boolean setting. " +
+                "Setting." + setting.name() + " does not support enable()/disable(). " +
                 "Use app.set(setting, value) instead.");
         }
         settings.put(setting, false);
         return this;
+    }
+
+    /**
+     * Returns true if the setting supports enable()/disable().
+     * A setting is boolean-capable if its declared type is Boolean,
+     * OR if it's an Object type whose default value is a Boolean
+     * (e.g. TRUST_PROXY — can be boolean or integer hop count,
+     * but enable/disable make sense for the boolean case).
+     */
+    private static boolean isBooleanCapable(io.cafeai.core.Setting setting) {
+        return setting.isBoolean()
+            || (setting.valueType() == Object.class
+                && setting.defaultValue() instanceof Boolean);
     }
 
     @Override
@@ -333,8 +354,47 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public java.util.concurrent.CompletableFuture<String> render(
             String view, java.util.Map<String, Object> locals) {
+        // Validate configuration eagerly on the calling thread — before going async.
+        // A missing engine or missing VIEW_ENGINE setting is a programming error that
+        // should be caught immediately, not buried in an async task that may not
+        // complete before the caller checks isCompletedExceptionally().
+        try {
+            validateRenderConfig(view);
+        } catch (io.cafeai.core.ResponseFormatter.RenderException e) {
+            return java.util.concurrent.CompletableFuture.failedFuture(e);
+        }
+        // Config is valid — do the actual file I/O and rendering asynchronously
         return java.util.concurrent.CompletableFuture.supplyAsync(
             () -> renderView(view, locals));
+    }
+
+    /**
+     * Validates that a render call is configured correctly — engine exists,
+     * VIEW_ENGINE is set if no extension given — without doing any I/O.
+     * Throws {@link io.cafeai.core.ResponseFormatter.RenderException} immediately
+     * if configuration is incomplete. Called eagerly on the calling thread
+     * so {@code CompletableFuture.failedFuture()} can be returned synchronously.
+     */
+    private void validateRenderConfig(String view) {
+        int dot = view.lastIndexOf('.');
+        String ext;
+        if (dot >= 0) {
+            ext = view.substring(dot + 1);
+        } else {
+            Object engineSetting = setting(io.cafeai.core.Setting.VIEW_ENGINE);
+            if (engineSetting == null || engineSetting.toString().isBlank()) {
+                throw new io.cafeai.core.ResponseFormatter.RenderException(
+                    "No view engine configured. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
+                    "or include the extension in the view name (e.g. \"welcome.html\").");
+            }
+            ext = engineSetting.toString();
+        }
+        if (!engines.containsKey(ext)) {
+            throw new io.cafeai.core.ResponseFormatter.RenderException(
+                "No engine registered for extension \"" + ext + "\". " +
+                "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
+                "after adding io.cafeai:cafeai-views-mustache to your dependencies.");
+        }
     }
 
     /**

@@ -365,7 +365,6 @@ class CafeAIAppTest {
         for (var t : threads) t.start();
         for (var t : threads) t.join();
 
-        // All 20 keys should be stored
         for (int i = 0; i < 20; i++) {
             assertThat(app.local("key-" + i)).isNotNull();
         }
@@ -391,8 +390,7 @@ class CafeAIAppTest {
     @DisplayName("app.configure() returns app for chaining")
     void configure_returnsApp() {
         var app = CafeAI.create();
-        var result = app.configure(a -> {
-        });
+        var result = app.configure(a -> {});
         assertThat(result).isSameAs(app);
     }
 
@@ -403,40 +401,18 @@ class CafeAIAppTest {
         var order = new ArrayList<Integer>();
 
         CafeAIConfigurer first = new CafeAIConfigurer() {
-            @Override
-            public void configure(CafeAI a) {
-                order.add(1);
-            }
-
-            @Override
-            public int order() {
-                return 1;
-            }
+            @Override public void configure(CafeAI a) { order.add(1); }
+            @Override public int order() { return 1; }
         };
         CafeAIConfigurer second = new CafeAIConfigurer() {
-            @Override
-            public void configure(CafeAI a) {
-                order.add(2);
-            }
-
-            @Override
-            public int order() {
-                return 2;
-            }
+            @Override public void configure(CafeAI a) { order.add(2); }
+            @Override public int order() { return 2; }
         };
         CafeAIConfigurer zeroth = new CafeAIConfigurer() {
-            @Override
-            public void configure(CafeAI a) {
-                order.add(0);
-            }
-
-            @Override
-            public int order() {
-                return 0;
-            }
+            @Override public void configure(CafeAI a) { order.add(0); }
+            @Override public int order() { return 0; }
         };
 
-        // Register out of order — should execute in order() sequence
         app.configure(second, first, zeroth);
         assertThat(order).containsExactly(0, 1, 2);
     }
@@ -452,8 +428,7 @@ class CafeAIAppTest {
     }
 
     // ── Path Translation ──────────────────────────────────────────────────────
-    // Path translation tests live in PathUtilsTest (io.cafeai.core.internal)
-    // which has direct package access to PathUtils.
+    // Tests live in PathUtilsTest (io.cafeai.core.internal) — direct package access.
 
     // ── Router Fluency ────────────────────────────────────────────────────────
 
@@ -513,16 +488,10 @@ class CafeAIAppTest {
     // ── Lifecycle Guards ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("app.configure() after listen() throws IllegalStateException")
+    @DisplayName("app.configure() and app.filter() work before listen()")
     void configure_afterListen_throws() {
-        // We can't start a real server in a unit test without ports/networking.
-        // We test the guard directly via internal state.
-        // This is documented — full server lifecycle tested in CafeAIIntegrationTest.
-        // For now, verify the guard message is correct in the implementation.
         var app = CafeAI.create();
-        // This passes because the server hasn't started
-        assertThatCode(() -> app.configure(a -> {
-        }))
+        assertThatCode(() -> app.configure(a -> {}))
                 .doesNotThrowAnyException();
         assertThatCode(() -> app.filter((req, res, next) -> next.run()))
                 .doesNotThrowAnyException();
@@ -603,12 +572,9 @@ class CafeAIAppTest {
     @DisplayName("ContentMap.of() builds handler map correctly")
     void contentMap_buildsHandlerMap() {
         var map = ContentMap.of()
-                .text(() -> {
-                })
-                .html(() -> {
-                })
-                .json(() -> {
-                })
+                .text(() -> {})
+                .html(() -> {})
+                .json(() -> {})
                 .build();
 
         assertThat(map.handlers()).containsKeys(
@@ -618,11 +584,9 @@ class CafeAIAppTest {
     @Test
     @DisplayName("ContentMap rejects duplicate type registrations")
     void contentMap_rejectsDuplicates() {
-        var map = ContentMap.of().json(() -> {
-        });
+        var map = ContentMap.of().json(() -> {});
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> map.json(() -> {
-                }));
+                .isThrownBy(() -> map.json(() -> {}));
     }
 
     // ── CookieOptions ─────────────────────────────────────────────────────────
@@ -656,34 +620,19 @@ class CafeAIAppTest {
     void middleware_then_composes() {
         var executed = new ArrayList<String>();
 
-        Middleware first =
-                (req, res, next) -> {
-                    executed.add("first");
-                    next.run();
-                };
-        Middleware second =
-                (req, res, next) -> {
-                    executed.add("second");
-                    next.run();
-                };
+        Middleware first  = (req, res, next) -> { executed.add("first");  next.run(); };
+        Middleware second = (req, res, next) -> { executed.add("second"); next.run(); };
 
         Middleware composed = first.then(second);
-
-        // We can't create real req/res without Helidon in unit tests,
-        // but we can verify the composition structure compiles and
-        // the lambda captures are correct.
         assertThat(composed).isNotNull();
-        assertThat(executed).isEmpty(); // not yet executed
+        assertThat(executed).isEmpty();
     }
 
     @Test
     @DisplayName("GuardRail.pii() passes through in stub implementation")
     void guardRail_stub_passesThroughChain() {
         var executed = new boolean[]{false};
-        var pii = GuardRail.pii();
-
-        // Verify stub calls next.run()
-        pii.handle(null, null, () -> executed[0] = true);
+        GuardRail.pii().handle(null, null, () -> executed[0] = true);
         assertThat(executed[0]).isTrue();
     }
 
@@ -701,8 +650,7 @@ class CafeAIAppTest {
     @DisplayName("app.filter(middleware) returns CafeAI for chaining")
     void filter_returnsApp() {
         var app = CafeAI.create();
-        var result = app.filter(Middleware.cors());
-        assertThat(result).isSameAs(app);
+        assertThat(app.filter(Middleware.cors())).isSameAs(app);
     }
 
     @Test
@@ -736,7 +684,7 @@ class CafeAIAppTest {
     @DisplayName("app.get() accepts variadic middleware handlers")
     void get_variadicHandlers_registers() {
         var app = CafeAI.create();
-        Middleware auth = (req, res, next) -> next.run();
+        Middleware auth    = (req, res, next) -> next.run();
         Middleware handler = (req, res, next) -> res.send("ok");
         assertThatCode(() -> app.get("/test", auth, handler))
                 .doesNotThrowAnyException();
@@ -754,8 +702,7 @@ class CafeAIAppTest {
     @DisplayName("CafeAIApp.compose() with empty array returns NOOP")
     void compose_empty_returnsNoop() {
         var called = new boolean[]{false};
-        Middleware composed = CafeAIApp.compose(new Middleware[0]);
-        composed.handle(null, null, () -> called[0] = true);
+        CafeAIApp.compose(new Middleware[0]).handle(null, null, () -> called[0] = true);
         assertThat(called[0]).isTrue();
     }
 
@@ -763,55 +710,37 @@ class CafeAIAppTest {
     @DisplayName("CafeAIApp.compose() with single middleware returns it unchanged")
     void compose_single_returnsSame() {
         Middleware mw = (req, res, next) -> next.run();
-        Middleware composed = CafeAIApp.compose(new Middleware[]{mw});
-        assertThat(composed).isSameAs(mw);
+        assertThat(CafeAIApp.compose(new Middleware[]{mw})).isSameAs(mw);
     }
 
     @Test
     @DisplayName("CafeAIApp.compose() executes handlers left-to-right")
     void compose_multiple_executesInOrder() {
         var order = new ArrayList<Integer>();
-        Middleware m1 = (req, res, next) -> {
-            order.add(1);
-            next.run();
-        };
-        Middleware m2 = (req, res, next) -> {
-            order.add(2);
-            next.run();
-        };
-        Middleware m3 = (req, res, next) -> {
-            order.add(3);
-        };  // terminates
+        Middleware m1 = (req, res, next) -> { order.add(1); next.run(); };
+        Middleware m2 = (req, res, next) -> { order.add(2); next.run(); };
+        Middleware m3 = (req, res, next) -> order.add(3);
 
-        Middleware composed = CafeAIApp.compose(
-                new Middleware[]{m1, m2, m3});
-
-        composed.handle(null, null, () -> order.add(99));
+        CafeAIApp.compose(new Middleware[]{m1, m2, m3})
+                 .handle(null, null, () -> order.add(99));
 
         assertThat(order).containsExactly(1, 2, 3);
-        // 99 was not added — m3 terminated without calling next.run()
     }
 
     @Test
     @DisplayName("compose() — post-processing runs after next.run() returns")
     void compose_postProcessing_runsAfterDownstream() {
         var order = new ArrayList<String>();
-
-        // Wrapping middleware — pre and post
         Middleware wrapper = (req, res, next) -> {
             order.add("pre");
-            next.run();         // downstream executes synchronously
-            order.add("post");  // runs after downstream completes
+            next.run();
+            order.add("post");
         };
         Middleware handler = (req, res, next) -> order.add("handler");
 
-        Middleware composed = CafeAIApp.compose(
-                new Middleware[]{wrapper, handler});
+        CafeAIApp.compose(new Middleware[]{wrapper, handler})
+                 .handle(null, null, () -> {});
 
-        composed.handle(null, null, () -> {
-        });
-
-        // pre → handler → post — the onion model
         assertThat(order).containsExactly("pre", "handler", "post");
     }
 
@@ -819,19 +748,11 @@ class CafeAIAppTest {
     @DisplayName("Middleware.then() composes left-to-right like compose()")
     void middleware_then_matchesCompose() {
         var order = new ArrayList<Integer>();
-        Middleware m1 = (req, res, next) -> {
-            order.add(1);
-            next.run();
-        };
-        Middleware m2 = (req, res, next) -> {
-            order.add(2);
-            next.run();
-        };
+        Middleware m1 = (req, res, next) -> { order.add(1); next.run(); };
+        Middleware m2 = (req, res, next) -> { order.add(2); next.run(); };
         Middleware m3 = (req, res, next) -> order.add(3);
 
-        // Both approaches should produce identical execution order
-        m1.then(m2).then(m3).handle(null, null, () -> {
-        });
+        m1.then(m2).then(m3).handle(null, null, () -> {});
         assertThat(order).containsExactly(1, 2, 3);
     }
 
@@ -865,9 +786,7 @@ class CafeAIAppTest {
     void cafeAiRouter_returnsNewInstance() {
         var r1 = CafeAI.Router();
         var r2 = CafeAI.Router();
-        assertThat(r1).isNotNull();
-        assertThat(r2).isNotNull();
-        assertThat(r1).isNotSameAs(r2);
+        assertThat(r1).isNotNull().isNotSameAs(r2);
     }
 
     @Test
@@ -876,9 +795,9 @@ class CafeAIAppTest {
         var app = CafeAI.create();
         var api = CafeAI.Router();
         assertThatCode(() -> {
-            api.get("/users", (req, res, next) -> res.json("users"));
-            api.post("/users", (req, res, next) -> res.status(201).end());
-            api.get("/users/:id", (req, res, next) -> res.json(req.params("id")));
+            api.get("/users",    (req, res, next) -> res.json("users"));
+            api.post("/users",   (req, res, next) -> res.status(201).end());
+            api.get("/users/:id",(req, res, next) -> res.json(req.params("id")));
             app.use("/api/v1", api);
         }).doesNotThrowAnyException();
     }
@@ -917,9 +836,7 @@ class CafeAIAppTest {
     @DisplayName("UrlEncodedOptions builder sets extended=true")
     void urlEncodedOptions_builder_extended() {
         var opts = UrlEncodedOptions.builder()
-                .extended(true)
-                .limit(256 * 1024L)
-                .build();
+                .extended(true).limit(256 * 1024L).build();
         assertThat(opts.extended()).isTrue();
         assertThat(opts.limit()).isEqualTo(256 * 1024L);
     }
@@ -959,8 +876,6 @@ class CafeAIAppTest {
         assertThat(opts.extensions()).containsExactly("html", "htm");
     }
 
-    // ── ROADMAP-01 Phase 2: CafeAI factory methods compile and return Middleware
-
     @Test
     @DisplayName("CafeAI.json() returns a non-null Middleware")
     void cafeAiJson_returnsMiddleware() {
@@ -994,16 +909,11 @@ class CafeAIAppTest {
     @Test
     @DisplayName("CafeAI.json(options) respects custom options")
     void cafeAiJson_customOptions() {
-        var opts = JsonOptions.builder()
-                .limit(512 * 1024L)
-                .strict(false)
-                .build();
+        var opts = JsonOptions.builder().limit(512 * 1024L).strict(false).build();
         assertThat(CafeAI.json(opts)).isNotNull();
         assertThat(opts.limit()).isEqualTo(512 * 1024L);
         assertThat(opts.strict()).isFalse();
     }
-
-    // ── Middleware.NOOP is idempotent ─────────────────────────────────────────
 
     @Test
     @DisplayName("Middleware.NOOP called multiple times always invokes next")
