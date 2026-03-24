@@ -1,11 +1,10 @@
 # MILESTONE-01: `CafeAI` Factory & Built-in Middleware
 
-**Roadmap:** ROADMAP-01  
-**Module:** `cafeai-core`  
-**Started:** —  
-**Target:** —  
-**Completed:** —  
-**Current Status:** 🟡 In Progress
+**Roadmap:** ROADMAP-01
+**Module:** `cafeai-core`
+**Started:** March 2026
+**Completed:** March 2026
+**Current Status:** 🟢 Complete
 
 ---
 
@@ -14,12 +13,12 @@
 | Phase | Description | Status | Completed |
 |---|---|---|---|
 | Phase 1 | `CafeAI.create()` + `listen()` | 🟢 Complete | March 2026 |
-| Phase 2 | `CafeAI.json()` | 🔴 Not Started | — |
-| Phase 3 | `CafeAI.raw()` | 🔴 Not Started | — |
-| Phase 4 | `CafeAI.Router()` | 🔴 Not Started | — |
-| Phase 5 | `CafeAI.static()` | 🔴 Not Started | — |
-| Phase 6 | `CafeAI.text()` | 🔴 Not Started | — |
-| Phase 7 | `CafeAI.urlencoded()` | 🔴 Not Started | — |
+| Phase 2 | `CafeAI.json()` | 🟢 Complete | March 2026 |
+| Phase 3 | `CafeAI.raw()` | 🟢 Complete | March 2026 |
+| Phase 4 | `CafeAI.Router()` | 🟢 Complete | March 2026 |
+| Phase 5 | `CafeAI.serveStatic()` | 🟢 Complete | March 2026 |
+| Phase 6 | `CafeAI.text()` | 🟢 Complete | March 2026 |
+| Phase 7 | `CafeAI.urlencoded()` | 🟢 Complete | March 2026 |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised
 
@@ -27,58 +26,72 @@
 
 ## Completed Items
 
-**Phase 1 — ROADMAP-01 Phase 1 (March 2026)**
+**Phase 1 — Core Bootstrap (March 2026)**
 
-- `CafeAI` interface — full surface layer with all ROADMAP-01–07 primitives declared
-- `CafeAIApp` — concrete Helidon SE implementation, Service Loader discovery, virtual thread startup
+- `CafeAI` interface — full public API surface with all ROADMAP-01–07 primitives declared
+- `CafeAIApp` — concrete Helidon SE 4.x implementation with virtual thread startup
+- `CafeAIApp.RequestContext` — `WeakHashMap<ServerRequest, RequestContext>` ensures a single
+  `HelidonRequest`/`HelidonResponse` pair flows through all filters and the route handler for
+  each HTTP request — the load-bearing fix for body parsing and post-processing correctness
 - `PathUtils` — Express `:param` → Helidon `{param}` translation (ADR-007)
 - `CafeAIConfigurer`, `CafeAIModule`, `CafeAIRegistry` — full SPI layer (ADR-006)
-- `Request`, `Response`, `Router`, `Route`, `Next`, `Middleware` — complete surface interfaces (ADR-005)
+- `Request`, `Response`, `Router`, `Route`, `Next`, `Middleware` — complete public interfaces
 - `HelidonRequest`, `HelidonResponse` — Helidon 4.x adapters
-- `BuiltInMiddleware` — `json()`, `cors()`, `requestLogger()`, `rateLimit()`, `tokenBudget()`
-- `AiProvider`, `OpenAI`, `Anthropic`, `Ollama`, `ModelRouter` — AI provider layer
-- `GuardRail` — full interface with stubs and regulatory/topic-boundary builders
-- `MemoryStrategy` — all six rungs with `InMemoryStrategy` fully functional
-- `ConversationContext`, `RedisConfig`, `CookieOptions`, `ContentMap` — supporting types
-- `CafeAIAppTest` — 45 unit tests covering all Phase 1 acceptance criteria
-- `PathUtilsTest` — 15 parameterised path translation tests
-- `HelloCafeAI` — canonical runnable example updated to compile against live API
-- `.gitignore`, `gradlew`, `gradlew.bat`, `GETTING-STARTED.md` — project scaffolding
+- `SubRouter`, `RouteBuilderImpl` — sub-router and fluent route builder implementations
+- `CafeAIAppTest` — 85 unit tests covering all acceptance criteria
+- `PathUtilsTest` — 14 parameterised path translation tests
+- `HelloCafeAI` — canonical runnable example
 
----
+**Phases 2–7 — Body Parsers, Router, Static Server (March 2026)**
 
-## In-Progress Items
+- `CafeAI.json()` / `JsonOptions` — full JSON body parsing with inflate, limit, strict mode
+- `CafeAI.raw()` / `RawOptions` — raw `byte[]` body parsing
+- `CafeAI.text()` / `TextOptions` — plain text body parsing with charset detection
+- `CafeAI.urlencoded()` / `UrlEncodedOptions` — form body parsing, flat and bracket notation
+- `CafeAI.serveStatic()` / `StaticOptions` — static file server: ETag, Last-Modified,
+  Cache-Control, max-age, dotfile protection, path traversal prevention, extension fallback,
+  index.html fallback, HEAD support, 24-type MIME table
+- `req.body(Class<T>)` — typed Jackson deserialization via `convertValue()`
+- `CafeAI.Router()` — standalone sub-router factory (ADR-009 — variadic `Middleware` handlers)
+- `BuiltInMiddleware` — `cors()`, `requestLogger()`, `rateLimit()`, `tokenBudget()`
 
-_Nothing in progress yet._
+**ADR-009 — Variadic Handlers, filter/use Distinction, Post-processing Model (March 2026)**
+
+- All route methods are variadic `Middleware...` — `BiConsumer<Request, Response>` removed
+- `app.filter()` introduced for cross-cutting pre-processing (distinct from `app.use()`)
+- `next.run()` blocks on virtual thread — post-processing is free, no async needed
+- `Middleware.NOOP` sentinel for empty handler arrays
+- `CafeAIApp.compose(Middleware[])` — left-to-right composition utility, `public`
 
 ---
 
 ## Decisions & Design Updates
 
-**March 2026 — PathUtils extraction**
+**March 2026 — ADR-009: Everything is Middleware, unified**
 
-During Phase 1 implementation, path translation logic was extracted from `CafeAIApp`
-into a standalone `PathUtils` class. Rationale: `CafeAIApp` is package-private and
-`toHelidonPath()` needed to be directly unit-testable without server infrastructure.
-`PathUtils` is now the single source of truth for Express→Helidon path translation.
-Impact: `PathUtilsTest` now has 15 exhaustive tests for the translation logic.
+Route handler type changed from `BiConsumer<Request, Response>` to `Middleware`.
+`app.filter()` introduced for cross-cutting concerns distinct from `app.use()`.
+Full rationale in `ADR-009-variadic-handlers-filter-use-postprocessing.md`.
 
-**March 2026 — Two Helidon 4.x API calls to verify**
+**March 2026 — RequestContext WeakHashMap (critical correctness fix)**
 
-`HelidonRequest.java` has two calls that need verification against live Helidon 4.x Javadoc:
-1. Line ~174: `h.name()` in `headers()` forEach — may need `h.headerName().defaultCase()`
-2. Line ~117: `pathParameters().toMap()` — verify exact method name on `Parameters` interface
-Both are single-method-name fixes. IntelliJ red squiggles will pinpoint them immediately.
+Initial implementation created new `HelidonRequest`/`HelidonResponse` wrapper objects
+in each `toHelidonFilter()` and `toHelidonHandler()` call. This meant body-parsing filters
+populated state on an object the route handler never saw. Fixed by introducing
+`RequestContext` — a `WeakHashMap<ServerRequest, RequestContext>` keyed on the Helidon
+`ServerRequest` identity. First adapter call creates the pair; all subsequent calls retrieve
+the same instance. `WeakMap` ensures automatic GC after Helidon releases the request.
 
-> **How to use this section:**  
-> When a design decision is made during implementation that differs from the roadmap,
-> record it here with date, rationale, and impact. This is the living audit trail.
+**March 2026 — serveStatic vs static naming**
 
----
+Method named `serveStatic()` rather than `static()` because `static` is a reserved keyword
+in Java. Matches the established precedent from other Java web frameworks.
 
-## Blockers & Issues
+**March 2026 — HTTP 204/304 body prohibition**
 
-_No blockers recorded yet._
+`sendStatus(204)` and `sendStatus(304)` now call `helidonRes.send()` with no body.
+Java's `HttpClient` (used in integration tests) correctly rejects a body on 204 responses
+per the HTTP specification. All other status codes send the reason phrase as a text body.
 
 ---
 
@@ -86,46 +99,7 @@ _No blockers recorded yet._
 
 | Milestone Event | Target Date | Actual Date | Notes |
 |---|---|---|---|
-| Phase 1 complete | — | — | — |
-| Phase 2–3 complete | — | — | — |
-| Phase 4 complete | — | — | — |
-| Phase 5–7 complete | — | — | — |
-| MILESTONE-01 closed | — | — | — |
-
----
-
-## Notes & Observations
-
-_Use this section for implementation notes, gotchas, performance observations,
-and anything worth remembering for future phases._
-
----
-
-## Session 2 — Compile Fixes (March 2026)
-
-**8 compiler errors resolved:**
-
-| # | Error | Fix |
-|---|---|---|
-| 1 | `*/json` terminates Javadoc comment | Changed to `"*" + "/json"` in `Request.java` |
-| 2 | `HeaderName.create(field)` wrong API for response | Introduced `setHeader()` using `HeaderValues.create(HeaderName, String)` |
-| 3 | `BuiltInMiddleware` not accessible cross-package | Made class and all factory methods `public` |
-| 4 | `CafeAIApp` not accessible cross-package | Made class and `newInstance()` `public` |
-| 5 | `WebServer.builder().routing()` wrong Helidon 4 API | Changed to `.addRouting()` |
-| 6 | `headers().value("Host")` takes `HeaderName` not `String` | Changed to `headers().value(HeaderNames.HOST)` |
-| 7 | `pathParameters().toMap()` doesn't exist in Helidon 4 | Changed to iterating `.names()` + `.first(name)` |
-| 8 | `query().get(name)` doesn't exist in Helidon 4 | Changed to `.first(name)` |
-
-**Import hygiene pass — all 30 files:**
-- All fully-qualified references replaced with proper imports
-- `CafeAIRegistry.java` — `Supplier` import fixed (bad `sed` insertion corrected)
-- `HelidonResponse.java` — `Files`, `StandardCharsets`, `Duration`, `IOException` added
-- `GuardRail.java` — `List`, `ArrayList`, `Request`, `Response`, `Next` added
-- `Router.java` — `Next` added, FQ ParamCallback param replaced
-- `Middleware.java` — `BuiltInMiddleware` import added, 5 FQ calls replaced
-- `CafeAI.java` — `CafeAIApp` import added, FQ `create()` call replaced
-- `MemoryStrategy.java` — `ConcurrentHashMap` import added
-- `Response.java` — `Flow` import added for `Publisher`
-- Test file — `ConversationContext`, `ContentMap`, `CookieOptions`, `AiProvider`, `Router`, `Middleware`, `Duration`, `Instant`, `ArrayList` all added
-
-**Status after Session 2:** Project should compile clean after Gradle sync.
+| Phase 1 complete | — | March 2026 | |
+| Phases 2–7 complete | — | March 2026 | |
+| Integration test suite | — | March 2026 | 43 real HTTP tests |
+| MILESTONE-01 closed | — | March 2026 | All 99 tests passing |
