@@ -79,10 +79,14 @@ final class HelidonRequest implements Request {
 
     @Override
     public String hostname() {
-        // Fix #6: Helidon 4 headers().value() requires a HeaderName, not a String
         String host = helidonReq.headers()
             .value(HeaderNames.HOST)
             .orElse("");
+        // Helidon 4 filter context may not expose HOST header directly;
+        // fall back to the request authority (always available).
+        if (host.isBlank()) {
+            host = helidonReq.authority();
+        }
         int colon = host.lastIndexOf(':');
         return colon >= 0 ? host.substring(0, colon) : host;
     }

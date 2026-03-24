@@ -64,11 +64,18 @@ public final class HelidonResponse implements Response {
     @Override
     public void sendStatus(int code) {
         assertNotCommitted();
-        String reason = Status.create(code).reasonPhrase();
         status(code);
-        setHeader("Content-Type", "text/plain");
-        commit();
-        helidonRes.send(reason);
+        // 204 No Content and 304 Not Modified must have no body — HTTP spec.
+        // All other codes send the reason phrase as a plain-text body.
+        if (code == 204 || code == 304) {
+            commit();
+            helidonRes.send();
+        } else {
+            String reason = Status.create(code).reasonPhrase();
+            setHeader("Content-Type", "text/plain");
+            commit();
+            helidonRes.send(reason);
+        }
     }
 
     // ── Body Senders ──────────────────────────────────────────────────────────

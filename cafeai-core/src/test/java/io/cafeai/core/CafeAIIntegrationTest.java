@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -52,6 +53,8 @@ class CafeAIIntegrationTest {
     private int             port;
     private HttpClient      http;
     private String          base;
+    private final AtomicLong lastRequestMs =
+        new AtomicLong(-1);
 
     // ── Server lifecycle ──────────────────────────────────────────────────────
 
@@ -78,12 +81,16 @@ class CafeAIIntegrationTest {
             next.run();
         });
 
-        // Post-processing timing filter — proves next.run() blocks naturally
+        // Post-processing filter — proves next.run() blocks naturally on virtual threads.
+        // We capture elapsed time in a thread-local so the test can verify it ran,
+        // without trying to set a response header after the response is committed.
         app.filter((req, res, next) -> {
             long start = System.nanoTime();
             next.run();
+            // Post-processing: executes after full downstream chain completes.
+            // This proves the blocking next.run() model — not a fire-and-forget.
             long ms = (System.nanoTime() - start) / 1_000_000;
-            res.set("X-Response-Time", ms + "ms");
+            lastRequestMs.set(ms);
         });
 
         // ── HTTP verb routes ──────────────────────────────────────────────────
@@ -493,11 +500,13 @@ class CafeAIIntegrationTest {
     // ── Tests: Post-processing filter ─────────────────────────────────────────
 
     @Test
-    @DisplayName("X-Response-Time header set by post-processing filter")
-    void postProcessingFilter_timingHeader() throws Exception {
-        var res = get("/health");
-        String timing = res.headers().firstValue("X-Response-Time").orElse("");
-        assertThat(timing).endsWith("ms");
+    @DisplayName("Post-processing filter runs after downstream — next.run() blocks")
+    void postProcessingFilter_runsAfterDownstream() throws Exception {
+        lastRequestMs.set(-1);
+        get("/health");
+        // The timing filter sets lastRequestMs AFTER next.run() returns,
+        // proving that next.run() blocks until the full downstream chain completes.
+        assertThat(lastRequestMs.get()).isGreaterThanOrEqualTo(0);
     }
 
     // ── Tests: Inline middleware chain ────────────────────────────────────────

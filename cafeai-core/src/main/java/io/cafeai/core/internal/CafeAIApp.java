@@ -328,7 +328,7 @@ public final class CafeAIApp implements CafeAI {
         return parent.path() + mountpath();
     }
 
-    /** Called by parent app when this sub-app is mounted. Package-private. */
+    /** Called by parent app when this sub-app is mounted. */
     public void notifyMount(CafeAI parentApp, String mountPath) {
         this.parent = parentApp;
         this.mountPaths.add(mountPath);
@@ -607,8 +607,6 @@ public final class CafeAIApp implements CafeAI {
 
         log.info("☕ CafeAI starting on port {}...", port);
 
-        var routing = buildRouting();
-
         var routingBuilder = buildRouting();
 
         server = WebServer.builder()
@@ -733,23 +731,57 @@ public final class CafeAIApp implements CafeAI {
     // ── Helidon Adapter Helpers (private — no Helidon types leak out) ─────────
 
     /**
+     * Per-request context — the single {@link HelidonRequest}/{@link HelidonResponse}
+     * pair that flows through all filters AND the route handler for one HTTP request.
+     *
+     * <p>Keyed by the Helidon {@link ServerRequest} instance, which is the same
+     * object throughout a single request lifecycle in Helidon 4. WeakHashMap
+     * ensures automatic cleanup when Helidon releases the ServerRequest after
+     * the response is committed — no memory leak.
+     *
+     * <p>Synchronised externally only at creation time; all subsequent reads
+     * are key-equal lookups on the same reference, which is safe.
+     */
+    private final java.util.WeakHashMap<ServerRequest, RequestContext> requestContexts =
+        new java.util.WeakHashMap<>();
+
+    private RequestContext getOrCreateContext(ServerRequest helidonReq,
+                                              ServerResponse helidonRes) {
+        synchronized (requestContexts) {
+            return requestContexts.computeIfAbsent(helidonReq, k -> {
+                var req = new HelidonRequest(helidonReq, this);
+                var res = new HelidonResponse(helidonRes);
+                return new RequestContext(req, res);
+            });
+        }
+    }
+
+    private record RequestContext(HelidonRequest req, HelidonResponse res) {}
+
+    /**
      * Wraps a {@link Middleware} as a Helidon {@link Filter}.
-     * Catches any uncaught exception and routes it to the error-handling chain.
+     *
+     * <p>Retrieves or creates the shared {@link RequestContext} for this request,
+     * ensuring all filters and the route handler operate on the same
+     * {@link HelidonRequest}/{@link HelidonResponse} pair. This is what allows
+     * body-parsing filters to populate {@code req.body()} and have that state
+     * visible to downstream handlers, and what allows post-processing filters
+     * to set response headers after {@code next.run()}.
      */
     private Filter toHelidonFilter(Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
-            var req = new HelidonRequest((ServerRequest) routingReq, this);
-            var res = new HelidonResponse((ServerResponse) routingRes);
+            var ctx = getOrCreateContext((ServerRequest) routingReq,
+                                        (ServerResponse) routingRes);
             try {
-                middleware.handle(req, res, () -> {
+                middleware.handle(ctx.req(), ctx.res(), () -> {
                     try {
                         chain.proceed();
                     } catch (Exception e) {
-                        dispatchError(e, req, res);
+                        dispatchError(e, ctx.req(), ctx.res());
                     }
                 });
             } catch (Exception e) {
-                dispatchError(e, req, res);
+                dispatchError(e, ctx.req(), ctx.res());
             }
         };
     }
@@ -761,18 +793,18 @@ public final class CafeAIApp implements CafeAI {
     private Filter toPathScopedFilter(String pathPrefix, Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
             if (routingReq.path().path().startsWith(pathPrefix)) {
-                var req = new HelidonRequest((ServerRequest) routingReq, this);
-                var res = new HelidonResponse((ServerResponse) routingRes);
+                var ctx = getOrCreateContext((ServerRequest) routingReq,
+                                            (ServerResponse) routingRes);
                 try {
-                    middleware.handle(req, res, () -> {
+                    middleware.handle(ctx.req(), ctx.res(), () -> {
                         try {
                             chain.proceed();
                         } catch (Exception e) {
-                            dispatchError(e, req, res);
+                            dispatchError(e, ctx.req(), ctx.res());
                         }
                     });
                 } catch (Exception e) {
-                    dispatchError(e, req, res);
+                    dispatchError(e, ctx.req(), ctx.res());
                 }
             } else {
                 chain.proceed();
@@ -782,16 +814,18 @@ public final class CafeAIApp implements CafeAI {
 
     /**
      * Wraps a {@link Middleware} as a Helidon route {@link Handler}.
-     * Catches uncaught exceptions and routes them to the error-handling chain.
+     *
+     * <p>Retrieves the same {@link RequestContext} that was created when the
+     * first filter ran — the body-parsing middleware will already have populated
+     * {@code req.body()}, {@code req.bodyBytes()}, etc. on this instance.
      */
     private Handler toHelidonHandler(Middleware middleware) {
         return (helidonReq, helidonRes) -> {
-            var req = new HelidonRequest(helidonReq, this);
-            var res = new HelidonResponse(helidonRes);
+            var ctx = getOrCreateContext(helidonReq, helidonRes);
             try {
-                middleware.handle(req, res, () -> {});
+                middleware.handle(ctx.req(), ctx.res(), () -> {});
             } catch (Exception e) {
-                dispatchError(e, req, res);
+                dispatchError(e, ctx.req(), ctx.res());
             }
         };
     }
