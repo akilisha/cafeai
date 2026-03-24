@@ -5,6 +5,17 @@ import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.ModelRouter;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.ai.PromptRequest;
+import io.cafeai.core.ai.PromptResponse;
+import io.cafeai.core.ai.Template;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.model.output.Response;
+import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.*;
 import io.cafeai.core.spi.CafeAIConfigurer;
@@ -165,18 +176,147 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI template(String name, String template) {
+    public CafeAI template(String name, String body) {
         assertNotStarted("template()");
-        Objects.requireNonNull(name,     "Template name must not be null");
-        Objects.requireNonNull(template, "Template body must not be null");
-        templates.put(name, template);
+        Objects.requireNonNull(name, "Template name must not be null");
+        Objects.requireNonNull(body, "Template body must not be null");
+        templates.put(name, body);
         return this;
+    }
+
+    @Override
+    public Template template(String name) {
+        String body = templates.get(name);
+        if (body == null) {
+            throw new IllegalArgumentException(
+                "No template registered with name '" + name + "'. " +
+                "Register one at startup: app.template(\"" + name + "\", \"your {{template}} body\")");
+        }
+        return new Template(name, body);
+    }
+
+    @Override
+    public PromptRequest prompt(String message) {
+        Objects.requireNonNull(message, "Prompt message must not be null");
+        return new PromptRequest(message, this::executePrompt);
+    }
+
+    @Override
+    public PromptRequest prompt(String templateName, Map<String, Object> vars) {
+        Objects.requireNonNull(templateName, "Template name must not be null");
+        String rendered = template(templateName).render(vars != null ? vars : Map.of());
+        return new PromptRequest(rendered, this::executePrompt);
+    }
+
+    /**
+     * Executes a {@link PromptRequest} against the registered LLM provider.
+     *
+     * <p>Execution pipeline:
+     * <ol>
+     *   <li>Resolve the model — {@code ModelRouter} or single {@code AiProvider}</li>
+     *   <li>Build the message list — system prompt + conversation history + user message</li>
+     *   <li>Call Langchain4j {@code ChatLanguageModel.generate()}</li>
+     *   <li>Store the exchange in memory if a session ID is present</li>
+     *   <li>Return {@link PromptResponse} with text + token counts</li>
+     * </ol>
+     */
+    private PromptResponse executePrompt(PromptRequest request) {
+        // ── 1. Resolve provider ───────────────────────────────────────────────
+        AiProvider provider = resolveProvider(request);
+
+        // ── 2. Get the Langchain4j ChatLanguageModel ──────────────────────────
+        ChatLanguageModel model =
+            LangchainBridge.INSTANCE.modelFor(provider);
+
+        // ── 3. Build message list ─────────────────────────────────────────────
+        List<ChatMessage> messages = new ArrayList<>();
+
+        // System prompt — override or application default
+        String sysPrompt = request.systemOverride() != null
+            ? request.systemOverride()
+            : systemPrompt;
+        if (sysPrompt != null && !sysPrompt.isBlank()) {
+            messages.add(SystemMessage.from(sysPrompt));
+        }
+
+        // Conversation history from memory
+        if (request.sessionId() != null && memoryStrategy != null) {
+            ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx != null) {
+                for (var msg : ctx.messages()) {
+                    if ("user".equalsIgnoreCase(msg.role())) {
+                        messages.add(UserMessage.from(msg.content()));
+                    } else if ("assistant".equalsIgnoreCase(msg.role())) {
+                        messages.add(AiMessage.from(msg.content()));
+                    }
+                }
+            }
+        }
+
+        // The current user message
+        messages.add(UserMessage.from(request.message()));
+
+        // ── 4. Call the LLM ───────────────────────────────────────────────────
+        Response<AiMessage> response =
+            model.generate(messages);
+
+        String responseText  = response.content().text();
+        TokenUsage usage = response.tokenUsage();
+        int promptTokens     = usage != null ? usage.inputTokenCount()  : 0;
+        int outputTokens     = usage != null ? usage.outputTokenCount() : 0;
+
+        // ── 5. Persist to memory ──────────────────────────────────────────────
+        if (request.sessionId() != null && memoryStrategy != null) {
+            ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx == null) {
+                ctx = new ConversationContext(request.sessionId());
+            }
+            ctx.addMessage("user",      request.message());
+            ctx.addMessage("assistant", responseText);
+            ctx.addTokens(promptTokens + outputTokens);
+            memoryStrategy.store(request.sessionId(), ctx);
+        }
+
+        // ── 6. Return PromptResponse ──────────────────────────────────────────
+        return PromptResponse.builder()
+            .text(responseText)
+            .promptTokens(promptTokens)
+            .outputTokens(outputTokens)
+            .modelId(provider.modelId())
+            .fromCache(false)
+            .build();
+    }
+
+    /**
+     * Resolves which {@link AiProvider} to use for this request.
+     * If a {@link io.cafeai.core.ai.ModelRouter} is registered, delegates to it.
+     * Falls back to the single registered provider.
+     */
+    private AiProvider resolveProvider(
+            PromptRequest request) {
+        if (aiProvider == null && modelRouter == null) {
+            throw new IllegalStateException(
+                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup.\n\n" +
+                "For local models (no API key needed):\n" +
+                "  app.ai(Ollama.llama3())");
+        }
+        if (modelRouter != null) {
+            // Simple heuristic: messages over 500 chars go to the complex model
+            boolean isComplex = request.message().length() > 500;
+            return isComplex
+                ? modelRouter.complexModel()
+                : modelRouter.simpleModel();
+        }
+        return aiProvider;
     }
 
     @Override
     public CafeAI memory(MemoryStrategy strategy) {
         assertNotStarted("memory()");
         this.memoryStrategy = Objects.requireNonNull(strategy, "MemoryStrategy must not be null");
+        locals.put(Locals.MEMORY_STRATEGY, strategy);
         log.info("Memory strategy registered: {}", strategy.getClass().getSimpleName());
         return this;
     }

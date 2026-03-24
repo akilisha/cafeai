@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.internal.LangchainBridge;
+
 /**
  * Factory for Ollama local model providers.
  *
@@ -40,7 +42,13 @@ public final class Ollama {
         }
     }
 
-    private record OllamaProvider(String modelId, String baseUrl) implements AiProvider {
+    /**
+     * Implements {@link LangchainBridge.OllamaProviderAccess} so the bridge
+     * can read the base URL via pattern matching without exposing it on
+     * the public {@link AiProvider} interface.
+     */
+    private record OllamaProvider(String modelId, String baseUrl)
+            implements AiProvider, LangchainBridge.OllamaProviderAccess {
         @Override public String name()       { return "ollama"; }
         @Override public ProviderType type() { return ProviderType.OLLAMA; }
     }

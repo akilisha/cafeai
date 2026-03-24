@@ -1,6 +1,10 @@
 package io.cafeai.examples;
 
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.Setting;
+import io.cafeai.core.ai.ModelRouter;
+import io.cafeai.core.ai.OpenAI;
+import io.cafeai.core.ai.Ollama;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
@@ -8,121 +12,173 @@ import io.cafeai.core.middleware.Middleware;
 import java.util.Map;
 
 /**
- * HelloCafeAI — The canonical CafeAI bootstrap example.
+ * HelloCafeAI — the canonical CafeAI bootstrap example.
  *
- * <p>The living proof that the framework works end to end.
- * Every phase of every roadmap must keep this running.
+ * <p>Demonstrates the full AI-native request pipeline:
+ * <ol>
+ *   <li>Provider registration ({@code app.ai()})</li>
+ *   <li>System prompt ({@code app.system()})</li>
+ *   <li>Named templates ({@code app.template()})</li>
+ *   <li>Session memory ({@code app.memory()})</li>
+ *   <li>Guardrails as middleware ({@code app.guard()})</li>
+ *   <li>LLM invocation ({@code app.prompt().call()})</li>
+ *   <li>Model routing ({@code ModelRouter.smart()})</li>
+ * </ol>
  *
- * <p>Demonstrates the ADR-009 API:
- * <ul>
- *   <li>{@code app.filter()} for cross-cutting pre-processing</li>
- *   <li>Variadic {@code Middleware} handlers on route methods</li>
- *   <li>Natural post-processing via code after {@code next.run()}</li>
- * </ul>
- *
- * <p>Run:
- * <pre>./gradlew :cafeai-examples:run</pre>
- *
- * <p>Test:
+ * <p>Run with OpenAI (requires OPENAI_API_KEY):
  * <pre>
- *   curl http://localhost:8080/health
- *   curl -X POST http://localhost:8080/echo \
- *        -H "Content-Type: application/json" \
- *        -d '{"message":"hello cafeai"}'
- *   curl http://localhost:8080/users/42
+ *   export OPENAI_API_KEY=sk-...
+ *   ./gradlew :cafeai-examples:run
+ * </pre>
+ *
+ * <p>Run with local Ollama (no key needed):
+ * <pre>
+ *   # Start Ollama: ollama serve
+ *   # Pull a model: ollama pull llama3
+ *   # Set USE_OLLAMA=true in the source, then:
+ *   ./gradlew :cafeai-examples:run
  * </pre>
  */
 public class HelloCafeAI {
 
-    public static void main(String[] args) {
+    // Set to true to use local Ollama instead of OpenAI
+    private static final boolean USE_OLLAMA = false;
 
+    public static void main(String[] args) {
         var app = CafeAI.create();
 
-        // ── Memory and Safety ──────────────────────────────────────────────────
+        // ── AI Provider ───────────────────────────────────────────────────────
+        if (USE_OLLAMA) {
+            app.ai(Ollama.llama3());                   // local — no API key needed
+        } else {
+            app.ai(ModelRouter.smart()                 // cost-aware routing
+                .simple(OpenAI.gpt4oMini())            // fast + cheap for simple queries
+                .complex(OpenAI.gpt4o()));              // powerful for complex queries
+        }
+
+        // ── System Prompt — the AI's persona ─────────────────────────────────
+        app.system("""
+            You are a helpful, concise assistant built with CafeAI.
+            You answer questions clearly and directly.
+            If you don't know something, say so honestly.
+            Keep responses under 3 sentences unless asked for more detail.
+            """);
+
+        // ── Named Prompt Templates ────────────────────────────────────────────
+        app.template("classify",
+            "Classify the following message into exactly one category: {{categories}}.\n" +
+            "Respond with only the category name, nothing else.\n" +
+            "Message: {{message}}");
+
+        app.template("summarize",
+            "Summarize the following in {{maxWords}} words or fewer:\n\n{{content}}");
+
+        // ── Memory — conversation context per session ─────────────────────────
         app.memory(MemoryStrategy.inMemory());
 
-        // ── Cross-Cutting Pre-Processing (filter scope) ────────────────────────
-        // These run before any route handler, in their own execution frame.
-        // Code after next.run() is post-processing — executes after response commits.
+        // ── Settings ──────────────────────────────────────────────────────────
+        app.set(Setting.ENV, "development");
+        app.disable(Setting.X_POWERED_BY);           // don't expose the stack in prod
+
+        // ── Filters — cross-cutting, global ──────────────────────────────────
+        app.filter(CafeAI.json());
         app.filter(Middleware.requestLogger());
         app.filter(Middleware.cors());
-        app.filter(CafeAI.json());        // parse JSON bodies before routes read them
-        app.filter(GuardRail.pii());      // scrub PII before any handler sees input
+        app.filter(GuardRail.pii());                 // scrub PII before LLM sees input
         app.filter(GuardRail.jailbreak());
 
-        // ── Timing filter — demonstrates natural post-processing ──────────────
-        app.filter((req, res, next) -> {
-            long start = System.nanoTime();
-            next.run();                   // blocks on virtual thread until response committed
-            long ms = (System.nanoTime() - start) / 1_000_000;
-            if (ms > 500) {
-                System.out.printf("SLOW REQUEST: %s %s took %dms%n",
-                    req.method(), req.path(), ms);
-            }
-        });
+        // ── Routes ────────────────────────────────────────────────────────────
 
-        // ── Rate limiting scoped to /api/** ────────────────────────────────────
-        app.filter("/api", Middleware.rateLimit(100));
-
-        // ── Routes (variadic Middleware handlers) ──────────────────────────────
-
-        // Health check — single handler, no middleware
+        // Health check
         app.get("/health",
-            (req, res, next) -> res.json(Map.of(
-                "status",  "ok",
-                "service", "cafeai",
-                "version", "0.1.0-SNAPSHOT")));
+            (req, res, next) -> res.json(Map.of("status", "ok", "ai", "ready")));
 
-        // Echo — demonstrates req/res round-trip with JSON body
-        app.post("/echo",
-            (req, res, next) -> res.json(Map.of(
-                "echo",   req.body("message") != null ? req.body("message") : "(no message)",
-                "method", req.method(),
-                "path",   req.path())));
+        // Simple one-shot prompt
+        app.post("/ask",
+            (req, res, next) -> {
+                String question = req.body("question");
+                if (question == null || question.isBlank()) {
+                    res.status(400).json(Map.of("error", "question field required"));
+                    return;
+                }
+                var response = app.prompt(question).call();
+                res.json(Map.of(
+                    "answer",        response.text(),
+                    "model",         response.modelId(),
+                    "promptTokens",  response.promptTokens(),
+                    "outputTokens",  response.outputTokens()
+                ));
+            });
 
-        // Path parameter — inline auth + handler pipeline
-        // auth is a no-op stub here; in production it would check a token
-        Middleware auth = (req, res, next) -> {
-            // Real auth would inspect req.header("Authorization") and call next.fail() on reject
-            next.run();
-        };
+        // Session-aware chat — maintains conversation history
+        app.post("/chat",
+            (req, res, next) -> {
+                String message   = req.body("message");
+                String sessionId = req.header("X-Session-Id");
 
-        app.get("/users/:id",
-            auth,   // inline per-route middleware — runs before the handler below
-            (req, res, next) -> res.json(Map.of(
-                "userId",  req.params("id"),
-                "message", "User " + req.params("id") + " found")));
+                if (message == null || message.isBlank()) {
+                    res.status(400).json(Map.of("error", "message field required"));
+                    return;
+                }
 
-        // Fluent route builder — multiple methods on one path
-        app.route("/items/:id")
-           .get((req, res, next) ->
-               res.json(Map.of("id", req.params("id"), "action", "get")))
-           .put((req, res, next) ->
-               res.json(Map.of("id", req.params("id"), "action", "update")))
-           .delete((req, res, next) ->
-               res.status(204).end());
+                var response = app.prompt(message)
+                    .session(sessionId)   // loads history, stores exchange after
+                    .call();
 
-        // Sub-router — demonstrates app.use(path, router)
-        var apiRouter = CafeAI.Router();
-        apiRouter.get("/hello",
-            (req, res, next) -> res.json(Map.of("message", "Hello from /api/hello")));
-        apiRouter.get("/status",
-            (req, res, next) -> res.json(Map.of("api", "v1", "status", "healthy")));
-        app.use("/api", apiRouter);
+                res.json(Map.of(
+                    "response",  response.text(),
+                    "model",     response.modelId(),
+                    "tokens",    response.totalTokens()
+                ));
+            });
+
+        // Template-based classification
+        app.post("/classify",
+            (req, res, next) -> {
+                String message = req.body("message");
+                var response   = app.prompt("classify", Map.of(
+                    "categories", "billing, shipping, returns, general",
+                    "message",    message
+                )).call();
+                res.json(Map.of("category", response.text().trim().toLowerCase()));
+            });
+
+        // Template retrieval and manual rendering
+        app.post("/summarize",
+            (req, res, next) -> {
+                String rendered = app.template("summarize")
+                    .render(Map.of(
+                        "maxWords", req.body("maxWords") != null ? req.body("maxWords") : "50",
+                        "content",  req.body("content")
+                    ));
+                var response = app.prompt(rendered).call();
+                res.json(Map.of("summary", response.text()));
+            });
 
         // ── Start ──────────────────────────────────────────────────────────────
         app.listen(8080, () -> System.out.println("""
             ☕ CafeAI is brewing on http://localhost:8080
 
-               GET  /health         → health check
-               POST /echo           → echo JSON body
-               GET  /users/:id      → path param + inline auth middleware
-               GET  /items/:id      → fluent route builder (also PUT, DELETE)
-               GET  /api/hello      → sub-router, rate-limited
-               GET  /api/status     → sub-router endpoint
+               GET  /health              → health check
+               POST /ask                 → one-shot question/answer
+               POST /chat                → session-aware conversation
+               POST /classify            → template-based classification
+               POST /summarize           → template-based summarization
 
-            Filters active: requestLogger, cors, json, pii, jailbreak, timing, rateLimit(/api)
+            Provider: %s
+            Memory:   in-memory (sessions survive until restart)
+
+            Try it:
+              curl -X POST http://localhost:8080/ask \\
+                   -H "Content-Type: application/json" \\
+                   -d '{"question":"What is CafeAI?"}'
+
+              curl -X POST http://localhost:8080/chat \\
+                   -H "Content-Type: application/json" \\
+                   -H "X-Session-Id: session-1" \\
+                   -d '{"message":"Hello! What can you help me with?"}'
+
             Press Ctrl+C to stop.
-            """));
+            """.formatted(USE_OLLAMA ? "Ollama (local)" : "OpenAI (cloud)")));
     }
 }

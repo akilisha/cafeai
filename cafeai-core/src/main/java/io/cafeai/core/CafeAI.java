@@ -2,6 +2,8 @@ package io.cafeai.core;
 
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.ModelRouter;
+import io.cafeai.core.ai.PromptRequest;
+import io.cafeai.core.ai.Template;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.internal.CafeAIApp;
@@ -10,6 +12,7 @@ import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Router;
 import io.cafeai.core.spi.CafeAIConfigurer;
+import java.util.Map;
 import io.cafeai.core.StaticOptions;
 import io.cafeai.core.UrlEncodedOptions;
 
@@ -348,7 +351,71 @@ public interface CafeAI extends Router {
      *   app.template("classify", "Classify the following: {{input}}");
      * }</pre>
      */
-    CafeAI template(String name, String template);
+    // ── LLM Invocation (ROADMAP-07 Phase 1) ──────────────────────────────────
+
+    /**
+     * Creates a prompt request for the registered LLM provider.
+     *
+     * <p>The returned {@link io.cafeai.core.ai.PromptRequest} is a fluent builder.
+     * Nothing is sent to the LLM until {@code .call()} is invoked.
+     *
+     * <pre>{@code
+     *   // Simple synchronous call
+     *   PromptResponse response = app.prompt("What is the capital of France?").call();
+     *   res.json(Map.of("answer", response.text()));
+     *
+     *   // Session-aware — includes conversation history
+     *   PromptResponse response = app.prompt("Continue our conversation")
+     *       .session(req.header("X-Session-Id"))
+     *       .call();
+     *
+     *   // System prompt override for this call only
+     *   PromptResponse response = app.prompt("Translate: " + text)
+     *       .system("You are a professional French translator.")
+     *       .call();
+     * }</pre>
+     *
+     * @throws IllegalStateException if no AI provider has been registered via {@link #ai(io.cafeai.core.ai.AiProvider)}
+     */
+    PromptRequest prompt(String message);
+
+    /**
+     * Creates a prompt request by rendering a named template with the given variables.
+     *
+     * <pre>{@code
+     *   app.template("classify",
+     *       "Classify into one of: {{categories}}.\nMessage: {{message}}");
+     *
+     *   // In handler:
+     *   PromptResponse result = app.prompt("classify",
+     *       Map.of("categories", "billing, shipping", "message", userInput))
+     *       .call();
+     * }</pre>
+     *
+     * @throws IllegalArgumentException if no template with the given name is registered
+     * @throws Template.TemplateException if a required variable is missing
+     */
+    PromptRequest prompt(String templateName, Map<String, Object> vars);
+
+    /**
+     * Retrieves a registered prompt template by name.
+     *
+     * <pre>{@code
+     *   Template t = app.template("classify");
+     *   String rendered = t.render(Map.of("categories", "billing", "message", input));
+     *   PromptResponse response = app.prompt(rendered).call();
+     * }</pre>
+     *
+     * @throws IllegalArgumentException if no template with the given name is registered
+     */
+    Template template(String name);
+
+    /**
+     * Registers a named prompt template.
+     * Mirrors the existing {@link #template(String, String)} registration method.
+     * Use {@link #template(String)} to retrieve a registered template.
+     */
+    CafeAI template(String name, String body);
 
     // ── Memory ────────────────────────────────────────────────────────────────
 
