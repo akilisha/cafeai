@@ -209,6 +209,34 @@ public interface CafeAI extends Router {
         return BuiltInMiddleware.serveStatic(root, options);
     }
 
+    // ── Error Handling (ROADMAP-06 Phase 2) ──────────────────────────────────
+
+    /**
+     * Registers an error-handling middleware.
+     * Invoked when any middleware or handler calls {@link io.cafeai.core.middleware.Next#fail(Throwable)},
+     * or when an uncaught exception propagates up the middleware chain.
+     *
+     * <p>Mirrors Express: {@code app.use(function(err, req, res, next))}
+     * but uses an explicit {@link io.cafeai.core.middleware.ErrorMiddleware} type
+     * instead of relying on function arity.
+     *
+     * <p>Multiple error handlers are chained in registration order.
+     * The first registered handler has first opportunity to respond.
+     * Call {@code next.run()} to pass to the next registered error handler.
+     *
+     * <pre>{@code
+     *   app.onError((err, req, res, next) -> {
+     *       log.error("Request error: {}", err.getMessage(), err);
+     *       if (!res.headersSent()) {
+     *           res.status(500).json(Map.of("error", "Internal server error"));
+     *       }
+     *   });
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI onError(io.cafeai.core.middleware.ErrorMiddleware handler);
+
     // ── Filter Registration (Cross-Cutting Pre-Processing) ────────────────────
 
     /**

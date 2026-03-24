@@ -23,6 +23,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import io.cafeai.core.Locals;
+import io.cafeai.core.ResponseFormatter;
+import io.cafeai.core.Setting;
+import io.cafeai.core.middleware.ErrorMiddleware;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -65,15 +70,18 @@ public final class CafeAIApp implements CafeAI {
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
-    private final Map<io.cafeai.core.Setting, Object> settings = new ConcurrentHashMap<>();
+    private final Map<Setting, Object> settings = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Template engines
-    private final Map<String, io.cafeai.core.ResponseFormatter> engines = new ConcurrentHashMap<>();
+    private final Map<String, ResponseFormatter> engines = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Mount state
-    private final List<String>                                      mountPaths  = new ArrayList<>();
+    private final List<String>                                      mountPaths     = new ArrayList<>();
     private final List<java.util.function.Consumer<CafeAI>>        mountCallbacks = new ArrayList<>();
     private CafeAI                                                   parent;
+
+    // ROADMAP-06: Error-handling middleware
+    private final List<ErrorMiddleware>   errorHandlers  = new ArrayList<>();
 
     private WebServer server;
 
@@ -89,7 +97,7 @@ public final class CafeAIApp implements CafeAI {
 
     private CafeAIApp() {
         // Initialise settings with Express-matching defaults
-        for (io.cafeai.core.Setting s : io.cafeai.core.Setting.values()) {
+        for (Setting s : io.cafeai.core.Setting.values()) {
             if (s.defaultValue() != null) {
                 settings.put(s, s.defaultValue());
             }
@@ -208,15 +216,15 @@ public final class CafeAIApp implements CafeAI {
     public java.util.Map<String, Object> locals() {
         // Return unmodifiable snapshot excluding internal CafeAI keys
         return locals.entrySet().stream()
-            .filter(e -> !io.cafeai.core.Locals.isInternal(e.getKey()))
-            .collect(java.util.stream.Collectors.toUnmodifiableMap(
+            .filter(e -> !Locals.isInternal(e.getKey()))
+            .collect(Collectors.toUnmodifiableMap(
                 Map.Entry::getKey, Map.Entry::getValue));
     }
 
     // ── Application Settings (ROADMAP-02 Phase 7) ─────────────────────────────
 
     @Override
-    public CafeAI set(io.cafeai.core.Setting setting, Object value) {
+    public CafeAI set(Setting setting, Object value) {
         Objects.requireNonNull(setting, "Setting must not be null");
         if (value == null) {
             settings.remove(setting);
@@ -228,7 +236,7 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T setting(io.cafeai.core.Setting setting, Class<T> type) {
+    public <T> T setting(Setting setting, Class<T> type) {
         Object value = settings.containsKey(setting)
             ? settings.get(setting)
             : setting.defaultValue();
@@ -237,7 +245,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public Object setting(io.cafeai.core.Setting setting) {
+    public Object setting(Setting setting) {
         // getOrDefault would return null if the key maps to an explicitly stored null
         // (e.g. after app.set(Setting.VIEW_ENGINE, null)).
         // containsKey correctly distinguishes "key absent → use default" from
@@ -248,7 +256,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI enable(io.cafeai.core.Setting setting) {
+    public CafeAI enable(Setting setting) {
         if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
                 "Setting." + setting.name() + " does not support enable()/disable(). " +
@@ -259,7 +267,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI disable(io.cafeai.core.Setting setting) {
+    public CafeAI disable(Setting setting) {
         if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
                 "Setting." + setting.name() + " does not support enable()/disable(). " +
@@ -276,14 +284,14 @@ public final class CafeAIApp implements CafeAI {
      * (e.g. TRUST_PROXY — can be boolean or integer hop count,
      * but enable/disable make sense for the boolean case).
      */
-    private static boolean isBooleanCapable(io.cafeai.core.Setting setting) {
+    private static boolean isBooleanCapable(Setting setting) {
         return setting.isBoolean()
             || (setting.valueType() == Object.class
                 && setting.defaultValue() instanceof Boolean);
     }
 
     @Override
-    public boolean enabled(io.cafeai.core.Setting setting) {
+    public boolean enabled(Setting setting) {
         Object value = setting(setting);
         if (value instanceof Boolean b) return b;
         if (value instanceof Number n)  return n.intValue() != 0;
@@ -291,7 +299,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public boolean disabled(io.cafeai.core.Setting setting) {
+    public boolean disabled(Setting setting) {
         return !enabled(setting);
     }
 
@@ -304,7 +312,7 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     public java.util.List<String> mountpaths() {
-        return java.util.Collections.unmodifiableList(mountPaths);
+        return Collections.unmodifiableList(mountPaths);
     }
 
     @Override
@@ -332,7 +340,7 @@ public final class CafeAIApp implements CafeAI {
     // ── Template Engine (ROADMAP-02 Phase 8) ──────────────────────────────────
 
     @Override
-    public CafeAI engine(String ext, io.cafeai.core.ResponseFormatter formatter) {
+    public CafeAI engine(String ext, ResponseFormatter formatter) {
         Objects.requireNonNull(ext,       "Extension must not be null");
         Objects.requireNonNull(formatter, "ResponseFormatter must not be null");
         // Normalise: strip leading dot if present
@@ -360,18 +368,18 @@ public final class CafeAIApp implements CafeAI {
         // complete before the caller checks isCompletedExceptionally().
         try {
             validateRenderConfig(view);
-        } catch (io.cafeai.core.ResponseFormatter.RenderException e) {
-            return java.util.concurrent.CompletableFuture.failedFuture(e);
+        } catch (ResponseFormatter.RenderException e) {
+            return CompletableFuture.failedFuture(e);
         }
         // Config is valid — do the actual file I/O and rendering asynchronously
-        return java.util.concurrent.CompletableFuture.supplyAsync(
+        return CompletableFuture.supplyAsync(
             () -> renderView(view, locals));
     }
 
     /**
      * Validates that a render call is configured correctly — engine exists,
      * VIEW_ENGINE is set if no extension given — without doing any I/O.
-     * Throws {@link io.cafeai.core.ResponseFormatter.RenderException} immediately
+     * Throws {@link ResponseFormatter.RenderException} immediately
      * if configuration is incomplete. Called eagerly on the calling thread
      * so {@code CompletableFuture.failedFuture()} can be returned synchronously.
      */
@@ -381,16 +389,16 @@ public final class CafeAIApp implements CafeAI {
         if (dot >= 0) {
             ext = view.substring(dot + 1);
         } else {
-            Object engineSetting = setting(io.cafeai.core.Setting.VIEW_ENGINE);
+            Object engineSetting = setting(Setting.VIEW_ENGINE);
             if (engineSetting == null || engineSetting.toString().isBlank()) {
-                throw new io.cafeai.core.ResponseFormatter.RenderException(
+                throw new ResponseFormatter.RenderException(
                     "No view engine configured. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
                     "or include the extension in the view name (e.g. \"welcome.html\").");
             }
             ext = engineSetting.toString();
         }
         if (!engines.containsKey(ext)) {
-            throw new io.cafeai.core.ResponseFormatter.RenderException(
+            throw new ResponseFormatter.RenderException(
                 "No engine registered for extension \"" + ext + "\". " +
                 "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
                 "after adding io.cafeai:cafeai-views-mustache to your dependencies.");
@@ -407,24 +415,24 @@ public final class CafeAIApp implements CafeAI {
         if (dot >= 0) {
             ext = view.substring(dot + 1);
         } else {
-            Object engineSetting = setting(io.cafeai.core.Setting.VIEW_ENGINE);
+            Object engineSetting = setting(Setting.VIEW_ENGINE);
             if (engineSetting == null || engineSetting.toString().isBlank()) {
-                throw new io.cafeai.core.ResponseFormatter.RenderException(
+                throw new ResponseFormatter.RenderException(
                     "No view engine set. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
                     "or include the extension in the view name.");
             }
             ext = engineSetting.toString();
         }
 
-        io.cafeai.core.ResponseFormatter formatter = engines.get(ext);
+        ResponseFormatter formatter = engines.get(ext);
         if (formatter == null) {
-            throw new io.cafeai.core.ResponseFormatter.RenderException(
+            throw new ResponseFormatter.RenderException(
                 "No engine registered for extension \"" + ext + "\". " +
                 "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()).");
         }
 
         // Resolve template path from VIEWS setting
-        String viewsDir = (String) setting(io.cafeai.core.Setting.VIEWS);
+        String viewsDir = (String) setting(Setting.VIEWS);
         String fileName = dot >= 0 ? view : view + "." + ext;
         String templatePath = java.nio.file.Paths.get(viewsDir, fileName)
             .toAbsolutePath().normalize().toString();
@@ -436,7 +444,47 @@ public final class CafeAIApp implements CafeAI {
         return formatter.format(templatePath, merged);
     }
 
-    // ── Filter Registration (Cross-Cutting Pre-Processing) ────────────────────
+    // ── Error Handling (ROADMAP-06 Phase 2) ──────────────────────────────────
+
+    @Override
+    public CafeAI onError(ErrorMiddleware handler) {
+        assertNotStarted("onError()");
+        Objects.requireNonNull(handler, "ErrorMiddleware must not be null");
+        errorHandlers.add(handler);
+        return this;
+    }
+
+    /**
+     * Dispatches an error to the registered error-handling middleware chain.
+     * Chains multiple handlers left-to-right — each can call {@code next.run()}
+     * to pass to the next. If no handler handles it, logs and sends a 500.
+     */
+    private void dispatchError(Throwable error, Request req, Response res) {
+        if (errorHandlers.isEmpty()) {
+            defaultErrorHandler(error, res);
+            return;
+        }
+        // Build a chain of error handlers, each able to call next.run()
+        Runnable chain = () -> defaultErrorHandler(error, res);
+        for (int i = errorHandlers.size() - 1; i >= 0; i--) {
+            final ErrorMiddleware handler = errorHandlers.get(i);
+            final Runnable next = chain;
+            chain = () -> handler.handle(error, req, res, () -> next.run());
+        }
+        chain.run();
+    }
+
+    private void defaultErrorHandler(Throwable error, Response res) {
+        if (!res.headersSent()) {
+            log.error("Unhandled request error", error);
+            try {
+                res.status(500).json(Map.of("error", "Internal Server Error",
+                    "message", error.getMessage() != null ? error.getMessage() : ""));
+            } catch (Exception ignored) {
+                // Response may already be committed — swallow
+            }
+        }
+    }
 
     @Override
     public CafeAI filter(Middleware... middlewares) {
@@ -686,30 +734,46 @@ public final class CafeAIApp implements CafeAI {
 
     /**
      * Wraps a {@link Middleware} as a Helidon {@link Filter}.
-     *
-     * <p>{@code next.run()} in the middleware maps to {@code chain.proceed()} in Helidon,
-     * advancing to the next filter or to route dispatch. Code after {@code next.run()}
-     * executes after the entire downstream chain completes — natural post-processing on
-     * virtual threads (ADR-009 §3).
+     * Catches any uncaught exception and routes it to the error-handling chain.
      */
     private Filter toHelidonFilter(Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
             var req = new HelidonRequest((ServerRequest) routingReq, this);
             var res = new HelidonResponse((ServerResponse) routingRes);
-            middleware.handle(req, res, chain::proceed);
+            try {
+                middleware.handle(req, res, () -> {
+                    try {
+                        chain.proceed();
+                    } catch (Exception e) {
+                        dispatchError(e, req, res);
+                    }
+                });
+            } catch (Exception e) {
+                dispatchError(e, req, res);
+            }
         };
     }
 
     /**
      * Wraps a path-scoped {@link Middleware} as a Helidon {@link Filter}.
-     * Skips to {@code chain.proceed()} when the request path doesn't start with the prefix.
+     * Skips to {@code chain.proceed()} when the request path doesn't match.
      */
     private Filter toPathScopedFilter(String pathPrefix, Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
             if (routingReq.path().path().startsWith(pathPrefix)) {
                 var req = new HelidonRequest((ServerRequest) routingReq, this);
                 var res = new HelidonResponse((ServerResponse) routingRes);
-                middleware.handle(req, res, chain::proceed);
+                try {
+                    middleware.handle(req, res, () -> {
+                        try {
+                            chain.proceed();
+                        } catch (Exception e) {
+                            dispatchError(e, req, res);
+                        }
+                    });
+                } catch (Exception e) {
+                    dispatchError(e, req, res);
+                }
             } else {
                 chain.proceed();
             }
@@ -718,15 +782,17 @@ public final class CafeAIApp implements CafeAI {
 
     /**
      * Wraps a {@link Middleware} as a Helidon route {@link Handler}.
-     * Route handlers are already composed by {@link #compose(Middleware[])} before
-     * reaching here — this is a straight adaption of the single composed middleware.
+     * Catches uncaught exceptions and routes them to the error-handling chain.
      */
     private Handler toHelidonHandler(Middleware middleware) {
         return (helidonReq, helidonRes) -> {
             var req = new HelidonRequest(helidonReq, this);
             var res = new HelidonResponse(helidonRes);
-            // Route handlers don't need a meaningful next — end of the chain.
-            middleware.handle(req, res, () -> {});
+            try {
+                middleware.handle(req, res, () -> {});
+            } catch (Exception e) {
+                dispatchError(e, req, res);
+            }
         };
     }
 

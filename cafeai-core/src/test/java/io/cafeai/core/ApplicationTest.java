@@ -2,11 +2,10 @@ package io.cafeai.core;
 
 import io.cafeai.core.internal.CafeAIApp;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import org.junit.jupiter.api.Test;
-
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,7 +41,7 @@ class ApplicationTest {
         app.local("key", "value");
 
         assertThatExceptionOfType(UnsupportedOperationException.class)
-            .isThrownBy(() -> app.locals().put("injected", "hack"));
+                .isThrownBy(() -> app.locals().put("injected", "hack"));
     }
 
     @Test
@@ -100,8 +99,8 @@ class ApplicationTest {
     @DisplayName("onMount callback fires when sub-app is mounted")
     void onMount_callbackFires() {
         var parent = CafeAI.create();
-        var child  = CafeAI.create();
-        var fired  = new AtomicReference<CafeAI>();
+        var child = CafeAI.create();
+        var fired = new AtomicReference<CafeAI>();
 
         child.onMount(p -> fired.set(p));
         ((CafeAIApp) child).notifyMount(parent, "/admin");
@@ -113,7 +112,7 @@ class ApplicationTest {
     @DisplayName("After mount: child.mountpath() returns mount path")
     void mountpath_afterMount_returnsPath() {
         var parent = CafeAI.create();
-        var child  = CafeAI.create();
+        var child = CafeAI.create();
 
         ((CafeAIApp) child).notifyMount(parent, "/admin");
 
@@ -124,7 +123,7 @@ class ApplicationTest {
     @DisplayName("After mount: child.mountpaths() contains mount path")
     void mountpaths_afterMount_containsPath() {
         var parent = CafeAI.create();
-        var child  = CafeAI.create();
+        var child = CafeAI.create();
 
         ((CafeAIApp) child).notifyMount(parent, "/admin");
 
@@ -134,11 +133,11 @@ class ApplicationTest {
     @Test
     @DisplayName("child.path() returns full path including parent")
     void path_nested_returnsFullPath() {
-        var root  = CafeAI.create();
+        var root = CafeAI.create();
         var admin = CafeAI.create();
         var users = CafeAI.create();
 
-        ((CafeAIApp) admin).notifyMount(root,  "/admin");
+        ((CafeAIApp) admin).notifyMount(root, "/admin");
         ((CafeAIApp) users).notifyMount(admin, "/users");
 
         assertThat(users.path()).isEqualTo("/admin/users");
@@ -147,8 +146,9 @@ class ApplicationTest {
     @Test
     @DisplayName("onMount returns CafeAI for chaining")
     void onMount_returnsApp() {
-        var app    = CafeAI.create();
-        var result = app.onMount(p -> {});
+        var app = CafeAI.create();
+        var result = app.onMount(p -> {
+        });
         assertThat(result).isSameAs(app);
     }
 
@@ -157,7 +157,7 @@ class ApplicationTest {
     void onMount_null_throws() {
         var app = CafeAI.create();
         assertThatNullPointerException()
-            .isThrownBy(() -> app.onMount(null));
+                .isThrownBy(() -> app.onMount(null));
     }
 
     // ── Phase 7: Settings ─────────────────────────────────────────────────────
@@ -166,16 +166,16 @@ class ApplicationTest {
     @DisplayName("Settings have correct Express-matching defaults")
     void settings_expressDefaults() {
         var app = CafeAI.create();
-        assertThat(app.setting(Setting.ENV,                 String.class))  .isEqualTo("development");
-        assertThat(app.setting(Setting.X_POWERED_BY,        Boolean.class)) .isTrue();
-        assertThat(app.setting(Setting.TRUST_PROXY,         Boolean.class)) .isFalse();
+        assertThat(app.setting(Setting.ENV, String.class)).isEqualTo("development");
+        assertThat(app.setting(Setting.X_POWERED_BY, Boolean.class)).isTrue();
+        assertThat(app.setting(Setting.TRUST_PROXY, Boolean.class)).isFalse();
         assertThat(app.setting(Setting.CASE_SENSITIVE_ROUTING, Boolean.class)).isFalse();
-        assertThat(app.setting(Setting.STRICT_ROUTING,      Boolean.class)) .isFalse();
-        assertThat(app.setting(Setting.SUBDOMAIN_OFFSET,    Integer.class)) .isEqualTo(2);
-        assertThat(app.setting(Setting.JSON_SPACES,         Integer.class)) .isEqualTo(0);
-        assertThat(app.setting(Setting.ETAG,                String.class))  .isEqualTo("weak");
-        assertThat(app.setting(Setting.VIEWS,               String.class))  .isEqualTo("views");
-        assertThat(app.setting(Setting.VIEW_ENGINE,         String.class))  .isNull();
+        assertThat(app.setting(Setting.STRICT_ROUTING, Boolean.class)).isFalse();
+        assertThat(app.setting(Setting.SUBDOMAIN_OFFSET, Integer.class)).isEqualTo(2);
+        assertThat(app.setting(Setting.JSON_SPACES, Integer.class)).isEqualTo(0);
+        assertThat(app.setting(Setting.ETAG, String.class)).isEqualTo("weak");
+        assertThat(app.setting(Setting.VIEWS, String.class)).isEqualTo("views");
+        assertThat(app.setting(Setting.VIEW_ENGINE, String.class)).isNull();
     }
 
     @Test
@@ -238,7 +238,7 @@ class ApplicationTest {
     void enable_nonBoolean_throws() {
         var app = CafeAI.create();
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> app.enable(Setting.ENV));
+                .isThrownBy(() -> app.enable(Setting.ENV));
     }
 
     @Test
@@ -246,7 +246,7 @@ class ApplicationTest {
     void disable_nonBoolean_throws() {
         var app = CafeAI.create();
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> app.disable(Setting.JSON_SPACES));
+                .isThrownBy(() -> app.disable(Setting.JSON_SPACES));
     }
 
     @Test
@@ -299,12 +299,12 @@ class ApplicationTest {
     void engine_normalisesExtension() {
         var app = CafeAI.create();
         assertThatCode(() ->
-            app.engine("txt", ResponseFormatter.template()))
-            .doesNotThrowAnyException();
+                app.engine("txt", ResponseFormatter.template()))
+                .doesNotThrowAnyException();
         // Extension with leading dot is also accepted (dot is stripped)
         assertThatCode(() ->
-            app.engine(".txt", ResponseFormatter.template()))
-            .doesNotThrowAnyException();
+                app.engine(".txt", ResponseFormatter.template()))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -312,7 +312,7 @@ class ApplicationTest {
     void engine_nullExt_throws() {
         var app = CafeAI.create();
         assertThatNullPointerException()
-            .isThrownBy(() -> app.engine(null, ResponseFormatter.template()));
+                .isThrownBy(() -> app.engine(null, ResponseFormatter.template()));
     }
 
     @Test
@@ -320,7 +320,7 @@ class ApplicationTest {
     void engine_nullFormatter_throws() {
         var app = CafeAI.create();
         assertThatNullPointerException()
-            .isThrownBy(() -> app.engine("html", null));
+                .isThrownBy(() -> app.engine("html", null));
     }
 
     @Test
@@ -333,8 +333,8 @@ class ApplicationTest {
         app.render("missing", Map.of(), (err, html) -> errorHolder.set(err));
 
         assertThat(errorHolder.get())
-            .isInstanceOf(ResponseFormatter.RenderException.class)
-            .hasMessageContaining("html");
+                .isInstanceOf(ResponseFormatter.RenderException.class)
+                .hasMessageContaining("html");
     }
 
     @Test
@@ -342,18 +342,18 @@ class ApplicationTest {
     void mustache_withoutModule_throwsRenderException() {
         // cafeai-views-mustache is not on the test classpath — ServiceLoader finds nothing
         assertThatExceptionOfType(ResponseFormatter.RenderException.class)
-            .isThrownBy(ResponseFormatter::mustache)
-            .withMessageContaining("mustache")
-            .withMessageContaining("cafeai-views-mustache");
+                .isThrownBy(ResponseFormatter::mustache)
+                .withMessageContaining("mustache")
+                .withMessageContaining("cafeai-views-mustache");
     }
 
     @Test
     @DisplayName("ResponseFormatter.markdown() throws RenderException when module absent")
     void markdown_withoutModule_throwsRenderException() throws IOException {
         assertThatExceptionOfType(ResponseFormatter.RenderException.class)
-            .isThrownBy(ResponseFormatter::markdown)
-            .withMessageContaining("markdown")
-            .withMessageContaining("cafeai-views-markdown");
+                .isThrownBy(ResponseFormatter::markdown)
+                .withMessageContaining("markdown")
+                .withMessageContaining("cafeai-views-markdown");
 
         // Create a temp file with a template
         var tmpFile = Files.createTempFile("cafeai-test-", ".txt");
@@ -361,7 +361,7 @@ class ApplicationTest {
 
         var formatter = ResponseFormatter.template();
         String result = formatter.format(tmpFile.toString(),
-            Map.of("name", "Ada", "age", "30"));
+                Map.of("name", "Ada", "age", "30"));
 
         assertThat(result).isEqualTo("Hello, Ada! You are 30 years old.");
         Files.deleteIfExists(tmpFile);
@@ -372,7 +372,7 @@ class ApplicationTest {
     void responseFormatter_template_missingFile_throws() {
         var formatter = ResponseFormatter.template();
         assertThatExceptionOfType(ResponseFormatter.RenderException.class)
-            .isThrownBy(() -> formatter.format("/nonexistent/path/view.html", Map.of()));
+                .isThrownBy(() -> formatter.format("/nonexistent/path/view.html", Map.of()));
     }
 
     @Test
@@ -392,9 +392,9 @@ class ApplicationTest {
     void setting_allHaveExpressName() {
         for (Setting s : Setting.values()) {
             assertThat(s.expressName())
-                .as("Setting.%s should have an Express name", s.name())
-                .isNotNull()
-                .isNotBlank();
+                    .as("Setting.%s should have an Express name", s.name())
+                    .isNotNull()
+                    .isNotBlank();
         }
     }
 
@@ -403,8 +403,8 @@ class ApplicationTest {
     void setting_allHaveValueType() {
         for (Setting s : Setting.values()) {
             assertThat(s.valueType())
-                .as("Setting.%s should have a value type", s.name())
-                .isNotNull();
+                    .as("Setting.%s should have a value type", s.name())
+                    .isNotNull();
         }
     }
 }
