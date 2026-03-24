@@ -19,6 +19,14 @@
 8. [Application Settings and Locals](#8-application-settings-and-locals)
 9. [Error Handling](#9-error-handling)
 10. [How Architecture Shapes Your Usage](#10-how-architecture-shapes-your-usage)
+11. [The AI Layer — Talking to LLMs](#11-the-ai-layer--talking-to-llms)
+    - [11.1 Registering a Provider](#111-registering-a-provider)
+    - [11.2 Your First LLM Call](#112-your-first-llm-call)
+    - [11.3 The System Prompt](#113-the-system-prompt--your-ais-persona)
+    - [11.4 Prompt Templates](#114-prompt-templates--separating-engineering-from-execution)
+    - [11.5 Conversation Memory](#115-conversation-memory--sessions-that-remember)
+    - [11.6 Putting It All Together](#116-putting-it-all-together)
+    - [11.7 What's Coming Next](#117-whats-coming-next)
 
 ---
 
@@ -565,3 +573,424 @@ app.post("/chat",
 
 The pipeline is the application. Reading it top to bottom describes the entire request
 lifecycle — what runs, in what order, for what purpose. That readability is the design.
+
+---
+
+## 11. The AI Layer — Talking to LLMs
+
+Everything in sections 1–10 was the HTTP foundation. This is where CafeAI stops being a
+web framework and becomes a Gen AI framework. The AI primitives — provider registration,
+prompt invocation, templates, conversation memory — follow the exact same design philosophy
+as everything that came before. They slot into the pipeline you already know.
+
+---
+
+### 11.1 Registering a Provider
+
+The first thing you do in any AI-powered CafeAI application:
+
+```java
+var app = CafeAI.create();
+app.ai(OpenAI.gpt4o());
+```
+
+That's it. One line. You've declared "this application speaks to GPT-4o." All subsequent
+`app.prompt()` calls in any handler, anywhere in your application, will use this provider.
+
+**Switching providers requires zero application code changes.** You change one line at startup
+and every prompt in your app automatically uses the new model:
+
+```java
+// Development — local, free, no data leaves your machine
+app.ai(Ollama.llama3());
+
+// Production — OpenAI
+app.ai(OpenAI.gpt4o());
+
+// Production — Anthropic
+app.ai(Anthropic.claude35Sonnet());
+```
+
+**Cost-aware routing** with `ModelRouter` lets you automatically send simple queries to a
+cheaper model and complex queries to a more capable one:
+
+```java
+app.ai(ModelRouter.smart()
+    .simple(OpenAI.gpt4oMini())    // fast + cheap — classification, short answers
+    .complex(OpenAI.gpt4o()));     // powerful — reasoning, long context, tool use
+```
+
+The router currently uses message length as a heuristic. A message under 500 characters goes
+to the `simple` model; longer messages go to `complex`. Future phases will add explicit
+complexity hints and token-count-based routing.
+
+**API keys come from environment variables** — never from code:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
+with an exact message telling you which variable to set — including a suggestion to use
+Ollama locally if you don't have a key.
+
+---
+
+### 11.2 Your First LLM Call
+
+```java
+app.get("/ask", (req, res, next) -> {
+    String question = req.query("q");
+    PromptResponse response = app.prompt(question).call();
+    res.send(response.text());
+});
+```
+
+`app.prompt(message)` returns a `PromptRequest` — a fluent builder that does nothing until
+you call `.call()`. That call is synchronous. It blocks the virtual thread, the LLM responds,
+and control returns to the next line. No `CompletableFuture`, no callbacks, no reactive
+chains. Just a method call that returns a value.
+
+`PromptResponse` carries everything you need:
+
+```java
+PromptResponse response = app.prompt("What is 42?").call();
+
+response.text()          // → "42 is the answer to life, the universe, and everything."
+response.promptTokens()  // → 12   (tokens you paid for the input)
+response.outputTokens()  // → 23   (tokens you paid for the output)
+response.totalTokens()   // → 35   (promptTokens + outputTokens)
+response.modelId()       // → "gpt-4o"   (which model actually answered)
+response.fromCache()     // → false  (semantic cache — future phase)
+response.toString()      // → same as .text() — usable directly as a String
+```
+
+A real handler that returns structured JSON:
+
+```java
+app.post("/analyze",
+    (req, res, next) -> {
+        PromptResponse response = app.prompt(req.body("text")).call();
+        res.json(Map.of(
+            "result",       response.text(),
+            "model",        response.modelId(),
+            "promptTokens", response.promptTokens(),
+            "outputTokens", response.outputTokens()
+        ));
+    });
+```
+
+---
+
+### 11.3 The System Prompt — Your AI's Persona
+
+The system prompt is the first message in every LLM call. It defines the AI's role,
+constraints, and personality. You set it once at startup:
+
+```java
+app.system("""
+    You are a helpful customer service agent for Acme Corp.
+    You are concise, accurate, and empathetic.
+    Never discuss competitor products.
+    If you cannot help with something, say so clearly and offer to escalate.
+    """);
+```
+
+Every `app.prompt()` call automatically prepends this as a `SystemMessage` before the user's
+message. You don't need to include it manually in each prompt.
+
+**Calling `app.system()` multiple times — last call wins.** This lets you configure the
+system prompt based on environment:
+
+```java
+if (app.enabled(Setting.ENV) && app.setting(Setting.ENV, String.class).equals("production")) {
+    app.system("You are a production customer service agent...");
+} else {
+    app.system("You are a test assistant. Be verbose about what you're doing.");
+}
+```
+
+**Per-call override** lets a single handler use a different persona without affecting the
+rest of the application:
+
+```java
+app.post("/translate",
+    (req, res, next) -> {
+        String targetLang = req.body("language");
+        PromptResponse response = app.prompt(req.body("text"))
+            .system("You are a professional translator. Translate to " + targetLang +
+                    ". Output only the translation, nothing else.")
+            .call();
+        res.send(response.text());
+    });
+```
+
+The override applies only to this one call. `app.system()` is unchanged for all other requests.
+
+---
+
+### 11.4 Prompt Templates — Separating Engineering from Execution
+
+A prompt template is a reusable prompt body with `{{variable}}` placeholders. Templates
+separate *prompt engineering* — which you do once, carefully, at startup — from *prompt
+execution* — which happens per request with different data.
+
+**Register at startup:**
+
+```java
+app.template("classify",
+    "Classify the following customer message into exactly one category: {{categories}}.\n" +
+    "Respond with only the category name, nothing else.\n" +
+    "Message: {{message}}");
+
+app.template("summarize",
+    "Summarize the following text in {{maxWords}} words or fewer.\n" +
+    "Preserve the key facts. Do not add opinions.\n\n{{content}}");
+
+app.template("extract-intent",
+    "Given this customer message: \"{{message}}\"\n" +
+    "Extract: intent (string), urgency (low/medium/high), sentiment (positive/neutral/negative).\n" +
+    "Respond in JSON with keys: intent, urgency, sentiment.");
+```
+
+**Three ways to use templates:**
+
+```java
+// 1. Shorthand — render and prompt in one call
+app.post("/classify", (req, res, next) -> {
+    PromptResponse response = app.prompt("classify", Map.of(
+        "categories", "billing, shipping, returns, general-inquiry",
+        "message",    req.body("message")
+    )).call();
+    res.json(Map.of("category", response.text().trim().toLowerCase()));
+});
+
+// 2. Explicit retrieval — render yourself, then prompt
+app.post("/summarize", (req, res, next) -> {
+    String rendered = app.template("summarize").render(Map.of(
+        "maxWords", req.body("maxWords") != null ? req.body("maxWords") : "100",
+        "content",  req.body("text")
+    ));
+    PromptResponse response = app.prompt(rendered).call();
+    res.send(response.text());
+});
+
+// 3. Strict rendering — throws if any variable is missing
+app.post("/extract", (req, res, next) -> {
+    try {
+        String rendered = app.template("extract-intent").renderStrict(
+            Map.of("message", req.body("message"))
+        );
+        PromptResponse response = app.prompt(rendered).call();
+        res.json(response.text()); // model returns JSON
+    } catch (Template.TemplateException e) {
+        res.status(400).json(Map.of("error", e.getMessage()));
+    }
+});
+```
+
+`render()` is permissive — missing variables stay as `{{var}}` in the output. Use it when
+some variables have defaults. `renderStrict()` is explicit — it throws `TemplateException`
+with the name of the missing variable. Use it when all variables are required — it fails at
+render time rather than sending a half-rendered prompt to the LLM.
+
+**Asking for a template that doesn't exist throws immediately:**
+
+```java
+app.template("typo-in-name"); // → IllegalArgumentException:
+                               // "No template registered with name 'typo-in-name'.
+                               //  Register one at startup: app.template("typo-in-name", "...")"
+```
+
+The error message tells you exactly what to add. CafeAI never silently uses an empty string
+or a default — configuration errors surface immediately at the point of misuse.
+
+---
+
+### 11.5 Conversation Memory — Sessions That Remember
+
+By default, every LLM call is stateless. `app.memory()` gives your application conversational
+context — the history of a session is automatically included in each new prompt, making
+the AI aware of what was said before.
+
+**Register the memory strategy at startup:**
+
+```java
+app.memory(MemoryStrategy.inMemory());   // JVM memory — zero config, zero deps
+                                          // sessions survive requests but not restarts
+```
+
+**Use `.session()` on a prompt to activate memory for that call:**
+
+```java
+app.post("/chat", (req, res, next) -> {
+    String message   = req.body("message");
+    String sessionId = req.header("X-Session-Id");   // client sends this
+
+    PromptResponse response = app.prompt(message)
+        .session(sessionId)
+        .call();
+
+    res.json(Map.of("response", response.text()));
+});
+```
+
+What happens under the hood on each `.session(id).call()`:
+
+1. CafeAI looks up `sessionId` in the memory store
+2. If a prior conversation exists, all its messages are prepended to the LLM context in order
+3. The LLM receives: `[SystemMessage, ...history..., UserMessage("current message")]`
+4. The LLM responds
+5. CafeAI appends both the user message and the AI response to the session
+6. The updated session is written back to the memory store
+
+The session evolves automatically. The client just needs to send the same `X-Session-Id`
+header on every request:
+
+```bash
+# First message — no history yet
+curl -X POST http://localhost:8080/chat \
+     -H "Content-Type: application/json" \
+     -H "X-Session-Id: user-42" \
+     -d '{"message": "My name is Ada and I am a software engineer."}'
+# → "Nice to meet you, Ada! How can I help you today?"
+
+# Second message — AI remembers the first exchange
+curl -X POST http://localhost:8080/chat \
+     -H "Content-Type: application/json" \
+     -H "X-Session-Id: user-42" \
+     -d '{"message": "What do you know about me so far?"}'
+# → "You told me your name is Ada and that you are a software engineer."
+```
+
+**Without `.session()`** the call is stateless — the AI has no memory of prior exchanges.
+This is correct for one-shot use cases like classification or translation where history
+would add noise and cost.
+
+**Without `app.memory()`** registered, calling `.session(id)` still works — it just has
+no store to read from or write to. No exception is thrown. This makes it safe to always
+call `.session(id)` and let the memory strategy determine whether history is preserved.
+
+---
+
+### 11.6 Putting It All Together
+
+Here is a complete, realistic AI-powered CafeAI application showing all four primitives
+working together:
+
+```java
+var app = CafeAI.create();
+
+// ── Provider — cost-aware routing ────────────────────────────────────────────
+app.ai(ModelRouter.smart()
+    .simple(OpenAI.gpt4oMini())    // classification, simple queries
+    .complex(OpenAI.gpt4o()));     // chat, reasoning, complex analysis
+
+// ── System Prompt — the AI's persona ─────────────────────────────────────────
+app.system("""
+    You are a helpful support assistant for a software company.
+    You are concise, technical, and friendly.
+    When you don't know something, say so — don't guess.
+    """);
+
+// ── Templates — prompt engineering, done once ─────────────────────────────────
+app.template("triage",
+    "Classify this support message into one category: bug, feature-request, billing, other.\n" +
+    "Respond with only the category.\nMessage: {{message}}");
+
+app.template("respond",
+    "The customer's issue has been categorised as: {{category}}.\n" +
+    "Compose a brief, empathetic response to: {{message}}");
+
+// ── Memory — per-user conversation history ────────────────────────────────────
+app.memory(MemoryStrategy.inMemory());
+
+// ── Filters ────────────────────────────────────────────────────────────────────
+app.filter(CafeAI.json());
+app.filter(Middleware.requestLogger());
+app.filter(GuardRail.pii());           // scrub PII before any LLM call
+app.filter(GuardRail.jailbreak());
+
+// ── Routes ─────────────────────────────────────────────────────────────────────
+
+// One-shot triage — stateless, uses the simple model (short message)
+app.post("/triage",
+    (req, res, next) -> {
+        PromptResponse triage = app.prompt("triage",
+            Map.of("message", req.body("message"))
+        ).call();
+
+        res.json(Map.of(
+            "category", triage.text().trim().toLowerCase(),
+            "tokens",   triage.totalTokens()
+        ));
+    });
+
+// Full support chat — stateful, uses session memory
+app.post("/support",
+    (req, res, next) -> {
+        String message   = req.body("message");
+        String sessionId = req.header("X-Session-Id");
+
+        // Step 1: classify (stateless, cheap)
+        String category = app.prompt("triage",
+            Map.of("message", message)
+        ).call().text().trim().toLowerCase();
+
+        // Step 2: generate response (session-aware, remembers prior exchanges)
+        PromptResponse response = app.prompt("respond",
+            Map.of("category", category, "message", message)
+        ).session(sessionId).call();
+
+        res.json(Map.of(
+            "response", response.text(),
+            "category", category,
+            "model",    response.modelId(),
+            "tokens",   response.totalTokens()
+        ));
+    });
+
+// Per-call persona override — translation doesn't need the support persona
+app.post("/translate",
+    (req, res, next) -> {
+        String lang = req.body("language");
+        PromptResponse response = app.prompt(req.body("text"))
+            .system("You are a professional translator. Translate to " + lang +
+                    ". Output only the translation.")
+            .call();
+        res.send(response.text());
+    });
+
+app.listen(8080);
+```
+
+The pipeline reads as a description of the application. Triage → respond is two prompt calls,
+each using a named template, one stateless and one session-aware. The per-call `.system()`
+override gives the translation endpoint its own persona without polluting the global one.
+`GuardRail.pii()` and `GuardRail.jailbreak()` protect all three endpoints because they're
+registered as filters.
+
+---
+
+### 11.7 What's Coming Next
+
+The AI layer in this release covers Phases 1 and 2 of ROADMAP-07. Here's what's ahead:
+
+**Phase 3 — Memory tiers.** `MemoryStrategy.inMemory()` is fully functional. The remaining
+tiers — `mapped()` (SSD-backed, survives restarts), `redis()` (distributed, multi-instance),
+and `hybrid()` (warm SSD + cold Redis) — are stubbed and will be implemented next. For most
+development work, `inMemory()` is all you need.
+
+**Phase 4 — RAG pipeline.** `app.vectordb()`, `app.embed()`, `app.ingest()`, `app.rag()`.
+Ingest a PDF or a directory of documents, and CafeAI automatically retrieves the most
+relevant chunks and injects them into the LLM context before every prompt. This is where
+LLMs stop making things up and start answering from your actual data.
+
+**Phase 5 — Tools and MCP.** `app.tool()` lets you register Java methods as LLM tools —
+the model can invoke them as part of its reasoning. `app.mcp()` connects to any MCP server
+and makes its capabilities available to the LLM alongside your Java tools.
+
+**Phase 7 — Guardrails.** `GuardRail.pii()`, `GuardRail.jailbreak()`, etc. are currently
+pass-through stubs. Full implementations using NLP and classifier models arrive in Phase 7.
+Register them now — the API doesn't change, only the behaviour becomes real.
