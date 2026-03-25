@@ -188,6 +188,39 @@ public interface CafeAI extends Router {
     }
 
     /**
+     * Multipart body parser. Parses {@code multipart/form-data} bodies.
+     *
+     * <p>Uploaded files are accessible via {@code req.file(fieldName)} and
+     * {@code req.files(fieldName)}. Regular text fields in the multipart form
+     * are accessible via {@code req.body(key)}.
+     *
+     * <p>Default maximum size per part: 10 MB.
+     *
+     * <pre>{@code
+     *   app.filter(CafeAI.multipart());
+     *
+     *   app.post("/upload", (req, res, next) -> {
+     *       UploadedFile doc  = req.file("document");
+     *       String       note = req.body("note");
+     *       doc.saveToDirectory(Path.of("/uploads"));
+     *       res.status(201).json(Map.of("name", doc.originalName(), "note", note));
+     *   });
+     * }</pre>
+     */
+    static Middleware multipart() {
+        return BuiltInMiddleware.multipart();
+    }
+
+    /**
+     * Multipart body parser with a custom per-part size limit.
+     *
+     * @param maxPartBytes maximum bytes per part (file or field)
+     */
+    static Middleware multipart(long maxPartBytes) {
+        return BuiltInMiddleware.multipartBody(maxPartBytes);
+    }
+
+    /**
      * Static file serving middleware. Serves files from the given root directory.
      *
      * <p>Named {@code serveStatic} because {@code static} is a reserved keyword in Java.
@@ -430,6 +463,69 @@ public interface CafeAI extends Router {
      */
     CafeAI memory(MemoryStrategy strategy);
 
+    // ── RAG Pipeline (ROADMAP-07 Phase 4) ─────────────────────────────────────
+
+    /**
+     * Registers the vector store for the RAG pipeline.
+     *
+     * <pre>{@code
+     *   app.vectordb(VectorStore.inMemory());                          // zero infra
+     *   app.vectordb(PgVector.connect(PgVectorConfig.of("jdbc:...")));  // production
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI vectordb(Object store);
+
+    /**
+     * Registers the embedding model used to embed documents during ingestion
+     * and queries during retrieval.
+     *
+     * <pre>{@code
+     *   app.embed(EmbeddingModel.local());       // ONNX — no API key, no latency
+     *   app.embed(EmbeddingModel.openAi());      // OpenAI ada-002
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI embed(Object model);
+
+    /**
+     * Ingests a knowledge source into the vector store.
+     *
+     * <p>The source is parsed, split into overlapping chunks, each chunk is
+     * embedded using the registered {@link io.cafeai.rag.EmbeddingModel}, and
+     * the chunks are upserted into the registered {@link io.cafeai.rag.VectorStore}.
+     * Re-ingesting the same source updates existing chunks without duplication.
+     *
+     * <pre>{@code
+     *   app.ingest(Source.pdf("docs/handbook.pdf"));
+     *   app.ingest(Source.directory("knowledge/"));
+     *   app.ingest(Source.text("CafeAI is a Gen AI framework.", "cafeai-intro"));
+     * }</pre>
+     *
+     * @throws io.cafeai.rag.Source.SourceException if the source cannot be loaded
+     * @throws IllegalStateException if no vectordb or embedding model is registered
+     */
+    CafeAI ingest(Object source);
+
+    /**
+     * Attaches a retrieval strategy to the application.
+     *
+     * <p>Once registered, every {@code app.prompt().call()} automatically
+     * retrieves the top-K most relevant chunks and injects them into the
+     * LLM context before the user's message. Retrieved documents are also
+     * stored in {@code req.attribute(Attributes.RAG_DOCUMENTS)}.
+     *
+     * <pre>{@code
+     *   app.rag(Retriever.semantic(5));   // top 5 by cosine similarity
+     *   app.rag(Retriever.hybrid(5));     // dense + BM25 combined
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI rag(Object retriever);
+
     // ── Guardrails ────────────────────────────────────────────────────────────
 
     /**
@@ -610,6 +706,41 @@ public interface CafeAI extends Router {
      */
     java.util.concurrent.CompletableFuture<String> render(String view,
                                                           java.util.Map<String, Object> locals);
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    /**
+     * Registers a WebSocket endpoint at the given path.
+     *
+     * <p>The server handles both HTTP and WebSocket connections on the same
+     * port — HTTP routes and WebSocket endpoints coexist without conflict.
+     * The Helidon runtime upgrades connections that send a WebSocket
+     * handshake request; all other requests continue through the HTTP
+     * pipeline normally.
+     *
+     * <pre>{@code
+     *   // Full handler — implement only the events you need
+     *   app.ws("/chat", new WsHandler() {
+     *       public void onOpen(WsSession session) {
+     *           session.send("Connected! Session: " + session.id());
+     *       }
+     *       public void onMessage(WsSession session, String message) {
+     *           session.send("Echo: " + message);
+     *       }
+     *       public void onClose(WsSession session, int code, String reason) {
+     *           System.out.println("Closed: " + reason);
+     *       }
+     *   });
+     *
+     *   // Lambda shorthand for message-only handling
+     *   app.ws("/echo", WsHandler.onMessage((session, msg) -> session.send(msg)));
+     * }</pre>
+     *
+     * @param path    the WebSocket endpoint path (same syntax as HTTP routes)
+     * @param handler the lifecycle event handler
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI ws(String path, io.cafeai.core.routing.WsHandler handler);
 
     // ── Server Lifecycle ──────────────────────────────────────────────────────
 

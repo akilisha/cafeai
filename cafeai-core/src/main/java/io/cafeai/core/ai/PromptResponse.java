@@ -54,21 +54,21 @@ public final class PromptResponse {
     @Override
     public String toString() { return text; }
 
-    static Builder builder()     { return new Builder(); }
+    public static Builder builder()     { return new Builder(); }
 
-    static final class Builder {
+    public static final class Builder {
         private String  text;
         private int     promptTokens;
         private int     outputTokens;
         private String  modelId;
         private boolean fromCache;
 
-        Builder text(String t)             { this.text         = t; return this; }
-        Builder promptTokens(int n)        { this.promptTokens = n; return this; }
-        Builder outputTokens(int n)        { this.outputTokens = n; return this; }
-        Builder modelId(String m)          { this.modelId      = m; return this; }
-        Builder fromCache(boolean c)       { this.fromCache    = c; return this; }
+        public Builder text(String t)             { this.text         = t; return this; }
+        public Builder promptTokens(int n)        { this.promptTokens = n; return this; }
+        public Builder outputTokens(int n)        { this.outputTokens = n; return this; }
+        public Builder modelId(String m)          { this.modelId      = m; return this; }
+        public Builder fromCache(boolean c)       { this.fromCache    = c; return this; }
 
-        PromptResponse build()             { return new PromptResponse(this); }
+        public PromptResponse build()             { return new PromptResponse(this); }
     }
 }

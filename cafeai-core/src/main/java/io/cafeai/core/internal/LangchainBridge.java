@@ -16,13 +16,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@link ChatLanguageModel}.
  *
  * <p><strong>Internal — never referenced by application code.</strong>
- * This is the bridge between CafeAI's provider-agnostic API and Langchain4j's
- * concrete model implementations. All Langchain4j types are confined to this class.
+ * Public only so that {@code io.cafeai.core.ai.Ollama} can implement
+ * {@link OllamaProviderAccess} and tests can implement {@link ChatLanguageModelAccess}.
+ * Both nested interfaces are load-bearing extension points — do not remove.
  *
  * <p>Models are cached per {@link AiProvider} identity after first creation —
  * Langchain4j model objects are thread-safe and expensive to construct.
  */
-final class LangchainBridge {
+public final class LangchainBridge {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
 
@@ -65,7 +66,8 @@ final class LangchainBridge {
                 .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
                 .modelName(provider.modelId())
                 .timeout(DEFAULT_TIMEOUT)
-                .logRequestsAndResponses(false)
+                .logRequests(false)
+                .logResponses(false)
                 .build();
 
             case OLLAMA -> {
@@ -105,9 +107,10 @@ final class LangchainBridge {
 
     /**
      * Internal interface for Ollama providers that carry a base URL.
-     * Accessed via pattern matching in {@link #createModel(AiProvider)}.
+     * Public so {@link io.cafeai.core.ai.Ollama.OllamaProvider} can implement it
+     * without violating package access rules.
      */
-    interface OllamaProviderAccess {
+    public interface OllamaProviderAccess {
         String baseUrl();
     }
 
@@ -115,8 +118,9 @@ final class LangchainBridge {
      * Test seam interface. Any {@link AiProvider} that also implements this
      * interface will have its model used directly, bypassing environment variable
      * lookups and real API connections. Used by mock providers in tests.
+     * Public so test classes outside the {@code internal} package can implement it.
      */
-    interface ChatLanguageModelAccess {
+    public interface ChatLanguageModelAccess {
         ChatLanguageModel toLangchainModel();
     }
 }

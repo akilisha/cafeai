@@ -35,7 +35,7 @@ public final class PromptRequest {
     private final PromptExecutor executor;
 
     /** Package-private — constructed by CafeAIApp.prompt() */
-    PromptRequest(String message, PromptExecutor executor) {
+    public PromptRequest(String message, PromptExecutor executor) {
         this.message  = message;
         this.executor = executor;
     }
@@ -65,16 +65,16 @@ public final class PromptRequest {
     }
 
     /** Package-private accessors for the executor */
-    String message()        { return message; }
-    String sessionId()      { return sessionId; }
-    String systemOverride() { return systemOverride; }
+    public String message()        { return message; }
+    public String sessionId()      { return sessionId; }
+    public String systemOverride() { return systemOverride; }
 
     /**
      * Internal executor interface — implemented by CafeAIApp.
      * Decouples PromptRequest from CafeAIApp to avoid circular deps.
      */
     @FunctionalInterface
-    interface PromptExecutor {
+    public interface PromptExecutor {
         PromptResponse execute(PromptRequest request);
     }
 }

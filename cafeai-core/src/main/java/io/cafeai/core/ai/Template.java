@@ -40,7 +40,7 @@ public final class Template {
     private final String body;
 
     /** Package-private — constructed by CafeAIApp */
-    Template(String name, String body) {
+    public Template(String name, String body) {
         this.name = name;
         this.body = body;
     }

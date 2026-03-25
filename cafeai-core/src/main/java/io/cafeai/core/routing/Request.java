@@ -208,6 +208,36 @@ public interface Request {
      */
     String bodyText();
 
+    /**
+     * Returns the first uploaded file for the given form field name.
+     * Requires {@code CafeAI.multipart()} middleware.
+     *
+     * <pre>{@code
+     *   app.filter(CafeAI.multipart());
+     *
+     *   app.post("/upload", (req, res, next) -> {
+     *       UploadedFile doc = req.file("document");
+     *       if (doc == null) { res.status(400).send("no file"); return; }
+     *       doc.saveToDirectory(Path.of("/uploads"));
+     *       res.json(Map.of("name", doc.originalName(), "size", doc.size()));
+     *   });
+     * }</pre>
+     *
+     * @param fieldName the multipart form field name
+     * @return the uploaded file, or {@code null} if not present
+     */
+    UploadedFile file(String fieldName);
+
+    /**
+     * Returns all uploaded files for the given form field name.
+     * Used when multiple files are uploaded under the same field.
+     * Requires {@code CafeAI.multipart()} middleware.
+     *
+     * @param fieldName the multipart form field name
+     * @return list of uploaded files (empty if none)
+     */
+    java.util.List<UploadedFile> files(String fieldName);
+
     // ── Headers ───────────────────────────────────────────────────────────────
 
     /**

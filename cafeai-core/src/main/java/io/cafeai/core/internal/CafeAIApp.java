@@ -14,7 +14,6 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.TokenUsage;
-import dev.langchain4j.model.output.Response;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.*;
@@ -28,6 +27,7 @@ import io.helidon.webserver.http.Handler;
 import io.helidon.webserver.http.HttpRouting;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
+import io.helidon.webserver.websocket.WsRouting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +69,7 @@ public final class CafeAIApp implements CafeAI {
 
     private final Map<String, Object>   locals        = new ConcurrentHashMap<>();
     private final List<FilterEntry>     filterEntries = new ArrayList<>();
+    private final List<WsEndpoint>      wsEndpoints   = new ArrayList<>();
     private final List<RouteEntry>      routes        = new ArrayList<>();
     private final CafeAIRegistryImpl    registry      = new CafeAIRegistryImpl();
 
@@ -77,7 +78,12 @@ public final class CafeAIApp implements CafeAI {
     private ModelRouter     modelRouter;
     private String          systemPrompt;
     private MemoryStrategy  memoryStrategy;
-    private final List<GuardRail>         guardRails = new ArrayList<>();
+    private final List<GuardRail>         guardRails   = new ArrayList<>();
+
+    // RAG pipeline state (ROADMAP-07 Phase 4)
+    private Object vectorStore;
+    private Object embeddingModel;
+    private Object retriever;
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
@@ -172,6 +178,7 @@ public final class CafeAIApp implements CafeAI {
     public CafeAI system(String systemPrompt) {
         assertNotStarted("system()");
         this.systemPrompt = Objects.requireNonNull(systemPrompt, "System prompt must not be null");
+        locals.put(Locals.SYSTEM_PROMPT, systemPrompt);
         return this;
     }
 
@@ -258,7 +265,7 @@ public final class CafeAIApp implements CafeAI {
         messages.add(UserMessage.from(request.message()));
 
         // ── 4. Call the LLM ───────────────────────────────────────────────────
-        Response<AiMessage> response =
+        dev.langchain4j.model.output.Response<AiMessage> response =
             model.generate(messages);
 
         String responseText  = response.content().text();
@@ -322,8 +329,67 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI guard(GuardRail guardRail) {
-        assertNotStarted("guard()");
+    public CafeAI ws(String path, io.cafeai.core.routing.WsHandler handler) {
+        assertNotStarted("ws()");
+        Objects.requireNonNull(path,    "WebSocket path must not be null");
+        Objects.requireNonNull(handler, "WsHandler must not be null");
+        wsEndpoints.add(new WsEndpoint(path, handler));
+        return this;
+    }
+
+    // ── RAG Pipeline (ROADMAP-07 Phase 4) ──────────────────────────────────────
+
+    @Override
+    public CafeAI vectordb(Object store) {
+        assertNotStarted("vectordb()");
+        this.vectorStore = Objects.requireNonNull(store, "VectorStore must not be null");
+        locals.put(Locals.VECTOR_STORE, store);
+        log.info("Vector store registered: {}", store.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI embed(Object model) {
+        assertNotStarted("embed()");
+        this.embeddingModel = Objects.requireNonNull(model, "EmbeddingModel must not be null");
+        locals.put(Locals.EMBEDDING_MODEL, model);
+        log.info("Embedding model registered: {}", model.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI ingest(Object source) {
+        Objects.requireNonNull(source, "Source must not be null");
+        if (vectorStore == null) {
+            throw new IllegalStateException(
+                "No vector store registered. Call app.vectordb(VectorStore.inMemory()) first.");
+        }
+        if (embeddingModel == null) {
+            throw new IllegalStateException(
+                "No embedding model registered. Call app.embed(EmbeddingModel.local()) first.");
+        }
+        // Ingestion is executed by cafeai-rag via the RagPipeline SPI.
+        // The objects are stored here; actual chunking/embedding/upserting happens
+        // in cafeai-rag where all the types are visible.
+        java.util.ServiceLoader.load(io.cafeai.core.spi.RagPipeline.class)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "RAG ingestion requires the cafeai-rag module. " +
+                "Add: implementation 'io.cafeai:cafeai-rag'"))
+            .ingest(source, vectorStore, embeddingModel);
+        return this;
+    }
+
+    @Override
+    public CafeAI rag(Object retriever) {
+        assertNotStarted("rag()");
+        this.retriever = Objects.requireNonNull(retriever, "Retriever must not be null");
+        log.info("RAG retriever registered: {}", retriever.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI guard(GuardRail guardRail) {        assertNotStarted("guard()");
         Objects.requireNonNull(guardRail, "GuardRail must not be null");
         guardRails.add(guardRail);
         log.debug("GuardRail registered: {}", guardRail.name());
@@ -749,10 +815,21 @@ public final class CafeAIApp implements CafeAI {
 
         var routingBuilder = buildRouting();
 
-        server = WebServer.builder()
+        var serverBuilder = WebServer.builder()
             .port(port)
-            .addRouting(routingBuilder)
-            .build();
+            .addRouting(routingBuilder);
+
+        // Register WebSocket endpoints alongside HTTP routing
+        if (!wsEndpoints.isEmpty()) {
+            WsRouting.Builder wsBuilder = WsRouting.builder();
+            for (WsEndpoint endpoint : wsEndpoints) {
+                wsBuilder.endpoint(endpoint.path(), toHelidonWsListener(endpoint.handler()));
+            }
+            serverBuilder.addRouting(wsBuilder);
+            log.info("   WebSocket endpoints: {}", wsEndpoints.size());
+        }
+
+        server = serverBuilder.build();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("☕ CafeAI shutting down gracefully...");
@@ -1027,5 +1104,91 @@ public final class CafeAIApp implements CafeAI {
         RouteEntry(String method, String path, Middleware handler) {
             this(method, path, handler, null);
         }
+    }
+
+    /** A registered WebSocket endpoint. */
+    private record WsEndpoint(String path, io.cafeai.core.routing.WsHandler handler) {}
+
+    // ── WebSocket Adapter ─────────────────────────────────────────────────────
+
+    /**
+     * Adapts a CafeAI {@link io.cafeai.core.routing.WsHandler} to Helidon's
+     * {@code WsListener} interface.
+     *
+     * <p>Each {@code WsListener} instance is created once per registered path
+     * and shared across all connections to that path. The {@code WsHandler}
+     * must be thread-safe (all default implementations are stateless, so this
+     * holds out of the box).
+     */
+    private static io.helidon.websocket.WsListener toHelidonWsListener(
+            io.cafeai.core.routing.WsHandler handler) {
+        return new io.helidon.websocket.WsListener() {
+
+            @Override
+            public void onOpen(io.helidon.websocket.WsSession helidonSession) {
+                handler.onOpen(new HelidonWsSession(helidonSession));
+            }
+
+            @Override
+            public void onMessage(io.helidon.websocket.WsSession helidonSession,
+                                  String text, boolean last) {
+                handler.onMessage(new HelidonWsSession(helidonSession), text);
+            }
+
+            @Override
+            public void onMessage(io.helidon.websocket.WsSession helidonSession,
+                                  io.helidon.common.buffers.BufferData buffer, boolean last) {
+                handler.onBinaryMessage(new HelidonWsSession(helidonSession),
+                    buffer.readBytes());
+            }
+
+            @Override
+            public void onClose(io.helidon.websocket.WsSession helidonSession,
+                                int status, String reason) {
+                handler.onClose(
+                    new HelidonWsSession(helidonSession),
+                    status,
+                    reason);
+            }
+
+            @Override
+            public void onError(io.helidon.websocket.WsSession helidonSession,
+                                Throwable error) {
+                handler.onError(new HelidonWsSession(helidonSession), error);
+            }
+        };
+    }
+
+    private static final class HelidonWsSession
+            implements io.cafeai.core.routing.WsSession {
+
+        private final io.helidon.websocket.WsSession delegate;
+        private final String id;
+
+        HelidonWsSession(io.helidon.websocket.WsSession delegate) {
+            this.delegate = delegate;
+            this.id = Integer.toHexString(System.identityHashCode(delegate));
+        }
+
+        @Override
+        public void send(String message) {
+            delegate.send(message, true);
+        }
+
+        @Override
+        public void send(byte[] data) {
+            delegate.send(io.helidon.common.buffers.BufferData.create(data), true);
+        }
+
+        @Override
+        public void close(int code, String reason) {
+            delegate.close(code, reason);
+        }
+
+        @Override
+        public String id() { return id; }
+
+        @Override
+        public boolean isOpen() { return true; }
     }
 }

@@ -1,134 +1,182 @@
 package io.cafeai.core.memory;
 
+import io.cafeai.core.spi.MemoryStrategyProvider;
+
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Tiered context memory strategy for CafeAI.
  *
- * <p>The memory hierarchy mirrors hardware — start at the cheapest tier
- * and escalate only when the problem demands it (ADR-003):
+ * <p>The memory hierarchy mirrors hardware — start cheap and escalate only
+ * when the problem demands it (ADR-003):
+ *
  * <pre>
- *   Rung 1 → inMemory()    JVM HashMap — prototype, zero deps
- *   Rung 2 → mapped()      SSD-backed via Java FFM MemorySegment
- *   Rung 3 → chronicle()   Chronicle Map off-heap
- *   Rung 4 → redis(cfg)    Distributed — the escape valve
- *   Rung 5 → memcached()   Distributed alternative
- *   Rung 6 → hybrid()      Warm SSD + cold Redis
+ *   Rung 1 → inMemory()    JVM HashMap — zero deps, prototype/dev
+ *   Rung 2 → mapped()      SSD-backed via Java FFM MemorySegment   (cafeai-memory)
+ *   Rung 3 → chronicle()   Chronicle Map off-heap                  (cafeai-memory, stub)
+ *   Rung 4 → redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
+ *   Rung 5 → hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
  * </pre>
  *
- * <p>Full implementations delivered in ROADMAP-07 Phase 3 (cafeai-memory module).
+ * <p>Rungs 2–5 require {@code io.cafeai:cafeai-memory} on the classpath.
+ * Adding the JAR is the only configuration needed — no code changes required.
+ *
+ * <p>Rung 1 ({@code inMemory()}) is fully functional with zero dependencies.
+ * It is appropriate for development, testing, and single-instance production
+ * when crash recovery is not required.
  */
 public interface MemoryStrategy {
 
+    // ── Core Contract ─────────────────────────────────────────────────────────
+
+    /** Stores or updates a session. Thread-safe. */
+    void store(String sessionId, ConversationContext context);
+
+    /**
+     * Retrieves a session. Returns {@code null} if the session does not exist.
+     * Thread-safe.
+     */
+    ConversationContext retrieve(String sessionId);
+
+    /** Removes a session. No-op if the session does not exist. */
+    void evict(String sessionId);
+
+    /** Returns {@code true} if a session exists. */
+    boolean exists(String sessionId);
+
+    // ── Rung 1: In-JVM HashMap (fully functional, zero deps) ─────────────────
+
     /**
      * Rung 1: In-JVM HashMap. Zero dependencies. Zero configuration.
-     * Does not survive restarts. Single node only.
+     * Sessions do not survive restarts. Single-node only.
+     *
+     * <p>Appropriate for: development, testing, single-request prototypes.
      */
     static MemoryStrategy inMemory() {
         return new InMemoryStrategy();
     }
 
+    // ── Rungs 2–5: Require cafeai-memory module ───────────────────────────────
+
     /**
-     * Rung 2: SSD-backed via Java FFM {@code MemorySegment}.
-     * Off-heap, OS page-cache managed, crash-recoverable.
-     * The production single-node default. No network overhead.
+     * Rung 2: SSD-backed off-heap memory via Java FFM {@code MemorySegment}.
+     *
+     * <p>Sessions are stored as JSON files in the default directory
+     * ({@code ${java.io.tmpdir}/cafeai/sessions/}) and memory-mapped for
+     * fast access. The OS page cache handles hot sessions automatically.
+     * Sessions survive JVM restarts — crash recovery out of the box.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     *
+     * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
     static MemoryStrategy mapped() {
-        return new MappedMemoryStrategy();
+        return loadProvider().mapped();
+    }
+
+    /**
+     * Rung 2: SSD-backed off-heap memory with a custom storage directory.
+     *
+     * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
+     */
+    static MemoryStrategy mapped(Path storageDir) {
+        return loadProvider().mapped(storageDir);
     }
 
     /**
      * Rung 3: Chronicle Map off-heap key-value store.
-     * Designed for this exact pattern — high-throughput, persisted, off-heap.
+     * Stub — full implementation in a future release.
      */
     static MemoryStrategy chronicle() {
-        return new ChronicleMemoryStrategy();
+        throw new UnsupportedOperationException(
+            "Chronicle Map memory strategy not yet implemented. " +
+            "Use MemoryStrategy.mapped() for SSD-backed off-heap storage, " +
+            "or MemoryStrategy.redis(config) for distributed storage.");
     }
 
     /**
-     * Rung 4: Redis-backed distributed memory.
-     * The escape valve. Reach for this when you need state shared across
-     * multiple application instances.
+     * Rung 4: Redis-backed distributed memory via Lettuce.
      *
-     * @param config Redis connection configuration
+     * <p>The distributed escape valve. Sessions are shared across all application
+     * instances and survive deployments. TTL is enforced at the Redis level.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     *
+     * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
     static MemoryStrategy redis(RedisConfig config) {
-        return new RedisMemoryStrategy(config);
+        return loadProvider().redis(config);
     }
 
     /**
-     * Rung 6: Hybrid tiered memory — warm SSD tier + cold Redis tier.
-     * Promotes and demotes entries across tiers automatically.
+     * Rung 5: Hybrid tiered memory — warm (SSD) + cold (Redis).
+     *
+     * <p>Hot sessions stay local and fast. Idle sessions are demoted to Redis.
+     * Reads promote sessions back to warm automatically.
+     *
+     * <pre>{@code
+     *   app.memory(MemoryStrategy.hybrid()
+     *       .warm(MemoryStrategy.mapped())
+     *       .cold(MemoryStrategy.redis(redisConfig))
+     *       .demoteAfter(Duration.ofMinutes(30))
+     *       .build());
+     * }</pre>
+     *
+     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     *
+     * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
-    static HybridMemoryStrategy hybrid() {
-        return new HybridMemoryStrategy();
+    static HybridBuilder hybrid() {
+        return loadProvider().hybrid();
     }
 
-    // ── Core Contract ─────────────────────────────────────────────────────────
+    // ── ServiceLoader discovery ───────────────────────────────────────────────
 
-    void store(String sessionId, ConversationContext context);
-    ConversationContext retrieve(String sessionId);
-    void evict(String sessionId);
-    boolean exists(String sessionId);
+    private static MemoryStrategyProvider loadProvider() {
+        return ServiceLoader.load(MemoryStrategyProvider.class)
+            .findFirst()
+            .orElseThrow(() -> new MemoryModuleNotFoundException(
+                "Memory rungs 2–5 require the cafeai-memory module. " +
+                "Add the following dependency:\n\n" +
+                "  Gradle: implementation 'io.cafeai:cafeai-memory'\n" +
+                "  Maven:  <artifactId>cafeai-memory</artifactId>\n\n" +
+                "For development, use MemoryStrategy.inMemory() (zero dependencies)."));
+    }
 
-    // ── Stub Implementations (replaced in cafeai-memory — ROADMAP-07 Phase 3) ─
+    // ── Nested Types ──────────────────────────────────────────────────────────
 
-    record InMemoryStrategy() implements MemoryStrategy {
-        private static final ConcurrentHashMap<String, ConversationContext>
+    /** Fluent builder for hybrid warm+cold strategies. */
+    interface HybridBuilder {
+        HybridBuilder warm(MemoryStrategy strategy);
+        HybridBuilder cold(MemoryStrategy strategy);
+        HybridBuilder demoteAfter(Duration duration);
+        MemoryStrategy build();
+    }
+
+    /**
+     * Thrown when a memory rung requiring {@code cafeai-memory} is requested
+     * but that module is not on the classpath.
+     */
+    class MemoryModuleNotFoundException extends RuntimeException {
+        public MemoryModuleNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    // ── Rung 1 Implementation (fully functional, zero deps) ───────────────────
+
+    final class InMemoryStrategy implements MemoryStrategy {
+        // Instance-scoped — each InMemoryStrategy has its own isolated store.
+        // Previously static, which caused test cross-contamination.
+        private final ConcurrentHashMap<String, ConversationContext>
             store = new ConcurrentHashMap<>();
 
         @Override public void store(String id, ConversationContext ctx) { store.put(id, ctx); }
         @Override public ConversationContext retrieve(String id)         { return store.get(id); }
         @Override public void evict(String id)                           { store.remove(id); }
         @Override public boolean exists(String id)                       { return store.containsKey(id); }
-    }
-
-    /** Stub — full FFM implementation in cafeai-memory module. */
-    record MappedMemoryStrategy() implements MemoryStrategy {
-        @Override public void store(String id, ConversationContext ctx) {}
-        @Override public ConversationContext retrieve(String id)         { return null; }
-        @Override public void evict(String id)                           {}
-        @Override public boolean exists(String id)                       { return false; }
-    }
-
-    /** Stub — full Chronicle Map implementation in cafeai-memory module. */
-    record ChronicleMemoryStrategy() implements MemoryStrategy {
-        @Override public void store(String id, ConversationContext ctx) {}
-        @Override public ConversationContext retrieve(String id)         { return null; }
-        @Override public void evict(String id)                           {}
-        @Override public boolean exists(String id)                       { return false; }
-    }
-
-    /** Stub — full Lettuce/Redis implementation in cafeai-memory module. */
-    record RedisMemoryStrategy(RedisConfig config) implements MemoryStrategy {
-        @Override public void store(String id, ConversationContext ctx) {}
-        @Override public ConversationContext retrieve(String id)         { return null; }
-        @Override public void evict(String id)                           {}
-        @Override public boolean exists(String id)                       { return false; }
-    }
-
-    /** Hybrid builder — full implementation in cafeai-memory module. */
-    final class HybridMemoryStrategy implements MemoryStrategy {
-        private MemoryStrategy warm;
-        private MemoryStrategy cold;
-
-        public HybridMemoryStrategy warm(MemoryStrategy strategy) { this.warm = strategy; return this; }
-        public HybridMemoryStrategy cold(MemoryStrategy strategy) { this.cold = strategy; return this; }
-
-        @Override public void store(String id, ConversationContext ctx) {
-            if (warm != null) warm.store(id, ctx);
-        }
-        @Override public ConversationContext retrieve(String id) {
-            if (warm != null && warm.exists(id)) return warm.retrieve(id);
-            if (cold != null) return cold.retrieve(id);
-            return null;
-        }
-        @Override public void evict(String id) {
-            if (warm != null) warm.evict(id);
-            if (cold != null) cold.evict(id);
-        }
-        @Override public boolean exists(String id) {
-            return (warm != null && warm.exists(id)) || (cold != null && cold.exists(id));
-        }
     }
 }

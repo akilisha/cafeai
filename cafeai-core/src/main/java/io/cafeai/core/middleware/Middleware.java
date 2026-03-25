@@ -73,7 +73,15 @@ public interface Middleware {
      */
     default Middleware then(Middleware other) {
         return (req, res, next) ->
-            this.handle(req, res, () -> other.handle(req, res, next));
+            this.handle(req, res, () -> {
+                try {
+                    other.handle(req, res, next);
+                } catch (RuntimeException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
     }
 
     // ── Built-in Middleware Factory Methods ───────────────────────────────────

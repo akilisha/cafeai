@@ -2,32 +2,31 @@
 //  cafeai-memory
 //  Tiered context memory strategy for CafeAI.
 //
-//  Rung 1 → In-JVM HashMap           (prototype / zero deps)
+//  Rung 1 → In-JVM HashMap           (in cafeai-core, zero deps)
 //  Rung 2 → FFM MemorySegment        (SSD-backed, off-heap)
-//  Rung 3 → Chronicle Map            (off-heap key-value)
+//  Rung 3 → Chronicle Map            (off-heap key-value, stub)
 //  Rung 4 → Redis via Lettuce        (distributed escape valve)
-//  Rung 5 → Memcached via Spy        (distributed escape valve)
+//  Rung 5 → Hybrid warm+cold         (SSD + Redis)
 // ============================================================
 
 dependencies {
 
     api project(':cafeai-core')
 
-    // ── Langchain4j Memory ───────────────────────────────────
-    implementation 'dev.langchain4j:langchain4j-core'
-
-    // ── Off-heap / SSD-backed (Rung 3) ───────────────────────
-    // Chronicle Map - designed for off-heap, memory-mapped storage
-    implementation "net.openhft:chronicle-map:${rootProject.ext.chronicleMapVersion}"
+    // ── Serialization ────────────────────────────────────────
+    // JSON serialization for mapped and Redis strategies
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
 
     // ── Redis (Rung 4) ───────────────────────────────────────
-    // Lettuce - reactive Redis client, non-blocking
+    // Lettuce — reactive Redis client; we use synchronous API (virtual threads)
     implementation "io.lettuce:lettuce-core:${rootProject.ext.lettuceVersion}"
 
-    // ── Memcached (Rung 5) ───────────────────────────────────
-    implementation "net.spy:spymemcached:${rootProject.ext.spymemcachedVersion}"
+    // ── Chronicle Map (Rung 3 — stub, dep kept for future impl) ─
+    implementation "net.openhft:chronicle-map:${rootProject.ext.chronicleMapVersion}"
 
-    // ── Test Containers for integration tests ────────────────
+    // ── Test Containers for Redis integration tests ───────────
     testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
     testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:redpanda:${rootProject.ext.testcontainersVersion}"
 }

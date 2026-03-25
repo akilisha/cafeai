@@ -30,6 +30,7 @@ final class HelidonRequest implements Request {
     private Map<String, Object> parsedBody;
     private byte[]  rawBody;
     private String  textBody;
+    private Map<String, java.util.List<io.cafeai.core.routing.UploadedFile>> uploadedFiles;
 
     HelidonRequest(ServerRequest helidonReq, CafeAI app) {
         this.helidonReq = helidonReq;
@@ -189,6 +190,19 @@ final class HelidonRequest implements Request {
     @Override public String bodyText()  { return textBody; }
 
     @Override
+    public io.cafeai.core.routing.UploadedFile file(String fieldName) {
+        if (uploadedFiles == null) return null;
+        var list = uploadedFiles.get(fieldName);
+        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+    }
+
+    @Override
+    public java.util.List<io.cafeai.core.routing.UploadedFile> files(String fieldName) {
+        if (uploadedFiles == null) return java.util.List.of();
+        return uploadedFiles.getOrDefault(fieldName, java.util.List.of());
+    }
+
+    @Override
     public String header(String name) {
         // HeaderNames.create(lowerCase, defaultCase) for arbitrary user-supplied names.
         return helidonReq.headers()
@@ -278,6 +292,9 @@ final class HelidonRequest implements Request {
     void setParsedBody(Map<String, Object> body) { this.parsedBody = body; }
     void setRawBody(byte[] body)                 { this.rawBody = body; }
     void setTextBody(String body)                { this.textBody = body; }
+    void setUploadedFiles(Map<String, java.util.List<io.cafeai.core.routing.UploadedFile>> files) {
+        this.uploadedFiles = files;
+    }
 
     /** Package-private: exposes underlying Helidon request for body reading in middleware. */
     ServerRequest helidonServerRequest()         { return helidonReq; }

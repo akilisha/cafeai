@@ -312,6 +312,219 @@ public final class BuiltInMiddleware {
 
     // ── URL-Encoded Body Parser (ROADMAP-01 Phase 7) ──────────────────────────
 
+    // ── Multipart Body Parser (ROADMAP-01 Phase 2 extension) ──────────────────
+
+    /**
+     * Parses {@code multipart/form-data} request bodies.
+     *
+     * <p>After registration, uploaded files are accessible via
+     * {@code req.file("fieldName")} and {@code req.files("fieldName")}.
+     * Regular form fields within the multipart body are also parsed into
+     * {@code req.body()}.
+     *
+     * <p>Implements RFC 2046 multipart boundary parsing directly over the raw
+     * request bytes — no dependency on Helidon's media layer.
+     */
+    public static Middleware multipartBody(long maxSizeBytes) {
+        return (req, res, next) -> {
+            String contentType = req.header("Content-Type");
+            if (contentType == null
+                    || !contentType.toLowerCase().contains("multipart/form-data")) {
+                next.run();
+                return;
+            }
+
+            if (!(req instanceof HelidonRequest helidonReq)) {
+                next.run();
+                return;
+            }
+
+            // Extract the boundary parameter from Content-Type header
+            // e.g. "multipart/form-data; boundary=----WebKitFormBoundary..."
+            String boundary = extractBoundary(contentType);
+            if (boundary == null) {
+                res.status(400).json(Map.of("error",
+                    "multipart/form-data request missing boundary parameter"));
+                return;
+            }
+
+            try {
+                byte[] rawBody = readBody(helidonReq.helidonServerRequest(),
+                    maxSizeBytes, false, contentType);
+                if (rawBody == null || rawBody.length == 0) {
+                    next.run();
+                    return;
+                }
+
+                Map<String, java.util.List<io.cafeai.core.routing.UploadedFile>> files =
+                    new java.util.LinkedHashMap<>();
+                Map<String, Object> fields = new java.util.LinkedHashMap<>();
+
+                parseMultipartBody(rawBody, boundary, maxSizeBytes, files, fields);
+
+                helidonReq.setUploadedFiles(files);
+                if (!fields.isEmpty()) {
+                    helidonReq.setParsedBody(java.util.Collections.unmodifiableMap(fields));
+                }
+
+            } catch (BodyTooLargeException e) {
+                res.status(413).json(Map.of("error", "Payload Too Large",
+                    "limit", maxSizeBytes));
+                return;
+            } catch (Exception e) {
+                log.warn("Multipart parse error: {}", e.getMessage());
+                res.status(400).json(Map.of("error", "Bad Request",
+                    "detail", "Failed to parse multipart body"));
+                return;
+            }
+
+            next.run();
+        };
+    }
+
+    /** Convenience overload — 10 MB default part size limit. */
+    public static Middleware multipart() {
+        return multipartBody(10L * 1024 * 1024); // 10 MB
+    }
+
+    /**
+     * Extracts the {@code boundary} parameter from a {@code Content-Type} header.
+     * Returns {@code null} if not found.
+     */
+    private static String extractBoundary(String contentType) {
+        for (String part : contentType.split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.toLowerCase().startsWith("boundary=")) {
+                String boundary = trimmed.substring("boundary=".length()).trim();
+                // Unquote if quoted: boundary="----WebKit..."
+                if (boundary.startsWith("\"") && boundary.endsWith("\"")) {
+                    boundary = boundary.substring(1, boundary.length() - 1);
+                }
+                return boundary;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parses a multipart body according to RFC 2046.
+     *
+     * <p>Each part has headers (Content-Disposition, Content-Type) followed by
+     * a blank line, then the part body. Parts are delimited by {@code --boundary}.
+     */
+    private static void parseMultipartBody(
+            byte[] body, String boundary, long maxPartSize,
+            Map<String, java.util.List<io.cafeai.core.routing.UploadedFile>> files,
+            Map<String, Object> fields) {
+
+        byte[] delimiter = ("--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
+        byte[] crlf      = "\r\n".getBytes(StandardCharsets.ISO_8859_1);
+
+        int pos = indexOf(body, delimiter, 0);
+        if (pos < 0) return;
+        pos += delimiter.length;
+
+        while (pos < body.length) {
+            // Skip CRLF after boundary
+            if (pos + 2 <= body.length && body[pos] == '\r' && body[pos+1] == '\n') {
+                pos += 2;
+            } else if (pos + 2 <= body.length && body[pos] == '-' && body[pos+1] == '-') {
+                break; // final boundary --boundary--
+            } else {
+                break;
+            }
+
+            // Find end of part headers (blank line = CRLFCRLF)
+            byte[] headerEnd = "\r\n\r\n".getBytes(StandardCharsets.ISO_8859_1);
+            int headerEndPos = indexOf(body, headerEnd, pos);
+            if (headerEndPos < 0) break;
+
+            String headerBlock = new String(body, pos, headerEndPos - pos,
+                StandardCharsets.ISO_8859_1);
+            pos = headerEndPos + 4; // skip CRLFCRLF
+
+            // Find next boundary
+            int nextBoundary = indexOf(body, delimiter, pos);
+            if (nextBoundary < 0) break;
+
+            // Part body is everything before the boundary (minus the preceding CRLF)
+            int partEnd = nextBoundary;
+            if (partEnd >= 2 && body[partEnd-2] == '\r' && body[partEnd-1] == '\n') {
+                partEnd -= 2;
+            }
+
+            byte[] partBody = java.util.Arrays.copyOfRange(body, pos, partEnd);
+            pos = nextBoundary + delimiter.length;
+
+            if (partBody.length > maxPartSize) {
+                log.warn("Multipart part exceeds size limit of {} bytes", maxPartSize);
+                continue;
+            }
+
+            // Parse Content-Disposition header to get name and filename
+            String name     = extractDispositionParam(headerBlock, "name");
+            String filename = extractDispositionParam(headerBlock, "filename");
+            String mimeType = extractContentType(headerBlock);
+
+            if (name == null) continue;
+
+            if (filename != null) {
+                // File upload part
+                io.cafeai.core.routing.UploadedFile uploaded =
+                    new io.cafeai.core.routing.UploadedFile(
+                        name, filename,
+                        mimeType != null ? mimeType : "application/octet-stream",
+                        partBody);
+                files.computeIfAbsent(name, k -> new java.util.ArrayList<>())
+                     .add(uploaded);
+            } else {
+                // Text field part
+                fields.put(name, new String(partBody, StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    /** Finds the first occurrence of {@code needle} in {@code haystack} starting at {@code from}. */
+    private static int indexOf(byte[] haystack, byte[] needle, int from) {
+        outer:
+        for (int i = from; i <= haystack.length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i+j] != needle[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
+    }
+
+    /** Extracts a named parameter from a Content-Disposition header value. */
+    private static String extractDispositionParam(String headers, String param) {
+        for (String line : headers.split("\r\n")) {
+            if (!line.toLowerCase().startsWith("content-disposition:")) continue;
+            for (String part : line.split(";")) {
+                String trimmed = part.trim();
+                String lc = trimmed.toLowerCase();
+                if (lc.startsWith(param + "=")) {
+                    String value = trimmed.substring(param.length() + 1).trim();
+                    if (value.startsWith("\"") && value.endsWith("\"")) {
+                        value = value.substring(1, value.length() - 1);
+                    }
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Extracts the Content-Type value from a part's header block. */
+    private static String extractContentType(String headers) {
+        for (String line : headers.split("\r\n")) {
+            if (line.toLowerCase().startsWith("content-type:")) {
+                return line.substring("content-type:".length()).trim().split(";")[0].trim();
+            }
+        }
+        return null;
+    }
+
     /**
      * Parses {@code application/x-www-form-urlencoded} bodies into {@code req.body()}.
      *

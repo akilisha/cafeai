@@ -198,20 +198,24 @@ class CafeAIAppTest {
     }
 
     @Test
-    @DisplayName("app.memory(mapped) registers SSD-backed strategy")
-    void memory_mapped_registers() {
+    @DisplayName("app.memory(mapped) throws MemoryModuleNotFoundException without cafeai-memory")
+    void memory_mapped_requiresModule() {
         var app = CafeAI.create();
-        assertThatCode(() -> app.memory(MemoryStrategy.mapped()))
-                .doesNotThrowAnyException();
+        // cafeai-memory is not on cafeai-core's test classpath —
+        // mapped() must throw MemoryModuleNotFoundException with actionable message.
+        assertThatThrownBy(() -> app.memory(MemoryStrategy.mapped()))
+            .isInstanceOf(MemoryStrategy.MemoryModuleNotFoundException.class)
+            .hasMessageContaining("cafeai-memory");
     }
 
     @Test
-    @DisplayName("app.memory(redis) registers distributed strategy")
-    void memory_redis_registers() {
+    @DisplayName("app.memory(redis) throws MemoryModuleNotFoundException without cafeai-memory")
+    void memory_redis_requiresModule() {
         var app = CafeAI.create();
         var config = RedisConfig.of("localhost", 6379);
-        assertThatCode(() -> app.memory(MemoryStrategy.redis(config)))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> app.memory(MemoryStrategy.redis(config)))
+            .isInstanceOf(MemoryStrategy.MemoryModuleNotFoundException.class)
+            .hasMessageContaining("cafeai-memory");
     }
 
     @Test
