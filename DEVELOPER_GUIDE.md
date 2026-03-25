@@ -27,6 +27,26 @@
     - [11.5 Conversation Memory](#115-conversation-memory--sessions-that-remember)
     - [11.6 Putting It All Together](#116-putting-it-all-together)
     - [11.7 What's Coming Next](#117-whats-coming-next)
+12. [File Uploads, Downloads, and SSE](#12-file-uploads-downloads-and-sse)
+    - [12.1 Body handler registration](#121-body-handler-registration)
+    - [12.2 Multipart file upload](#122-multipart-file-upload)
+    - [12.3 Binary upload](#123-binary-upload)
+    - [12.4 File download](#124-file-download)
+    - [12.5 Server-Sent Events](#125-server-sent-events-sse)
+13. [WebSocket](#13-websocket)
+    - [13.1 HTTP and WebSocket on the same port](#131-http-and-websocket-on-the-same-port)
+    - [13.2 The WsHandler interface](#132-the-wshandler-interface)
+    - [13.3 Multi-client patterns](#133-multi-client-patterns)
+14. [Tiered Memory](#14-tiered-memory)
+    - [14.1 Choosing a memory tier](#141-choosing-a-memory-tier)
+    - [14.2 The cafeai-memory module](#142-the-cafeai-memory-module)
+15. [RAG — Grounding the LLM in Your Data](#15-rag--grounding-the-llm-in-your-data)
+    - [15.1 The setup](#151-the-setup)
+    - [15.2 Sources](#152-sources)
+    - [15.3 Embedding models](#153-embedding-models)
+    - [15.4 Retrieval strategies](#154-retrieval-strategies)
+    - [15.5 Accessing retrieved documents](#155-accessing-retrieved-documents-in-handlers)
+16. [Module Structure and Dependencies](#16-module-structure-and-dependencies)
 
 ---
 
@@ -994,3 +1014,465 @@ and makes its capabilities available to the LLM alongside your Java tools.
 **Phase 7 — Guardrails.** `GuardRail.pii()`, `GuardRail.jailbreak()`, etc. are currently
 pass-through stubs. Full implementations using NLP and classifier models arrive in Phase 7.
 Register them now — the API doesn't change, only the behaviour becomes real.
+
+---
+
+## 12. File Uploads, Downloads, and SSE
+
+### 12.1 Body handler registration
+
+CafeAI ships six body parsers. Each is a middleware — register the ones your
+application needs as global filters at startup. They stack safely: each checks
+`Content-Type` and only activates for matching requests, passing everything else
+through with `next.run()`.
+
+```java
+app.filter(CafeAI.json());          // application/json       → req.body()
+app.filter(CafeAI.urlencoded());    // application/x-www-form-urlencoded → req.body()
+app.filter(CafeAI.text());          // text/plain             → req.bodyText()
+app.filter(CafeAI.raw());           // application/octet-stream → req.bodyBytes()
+app.filter(CafeAI.multipart());     // multipart/form-data    → req.file(), req.files()
+app.filter(CafeAI.serveStatic("public"));  // serves /public/** as static files
+```
+
+Register all of them globally and let the parsers self-select — there's no
+performance cost to registering parsers for content types your app doesn't use.
+
+### 12.2 Multipart file upload
+
+```java
+app.filter(CafeAI.multipart());    // 10 MB per part, default
+// app.filter(CafeAI.multipart(50 * 1024 * 1024));  // 50 MB per part
+
+app.post("/upload", (req, res, next) -> {
+    UploadedFile doc = req.file("document");     // the file field
+    String note      = req.body("note");          // a text field from the same form
+
+    if (doc == null) {
+        res.status(400).json(Map.of("error", "no file in field 'document'"));
+        return;
+    }
+
+    try {
+        Path saved = doc.saveToDirectory(Path.of("/uploads"));
+        res.status(201).json(Map.of(
+            "name", doc.originalName(),
+            "size", doc.size(),
+            "type", doc.mimeType(),
+            "path", saved.toString()
+        ));
+    } catch (java.io.IOException e) {
+        next.fail(new RuntimeException("Save failed: " + e.getMessage(), e));
+    }
+});
+```
+
+`req.file(fieldName)` returns the first uploaded file for that field, or `null`.
+`req.files(fieldName)` returns all files for that field (for multi-file inputs).
+Text fields in the same form are accessible via `req.body(key)` as usual.
+
+**The `IOException` rule:** any file I/O inside a middleware lambda must be wrapped in
+`try-catch` — the `Middleware.handle()` signature does not declare `throws IOException`.
+Catch it and route to `next.fail()` so the error handler sends a proper response.
+
+### 12.3 Binary upload
+
+When a client sends raw bytes (programmatic uploads, mobile apps, CLI tools), use
+`application/octet-stream` and `req.bodyBytes()`:
+
+```java
+app.post("/upload/binary", (req, res, next) -> {
+    byte[] bytes   = req.bodyBytes();
+    String filename = req.header("X-Filename");    // client sends filename in a header
+
+    if (bytes == null || bytes.length == 0) {
+        res.status(400).send("empty body"); return;
+    }
+
+    // Sanitise: never trust client-provided filenames for path construction
+    String safeName = Path.of(filename).getFileName().toString();
+
+    try {
+        Files.write(Path.of("/uploads/" + safeName), bytes);
+        res.status(201).json(Map.of("bytes", bytes.length));
+    } catch (java.io.IOException e) {
+        next.fail(new RuntimeException(e));
+    }
+});
+```
+
+```bash
+curl --data-binary @photo.jpg \
+     -H "Content-Type: application/octet-stream" \
+     -H "X-Filename: photo.jpg" \
+     http://localhost:8080/upload/binary
+```
+
+### 12.4 File download
+
+```java
+app.get("/download/:filename", (req, res, next) -> {
+    Path file = Path.of("/uploads/" + req.params("filename"));
+    if (!Files.exists(file)) { res.sendStatus(404); return; }
+
+    // res.download() sets Content-Disposition: attachment
+    res.download(file);
+
+    // Or send with a custom display name:
+    // res.download(file, "report-" + LocalDate.now() + ".pdf");
+
+    // Or serve inline (browser renders it instead of downloading):
+    // res.sendFile(file);
+});
+```
+
+### 12.5 Server-Sent Events (SSE)
+
+SSE is a one-way stream from server to browser over a normal HTTP connection.
+Use it for live feeds, progress updates, LLM token streaming — anything where
+the server needs to push data without the overhead of WebSocket.
+
+```java
+app.get("/stream/events", (req, res, next) -> {
+    // req.stream() is true when the client sends Accept: text/event-stream
+    if (!req.stream()) {
+        res.json(Map.of("hint", "Use Accept: text/event-stream"));
+        return;
+    }
+
+    var publisher = new java.util.concurrent.SubmissionPublisher<String>();
+
+    // res.stream() sets SSE headers and subscribes the publisher.
+    // Returns immediately — the virtual thread is not blocked.
+    res.stream(publisher);
+
+    // Push events from a virtual thread — any source works here:
+    // database changes, message queues, LLM token streams.
+    Thread.ofVirtual().start(() -> {
+        try {
+            for (int i = 1; i <= 10; i++) {
+                publisher.submit("event-" + i);
+                Thread.sleep(200);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            publisher.close();   // sends data: [DONE]\n\n and closes
+        }
+    });
+});
+```
+
+```bash
+curl -H "Accept: text/event-stream" http://localhost:8080/stream/events
+# data: event-1
+# data: event-2
+# ...
+# data: [DONE]
+```
+
+LLM response streaming uses the same mechanism — `res.stream()` accepts any
+`Flow.Publisher<String>`. Once the RAG and streaming phases are complete,
+`app.prompt().stream()` will return one directly.
+
+---
+
+## 13. WebSocket
+
+### 13.1 HTTP and WebSocket on the same port
+
+`app.ws()` registers a WebSocket endpoint. The Helidon runtime upgrades
+WebSocket handshake requests automatically — HTTP routes and WebSocket endpoints
+coexist on the same port with no configuration. There is no separate WebSocket
+server to start.
+
+```java
+var app = CafeAI.create();
+
+app.get("/health", (req, res, next) -> res.json(Map.of("status", "ok")));
+
+app.ws("/ws/echo",
+    WsHandler.onMessage((session, msg) -> session.send("Echo: " + msg)));
+
+app.listen(8080);
+// GET  http://localhost:8080/health  → works
+// WS   ws://localhost:8080/ws/echo  → works
+// Same port. No extra config.
+```
+
+### 13.2 The WsHandler interface
+
+`WsHandler` has five lifecycle methods, all with safe default implementations.
+Override only what you need:
+
+```java
+app.ws("/ws/chat", new WsHandler() {
+
+    @Override
+    public void onOpen(WsSession session) {
+        // A new client connected — session is open and ready
+        session.send("Welcome! Your session: " + session.id());
+    }
+
+    @Override
+    public void onMessage(WsSession session, String message) {
+        // A text message arrived from this client
+        session.send("You said: " + message);
+    }
+
+    @Override
+    public void onBinaryMessage(WsSession session, byte[] data) {
+        // A binary frame arrived — handle file transfer, audio, etc.
+    }
+
+    @Override
+    public void onClose(WsSession session, int statusCode, String reason) {
+        // Client disconnected — 1000 = normal closure
+        System.out.println("Closed: " + reason);
+    }
+
+    @Override
+    public void onError(WsSession session, Throwable error) {
+        // An error occurred on the connection
+        System.err.println("WS error: " + error.getMessage());
+    }
+});
+```
+
+For message-only handlers, the lambda shorthand is cleaner:
+
+```java
+app.ws("/ws/echo", WsHandler.onMessage((session, msg) -> session.send(msg)));
+```
+
+### 13.3 Multi-client patterns
+
+`WsHandler` is a single instance shared across all connections — one handler
+object, many concurrent `WsSession`s. Use a thread-safe collection to track them:
+
+```java
+// Thread-safe session registry
+private static final Set<WsSession> connected = ConcurrentHashMap.newKeySet();
+
+app.ws("/ws/chat", new WsHandler() {
+
+    @Override
+    public void onOpen(WsSession session) {
+        connected.add(session);
+        broadcast("[" + session.id() + " joined] " + connected.size() + " online");
+    }
+
+    @Override
+    public void onMessage(WsSession session, String message) {
+        broadcast("[" + session.id() + "] " + message);
+    }
+
+    @Override
+    public void onClose(WsSession session, int statusCode, String reason) {
+        connected.remove(session);
+        broadcast("[" + session.id() + " left]");
+    }
+
+    private void broadcast(String message) {
+        connected.forEach(s -> {
+            try { s.send(message); }
+            catch (Exception e) { connected.remove(s); }
+        });
+    }
+});
+```
+
+---
+
+## 14. Tiered Memory
+
+### 14.1 Choosing a memory tier
+
+CafeAI's memory hierarchy mirrors hardware — start at the cheapest tier and
+escalate only when the problem demands it:
+
+| Tier | Method | Survives restart | Multi-instance | Requires |
+|---|---|---|---|---|
+| 1 | `inMemory()` | No | No | Nothing |
+| 2 | `mapped()` | **Yes** | No | `cafeai-memory` |
+| 4 | `redis(config)` | Yes | **Yes** | `cafeai-memory` + Redis |
+| 5 | `hybrid()` | Yes | Yes | `cafeai-memory` + Redis |
+
+For most development work, `inMemory()` is all you need:
+
+```java
+app.memory(MemoryStrategy.inMemory());
+```
+
+For production single-instance deployments where sessions should survive
+a restart (crash recovery):
+
+```java
+app.memory(MemoryStrategy.mapped());                       // default dir
+app.memory(MemoryStrategy.mapped(Path.of("/var/cafeai/sessions")));  // custom dir
+```
+
+For production multi-instance deployments:
+
+```java
+app.memory(MemoryStrategy.redis(
+    RedisConfig.builder()
+        .host("redis.prod.internal")
+        .port(6379)
+        .sessionTtl(Duration.ofHours(24))
+        .build()));
+```
+
+For the best of both (fast local reads, distributed durability):
+
+```java
+app.memory(MemoryStrategy.hybrid()
+    .warm(MemoryStrategy.mapped())
+    .cold(MemoryStrategy.redis(redisConfig))
+    .demoteAfter(Duration.ofMinutes(30))
+    .build());
+```
+
+### 14.2 The cafeai-memory module
+
+Tiers 2, 4, and 5 require `cafeai-memory` on the classpath. Without it, calling
+`MemoryStrategy.mapped()` or `MemoryStrategy.redis()` throws
+`MemoryModuleNotFoundException` with an exact message telling you what to add:
+
+```groovy
+// build.gradle
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-memory'   // unlocks mapped, redis, hybrid
+}
+```
+
+`inMemory()` is always available with zero extra dependencies.
+
+---
+
+## 15. RAG — Grounding the LLM in Your Data
+
+RAG (Retrieval Augmented Generation) is the difference between an LLM that
+makes things up and one that answers from your actual documents. CafeAI makes it
+four method calls at startup.
+
+### 15.1 The setup
+
+```java
+// Requires cafeai-rag on the classpath
+app.vectordb(VectorStore.inMemory())         // where vectors are stored
+app.embed(EmbeddingModel.local())            // how text becomes vectors (no API key)
+app.ingest(Source.pdf("docs/handbook.pdf"))  // what knowledge to load
+app.ingest(Source.directory("knowledge/"))   // can ingest multiple sources
+app.rag(Retriever.semantic(5))               // retrieve top-5 relevant chunks per query
+```
+
+Once registered, every `app.prompt().call()` automatically retrieves the most
+relevant chunks from the vector store and injects them into the LLM context
+before the user's message. The LLM sees: system prompt → relevant documents →
+conversation history → user question.
+
+```groovy
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-rag'    // unlocks vectordb, embed, ingest, rag
+}
+```
+
+### 15.2 Sources
+
+```java
+Source.text("CafeAI is a Gen AI framework for Java.", "cafeai-intro")  // inline text
+Source.file("README.md")                // plain text or markdown file
+Source.pdf("docs/handbook.pdf")         // PDF via Apache Tika
+Source.directory("knowledge/")          // all .txt, .md, .pdf files recursively
+Source.url("https://docs.example.com")  // web page via Java's built-in HttpClient
+```
+
+Re-ingesting the same source is safe — CafeAI deletes existing chunks for that
+source before re-ingesting. You get idempotent upserts, not duplicates.
+
+### 15.3 Embedding models
+
+```java
+EmbeddingModel.local()                  // ONNX all-MiniLM-L6-v2, 384d, no API key
+EmbeddingModel.openAi()                 // text-embedding-ada-002, 1536d, OPENAI_API_KEY
+EmbeddingModel.openAi("text-embedding-3-large")  // higher quality, 3072d
+```
+
+`EmbeddingModel.local()` is the right default for most applications. It runs
+entirely on the JVM, produces no network traffic, and the model quality is
+sufficient for most document retrieval tasks.
+
+### 15.4 Retrieval strategies
+
+```java
+Retriever.semantic(5)    // cosine similarity — good for conceptual questions
+Retriever.hybrid(5)      // dense + BM25 keyword — better for exact terms and codes
+```
+
+### 15.5 Accessing retrieved documents in handlers
+
+Retrieved documents are stored in `req.attribute(Attributes.RAG_DOCUMENTS)` so
+handlers can reference them:
+
+```java
+app.post("/ask", (req, res, next) -> {
+    PromptResponse response = app.prompt(req.body("question")).call();
+
+    @SuppressWarnings("unchecked")
+    List<RagDocument> sources = (List<RagDocument>)
+        req.attribute(Attributes.RAG_DOCUMENTS);
+
+    res.json(Map.of(
+        "answer",  response.text(),
+        "sources", sources == null ? List.of()
+                   : sources.stream().map(RagDocument::sourceId).toList()
+    ));
+});
+```
+
+---
+
+## 16. Module Structure and Dependencies
+
+CafeAI is intentionally split into modules. You only pay the dependency cost for
+what you use. The dependency graph flows in one direction — modules depend on
+`cafeai-core`, and `cafeai-core` depends on nothing CafeAI-specific:
+
+```
+cafeai-core          ← always required; HTTP + AI primitives
+cafeai-memory        ← optional; unlocks mapped, redis, hybrid memory
+cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
+cafeai-examples      ← reference; not a runtime dependency
+```
+
+**The design rule:** `cafeai-core` never imports from `cafeai-rag` or
+`cafeai-memory`. The optional modules register themselves via Java's
+`ServiceLoader` — adding the JAR to the classpath activates the feature, zero
+code changes required. This is the same mechanism Java uses for JDBC drivers.
+
+```groovy
+// Minimal — HTTP framework only
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+}
+
+// Add AI memory tiers
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-memory'
+}
+
+// Add RAG pipeline
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-memory'
+    implementation 'io.cafeai:cafeai-rag'
+}
+```
+
+When an optional module is absent and you call a method that requires it,
+CafeAI throws an exception with an exact message telling you which dependency
+to add and what the import should look like. It never silently degrades.
