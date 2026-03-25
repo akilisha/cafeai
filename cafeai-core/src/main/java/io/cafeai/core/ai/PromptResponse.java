@@ -18,11 +18,12 @@ package io.cafeai.core.ai;
  */
 public final class PromptResponse {
 
-    private final String text;
-    private final int    promptTokens;
-    private final int    outputTokens;
-    private final String modelId;
+    private final String  text;
+    private final int     promptTokens;
+    private final int     outputTokens;
+    private final String  modelId;
     private final boolean fromCache;
+    private final java.util.List<Object> ragDocuments;  // List<RagDocument>, typed as Object to avoid dep
 
     private PromptResponse(Builder b) {
         this.text         = b.text;
@@ -30,6 +31,9 @@ public final class PromptResponse {
         this.outputTokens = b.outputTokens;
         this.modelId      = b.modelId;
         this.fromCache    = b.fromCache;
+        this.ragDocuments = b.ragDocuments != null
+            ? java.util.Collections.unmodifiableList(b.ragDocuments)
+            : java.util.List.of();
     }
 
     /** The model's text response. */
@@ -50,6 +54,13 @@ public final class PromptResponse {
     /** {@code true} if this response was served from the semantic cache. */
     public boolean fromCache()   { return fromCache; }
 
+    /**
+     * Documents retrieved by the RAG pipeline for this prompt.
+     * Empty list if RAG is not configured or no documents were retrieved.
+     * Each element is an {@code io.cafeai.rag.RagDocument} instance.
+     */
+    public java.util.List<Object> ragDocuments() { return ragDocuments; }
+
     /** Shorthand — delegates to {@link #text()}. Makes response usable as a string. */
     @Override
     public String toString() { return text; }
@@ -62,13 +73,15 @@ public final class PromptResponse {
         private int     outputTokens;
         private String  modelId;
         private boolean fromCache;
+        private java.util.List<Object> ragDocuments;
 
-        public Builder text(String t)             { this.text         = t; return this; }
-        public Builder promptTokens(int n)        { this.promptTokens = n; return this; }
-        public Builder outputTokens(int n)        { this.outputTokens = n; return this; }
-        public Builder modelId(String m)          { this.modelId      = m; return this; }
-        public Builder fromCache(boolean c)       { this.fromCache    = c; return this; }
+        public Builder text(String t)                         { this.text         = t; return this; }
+        public Builder promptTokens(int n)                    { this.promptTokens = n; return this; }
+        public Builder outputTokens(int n)                    { this.outputTokens = n; return this; }
+        public Builder modelId(String m)                      { this.modelId      = m; return this; }
+        public Builder fromCache(boolean c)                   { this.fromCache    = c; return this; }
+        public Builder ragDocuments(java.util.List<Object> d) { this.ragDocuments = d; return this; }
 
-        public PromptResponse build()             { return new PromptResponse(this); }
+        public PromptResponse build()                         { return new PromptResponse(this); }
     }
 }

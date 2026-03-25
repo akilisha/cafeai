@@ -47,6 +47,13 @@ public final class Locals {
     /** The registered {@link io.cafeai.core.observability.ObserveStrategy}, if any. */
     public static final String OBSERVE_STRATEGY = "__cafeai.observe.strategy";
 
+    /**
+     * Key for the list of registered {@code io.cafeai.connect.Connection} instances.
+     * Stored as {@code List<Object>} to avoid a compile-time dependency on cafeai-connect.
+     * Used by {@code Connect.healthCheck()} to probe registered services.
+     */
+    public static final String CONNECTIONS      = "__cafeai.connect.connections";
+
     // ── Internals ─────────────────────────────────────────────────────────────
 
     /**

@@ -49,4 +49,13 @@ public record RagDocument(
     public RagDocument(String content, String sourceId, double score) {
         this(content, sourceId, score, -1);
     }
+
+    /**
+     * Returns the document content — used when injecting into LLM context via
+     * {@code retrievedDoc.toString()} in {@code CafeAIApp.executePrompt()}.
+     */
+    @Override
+    public String toString() {
+        return content;
+    }
 }

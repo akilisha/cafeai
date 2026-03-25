@@ -84,6 +84,13 @@ public final class CafeAIApp implements CafeAI {
     private Object vectorStore;
     private Object embeddingModel;
     private Object retriever;
+
+    // Tool registry bridge (ROADMAP-07 Phase 5) — loaded via ServiceLoader
+    private io.cafeai.core.spi.ToolBridge toolBridge;
+
+    // Named chain registry (ROADMAP-07 Phase 6)
+    private final java.util.Map<String, io.cafeai.core.chain.Chain> chains =
+        new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
@@ -264,14 +271,60 @@ public final class CafeAIApp implements CafeAI {
         // The current user message
         messages.add(UserMessage.from(request.message()));
 
-        // ── 4. Call the LLM ───────────────────────────────────────────────────
-        dev.langchain4j.model.output.Response<AiMessage> response =
-            model.generate(messages);
+        // ── 3b. RAG retrieval — inject context before the LLM call ───────────
+        java.util.List<Object> retrievedDocs = java.util.List.of();
+        if (retriever != null && vectorStore != null && embeddingModel != null) {
+            try {
+                var pipeline = java.util.ServiceLoader
+                    .load(io.cafeai.core.spi.RagPipeline.class)
+                    .findFirst()
+                    .orElse(null);
 
-        String responseText  = response.content().text();
-        TokenUsage usage = response.tokenUsage();
-        int promptTokens     = usage != null ? usage.inputTokenCount()  : 0;
-        int outputTokens     = usage != null ? usage.outputTokenCount() : 0;
+                if (pipeline != null) {
+                    retrievedDocs = pipeline.retrieve(
+                        request.message(), retriever, vectorStore, embeddingModel);
+
+                    if (!retrievedDocs.isEmpty()) {
+                        // Build a context block from the retrieved documents.
+                        // Injected as a UserMessage immediately before the actual question
+                        // so the LLM sees: [system] → [history] → [context] → [question]
+                        var sb = new StringBuilder(
+                            "Relevant context from the knowledge base:\n\n");
+                        for (int i = 0; i < retrievedDocs.size(); i++) {
+                            sb.append("[").append(i + 1).append("] ");
+                            sb.append(retrievedDocs.get(i).toString());
+                            sb.append("\n\n");
+                        }
+                        sb.append("Use the above context to answer the following question:");
+                        // Insert context BEFORE the user question (swap last two)
+                        messages.add(messages.size() - 1,
+                            UserMessage.from(sb.toString()));
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("RAG retrieval failed — proceeding without context: {}", e.getMessage());
+            }
+        }
+
+        // ── 4. Call the LLM ───────────────────────────────────────────────────
+        String responseText;
+        int promptTokens = 0;
+        int outputTokens = 0;
+
+        if (toolBridge != null && toolBridge.hasTools()) {
+            // Tool-use path: delegate to the ReAct loop in cafeai-tools
+            responseText = toolBridge.executeWithTools(model, messages);
+            // Token counts not available from the tool loop aggregate — left as 0
+            // Future: accumulate across all loop iterations
+        } else {
+            // Simple path: single LLM call
+            dev.langchain4j.model.output.Response<AiMessage> response =
+                model.generate(messages);
+            responseText = response.content().text();
+            TokenUsage usage = response.tokenUsage();
+            promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
+            outputTokens  = usage != null ? usage.outputTokenCount() : 0;
+        }
 
         // ── 5. Persist to memory ──────────────────────────────────────────────
         if (request.sessionId() != null && memoryStrategy != null) {
@@ -293,6 +346,7 @@ public final class CafeAIApp implements CafeAI {
             .outputTokens(outputTokens)
             .modelId(provider.modelId())
             .fromCache(false)
+            .ragDocuments(retrievedDocs)
             .build();
     }
 
@@ -326,6 +380,30 @@ public final class CafeAIApp implements CafeAI {
         locals.put(Locals.MEMORY_STRATEGY, strategy);
         log.info("Memory strategy registered: {}", strategy.getClass().getSimpleName());
         return this;
+    }
+
+    @Override
+    public CafeAI connect(Object connection) {
+        assertNotStarted("connect()");
+        Objects.requireNonNull(connection, "Connection must not be null");
+
+        // Probe the service
+        io.cafeai.core.spi.ConnectBridge bridge = loadConnectBridge();
+        if (bridge != null) {
+            bridge.connect(connection, this);
+        } else {
+            // No cafeai-connect — store for later, log clearly
+            log.warn("app.connect() called but cafeai-connect is not on the classpath. " +
+                "Add: implementation 'io.cafeai:cafeai-connect'");
+        }
+        return this;
+    }
+
+    private io.cafeai.core.spi.ConnectBridge loadConnectBridge() {
+        return java.util.ServiceLoader
+            .load(io.cafeai.core.spi.ConnectBridge.class)
+            .findFirst()
+            .orElse(null);
     }
 
     @Override
@@ -386,6 +464,61 @@ public final class CafeAIApp implements CafeAI {
         this.retriever = Objects.requireNonNull(retriever, "Retriever must not be null");
         log.info("RAG retriever registered: {}", retriever.getClass().getSimpleName());
         return this;
+    }
+
+    // ── Chains (ROADMAP-07 Phase 6) ───────────────────────────────────────────
+
+    @Override
+    public CafeAI chain(String name, io.cafeai.core.chain.ChainStep... steps) {
+        assertNotStarted("chain()");
+        Objects.requireNonNull(name, "Chain name must not be null");
+        if (name.isBlank()) throw new IllegalArgumentException("Chain name must not be blank");
+
+        var chain = new io.cafeai.core.chain.Chain(name, java.util.List.of(steps));
+        chains.put(name, chain);
+        log.info("Chain '{}' registered ({} steps)", name, steps.length);
+        return this;
+    }
+
+    @Override
+    public io.cafeai.core.chain.Chain chain(String name) {
+        return chains.get(name);
+    }
+
+    // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
+
+    @Override
+    public CafeAI tool(Object toolInstance) {
+        assertNotStarted("tool()");
+        Objects.requireNonNull(toolInstance, "Tool instance must not be null");
+        getOrCreateToolBridge().register(toolInstance);
+        return this;
+    }
+
+    @Override
+    public CafeAI tools(Object... toolInstances) {
+        for (Object t : toolInstances) tool(t);
+        return this;
+    }
+
+    @Override
+    public CafeAI mcp(Object mcpServer) {
+        assertNotStarted("mcp()");
+        Objects.requireNonNull(mcpServer, "McpServer must not be null");
+        getOrCreateToolBridge().registerMcp(mcpServer);
+        return this;
+    }
+
+    private io.cafeai.core.spi.ToolBridge getOrCreateToolBridge() {
+        if (toolBridge == null) {
+            toolBridge = java.util.ServiceLoader
+                .load(io.cafeai.core.spi.ToolBridge.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                    "Tool support requires the cafeai-tools module. " +
+                    "Add: implementation 'io.cafeai:cafeai-tools'"));
+        }
+        return toolBridge;
     }
 
     @Override

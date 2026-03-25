@@ -11,5 +11,6 @@ include(
     'cafeai-security',
     'cafeai-streaming',
     'cafeai-views-mustache',
+    'cafeai-connect',
     'cafeai-examples'
 )

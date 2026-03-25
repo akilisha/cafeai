@@ -61,6 +61,23 @@ public final class Attributes {
      */
     public static final String GUARDRAIL_NAME   = "cafeai.guardrail.name";
 
+    // ── Chain ─────────────────────────────────────────────────────────────────
+
+    /**
+     * The {@link io.cafeai.core.ai.PromptResponse} from the last
+     * {@link io.cafeai.core.chain.Steps#prompt} step in the current chain.
+     * Type: {@code io.cafeai.core.ai.PromptResponse}
+     */
+    public static final String PROMPT_RESPONSE    = "cafeai.chain.promptResponse";
+
+    /**
+     * The text of the last LLM response in the current chain.
+     * Accessible to downstream steps via {@code req.attribute(Attributes.LAST_RESPONSE_TEXT)}.
+     * Updated by every {@link io.cafeai.core.chain.Steps#prompt} step.
+     * Type: {@code String}
+     */
+    public static final String LAST_RESPONSE_TEXT = "cafeai.chain.lastResponseText";
+
     // ── Observability ─────────────────────────────────────────────────────────
 
     /**

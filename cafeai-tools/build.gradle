@@ -11,12 +11,14 @@ dependencies {
     api project(':cafeai-core')
 
     // ── Langchain4j Tool Support ─────────────────────────────
+    // langchain4j (main jar) includes ToolSpecification, ToolExecutionRequest, etc.
+    implementation 'dev.langchain4j:langchain4j'
     implementation 'dev.langchain4j:langchain4j-core'
 
-    // MCP client support
-    implementation 'dev.langchain4j:langchain4j-mcp'
+    // ── Serialization ────────────────────────────────────────
+    // Used by ToolRegistry (argument parsing) and McpServer (JSON-RPC)
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
 
-    // ── HTTP Client for MCP server calls ─────────────────────
-    implementation 'io.helidon.webclient:helidon-webclient'
-    implementation 'io.helidon.webclient:helidon-webclient-http2'
+    // ── Logging ──────────────────────────────────────────────
+    implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
 }

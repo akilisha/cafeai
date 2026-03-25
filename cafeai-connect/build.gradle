@@ -1,0 +1,31 @@
+// ============================================================
+//  cafeai-connect
+//  Out-of-process service connectivity for CafeAI.
+//
+//  Provides:
+//    Connection         — the out-of-process service abstraction
+//    HealthStatus       — three-state reachability model
+//    Fallback           — degradation policy (warn, fail-fast, use-alternative)
+//    Redis              — connects to Redis → registers as MemoryStrategy
+//    Ollama             — connects to Ollama → registers as AI provider
+//    PgVector           — connects to pgvector → registers as VectorStore
+//    McpEndpoint        — connects to any MCP server → registers tools
+//    Connect            — fromEnv() and healthCheck()
+//
+//  Design principle:
+//    cafeai-connect does not extend CafeAI's JVM capabilities. It extends
+//    CafeAI's reach to services running in separate processes with independent
+//    lifecycles. Adding this JAR activates the Connect abstraction.
+// ============================================================
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // Redis.register() calls MemoryStrategy.redis() — needs cafeai-memory at compile time
+    compileOnly project(':cafeai-memory')
+
+    // PgVector and McpEndpoint use reflection — no compile dep on cafeai-rag or cafeai-tools
+
+    implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
+}

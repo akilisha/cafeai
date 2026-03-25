@@ -47,6 +47,15 @@
     - [15.4 Retrieval strategies](#154-retrieval-strategies)
     - [15.5 Accessing retrieved documents](#155-accessing-retrieved-documents-in-handlers)
 16. [Module Structure and Dependencies](#16-module-structure-and-dependencies)
+17. [cafeai-connect — Out-of-Process Service Connectivity](#17-cafeai-connect--out-of-process-service-connectivity)
+    - [17.1 Two kinds of extension](#171-two-kinds-of-extension)
+    - [17.2 Adding cafeai-connect](#172-adding-cafeai-connect)
+    - [17.3 The four built-in connectors](#173-the-four-built-in-connectors)
+    - [17.4 Fallback policies](#174-fallback-policies--operational-intelligence-at-the-connection-level)
+    - [17.5 Environment-driven configuration](#175-environment-driven-configuration)
+    - [17.6 Health checks](#176-health-checks)
+    - [17.7 Custom connections](#177-implementing-a-custom-connection)
+    - [17.8 Why this boundary matters](#178-why-this-boundary-matters)
 
 ---
 
@@ -1476,3 +1485,323 @@ dependencies {
 When an optional module is absent and you call a method that requires it,
 CafeAI throws an exception with an exact message telling you which dependency
 to add and what the import should look like. It never silently degrades.
+
+---
+
+## 17. cafeai-connect — Out-of-Process Service Connectivity
+
+### 17.1 Two kinds of extension
+
+Before using `cafeai-connect`, understand the distinction it formalises.
+
+CafeAI has two kinds of optional capability:
+
+**In-process optional modules** run inside your JVM. They share CafeAI's
+lifecycle. They are either present (JAR on classpath) or absent — nothing
+in between. You register them with module-specific methods:
+
+```java
+app.memory(MemoryStrategy.inMemory());         // cafeai-memory in-process
+app.vectordb(VectorStore.inMemory());          // cafeai-rag in-process
+app.tool(new MyTools());                       // cafeai-tools in-process
+```
+
+**Out-of-process connections** run in separate processes. Redis doesn't start
+when your JVM starts. Ollama doesn't stop when your JVM stops. They have
+independent lifecycles, independent scale, and three possible states:
+reachable, unreachable, or degraded. You register them all through one surface:
+
+```java
+app.connect(Redis.at("redis:6379"));
+app.connect(Ollama.at("http://ollama:11434").model("llama3"));
+app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai"));
+app.connect(McpEndpoint.at("http://mcp-server:3000"));
+```
+
+This distinction is not cosmetic. A binary present/absent model is wrong for
+out-of-process services. Redis can be running but refusing connections. Ollama
+can be reachable but missing the model you need. `cafeai-connect` models this
+correctly with three reachability states and an explicit degradation policy.
+
+### 17.2 Adding cafeai-connect
+
+```groovy
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-connect'   // unlocks app.connect()
+    implementation 'io.cafeai:cafeai-memory'    // for Redis.at() to register memory
+    implementation 'io.cafeai:cafeai-rag'       // for PgVector.at() to register vectordb
+    implementation 'io.cafeai:cafeai-tools'     // for McpEndpoint.at() to register tools
+}
+```
+
+`cafeai-connect` only hard-requires `cafeai-core`. The other modules are
+needed if you use connectors that register into them (`Redis` → `cafeai-memory`,
+`PgVector` → `cafeai-rag`, `McpEndpoint` → `cafeai-tools`).
+
+### 17.3 The four built-in connectors
+
+**Redis** — connects to a Redis server and registers it as the memory strategy:
+
+```java
+app.connect(Redis.at("redis:6379"));
+app.connect(Redis.at("redis.prod:6379").withPassword("secret").withTtl(Duration.ofHours(24)));
+```
+
+**Ollama** — connects to an Ollama server and registers it as the AI provider:
+
+```java
+app.connect(Ollama.at("http://ollama:11434").model("llama3"));
+app.connect(Ollama.at("http://localhost:11434").model("mistral"));
+```
+
+**PgVector** — connects to PostgreSQL with the pgvector extension and registers
+it as the vector store (requires `cafeai-rag`):
+
+```java
+app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai"));
+app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai").credentials("user", "pass"));
+```
+
+**McpEndpoint** — connects to an MCP server and registers its tools (requires
+`cafeai-tools`):
+
+```java
+app.connect(McpEndpoint.at("http://github-mcp:3000"));
+app.connect(McpEndpoint.at("http://filesystem-mcp:3001"));
+```
+
+### 17.4 Fallback policies — operational intelligence at the connection level
+
+Every connection carries a degradation policy. The default is `warnAndContinue` —
+log a warning if the service is unreachable at startup, continue without it.
+
+Override it with `.onUnavailable()`:
+
+```java
+// Abort startup — pgvector is non-negotiable for this application
+app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
+    .onUnavailable(Fallback.failFast()));
+
+// Fall back to in-memory vector store in development
+app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
+    .onUnavailable(Fallback.use(VectorStore.inMemory())));
+
+// Use OpenAI if local Ollama isn't running
+app.connect(Ollama.at("http://localhost:11434").model("llama3")
+    .onUnavailable(Fallback.use(OpenAI.gpt4oMini())));
+
+// Try another Redis instance if primary is down
+app.connect(Redis.at("redis-primary:6379")
+    .onUnavailable(Fallback.connectInstead(Redis.at("redis-replica:6379"))));
+
+// Completely optional service — silently skip if absent
+app.connect(McpEndpoint.at("http://experimental-mcp:3000")
+    .onUnavailable(Fallback.ignore()));
+```
+
+This encodes operational policy — what the application does when a dependency
+isn't available — at exactly the right level. Not in infrastructure scripts,
+not in application logic, but at the connection registration.
+
+### 17.5 Environment-driven configuration
+
+`Connect.fromEnv()` reads standard environment variables and returns a list
+of configured connections. Pass each to `app.connect()`:
+
+```java
+var app = CafeAI.create();
+Connect.fromEnv().forEach(app::connect);
+app.listen(8080);
+```
+
+Variables recognised:
+
+| Variable | Effect |
+|---|---|
+| `CAFEAI_AI_PROVIDER=ollama` | Creates `Ollama.at(OLLAMA_BASE_URL).model(CAFEAI_AI_MODEL)` |
+| `OLLAMA_BASE_URL` | Ollama base URL (default: `http://localhost:11434`) |
+| `CAFEAI_AI_MODEL` | Model ID (default: `llama3`) |
+| `CAFEAI_MEMORY=redis` | Creates `Redis.at(REDIS_HOST:REDIS_PORT)` |
+| `REDIS_URL` | Full Redis URL: `redis://host:port` |
+| `REDIS_HOST` / `REDIS_PORT` | Redis host and port separately |
+| `CAFEAI_VECTOR_DB=pgvector` | Creates `PgVector.at(DATABASE_URL)` |
+| `DATABASE_URL` | PostgreSQL JDBC URL |
+| `CAFEAI_MCP_SERVERS` | Comma-separated MCP server URLs |
+
+Missing variables are silently skipped. The returned list is empty if nothing
+is configured. This is not Spring-style autoconfiguration — nothing happens
+unless you call `Connect.fromEnv()` explicitly and pass the result to `app.connect()`.
+
+A complete docker-compose application:
+
+```yaml
+services:
+  app:
+    build: .
+    environment:
+      CAFEAI_AI_PROVIDER: ollama
+      CAFEAI_AI_MODEL: llama3
+      OLLAMA_BASE_URL: http://ollama:11434
+      CAFEAI_MEMORY: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CAFEAI_VECTOR_DB: pgvector
+      DATABASE_URL: jdbc:postgresql://pgvector:5432/cafeai
+      CAFEAI_MCP_SERVERS: http://github-mcp:3000,http://filesystem-mcp:3001
+    depends_on: [redis, pgvector, ollama]
+
+  redis:
+    image: redis:7-alpine
+
+  pgvector:
+    image: pgvector/pgvector:pg16
+
+  ollama:
+    image: ollama/ollama
+```
+
+Application code:
+
+```java
+public static void main(String[] args) {
+    var app = CafeAI.create();
+    Connect.fromEnv().forEach(app::connect);  // reads the environment
+
+    app.get("/health", Connect.healthCheck(app));
+    app.post("/chat", (req, res, next) ->
+        res.json(Map.of("response",
+            app.prompt(req.body("message")).call().text())));
+
+    app.listen(8080);
+}
+```
+
+The same code runs locally (no environment variables set → no connections → falls
+back to whatever defaults are configured), in CI (partial environment), and in
+production (full environment). Zero code changes between environments.
+
+### 17.6 Health checks
+
+`Connect.healthCheck(app)` returns a middleware that probes all registered
+connections and reports their status:
+
+```java
+app.get("/health", Connect.healthCheck(app));
+```
+
+Response when all services are reachable:
+```json
+{
+  "status": "healthy",
+  "connections": {
+    "Redis(redis:6379)":              { "state": "REACHABLE", "latencyMs": 2 },
+    "Ollama(http://ollama:11434)":    { "state": "REACHABLE", "latencyMs": 45 },
+    "PgVector(jdbc:postgresql://...)":{ "state": "REACHABLE", "latencyMs": 8 }
+  }
+}
+```
+
+Response when a service is down (HTTP 503):
+```json
+{
+  "status": "degraded",
+  "connections": {
+    "Redis(redis:6379)":              { "state": "REACHABLE",   "latencyMs": 2 },
+    "PgVector(jdbc:postgresql://...")":{ "state": "UNREACHABLE", "detail": "Connection refused" }
+  }
+}
+```
+
+The three health states:
+- `REACHABLE` — service responded within the probe timeout
+- `UNREACHABLE` — could not connect; try a fallback
+- `DEGRADED` — connected but the service reported a problem (e.g. Ollama running
+  but the requested model isn't pulled)
+
+For Kubernetes liveness/readiness probes:
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 15
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+```
+
+### 17.7 Implementing a custom Connection
+
+The `Connection` interface is open. Any service that can be probed over a
+network and that can register a capability with CafeAI can be a `Connection`:
+
+```java
+public class Qdrant implements Connection {
+
+    private final String url;
+
+    public static Qdrant at(String url) { return new Qdrant(url); }
+
+    @Override public String name()      { return "Qdrant(" + url + ")"; }
+    @Override public ServiceType type() { return ServiceType.VECTOR_DB; }
+
+    @Override
+    public HealthStatus probe() {
+        long start = System.currentTimeMillis();
+        try {
+            // Qdrant exposes GET /healthz
+            var response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder().uri(URI.create(url + "/healthz")).GET().build(),
+                HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() == 200)
+                return HealthStatus.reachable(name(), System.currentTimeMillis() - start);
+            return HealthStatus.degraded(name(), "HTTP " + response.statusCode());
+        } catch (Exception e) {
+            return HealthStatus.unreachable(name(), e.getMessage());
+        }
+    }
+
+    @Override
+    public void register(CafeAI app) {
+        // Wire in a QdrantVectorStore adapter from cafeai-rag or your own
+        app.vectordb(new QdrantVectorStoreAdapter(url));
+    }
+}
+
+// Usage — identical to any built-in connector
+app.connect(Qdrant.at("http://qdrant:6333")
+    .onUnavailable(Fallback.use(VectorStore.inMemory())));
+```
+
+The same `probe`/`register`/`fallback` model applies regardless of protocol.
+HTTP, TCP, JDBC, gRPC — any transport works. The `Connection` abstraction
+is deliberately protocol-agnostic.
+
+### 17.8 Why this boundary matters
+
+The in-process vs out-of-process distinction is not just organisational — it
+reflects a real difference in how capabilities behave at runtime.
+
+In-process modules are binary: present or absent. If `cafeai-memory` is on
+the classpath, Redis support works. If it isn't, you get a clear error.
+There is no middle ground.
+
+Out-of-process connections are probabilistic: they might be there, they might
+not, they might be partially working. The `Connection` model acknowledges this
+and gives you a way to express what the application should do in each case.
+
+This boundary also keeps `cafeai-core` small. The decision of what to include
+as an in-process module is a deliberate one: it should be code that genuinely
+needs to run in the same JVM as CafeAI, that benefits from shared memory and
+lifecycle, and that has no reasonable out-of-process equivalent. Chunking
+documents? In-process. A Redis server? Out-of-process.
+
+As CafeAI's ecosystem grows, new capabilities should be evaluated against this
+boundary. Services we cannot predict today — new vector databases, new LLM
+providers, new protocol servers — will fit naturally as `Connection`
+implementations without any changes to the core framework.

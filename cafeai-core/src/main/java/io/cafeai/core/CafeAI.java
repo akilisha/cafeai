@@ -526,6 +526,102 @@ public interface CafeAI extends Router {
      */
     CafeAI rag(Object retriever);
 
+    // ── Chains (ROADMAP-07 Phase 6) ───────────────────────────────────────────
+
+    /**
+     * Registers a named composable pipeline.
+     *
+     * <p>Chains are middleware — they implement {@link io.cafeai.core.middleware.Middleware}
+     * and can be used anywhere middleware is accepted. Chains are composable:
+     * a {@link io.cafeai.core.chain.Steps#chain(String)} step can reference
+     * any other named chain.
+     *
+     * <pre>{@code
+     *   app.chain("triage",
+     *       Steps.guard(GuardRail.pii()),
+     *       Steps.prompt("classify"),
+     *       Steps.branch(
+     *           req -> "billing".equals(req.attribute("classification")),
+     *           Steps.chain("billing-handler"),
+     *           Steps.chain("general-handler")
+     *       ));
+     *
+     *   app.post("/support", (req, res, next) ->
+     *       app.chain("triage").run(req, res, next));
+     * }</pre>
+     *
+     * @param name  the chain name — used to retrieve and compose it
+     * @param steps the ordered pipeline steps
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI chain(String name, io.cafeai.core.chain.ChainStep... steps);
+
+    /**
+     * Retrieves a named chain registered via {@link #chain(String, io.cafeai.core.chain.ChainStep...)}.
+     *
+     * <p>Returns {@code null} if no chain with the given name has been registered.
+     * {@link io.cafeai.core.chain.Steps#chain(String)} uses this internally for
+     * lazy resolution — forward references are supported.
+     *
+     * @param name the chain name
+     * @return the registered {@link io.cafeai.core.chain.Chain}, or {@code null}
+     */
+    io.cafeai.core.chain.Chain chain(String name);
+
+    // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
+
+    /**
+     * Registers a Java object as a tool provider.
+     *
+     * <p>All {@code public} methods annotated with
+     * {@code @CafeAITool("description")} on the object are exposed to the LLM
+     * as callable tools. When the LLM decides to invoke a tool, CafeAI calls
+     * the corresponding Java method and returns the result.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-tools} on the classpath.
+     *
+     * <pre>{@code
+     *   public class WeatherTools {
+     *       @CafeAITool("Get current weather for a city")
+     *       public String getWeather(String city) {
+     *           return weatherApi.fetch(city).summary();
+     *       }
+     *   }
+     *   app.tool(new WeatherTools());
+     * }</pre>
+     *
+     * @throws IllegalArgumentException if the object has no {@code @CafeAITool} methods
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI tool(Object toolInstance);
+
+    /**
+     * Registers multiple tool provider instances at once.
+     *
+     * @see #tool(Object)
+     */
+    CafeAI tools(Object... toolInstances);
+
+    /**
+     * Connects to an MCP (Model Context Protocol) server.
+     *
+     * <p>CafeAI discovers the server's available tools on connection and exposes
+     * them to the LLM alongside Java tools registered via {@link #tool(Object)}.
+     * MCP tools are flagged as {@code EXTERNAL} trust level for observability.
+     *
+     * <p>The MCP protocol is implemented directly via Helidon WebClient — no
+     * third-party MCP library is used.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-tools} on the classpath.
+     *
+     * <pre>{@code
+     *   app.mcp(McpServer.connect("http://github-mcp-server:3000"));
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI mcp(Object mcpServer);
+
     // ── Guardrails ────────────────────────────────────────────────────────────
 
     /**
@@ -706,6 +802,34 @@ public interface CafeAI extends Router {
      */
     java.util.concurrent.CompletableFuture<String> render(String view,
                                                           java.util.Map<String, Object> locals);
+
+    // ── Out-of-process Connections (cafeai-connect) ───────────────────────────
+
+    /**
+     * Registers an out-of-process service connection.
+     *
+     * <p>Probes the service, registers its capability if reachable, or invokes
+     * the connection's fallback policy if not. Accepts an
+     * {@code io.cafeai.connect.Connection} instance.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-connect} on the classpath.
+     *
+     * <pre>{@code
+     *   app.connect(Redis.at("redis:6379"));
+     *   app.connect(Ollama.at("http://ollama:11434").model("llama3")
+     *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+     *   app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
+     *       .onUnavailable(Fallback.failFast()));
+     *   app.connect(McpEndpoint.at("http://mcp-server:3000"));
+     *
+     *   // Environment-driven — reads CAFEAI_* variables
+     *   Connect.fromEnv().forEach(app::connect);
+     * }</pre>
+     *
+     * @param connection an {@code io.cafeai.connect.Connection} instance
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI connect(Object connection);
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
 
