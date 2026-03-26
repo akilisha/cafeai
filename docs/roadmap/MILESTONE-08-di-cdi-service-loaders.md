@@ -13,8 +13,8 @@
 
 | Phase | Description | Module | Status | Completed |
 |---|---|---|---|---|
-| Phase 1 | `CafeAIConfigurer` + Service Loader bootstrap | `cafeai-core` | 🔴 Not Started | — |
-| Phase 2 | `CafeAIModule` SPI + module self-registration | `cafeai-core` + all modules | 🔴 Not Started | — |
+| Phase 1 | `CafeAIConfigurer` + Service Loader bootstrap | `cafeai-core` | 🟢 Complete | March 2026 |
+| Phase 2 | `CafeAIModule` SPI + module self-registration | `cafeai-core` + all modules | 🟢 Complete | March 2026 |
 | Phase 3 | SPI package structure + JPMS `module-info.java` | `cafeai-core` + all modules | 🔴 Not Started | — |
 | Phase 4 | `cafeai-cdi` — CDI integration module | `cafeai-cdi` | 🔴 Not Started | — |
 | Phase 5 | `@CafeAIRoute` declarative routing | `cafeai-cdi` | 🔴 Not Started | — |
@@ -102,3 +102,36 @@ _No blockers recorded yet._
 > After each phase is completed, run the `HelloCafeAI.java` example
 > (which uses zero DI) and confirm it still works without modification.
 > This is the regression test for the zero-DI commitment.
+
+---
+
+## Completed Items
+
+**Phase 1 — `CafeAIConfigurer` + Service Loader bootstrap (March 2026)**
+
+- `CafeAIConfigurer` interface in `io.cafeai.core.spi` — `configure(CafeAI)` + `order()` default
+- ServiceLoader discovery wired into `CafeAIApp.newInstance()` — runs before explicit configurers
+- `app.configure(CafeAIConfigurer)` and `app.configure(CafeAIConfigurer...)` — explicit registration
+- Order guarantee: configurers sorted by `order()` ascending before execution
+- `configure()` after `listen()` throws `IllegalStateException`
+
+**Phase 2 — `CafeAIModule` SPI + module self-registration (March 2026)**
+
+- `CafeAIModule` interface — `name()`, `version()`, `register(CafeAIRegistry)`
+- `CafeAIRegistry` interface — `registerMemoryStrategy`, `registerEmbeddingModel`, `registerVectorStore`, `registerGuardRail`, `registerMiddleware`
+- `CafeAIRegistryImpl` — internal implementation in `CafeAIApp`
+- ServiceLoader discovery in `CafeAIApp.newInstance()` — modules register before configurers run
+- Startup log: `CafeAI module loaded: <name> v<version>` per module
+- Implementations in all active modules:
+  - `CafeAIMemoryModule` — registers mapped, redis, hybrid strategy factories
+  - `CafeAIRagModule` — registers local/openai embedding, inmemory/pgvector/chroma vector stores
+  - `CafeAIGuardrailsModule` — registers all six guardrail factories by name
+  - `CafeAIToolsModule` — signals tool capability presence
+  - `CafeAIConnectModule` — signals out-of-process connectivity presence
+
+**Remaining phases:**
+
+- Phase 3 (JPMS `module-info.java`) — deferred; reflection usage in connect/rag makes JPMS premature
+- Phase 4 (`cafeai-cdi`) — deferred; follows observability and security
+- Phase 5 (`@CafeAIRoute`) — deferred; follows Phase 4
+- Phase 6 (DI documentation) — partially covered in DEVELOPER_GUIDE.md Section 16

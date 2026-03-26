@@ -13,8 +13,8 @@
 
 | Phase | Description | Status | Completed |
 |---|---|---|---|
-| Phase 1 | `app.ws()` — WebSocket endpoints | 🔴 Not Started | — |
-| Phase 2 | `app.sse()` — Persistent SSE connections | 🔴 Not Started | — |
+| Phase 1 | `app.ws()` — WebSocket endpoints | 🟢 Complete | March 2026 |
+| Phase 2 | `res.stream()` — SSE token streaming | 🟢 Complete | March 2026 |
 | Phase 3 | `app.grpc()` — gRPC service registration | 🔴 Not Started | — |
 | Phase 4 | `app.helidon()` — Foundation gateway | 🔴 Not Started | — |
 | Phase 5 | Connectivity + foundation documentation | 🔴 Not Started | — |
@@ -113,3 +113,32 @@ _No blockers recorded yet._
 > If the provider is Ollama (local), the check should verify the Ollama
 > process is running and the model is loaded. Document the probe strategy
 > for each provider when implementing.
+
+---
+
+## Completed Items
+
+**Phase 1 — `app.ws()` WebSocket endpoints (March 2026)**
+
+Implemented during ROADMAP-07 Phase 5 as part of the tools and connectivity work:
+- `WsHandler` interface — `onOpen`, `onMessage`, `onBinaryMessage`, `onClose(session, int, String)`, `onError`
+- `WsSession` interface — `send(String)`, `send(byte[])`, `close(int, String)`, `id()`, `isOpen()`
+- `WsHandler.onMessage()` — lambda factory for message-only handlers
+- `app.ws(path, WsHandler)` on `CafeAI` interface and `CafeAIApp`
+- `WsRouting` wired into `WebServer.builder()` in `listen()` — same port as HTTP
+- `HelidonWsSession` adapter — maps Helidon's `WsSession` to CafeAI's `WsSession`
+- `WsListener` adapter — maps Helidon's `WsListener` lifecycle to `WsHandler`
+- `helidon-webserver-websocket` + `helidon-websocket` dependencies declared
+
+**Phase 2 — SSE streaming (March 2026)**
+
+Implemented during ROADMAP-04/07 work:
+- `res.stream(Flow.Publisher<String>)` — sets `text/event-stream` headers, subscribes publisher
+- Virtual-thread-safe: `publisher.submit()` from any thread; connection closes when publisher closes
+- `req.stream()` — returns `true` when client sends `Accept: text/event-stream`
+
+**Remaining phases:**
+
+- Phase 3 (`app.grpc()`) — not started; requires separate gRPC module and Helidon gRPC integration
+- Phase 4 (`app.helidon()`) — not started; foundation gateway for direct Helidon SE access
+- Phase 5 (connectivity documentation) — WebSocket and SSE covered in DEVELOPER_GUIDE.md Sections 12+13

@@ -3,7 +3,7 @@
 **Roadmap:** ROADMAP-07
 **Module:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`
 **Started:** March 2026
-**Current Status:** 🟡 In Progress
+**Current Status:** 🟡 In Progress (Phases 1–7 complete · Phases 8–10 deferred pending observability foundation)
 
 ---
 
@@ -16,9 +16,9 @@
 | Phase 3 | `app.memory()` — tiered context memory | `cafeai-memory` | 🟢 Complete | March 2026 |
 | Phase 4 | `app.vectordb()` + `app.embed()` + `app.ingest()` + `app.rag()` | `cafeai-rag` | 🟢 Complete | March 2026 |
 | Phase 5 | `app.tool()` + `app.mcp()` | `cafeai-tools` | 🟢 Complete | March 2026 |
-| Phase 6 | `app.chain()` — named composable pipelines | `cafeai-core` | 🔴 Not Started | — |
-| Phase 7 | `app.guard()` — guardrails as middleware | `cafeai-guardrails` | 🔴 Not Started | — |
-| Phase 8 | `app.agent()` + `app.orchestrate()` | `cafeai-agents` | 🔴 Not Started | — |
+| Phase 6 | `app.chain()` — named composable pipelines | `cafeai-core` | 🟢 Complete | March 2026 |
+| Phase 7 | `app.guard()` — guardrails as middleware | `cafeai-guardrails` | 🟢 Complete | March 2026 |
+| Phase 8 | `app.agent()` + `app.orchestrate()` | `cafeai-agents` | 🔵 Deferred | Follows observability |
 | Phase 9 | `app.observe()` + `app.eval()` | `cafeai-observability` | 🔴 Not Started | — |
 | Phase 10 | Security layer | `cafeai-security` | 🔴 Not Started | — |
 
@@ -170,3 +170,49 @@ cafeai-connect       Out-of-process service connections        (NEW category)
 ```
 
 See ADR-008 and Developer Guide Section 17 for full documentation.
+
+---
+
+**Phase 6 — `app.chain()` (March 2026)**
+
+- `Chain` — named, immutable middleware pipeline; implements `Middleware` directly
+- `ChainStep` — functional interface alias for `Middleware`; semantic marker for pipeline steps
+- `Steps.prompt(templateName)` — renders a template, calls LLM, stores `PromptResponse` in attributes
+- `Steps.prompt(Function<Request,String>)` — inline prompt builder variant
+- `Steps.guard(GuardRail...)` — wraps one or more guardrails as a single chain step
+- `Steps.branch(Predicate, trueBranch, falseBranch)` — conditional routing on request state
+- `Steps.when(Predicate, step)` — one-sided conditional; skips step if predicate fails
+- `Steps.chain(name)` — lazy forward reference to another named chain
+- `Steps.transform(Function<String,String>)` — post-processes last LLM response text
+- `Steps.rag()` — semantic marker for explicit RAG retrieval step
+- `app.chain(name, steps...)` — registers a named chain; immutable after registration
+- `app.chain(name)` — retrieves a registered chain by name; returns `null` if absent
+- `Attributes.PROMPT_RESPONSE` — stores `PromptResponse` from last `Steps.prompt()` call
+- `Attributes.LAST_RESPONSE_TEXT` — stores plain text from last LLM response; accessible to all downstream steps
+
+**Phase 7 — `app.guard()` real implementations (March 2026)**
+
+- `AbstractGuardRail` — base class; handles PRE/POST/BOTH positioning; subclasses override `checkInput()` / `checkOutput()`
+- `PiiGuardRail` — five compiled regex patterns (email, phone, SSN, credit card, IPv4); `scrub()` static method for redaction mode
+- `JailbreakGuardRail` — seventeen weighted patterns across role-play bypass, system prompt extraction, obfuscation, hypothetical framing; configurable confidence threshold
+- `PromptInjectionGuardRail` — eight patterns; uniquely inspects both user input AND RAG-retrieved documents (indirect injection vector)
+- `ToxicityGuardRail` — five weighted patterns; configurable action (BLOCK/WARN/LOG)
+- `TopicBoundaryGuardRailImpl` — keyword-based allow/deny scoring; tokenises input for word-level matching
+- `RegulatoryGuardRailImpl` — additive GDPR, HIPAA, FCRA, CCPA rule sets; each adds its own pattern set
+- `GuardRailProvider` SPI — in `cafeai-core`; routes `GuardRail.pii()` etc. to real implementations when `cafeai-guardrails` is on classpath
+- `GuardRailProviderImpl` — ServiceLoader registration; `bias()` and `hallucination()` remain stubs pending trained model integration
+- `StubGuardRail.of()` made `public` — accessible from `cafeai-guardrails` for fallback stub creation
+- `AbstractGuardRail.handle()` is non-final — `PromptInjectionGuardRail` overrides it to inspect RAG documents mid-pipeline
+
+**Timeline update:**
+
+| Milestone Event | Target | Actual | Notes |
+|---|---|---|---|
+| Phases 1–2 complete | — | March 2026 | LLM invocation + templates |
+| Phase 3 complete | — | March 2026 | All memory tiers functional |
+| Phase 4 complete | — | March 2026 | Full RAG pipeline wired |
+| Phase 5 complete | — | March 2026 | Tools + MCP |
+| Phase 6 complete | — | March 2026 | Named composable chains |
+| Phase 7 complete | — | March 2026 | Real guardrail implementations |
+| cafeai-connect pivot | — | March 2026 | Architecture decision — see ADR-008 |
+| Phases 8–10 | TBD | — | Agents, observability, security |

@@ -56,6 +56,19 @@
     - [17.6 Health checks](#176-health-checks)
     - [17.7 Custom connections](#177-implementing-a-custom-connection)
     - [17.8 Why this boundary matters](#178-why-this-boundary-matters)
+18. [Chains — Composable AI Processing Pipelines](#18-chains--composable-ai-processing-pipelines)
+    - [18.1 What a chain is](#181-what-a-chain-is)
+    - [18.2 Registering and invoking a chain](#182-registering-and-invoking-a-chain)
+    - [18.3 Built-in steps](#183-built-in-steps)
+    - [18.4 Chains are immutable and composable](#184-chains-are-immutable-and-composable)
+    - [18.5 Accessing chain results](#185-accessing-chain-results-in-the-final-handler)
+19. [Guardrails — Ethical and Safety Middleware](#19-guardrails--ethical-and-safety-middleware)
+    - [19.1 Guardrails are middleware](#191-guardrails-are-middleware)
+    - [19.2 Activating real implementations](#192-activating-real-implementations)
+    - [19.3 Available guardrails](#193-available-guardrails)
+    - [19.4 Guardrail position](#194-guardrail-position)
+    - [19.5 Guardrail violations](#195-guardrail-violations)
+    - [19.6 Composing guardrails](#196-composing-guardrails)
 
 ---
 
@@ -1805,3 +1818,274 @@ As CafeAI's ecosystem grows, new capabilities should be evaluated against this
 boundary. Services we cannot predict today — new vector databases, new LLM
 providers, new protocol servers — will fit naturally as `Connection`
 implementations without any changes to the core framework.
+
+---
+
+## 18. Chains — Composable AI Processing Pipelines
+
+### 18.1 What a chain is
+
+A chain is a named sequence of steps that processes a request through a defined
+pipeline. Chains are middleware — they implement `Middleware` and can be used
+anywhere middleware is accepted: as route handlers, as filters, and as steps
+inside other chains.
+
+The mental model: if a middleware is a single transformation, a chain is a named,
+reusable pipeline of transformations. You register the pipeline once and invoke
+it by name from any handler.
+
+### 18.2 Registering and invoking a chain
+
+```java
+// Registration at startup
+app.chain("classify-and-route",
+    Steps.guard(GuardRail.pii()),          // block PII before anything runs
+    Steps.prompt("classify"),              // run the "classify" template
+    Steps.branch(
+        req -> "billing".equals(req.attribute(Attributes.LAST_RESPONSE_TEXT)),
+        Steps.chain("billing-handler"),    // true branch — forward reference, fine
+        Steps.chain("general-handler")     // false branch
+    ));
+
+app.chain("billing-handler",
+    Steps.guard(GuardRail.regulatory().hipaa()),
+    Steps.prompt("billing-response"));
+
+app.chain("general-handler",
+    Steps.prompt("general-response"));
+
+// Invocation from a handler
+app.post("/support", (req, res, next) ->
+    app.chain("classify-and-route").run(req, res, next));
+
+// A chain is also middleware — use it directly in route arrays
+app.post("/support", app.chain("classify-and-route"), myFinalHandler);
+```
+
+### 18.3 Built-in steps
+
+**`Steps.prompt(templateName)`** — renders a named template with `req.body()` as
+the variable map, calls the LLM, and stores the result:
+- `req.attribute(Attributes.PROMPT_RESPONSE)` — the full `PromptResponse` object
+- `req.attribute(Attributes.LAST_RESPONSE_TEXT)` — just the text, for use in predicates
+
+**`Steps.prompt(Function<Request, String>)`** — for inline prompts that need
+request data:
+```java
+Steps.prompt(req -> "Summarise in one sentence: " + req.bodyText())
+```
+
+**`Steps.guard(GuardRail...)`** — wraps guardrails as a step. Multiple guardrails
+compose in order:
+```java
+Steps.guard(GuardRail.pii(), GuardRail.jailbreak(), GuardRail.toxicity())
+```
+
+**`Steps.branch(predicate, trueBranch, falseBranch)`** — conditional routing. The
+chosen branch continues the chain; the other is skipped:
+```java
+Steps.branch(
+    req -> req.header("X-Premium") != null,
+    Steps.prompt("premium-response"),
+    Steps.prompt("standard-response")
+)
+```
+
+**`Steps.when(predicate, step)`** — one-sided branch. Executes the step only when
+the predicate matches; otherwise passes through:
+```java
+Steps.when(
+    req -> req.attribute("flagged") != null,
+    Steps.guard(GuardRail.jailbreak())
+)
+```
+
+**`Steps.chain(name)`** — lazy forward reference to another chain. Resolved at
+execution time, so chains can reference each other and themselves:
+```java
+Steps.chain("billing-handler")   // billing-handler registered after this chain — fine
+```
+
+**`Steps.transform(Function<String, String>)`** — post-processes the last LLM
+response text before the next step sees it:
+```java
+Steps.transform(text -> text.trim().toLowerCase())
+```
+
+### 18.4 Chains are immutable and composable
+
+`Chain` is immutable — `app.chain()` creates a fixed pipeline. The `use()` method
+returns a new chain with the step appended:
+
+```java
+// Extend a chain programmatically
+Chain base    = app.chain("base-pipeline");
+Chain premium = base.use(Steps.prompt("premium-addon"));
+// base is unchanged; premium is a new chain
+```
+
+### 18.5 Accessing chain results in the final handler
+
+Steps communicate via request attributes. After a chain runs, the handler
+reads what was set:
+
+```java
+app.post("/support", (req, res, next) -> {
+    app.chain("triage").run(req, res, next);
+
+    // After the chain, read what was set by Steps.prompt()
+    var response = (PromptResponse) req.attribute(Attributes.PROMPT_RESPONSE);
+    var text     = (String)         req.attribute(Attributes.LAST_RESPONSE_TEXT);
+
+    res.json(Map.of(
+        "answer",  text,
+        "tokens",  response.totalTokens(),
+        "sources", response.ragDocuments().size()
+    ));
+});
+```
+
+---
+
+## 19. Guardrails — Ethical and Safety Middleware
+
+### 19.1 Guardrails are middleware
+
+Every guardrail implements `Middleware`. There is no special guardrail pipeline —
+they compose with everything else: filters, route arrays, chain steps.
+
+```java
+// Global filter — applies to every request
+app.filter(GuardRail.pii());
+app.filter(GuardRail.jailbreak());
+
+// Route-scoped — applies only to this endpoint
+app.post("/chat", GuardRail.toxicity(), myHandler);
+
+// Chain step — applies at a specific point in a pipeline
+app.chain("support",
+    Steps.guard(GuardRail.pii(), GuardRail.jailbreak()),
+    Steps.prompt("respond"));
+```
+
+### 19.2 Activating real implementations
+
+Guardrails in `cafeai-core` are pass-through stubs by default. Add
+`cafeai-guardrails` to activate real implementations:
+
+```groovy
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-guardrails'   // activates real enforcement
+}
+```
+
+Without `cafeai-guardrails`, every guardrail logs a one-time warning and calls
+`next.run()`. Your application compiles and runs — guardrails just don't enforce
+anything. Adding the JAR activates enforcement with zero code changes.
+
+### 19.3 Available guardrails
+
+**`GuardRail.pii()`** — detects personally identifiable information in both
+the user's prompt (pre-LLM) and the model's response (post-LLM). Detects emails,
+phone numbers, SSNs, credit card numbers, IPv4 addresses. Default action: BLOCK.
+
+```java
+// Block on PII detection (default)
+app.guard(GuardRail.pii());
+
+// Redact PII in-place rather than blocking
+app.guard(GuardRail.pii().scrubbing());  // replaces PII with [EMAIL], [PHONE], etc.
+```
+
+**`GuardRail.jailbreak()`** — detects adversarial prompts attempting to bypass
+the system prompt, extract model internals, or manipulate the model. Uses
+weighted pattern scoring across seventeen known attack vectors. Configurable
+confidence threshold:
+
+```java
+app.guard(GuardRail.jailbreak());              // default threshold 0.7
+app.guard(GuardRail.jailbreak().threshold(0.5)); // more sensitive
+app.guard(GuardRail.jailbreak().threshold(0.9)); // stricter — fewer false positives
+```
+
+**`GuardRail.promptInjection()`** — detects injection attempts in both user input
+and RAG-retrieved documents. The indirect injection vector (malicious instructions
+hidden in a document in your vector store) is checked automatically.
+
+**`GuardRail.toxicity()`** — detects threats, incitement, hate speech, and
+harmful instruction requests in both input and output:
+
+```java
+app.guard(GuardRail.toxicity());                           // BLOCK (default)
+app.guard(GuardRail.toxicity().action(Action.WARN));       // log but allow through
+```
+
+**`GuardRail.topicBoundary()`** — keeps the LLM on-topic. When `allow` topics
+are set, off-topic requests are blocked. Denied topics block regardless:
+
+```java
+app.guard(GuardRail.topicBoundary()
+    .allow("customer service", "orders", "returns", "shipping")
+    .deny("politics", "medical advice", "competitor products"));
+```
+
+**`GuardRail.regulatory()`** — compliance guardrail for regulated industries.
+Additive — enable only the regulations relevant to your deployment:
+
+```java
+app.guard(GuardRail.regulatory().gdpr());
+app.guard(GuardRail.regulatory().hipaa().gdpr());
+app.guard(GuardRail.regulatory().hipaa().fcra().ccpa());
+```
+
+### 19.4 Guardrail position
+
+Each guardrail has a `Position` that determines when it runs relative to the LLM call:
+
+| Position | When it runs | Typical use |
+|---|---|---|
+| `PRE_LLM` | Before the LLM is called | Input validation, jailbreak detection |
+| `POST_LLM` | After the LLM responds | Output filtering, bias detection |
+| `BOTH` | Both before and after | PII (scrub input, check output) |
+
+Position is determined by the guardrail implementation — you don't set it manually.
+
+### 19.5 Guardrail violations
+
+When a guardrail triggers, by default it responds with HTTP 400:
+
+```json
+{
+  "error":     "Request blocked by guardrail",
+  "guardrail": "pii",
+  "reason":    "PII detected in input: EMAIL, PHONE"
+}
+```
+
+The violation is also recorded in request attributes for observability:
+- `req.attribute(Attributes.GUARDRAIL_NAME)` — which guardrail triggered
+- `req.attribute(Attributes.GUARDRAIL_SCORE)` — confidence score (0.0–1.0)
+
+### 19.6 Composing guardrails
+
+Guardrails compose naturally because they're middleware:
+
+```java
+// Via app.guard() — registered as global filters
+app.guard(GuardRail.pii());
+app.guard(GuardRail.jailbreak());
+
+// Via Steps.guard() in a chain — applied at a specific pipeline stage
+app.chain("secure-chat",
+    Steps.guard(GuardRail.pii(), GuardRail.jailbreak(), GuardRail.toxicity()),
+    Steps.prompt("respond"),
+    Steps.guard(GuardRail.pii())); // check output too
+
+// Via Middleware.then() — inline composition
+Middleware safetyStack = GuardRail.pii()
+    .then(GuardRail.jailbreak())
+    .then(GuardRail.toxicity());
+
+app.post("/chat", safetyStack, myHandler);
+```
