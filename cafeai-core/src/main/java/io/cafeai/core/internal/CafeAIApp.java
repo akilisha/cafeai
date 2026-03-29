@@ -574,7 +574,7 @@ public final class CafeAIApp implements CafeAI {
     public CafeAI guard(GuardRail guardRail) {        assertNotStarted("guard()");
         Objects.requireNonNull(guardRail, "GuardRail must not be null");
         guardRails.add(guardRail);
-        log.debug("GuardRail registered: {}", guardRail.name());
+        log.info("GuardRail registered: {} ({})", guardRail.name(), guardRail.position());
         return this;
     }
 
@@ -1069,6 +1069,13 @@ public final class CafeAIApp implements CafeAI {
      */
     private HttpRouting.Builder buildRouting() {
         var builder = HttpRouting.builder();
+
+        // Register guardrails as global pre-dispatch filters.
+        // Guardrails run first — before any application filter —
+        // so they protect the entire pipeline including body parsing.
+        for (GuardRail guardRail : guardRails) {
+            builder.addFilter(toHelidonFilter(guardRail));
+        }
 
         // Register filter-scope middleware (pre-dispatch, own call frame)
         for (var entry : filterEntries) {
