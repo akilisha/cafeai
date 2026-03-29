@@ -3,7 +3,7 @@ package io.cafeai.core;
 /**
  * Pre-defined keys for per-request attributes stored in {@code req.setAttribute()}.
  *
- * <p>Distinct from {@link Locals} (application-lifetime infrastructure) —
+ * <p>Distinct from {@link Locals} (application-lifetime infrastructure) --
  * attributes are scoped to a single HTTP request and do not survive it.
  *
  * <p>These constants eliminate magic strings in middleware chains:
@@ -20,7 +20,7 @@ public final class Attributes {
 
     private Attributes() {}
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
+    // -- Auth ------------------------------------------------------------------
 
     /**
      * The authenticated principal for the current request.
@@ -30,7 +30,7 @@ public final class Attributes {
      */
     public static final String AUTH_PRINCIPAL   = "cafeai.auth.principal";
 
-    // ── RAG ───────────────────────────────────────────────────────────────────
+    // -- RAG -------------------------------------------------------------------
 
     /**
      * List of documents retrieved by the RAG pipeline for the current request.
@@ -46,7 +46,7 @@ public final class Attributes {
      */
     public static final String RAG_CONTEXT      = "cafeai.rag.context";
 
-    // ── Guardrails ────────────────────────────────────────────────────────────
+    // -- Guardrails ------------------------------------------------------------
 
     /**
      * Guardrail evaluation score for the current request/response.
@@ -61,7 +61,7 @@ public final class Attributes {
      */
     public static final String GUARDRAIL_NAME   = "cafeai.guardrail.name";
 
-    // ── Chain ─────────────────────────────────────────────────────────────────
+    // -- Chain -----------------------------------------------------------------
 
     /**
      * The {@link io.cafeai.core.ai.PromptResponse} from the last
@@ -78,7 +78,7 @@ public final class Attributes {
      */
     public static final String LAST_RESPONSE_TEXT = "cafeai.chain.lastResponseText";
 
-    // ── Observability ─────────────────────────────────────────────────────────
+    // -- Observability ---------------------------------------------------------
 
     /**
      * Evaluation scores computed for the current RAG response.

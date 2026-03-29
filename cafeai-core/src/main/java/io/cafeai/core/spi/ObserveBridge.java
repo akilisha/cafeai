@@ -9,13 +9,13 @@ import io.cafeai.core.ai.PromptResponse;
  *
  * <p>Called by {@code CafeAIApp.executePrompt()} at two points:
  * <ol>
- *   <li>{@link #beforePrompt(PromptRequest)} — before the LLM is called;
+ *   <li>{@link #beforePrompt(PromptRequest)} -- before the LLM is called;
  *       returns a context object that is passed back to {@link #afterPrompt}</li>
  *   <li>{@link #afterPrompt(Object, PromptRequest, PromptResponse, Throwable)}
- *       — after the LLM responds (or throws)</li>
+ *       -- after the LLM responds (or throws)</li>
  * </ol>
  *
- * <p>The context object is opaque to {@code cafeai-core} — it carries
+ * <p>The context object is opaque to {@code cafeai-core} -- it carries
  * whatever the strategy needs to correlate before/after (e.g. a span,
  * a start timestamp, a trace ID).
  *

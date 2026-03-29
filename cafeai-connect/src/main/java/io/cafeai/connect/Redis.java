@@ -84,6 +84,6 @@ public final class Redis implements Connection {
     @Override
     public void register(CafeAI app) {
         app.memory(MemoryStrategy.redis(configBuilder.build()));
-        log.info("Connected: {} → registered as memory strategy", name());
+        log.info("Connected: {} -> registered as memory strategy", name());
     }
 }

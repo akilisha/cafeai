@@ -46,10 +46,10 @@ public final class CafeAIConnectBridge implements ConnectBridge {
         log.info("  {}", status);
 
         if (status.isHealthy()) {
-            // Service is reachable — wire its capability into the app
+            // Service is reachable -- wire its capability into the app
             connection.register(app);
         } else {
-            // Service is unreachable or degraded — invoke fallback policy
+            // Service is unreachable or degraded -- invoke fallback policy
             connection.fallback().onUnavailable(status, app);
         }
     }

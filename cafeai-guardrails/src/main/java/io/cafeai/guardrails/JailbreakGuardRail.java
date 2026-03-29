@@ -12,12 +12,12 @@ import java.util.regex.Pattern;
  * <p>Detects attempts to bypass the system prompt, extract model internals,
  * or manipulate the model into ignoring its instructions.
  *
- * <p>Detection strategy — two layers, both must agree to block:
+ * <p>Detection strategy -- two layers, both must agree to block:
  * <ol>
- *   <li><strong>Pattern matching</strong> — fast, zero-latency check against
+ *   <li><strong>Pattern matching</strong> -- fast, zero-latency check against
  *       known jailbreak patterns (DAN, role-play bypass, ignore-previous-instructions,
  *       base64 obfuscation, etc.)</li>
- *   <li><strong>Scoring</strong> — weighted sum of signals; blocks only when
+ *   <li><strong>Scoring</strong> -- weighted sum of signals; blocks only when
  *       confidence exceeds threshold (default 0.7)</li>
  * </ol>
  *
@@ -33,7 +33,7 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
 
     private static final double DEFAULT_THRESHOLD = 0.7;
 
-    // ── Detection patterns ────────────────────────────────────────────────────
+    // -- Detection patterns ----------------------------------------------------
 
     private static final List<WeightedPattern> PATTERNS = List.of(
         // Role-play bypass
@@ -71,7 +71,7 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
         this.threshold = threshold;
     }
 
-    /** Returns a new JailbreakGuardRail with the given confidence threshold (0.0–1.0). */
+    /** Returns a new JailbreakGuardRail with the given confidence threshold (0.0-1.0). */
     public JailbreakGuardRail threshold(double threshold) {
         if (threshold < 0.0 || threshold > 1.0) {
             throw new IllegalArgumentException("Threshold must be between 0.0 and 1.0");

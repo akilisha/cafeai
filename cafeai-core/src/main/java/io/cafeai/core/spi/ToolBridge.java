@@ -42,7 +42,7 @@ public interface ToolBridge {
      * handles tool invocations, and returns the final text response.
      *
      * @param model    the Langchain4j {@link ChatLanguageModel} to call
-     * @param messages mutable message list — modified in place with tool exchanges
+     * @param messages mutable message list -- modified in place with tool exchanges
      * @return the model's final text response
      */
     String executeWithTools(ChatLanguageModel model, List<ChatMessage> messages);

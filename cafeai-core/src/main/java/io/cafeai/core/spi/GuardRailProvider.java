@@ -11,7 +11,7 @@ import io.cafeai.core.guardrails.GuardRail;
  * and all {@link GuardRail} factory calls return real implementations.
  *
  * <p>Without {@code cafeai-guardrails}, all guardrails are no-ops that call
- * {@code next.run()} — the application compiles and runs but guardrails do nothing.
+ * {@code next.run()} -- the application compiles and runs but guardrails do nothing.
  * A warning is logged once on first use.
  *
  * <p>Registered via:

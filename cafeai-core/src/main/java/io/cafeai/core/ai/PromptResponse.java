@@ -61,7 +61,7 @@ public final class PromptResponse {
      */
     public java.util.List<Object> ragDocuments() { return ragDocuments; }
 
-    /** Shorthand — delegates to {@link #text()}. Makes response usable as a string. */
+    /** Shorthand -- delegates to {@link #text()}. Makes response usable as a string. */
     @Override
     public String toString() { return text; }
 

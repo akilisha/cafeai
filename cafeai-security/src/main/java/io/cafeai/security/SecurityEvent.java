@@ -18,7 +18,7 @@ public sealed interface SecurityEvent
                 SecurityEvent.DataLeakageAttempt,
                 SecurityEvent.CachePoisoningAttempt {
 
-    /** Unique event ID — use for deduplication in audit systems. */
+    /** Unique event ID -- use for deduplication in audit systems. */
     String eventId();
 
     /** When the event was detected. */
@@ -30,11 +30,11 @@ public sealed interface SecurityEvent
     /** The input text that triggered detection. */
     String triggeringInput();
 
-    // ── Concrete event types ──────────────────────────────────────────────────
+    // -- Concrete event types --------------------------------------------------
 
     /**
      * Raised when a prompt injection attempt is detected in user input or
-     * RAG-retrieved content. More strictly enforced than the guardrail version —
+     * RAG-retrieved content. More strictly enforced than the guardrail version --
      * all injection signals are blocked regardless of confidence threshold.
      */
     record InjectionAttempt(
@@ -69,7 +69,7 @@ public sealed interface SecurityEvent
             String triggeringInput
     ) implements SecurityEvent {}
 
-    // ── Factory helpers ───────────────────────────────────────────────────────
+    // -- Factory helpers -------------------------------------------------------
 
     static InjectionAttempt injection(String path, String input, String source) {
         return new InjectionAttempt(UUID.randomUUID().toString(),

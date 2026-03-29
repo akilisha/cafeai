@@ -9,13 +9,13 @@ import java.time.Instant;
  * out-of-process services have three states:
  *
  * <ul>
- *   <li>{@link #REACHABLE} — the service responded within the probe timeout</li>
- *   <li>{@link #UNREACHABLE} — the service did not respond or refused the connection</li>
- *   <li>{@link #DEGRADED} — the service responded but reported an internal problem</li>
+ *   <li>{@link #REACHABLE} -- the service responded within the probe timeout</li>
+ *   <li>{@link #UNREACHABLE} -- the service did not respond or refused the connection</li>
+ *   <li>{@link #DEGRADED} -- the service responded but reported an internal problem</li>
  * </ul>
  *
- * <p>This distinction matters. {@code UNREACHABLE} means "we can't get to it" —
- * try a fallback. {@code DEGRADED} means "we reached it but it's struggling" —
+ * <p>This distinction matters. {@code UNREACHABLE} means "we can't get to it" --
+ * try a fallback. {@code DEGRADED} means "we reached it but it's struggling" --
  * the fallback may not help; the right response might be to reduce load or alert.
  */
 public final class HealthStatus {
@@ -61,6 +61,6 @@ public final class HealthStatus {
         return state == State.REACHABLE
             ? service + ": reachable (" + latencyMs + "ms)"
             : service + ": " + state.name().toLowerCase()
-                + (detail != null ? " — " + detail : "");
+                + (detail != null ? " -- " + detail : "");
     }
 }

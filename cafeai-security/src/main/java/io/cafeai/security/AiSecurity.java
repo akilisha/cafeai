@@ -12,15 +12,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 /**
- * AI-specific security middleware — stricter enforcement than guardrails,
+ * AI-specific security middleware -- stricter enforcement than guardrails,
  * with audit logging and typed security events.
  *
  * <p>This is the security layer, distinct from the guardrails layer:
  * <ul>
- *   <li><strong>Guardrails</strong> ({@code cafeai-guardrails}) — configurable
+ *   <li><strong>Guardrails</strong> ({@code cafeai-guardrails}) -- configurable
  *       policies with tunable thresholds and WARN/LOG/BLOCK actions.
  *       Designed for content moderation and business policy.</li>
- *   <li><strong>Security</strong> ({@code cafeai-security}) — strict enforcement
+ *   <li><strong>Security</strong> ({@code cafeai-security}) -- strict enforcement
  *       with zero threshold. Every detected event is blocked and audited.
  *       Designed for threat detection and compliance.</li>
  * </ul>
@@ -57,7 +57,7 @@ public final class AiSecurity {
         listeners.add(listener);
     }
 
-    // ── Prompt injection detector ─────────────────────────────────────────────
+    // -- Prompt injection detector ---------------------------------------------
 
     /**
      * Strict prompt injection detection middleware.
@@ -77,7 +77,7 @@ public final class AiSecurity {
             if (input != null && isInjection(input)) {
                 SecurityEvent event = SecurityEvent.injection(path, truncate(input), "user_input");
                 emit(event);
-                log.warn("SECURITY [{}] Prompt injection in user input — path={} eventId={}",
+                log.warn("SECURITY [{}] Prompt injection in user input -- path={} eventId={}",
                     event.getClass().getSimpleName(), path, event.eventId());
                 res.status(400).json(Map.of(
                     "error",   "Request blocked by security layer",
@@ -96,7 +96,7 @@ public final class AiSecurity {
                         SecurityEvent event = SecurityEvent.injection(
                             path, truncate(content), "rag_document");
                         emit(event);
-                        log.warn("SECURITY Prompt injection in RAG document — path={} eventId={}",
+                        log.warn("SECURITY Prompt injection in RAG document -- path={} eventId={}",
                             path, event.eventId());
                         res.status(400).json(Map.of(
                             "error",   "Request blocked by security layer",
@@ -111,7 +111,7 @@ public final class AiSecurity {
         };
     }
 
-    // ── RAG data leakage prevention ───────────────────────────────────────────
+    // -- RAG data leakage prevention -------------------------------------------
 
     /**
      * Prevents RAG from returning documents the requesting user is not
@@ -146,7 +146,7 @@ public final class AiSecurity {
                         SecurityEvent event = SecurityEvent.dataLeakage(
                             req.path(), req.bodyText(), sourceId, principalStr);
                         emit(event);
-                        log.warn("SECURITY Data leakage prevented — doc={} principal={} eventId={}",
+                        log.warn("SECURITY Data leakage prevented -- doc={} principal={} eventId={}",
                             sourceId, principalStr, event.eventId());
                         return false; // exclude from results
                     }
@@ -158,13 +158,13 @@ public final class AiSecurity {
         };
     }
 
-    // ── Cache poisoning detector ──────────────────────────────────────────────
+    // -- Cache poisoning detector ----------------------------------------------
 
     /**
      * Detects adversarial prompts designed to corrupt the semantic cache.
      *
      * <p>Cache poisoning attacks craft prompts that produce malicious cached
-     * responses. Detection looks for prompts that are semantically anomalous —
+     * responses. Detection looks for prompts that are semantically anomalous --
      * unusually high instruction density relative to query length.
      */
     public static Middleware semanticCachePoisoningDetector() {
@@ -173,7 +173,7 @@ public final class AiSecurity {
             if (input != null && isPoisoningAttempt(input)) {
                 SecurityEvent event = SecurityEvent.cachePoisoning(req.path(), truncate(input));
                 emit(event);
-                log.warn("SECURITY Cache poisoning attempt — path={} eventId={}",
+                log.warn("SECURITY Cache poisoning attempt -- path={} eventId={}",
                     req.path(), event.eventId());
                 res.status(400).json(Map.of(
                     "error",   "Request blocked by security layer",
@@ -185,7 +185,7 @@ public final class AiSecurity {
         };
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    // -- Internal helpers ------------------------------------------------------
 
     private static final List<Pattern> INJECTION_PATTERNS = List.of(
         Pattern.compile("ignore.{0,20}(previous|all|the).{0,20}(instructions?|prompt|rules?)",
@@ -238,7 +238,7 @@ public final class AiSecurity {
     }
 
     private static String truncate(String s) {
-        return s.length() > 200 ? s.substring(0, 200) + "…" : s;
+        return s.length() > 200 ? s.substring(0, 200) + "..." : s;
     }
 
     private static void emit(SecurityEvent event) {

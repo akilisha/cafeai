@@ -20,11 +20,11 @@ public final class PathUtils {
      *
      * <p>Examples:
      * <pre>
-     *   "/users/:id"                    → "/users/{id}"
-     *   "/blogs/:blogId/posts/:postId"  → "/blogs/{blogId}/posts/{postId}"
-     *   "/health"                       → "/health"   (unchanged)
-     *   "/"                             → "/"         (unchanged)
-     *   "/items/:item_id"               → "/items/{item_id}"
+     *   "/users/:id"                    -> "/users/{id}"
+     *   "/blogs/:blogId/posts/:postId"  -> "/blogs/{blogId}/posts/{postId}"
+     *   "/health"                       -> "/health"   (unchanged)
+     *   "/"                             -> "/"         (unchanged)
+     *   "/items/:item_id"               -> "/items/{item_id}"
      * </pre>
      *
      * @param expressPath an Express-style route path

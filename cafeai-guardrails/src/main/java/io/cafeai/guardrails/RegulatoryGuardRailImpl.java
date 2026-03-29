@@ -6,10 +6,10 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * Regulatory compliance guardrail — GDPR, HIPAA, FCRA, CCPA.
+ * Regulatory compliance guardrail -- GDPR, HIPAA, FCRA, CCPA.
  *
  * <p>Each regulation adds a set of keyword patterns that are blocked from
- * both user input and LLM output. The guardrail is additive — enable
+ * both user input and LLM output. The guardrail is additive -- enable
  * only the regulations relevant to your deployment.
  *
  * <pre>{@code
@@ -23,7 +23,7 @@ public final class RegulatoryGuardRailImpl extends AbstractGuardRail {
     private final Set<String>  activeRegs = new LinkedHashSet<>();
     private final List<RegPattern> patterns = new ArrayList<>();
 
-    // ── Regulation pattern sets ───────────────────────────────────────────────
+    // -- Regulation pattern sets -----------------------------------------------
 
     private static final List<RegPattern> GDPR_PATTERNS = List.of(
         rp("GDPR", "personal.{0,10}data.{0,20}(transfer|export|share).{0,20}(third.party|outside.EU)"),

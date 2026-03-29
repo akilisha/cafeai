@@ -4,7 +4,7 @@ package io.cafeai.core.routing;
  * Handler for WebSocket lifecycle events on a single connection.
  *
  * <p>Register via {@code app.ws(path, handler)}. CafeAI creates one
- * handler instance per registered path — the handler must be thread-safe
+ * handler instance per registered path -- the handler must be thread-safe
  * because multiple connections share the same instance concurrently.
  *
  * <pre>{@code
@@ -78,14 +78,14 @@ public interface WsHandler {
 
     /**
      * Called when an error occurs on the WebSocket connection.
-     * The session may still be open — check {@link WsSession#isOpen()}.
+     * The session may still be open -- check {@link WsSession#isOpen()}.
      *
      * @param session the session on which the error occurred
      * @param error   the error
      */
     default void onError(WsSession session, Throwable error) {}
 
-    // ── Convenience factories ─────────────────────────────────────────────────
+    // -- Convenience factories -------------------------------------------------
 
     /**
      * Creates a handler that only implements {@link #onMessage(WsSession, String)}.

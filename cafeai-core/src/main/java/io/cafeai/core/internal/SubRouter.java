@@ -12,7 +12,7 @@ import java.util.List;
  * <p>Returned by {@link io.cafeai.core.CafeAI#Router()}.
  * Mounted on an application via {@code app.use(path, router)}.
  *
- * <p>Internal — always accessed via the {@code Router} interface.
+ * <p>Internal -- always accessed via the {@code Router} interface.
  */
 public final class SubRouter implements Router {
 
@@ -97,7 +97,7 @@ public final class SubRouter implements Router {
         return new RouteBuilderImpl(path, this);
     }
 
-    // ── Internal types consumed by CafeAIApp ──────────────────────────────────
+    // -- Internal types consumed by CafeAIApp ----------------------------------
 
     record RouteRegistration(
         String method,

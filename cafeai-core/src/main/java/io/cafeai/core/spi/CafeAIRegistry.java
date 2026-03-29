@@ -9,7 +9,7 @@ import java.util.function.Supplier;
  * startup to make its capabilities available to the application.
  *
  * <p>Capabilities registered here become available as factory methods
- * on the corresponding strategy/model/store interfaces — e.g.
+ * on the corresponding strategy/model/store interfaces -- e.g.
  * {@code MemoryStrategy.chronicle()} works only when {@code cafeai-memory}
  * is on the classpath and has registered its Chronicle implementation.
  */

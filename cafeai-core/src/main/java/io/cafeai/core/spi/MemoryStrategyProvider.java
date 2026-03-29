@@ -9,7 +9,7 @@ import java.nio.file.Path;
  * SPI for the {@code cafeai-memory} module to provide real implementations
  * of the higher memory rungs.
  *
- * <p>Mirrors the pattern of {@link ViewEngineProvider} — adding the
+ * <p>Mirrors the pattern of {@link ViewEngineProvider} -- adding the
  * {@code cafeai-memory} JAR to the classpath activates all real implementations.
  * No code changes required.
  */

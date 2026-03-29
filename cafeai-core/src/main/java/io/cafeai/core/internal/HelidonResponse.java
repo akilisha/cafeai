@@ -18,14 +18,14 @@ import java.util.concurrent.Flow;
 
 /**
  * Adapts a Helidon {@link ServerResponse} to the CafeAI {@link Response} interface.
- * Package-private — never referenced directly by application code.
+ * Package-private -- never referenced directly by application code.
  *
  * <p>Helidon 4.x API notes:
  * <ul>
  *   <li>Response headers use Header / HeaderValues objects objects, not raw strings</li>
  *   <li>Simplest form: {@link HeaderValues#create(String, String)} for custom headers</li>
  *   <li>Header lookup: {@code headers().value(HeaderNames.create(lc, name))}</li>
- *   <li>{@link Header#value()} is deprecated since 4.0.0 — use {@code Header.get()} instead</li>
+ *   <li>{@link Header#value()} is deprecated since 4.0.0 -- use {@code Header.get()} instead</li>
  * </ul>
  */
 public final class HelidonResponse implements Response {
@@ -48,12 +48,12 @@ public final class HelidonResponse implements Response {
     void setPairedRequest(Request req) { this.pairedRequest = req; }
     void setApp(CafeAI app)            { this.app = app; }
 
-    // ── Application Reference ─────────────────────────────────────────────────
+    // -- Application Reference -------------------------------------------------
 
     @Override
     public CafeAI app() { return app; }
 
-    // ── Status ────────────────────────────────────────────────────────────────
+    // -- Status ----------------------------------------------------------------
 
     @Override
     public Response status(int code) {
@@ -65,7 +65,7 @@ public final class HelidonResponse implements Response {
     public void sendStatus(int code) {
         assertNotCommitted();
         status(code);
-        // 204 No Content and 304 Not Modified must have no body — HTTP spec.
+        // 204 No Content and 304 Not Modified must have no body -- HTTP spec.
         // All other codes send the reason phrase as a plain-text body.
         if (code == 204 || code == 304) {
             commit();
@@ -78,7 +78,7 @@ public final class HelidonResponse implements Response {
         }
     }
 
-    // ── Body Senders ──────────────────────────────────────────────────────────
+    // -- Body Senders ----------------------------------------------------------
 
     @Override
     public void send(String body) {
@@ -120,13 +120,13 @@ public final class HelidonResponse implements Response {
         helidonRes.send();
     }
 
-    // ── Headers ───────────────────────────────────────────────────────────────
+    // -- Headers ---------------------------------------------------------------
 
     /**
      * Internal helper: set a response header using Helidon 4's Header object API.
      *
      * <p>Uses {@link HeaderValues#create(String, String)} which is the simplest
-     * correct form — takes plain String name and value, returns a {@link Header}
+     * correct form -- takes plain String name and value, returns a {@link Header}
      * that {@link WritableHeaders#set(Header)} accepts.
      */
     private void setHeader(String field, String value) {
@@ -207,7 +207,7 @@ public final class HelidonResponse implements Response {
         return committed;
     }
 
-    // ── Cookies ───────────────────────────────────────────────────────────────
+    // -- Cookies ---------------------------------------------------------------
 
     @Override
     public Response cookie(String name, String value) {
@@ -248,7 +248,7 @@ public final class HelidonResponse implements Response {
             .build());
     }
 
-    // ── Redirects ─────────────────────────────────────────────────────────────
+    // -- Redirects -------------------------------------------------------------
 
     @Override
     public void redirect(String url) {
@@ -264,7 +264,7 @@ public final class HelidonResponse implements Response {
         helidonRes.send();
     }
 
-    // ── Content Negotiation ───────────────────────────────────────────────────
+    // -- Content Negotiation ---------------------------------------------------
 
     @Override
     public void format(ContentMap contentMap) {
@@ -280,12 +280,12 @@ public final class HelidonResponse implements Response {
         sendStatus(406);
     }
 
-    // ── Rendering ─────────────────────────────────────────────────────────────
+    // -- Rendering -------------------------------------------------------------
 
     @Override
     public void render(String view, Map<String, Object> locals) {
         throw new UnsupportedOperationException(
-            "res.render() requires app.engine() registration — ROADMAP-02 Phase 8");
+            "res.render() requires app.engine() registration -- ROADMAP-02 Phase 8");
     }
 
     @Override
@@ -293,7 +293,7 @@ public final class HelidonResponse implements Response {
         render(view, Map.of());
     }
 
-    // ── File Responses ────────────────────────────────────────────────────────
+    // -- File Responses --------------------------------------------------------
 
     @Override
     public void download(Path file) {
@@ -325,7 +325,7 @@ public final class HelidonResponse implements Response {
         }
     }
 
-    // ── Request-Scoped Locals ─────────────────────────────────────────────────
+    // -- Request-Scoped Locals -------------------------------------------------
 
     @Override
     public Response local(String key, Object value) {
@@ -346,7 +346,7 @@ public final class HelidonResponse implements Response {
         return locals.get(key);
     }
 
-    // ── SSE Streaming ─────────────────────────────────────────────────────────
+    // -- SSE Streaming ---------------------------------------------------------
 
     @Override
     public void stream(Flow.Publisher<String> tokens) {
@@ -399,14 +399,14 @@ public final class HelidonResponse implements Response {
         });
     }
 
-    // ── Paired Request ────────────────────────────────────────────────────────
+    // -- Paired Request --------------------------------------------------------
 
     @Override
     public Request request() {
         return pairedRequest;
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────────
+    // -- Internal -------------------------------------------------------------
 
     private void assertNotCommitted() {
         if (committed) {

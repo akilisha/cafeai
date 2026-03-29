@@ -6,8 +6,8 @@ import io.cafeai.core.CafeAI;
  * An out-of-process service that CafeAI connects to.
  *
  * <p>This is the central abstraction of {@code cafeai-connect}. Every external
- * service — a Redis instance, a pgvector database, an Ollama server, an MCP
- * endpoint, or any future service — is a {@code Connection}.
+ * service -- a Redis instance, a pgvector database, an Ollama server, an MCP
+ * endpoint, or any future service -- is a {@code Connection}.
  *
  * <p>A {@code Connection} is not a module. It does not run inside the JVM.
  * It has its own lifecycle, its own scale, its own deployment. CafeAI reaches
@@ -15,9 +15,9 @@ import io.cafeai.core.CafeAI;
  *
  * <p>The contract has three parts:
  * <ol>
- *   <li>{@link #probe()} — can we reach it right now?</li>
- *   <li>{@link #register(CafeAI)} — wire its capability into the application</li>
- *   <li>{@link #onUnavailable(Fallback)} — what to do if probe fails</li>
+ *   <li>{@link #probe()} -- can we reach it right now?</li>
+ *   <li>{@link #register(CafeAI)} -- wire its capability into the application</li>
+ *   <li>{@link #onUnavailable(Fallback)} -- what to do if probe fails</li>
  * </ol>
  *
  * <p>Register via {@code app.connect()}:
@@ -32,7 +32,7 @@ import io.cafeai.core.CafeAI;
  *   app.connect(Ollama.at("http://ollama:11434")
  *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
  *
- *   // Environment-driven — reads CAFEAI_* variables
+ *   // Environment-driven -- reads CAFEAI_* variables
  *   app.connect(Connect.fromEnv());
  * }</pre>
  *
@@ -71,7 +71,7 @@ public interface Connection {
      * <p>Called once at registration time (during {@code app.connect()}) and
      * periodically by {@link Connect#healthCheck(CafeAI)}.
      *
-     * <p>Implementations must not throw — catch all exceptions and return
+     * <p>Implementations must not throw -- catch all exceptions and return
      * an appropriate {@link HealthStatus}.
      *
      * @return the current reachability state of the service
@@ -93,7 +93,7 @@ public interface Connection {
     /**
      * Returns this connection with a custom fallback policy.
      *
-     * <p>Default fallback is {@link Fallback#warnAndContinue()} — log a warning
+     * <p>Default fallback is {@link Fallback#warnAndContinue()} -- log a warning
      * if the service is unreachable at startup, continue without it.
      *
      * @param fallback what to do if {@link #probe()} shows the service is unavailable

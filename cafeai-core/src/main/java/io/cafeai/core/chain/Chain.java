@@ -39,7 +39,7 @@ public final class Chain implements Middleware {
     private final List<ChainStep> steps;
 
     /**
-     * Public — constructed by {@code CafeAIApp.chain()} and optionally
+     * Public -- constructed by {@code CafeAIApp.chain()} and optionally
      * by application code building chains programmatically.
      */
     public Chain(String name, List<ChainStep> steps) {
@@ -56,7 +56,7 @@ public final class Chain implements Middleware {
     /**
      * Executes this chain as a middleware.
      *
-     * <p>Steps execute in order via a right-fold over the step list —
+     * <p>Steps execute in order via a right-fold over the step list --
      * each step receives a {@code Next} that points to the remaining steps.
      * If any step short-circuits (sends a response without calling
      * {@code next.run()}), the remaining steps are skipped, identical to
@@ -86,7 +86,7 @@ public final class Chain implements Middleware {
     }
 
     /**
-     * Convenience method — invokes the chain directly from a handler body.
+     * Convenience method -- invokes the chain directly from a handler body.
      *
      * <pre>{@code
      *   app.post("/chat", (req, res, next) ->
@@ -98,7 +98,7 @@ public final class Chain implements Middleware {
     }
 
     /**
-     * Returns a new chain with the given step appended — chains are immutable.
+     * Returns a new chain with the given step appended -- chains are immutable.
      */
     public Chain use(ChainStep step) {
         List<ChainStep> newSteps = new ArrayList<>(steps);

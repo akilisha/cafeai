@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 /**
  * Concrete implementation of {@link CafeAIRegistry}.
  * Holds capability factories registered by {@link io.cafeai.core.spi.CafeAIModule} instances.
- * Package-private — only accessible internally.
+ * Package-private -- only accessible internally.
  */
 final class CafeAIRegistryImpl implements CafeAIRegistry {
 
@@ -51,7 +51,7 @@ final class CafeAIRegistryImpl implements CafeAIRegistry {
     private void register(String type, String name,
                           Map<String, Supplier<?>> registry, Supplier<?> factory) {
         if (registry.containsKey(name)) {
-            log.warn("CafeAI registry: duplicate {} registration '{}' — last registration wins",
+            log.warn("CafeAI registry: duplicate {} registration '{}' -- last registration wins",
                 type, name);
         }
         registry.put(name, factory);

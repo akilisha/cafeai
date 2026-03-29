@@ -16,9 +16,9 @@ import java.util.List;
  *
  * <p>Context window trimming: when {@code maxTokens > 0} and
  * {@code totalTokens} exceeds that limit, the oldest messages are
- * pruned first — always preserving at least the most recent exchange.
+ * pruned first -- always preserving at least the most recent exchange.
  *
- * <p>Jackson-serializable via {@link JsonCreator} constructor — all fields
+ * <p>Jackson-serializable via {@link JsonCreator} constructor -- all fields
  * annotated so {@link com.fasterxml.jackson.databind.ObjectMapper} can
  * round-trip instances to/from JSON without a no-arg constructor.
  */
@@ -70,7 +70,7 @@ public final class ConversationContext {
 
     /**
      * Adds to the running token count and trims when over the limit.
-     * After trimming, resets totalTokens to 0 — the count is advisory
+     * After trimming, resets totalTokens to 0 -- the count is advisory
      * (used only to trigger pruning) not a billing-precise counter.
      */
     public synchronized void addTokens(int count) {
@@ -88,7 +88,7 @@ public final class ConversationContext {
         while (messages.size() > 2) {
             messages.remove(0);
         }
-        // Reset to 0 after trim — next actual token additions will re-accumulate
+        // Reset to 0 after trim -- next actual token additions will re-accumulate
         totalTokens = 0;
     }
 

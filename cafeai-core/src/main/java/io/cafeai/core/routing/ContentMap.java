@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * A fluent builder for content-type negotiated response dispatch.
- * Used with {@code res.format()} — the Java equivalent of Express's
+ * Used with {@code res.format()} -- the Java equivalent of Express's
  * {@code res.format({...})} object literal.
  *
  * <pre>{@code

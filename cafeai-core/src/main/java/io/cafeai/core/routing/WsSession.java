@@ -4,7 +4,7 @@ package io.cafeai.core.routing;
  * A live WebSocket session between the server and a single client.
  *
  * <p>Obtained in {@link WsHandler#onOpen(WsSession)} and valid for the
- * lifetime of the connection. All methods are thread-safe — you may call
+ * lifetime of the connection. All methods are thread-safe -- you may call
  * {@link #send(String)} from any thread.
  *
  * <pre>{@code

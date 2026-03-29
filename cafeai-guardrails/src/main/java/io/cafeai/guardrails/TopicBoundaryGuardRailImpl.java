@@ -5,7 +5,7 @@ import io.cafeai.core.guardrails.GuardRail;
 import java.util.*;
 
 /**
- * Topic scope enforcement guardrail — real implementation.
+ * Topic scope enforcement guardrail -- real implementation.
  *
  * <p>Ensures the LLM only answers questions within the defined topic scope.
  * Uses keyword scoring to determine whether the user's input is on-topic.
@@ -13,7 +13,7 @@ import java.util.*;
  * <p>The scoring model:
  * <ul>
  *   <li>Input is tokenised (lowercased words)</li>
- *   <li>If any {@code deny} topic keyword appears: score = 1.0 → block</li>
+ *   <li>If any {@code deny} topic keyword appears: score = 1.0 -> block</li>
  *   <li>If {@code allow} topics are set and no allowed keyword appears: block</li>
  *   <li>Otherwise: pass</li>
  * </ul>
@@ -65,7 +65,7 @@ public final class TopicBoundaryGuardRailImpl extends AbstractGuardRail {
     protected CheckResult checkInput(String input) {
         Set<String> words = tokenise(input);
 
-        // Check denied topics first — any match blocks immediately
+        // Check denied topics first -- any match blocks immediately
         for (String denied : deniedKeywords) {
             if (words.contains(denied)) {
                 return CheckResult.block(
@@ -73,7 +73,7 @@ public final class TopicBoundaryGuardRailImpl extends AbstractGuardRail {
             }
         }
 
-        // Check allowed topics — if configured, input must match at least one
+        // Check allowed topics -- if configured, input must match at least one
         if (!allowedKeywords.isEmpty()) {
             boolean hasAllowed = allowedKeywords.stream().anyMatch(words::contains);
             if (!hasAllowed) {

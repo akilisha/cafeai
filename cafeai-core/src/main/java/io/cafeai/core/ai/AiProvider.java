@@ -9,7 +9,7 @@ package io.cafeai.core.ai;
  * <pre>{@code
  *   app.ai(OpenAI.gpt4o());
  *   app.ai(Anthropic.claude35Sonnet());
- *   app.ai(Ollama.llama3());   // local — no data leaves your infra
+ *   app.ai(Ollama.llama3());   // local -- no data leaves your infra
  * }</pre>
  */
 public interface AiProvider {

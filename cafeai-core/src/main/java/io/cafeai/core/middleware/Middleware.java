@@ -16,7 +16,7 @@ import io.cafeai.core.routing.Response;
  *
  * <p>Registering middleware:
  * <pre>{@code
- *   // Cross-cutting pre-processing — runs before route dispatch (app.filter):
+ *   // Cross-cutting pre-processing -- runs before route dispatch (app.filter):
  *   app.filter(Middleware.requestLogger());
  *   app.filter(CafeAI.json());
  *   app.filter("/api", Middleware.auth());
@@ -25,8 +25,8 @@ import io.cafeai.core.routing.Response;
  *   app.get("/users/:id", authenticate, authorize("admin"),
  *       (req, res, next) -> res.json(userService.find(req.params("id"))));
  *
- *   // Post-processing — code after next.run() runs after the full downstream
- *   // chain completes (blocks on virtual thread — no async needed):
+ *   // Post-processing -- code after next.run() runs after the full downstream
+ *   // chain completes (blocks on virtual thread -- no async needed):
  *   app.filter((req, res, next) -> {
  *       long start = System.nanoTime();
  *       next.run();
@@ -47,7 +47,7 @@ public interface Middleware {
      * Executes this middleware.
      *
      * <p>Call {@code next.run()} to pass control to the next middleware in the chain.
-     * Not calling {@code next.run()} terminates the chain — no further middleware
+     * Not calling {@code next.run()} terminates the chain -- no further middleware
      * or route handler will execute for this request.
      *
      * <p>Code written after {@code next.run()} executes after the entire downstream
@@ -61,7 +61,7 @@ public interface Middleware {
     void handle(Request req, Response res, Next next);
 
     /**
-     * Composes this middleware with {@code other} — {@code this} runs first, then
+     * Composes this middleware with {@code other} -- {@code this} runs first, then
      * {@code other} runs when {@code this} calls {@code next.run()}.
      *
      * <p>This is the primitive used by {@code CafeAIApp.compose()} to build the
@@ -84,7 +84,7 @@ public interface Middleware {
             });
     }
 
-    // ── Built-in Middleware Factory Methods ───────────────────────────────────
+    // -- Built-in Middleware Factory Methods -----------------------------------
 
     /**
      * JSON body parsing middleware. Parses {@code application/json} bodies into
@@ -96,7 +96,7 @@ public interface Middleware {
     }
 
     /**
-     * CORS headers middleware — permissive, for development.
+     * CORS headers middleware -- permissive, for development.
      */
     static Middleware cors() {
         return BuiltInMiddleware.cors();

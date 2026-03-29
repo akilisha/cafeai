@@ -7,7 +7,7 @@ import io.cafeai.core.spi.CafeAIRegistry;
  * Self-registration module for {@code cafeai-guardrails}.
  *
  * <p>Registers all guardrail implementations. Guardrails are also
- * discovered independently via {@code GuardRailProvider} SPI — this
+ * discovered independently via {@code GuardRailProvider} SPI -- this
  * registration makes them available by name through the registry
  * for programmatic lookup.
  */

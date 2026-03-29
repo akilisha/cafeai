@@ -5,7 +5,7 @@ package io.cafeai.core.ai;
  *
  * <pre>{@code
  *   app.ai(OpenAI.gpt4o());
- *   app.ai(OpenAI.gpt4oMini());   // cheaper, faster — good for simple queries
+ *   app.ai(OpenAI.gpt4oMini());   // cheaper, faster -- good for simple queries
  *   app.ai(OpenAI.o1());          // reasoning model
  *   app.ai(OpenAI.of("gpt-4-turbo")); // any model by ID
  * }</pre>

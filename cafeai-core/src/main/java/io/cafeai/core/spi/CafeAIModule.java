@@ -5,12 +5,12 @@ package io.cafeai.core.spi;
  *
  * <p>When a {@code cafeai-*} module JAR is added to the classpath, it
  * registers its capabilities automatically via {@link java.util.ServiceLoader}
- * — no configuration required. Adding the JAR is the configuration.
+ * -- no configuration required. Adding the JAR is the configuration.
  *
  * <p>Modules declare themselves in:
  * {@code META-INF/services/io.cafeai.core.spi.CafeAIModule}
  *
- * <p>Example — a hypothetical {@code cafeai-pinecone} module:
+ * <p>Example -- a hypothetical {@code cafeai-pinecone} module:
  * <pre>{@code
  *   public class PineconeModule implements CafeAIModule {
  *       @Override public String name()    { return "cafeai-pinecone"; }

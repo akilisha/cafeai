@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Evaluation harness — automatically scores RAG responses for quality.
+ * Evaluation harness -- automatically scores RAG responses for quality.
  *
  * <p>Register via {@code app.eval(EvalHarness.defaults())} at startup.
  * After each RAG-augmented prompt call, scores are attached to:
  * <ul>
- *   <li>{@code req.attribute(Attributes.EVAL_SCORES)} — the full score map</li>
+ *   <li>{@code req.attribute(Attributes.EVAL_SCORES)} -- the full score map</li>
  *   <li>The OTel span if {@code app.observe(ObserveStrategy.otel())} is active</li>
  * </ul>
  *
@@ -47,18 +47,18 @@ public final class EvalHarness {
      * RAG-augmented response:
      *
      * <ul>
-     *   <li><strong>faithfulness</strong> (0.0–1.0) — does the answer stay
+     *   <li><strong>faithfulness</strong> (0.0-1.0) -- does the answer stay
      *       within the retrieved context? High score means no hallucination
      *       relative to retrieved documents.</li>
-     *   <li><strong>relevance</strong> (0.0–1.0) — does the answer address
+     *   <li><strong>relevance</strong> (0.0-1.0) -- does the answer address
      *       the user's question? Measured by keyword overlap between question
      *       and answer.</li>
-     *   <li><strong>groundedness</strong> (0.0–1.0) — is the answer supported
+     *   <li><strong>groundedness</strong> (0.0-1.0) -- is the answer supported
      *       by the retrieved documents? Measured by term overlap between
      *       answer and retrieved content.</li>
      * </ul>
      *
-     * <p>These are heuristic scores — fast and zero-cost, suitable for
+     * <p>These are heuristic scores -- fast and zero-cost, suitable for
      * continuous monitoring. For rigorous evals, use LLM-as-judge scoring
      * in a dedicated offline eval pipeline.
      */
@@ -69,7 +69,7 @@ public final class EvalHarness {
     private EvalHarness() {}
 
     /**
-     * Evaluates a RAG response and returns a map of metric name → score.
+     * Evaluates a RAG response and returns a map of metric name -> score.
      * Called by {@link ObserveBridgeImpl} after each prompt call.
      *
      * @param question  the user's original question
@@ -83,7 +83,7 @@ public final class EvalHarness {
         String answer = response.text() != null ? response.text() : "";
 
         if (ragDocs == null || ragDocs.isEmpty()) {
-            // No RAG context — skip groundedness and faithfulness
+            // No RAG context -- skip groundedness and faithfulness
             scores.put("relevance",    relevance(question, answer));
             scores.put("faithfulness", 1.0); // no context to violate
             scores.put("groundedness", 0.0); // no documents to ground in
@@ -100,10 +100,10 @@ public final class EvalHarness {
         return scores;
     }
 
-    // ── Heuristic scorers ─────────────────────────────────────────────────────
+    // -- Heuristic scorers -----------------------------------------------------
 
     /**
-     * Faithfulness — fraction of answer sentences that can be grounded in
+     * Faithfulness -- fraction of answer sentences that can be grounded in
      * the retrieved context. Approximated by word overlap.
      */
     private static double faithfulness(String answer, String context) {
@@ -116,7 +116,7 @@ public final class EvalHarness {
     }
 
     /**
-     * Relevance — fraction of question keywords present in the answer.
+     * Relevance -- fraction of question keywords present in the answer.
      */
     private static double relevance(String question, String answer) {
         if (question.isBlank() || answer.isBlank()) return 0.0;
@@ -128,7 +128,7 @@ public final class EvalHarness {
     }
 
     /**
-     * Groundedness — fraction of answer content terms found in retrieved docs.
+     * Groundedness -- fraction of answer content terms found in retrieved docs.
      */
     private static double groundedness(String answer, String context) {
         return faithfulness(answer, context); // same heuristic, same semantics

@@ -45,15 +45,15 @@ import java.util.stream.Collectors;
 /**
  * Concrete implementation of {@link CafeAI}.
  *
- * <p><strong>Internal — do not reference directly. Always use {@link CafeAI#create()}.</strong>
+ * <p><strong>Internal -- do not reference directly. Always use {@link CafeAI#create()}.</strong>
  * Public only because Java package-private cannot cross package boundaries without JPMS.
  * JPMS module encapsulation (ROADMAP-08 Phase 3) will enforce this properly.
  *
  * <h2>Internal wiring model (ADR-009)</h2>
  * <ul>
- *   <li>{@code app.filter(mw)} → Helidon {@code addFilter()} — runs before route dispatch</li>
- *   <li>{@code app.get(path, mw...)} → Helidon {@code builder.get()} with composed handler</li>
- *   <li>{@code app.use(path, router)} → sub-router expanded inline at mount prefix</li>
+ *   <li>{@code app.filter(mw)} -> Helidon {@code addFilter()} -- runs before route dispatch</li>
+ *   <li>{@code app.get(path, mw...)} -> Helidon {@code builder.get()} with composed handler</li>
+ *   <li>{@code app.use(path, router)} -> sub-router expanded inline at mount prefix</li>
  * </ul>
  * Helidon's {@code Filter} / {@code FilterChain} are private implementation details.
  * No public API surface references them.
@@ -62,7 +62,7 @@ public final class CafeAIApp implements CafeAI {
 
     private static final Logger log = LoggerFactory.getLogger(CafeAIApp.class);
 
-    // ── State ─────────────────────────────────────────────────────────────────
+    // -- State -----------------------------------------------------------------
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -85,10 +85,10 @@ public final class CafeAIApp implements CafeAI {
     private Object embeddingModel;
     private Object retriever;
 
-    // Tool registry bridge (ROADMAP-07 Phase 5) — loaded via ServiceLoader
+    // Tool registry bridge (ROADMAP-07 Phase 5) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ToolBridge toolBridge;
 
-    // Observability bridge (ROADMAP-07 Phase 9) — loaded via ServiceLoader
+    // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ObserveBridge observeBridge;
     private Object evalHarness;
 
@@ -113,9 +113,9 @@ public final class CafeAIApp implements CafeAI {
 
     private WebServer server;
 
-    // ── Factory ───────────────────────────────────────────────────────────────
+    // -- Factory ---------------------------------------------------------------
 
-    /** Internal — call {@link CafeAI#create()} instead. */
+    /** Internal -- call {@link CafeAI#create()} instead. */
     public static CafeAI newInstance() {
         var app = new CafeAIApp();
         app.discoverModules();
@@ -132,7 +132,7 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    // ── Service Loader Discovery ──────────────────────────────────────────────
+    // -- Service Loader Discovery ----------------------------------------------
 
     private void discoverModules() {
         ServiceLoader.load(CafeAIModule.class).forEach(module -> {
@@ -149,7 +149,7 @@ public final class CafeAIApp implements CafeAI {
             .forEach(c -> c.configure(this));
     }
 
-    // ── CafeAIConfigurer ──────────────────────────────────────────────────────
+    // -- CafeAIConfigurer ------------------------------------------------------
 
     @Override
     public CafeAI configure(CafeAIConfigurer configurer) {
@@ -167,7 +167,7 @@ public final class CafeAIApp implements CafeAI {
         return this;
     }
 
-    // ── AI Infrastructure ─────────────────────────────────────────────────────
+    // -- AI Infrastructure -----------------------------------------------------
 
     @Override
     public CafeAI ai(AiProvider provider) {
@@ -231,25 +231,25 @@ public final class CafeAIApp implements CafeAI {
      *
      * <p>Execution pipeline:
      * <ol>
-     *   <li>Resolve the model — {@code ModelRouter} or single {@code AiProvider}</li>
-     *   <li>Build the message list — system prompt + conversation history + user message</li>
+     *   <li>Resolve the model -- {@code ModelRouter} or single {@code AiProvider}</li>
+     *   <li>Build the message list -- system prompt + conversation history + user message</li>
      *   <li>Call Langchain4j {@code ChatLanguageModel.generate()}</li>
      *   <li>Store the exchange in memory if a session ID is present</li>
      *   <li>Return {@link PromptResponse} with text + token counts</li>
      * </ol>
      */
     private PromptResponse executePrompt(PromptRequest request) {
-        // ── 1. Resolve provider ───────────────────────────────────────────────
+        // -- 1. Resolve provider -----------------------------------------------
         AiProvider provider = resolveProvider(request);
 
-        // ── 2. Get the Langchain4j ChatLanguageModel ──────────────────────────
+        // -- 2. Get the Langchain4j ChatLanguageModel --------------------------
         ChatLanguageModel model =
             LangchainBridge.INSTANCE.modelFor(provider);
 
-        // ── 3. Build message list ─────────────────────────────────────────────
+        // -- 3. Build message list ---------------------------------------------
         List<ChatMessage> messages = new ArrayList<>();
 
-        // System prompt — override or application default
+        // System prompt -- override or application default
         String sysPrompt = request.systemOverride() != null
             ? request.systemOverride()
             : systemPrompt;
@@ -275,7 +275,7 @@ public final class CafeAIApp implements CafeAI {
         // The current user message
         messages.add(UserMessage.from(request.message()));
 
-        // ── 3b. RAG retrieval — inject context before the LLM call ───────────
+        // -- 3b. RAG retrieval -- inject context before the LLM call -----------
         java.util.List<Object> retrievedDocs = java.util.List.of();
         if (retriever != null && vectorStore != null && embeddingModel != null) {
             try {
@@ -291,7 +291,7 @@ public final class CafeAIApp implements CafeAI {
                     if (!retrievedDocs.isEmpty()) {
                         // Build a context block from the retrieved documents.
                         // Injected as a UserMessage immediately before the actual question
-                        // so the LLM sees: [system] → [history] → [context] → [question]
+                        // so the LLM sees: [system] -> [history] -> [context] -> [question]
                         var sb = new StringBuilder(
                             "Relevant context from the knowledge base:\n\n");
                         for (int i = 0; i < retrievedDocs.size(); i++) {
@@ -306,11 +306,11 @@ public final class CafeAIApp implements CafeAI {
                     }
                 }
             } catch (Exception e) {
-                log.warn("RAG retrieval failed — proceeding without context: {}", e.getMessage());
+                log.warn("RAG retrieval failed -- proceeding without context: {}", e.getMessage());
             }
         }
 
-        // ── 4. Call the LLM (with observability intercept) ───────────────────
+        // -- 4. Call the LLM (with observability intercept) -------------------
         String responseText = "";
         int promptTokens = 0;
         int outputTokens = 0;
@@ -349,7 +349,7 @@ public final class CafeAIApp implements CafeAI {
             }
         }
 
-        // ── 5. Persist to memory ──────────────────────────────────────────────
+        // -- 5. Persist to memory ----------------------------------------------
         if (request.sessionId() != null && memoryStrategy != null) {
             ConversationContext ctx =
                 memoryStrategy.retrieve(request.sessionId());
@@ -362,7 +362,7 @@ public final class CafeAIApp implements CafeAI {
             memoryStrategy.store(request.sessionId(), ctx);
         }
 
-        // ── 6. Return PromptResponse ──────────────────────────────────────────
+        // -- 6. Return PromptResponse ------------------------------------------
         return PromptResponse.builder()
             .text(responseText)
             .promptTokens(promptTokens)
@@ -409,7 +409,7 @@ public final class CafeAIApp implements CafeAI {
     public CafeAI observe(Object strategy) {
         assertNotStarted("observe()");
         Objects.requireNonNull(strategy, "ObserveStrategy must not be null");
-        // Load the bridge from the strategy — strategy carries its own bridge
+        // Load the bridge from the strategy -- strategy carries its own bridge
         this.observeBridge = java.util.ServiceLoader
             .load(io.cafeai.core.spi.ObserveBridge.class)
             .findFirst()
@@ -441,7 +441,7 @@ public final class CafeAIApp implements CafeAI {
         if (bridge != null) {
             bridge.connect(connection, this);
         } else {
-            // No cafeai-connect — store for later, log clearly
+            // No cafeai-connect -- store for later, log clearly
             log.warn("app.connect() called but cafeai-connect is not on the classpath. " +
                 "Add: implementation 'io.cafeai:cafeai-connect'");
         }
@@ -464,7 +464,7 @@ public final class CafeAIApp implements CafeAI {
         return this;
     }
 
-    // ── RAG Pipeline (ROADMAP-07 Phase 4) ──────────────────────────────────────
+    // -- RAG Pipeline (ROADMAP-07 Phase 4) --------------------------------------
 
     @Override
     public CafeAI vectordb(Object store) {
@@ -515,7 +515,7 @@ public final class CafeAIApp implements CafeAI {
         return this;
     }
 
-    // ── Chains (ROADMAP-07 Phase 6) ───────────────────────────────────────────
+    // -- Chains (ROADMAP-07 Phase 6) -------------------------------------------
 
     @Override
     public CafeAI chain(String name, io.cafeai.core.chain.ChainStep... steps) {
@@ -534,7 +534,7 @@ public final class CafeAIApp implements CafeAI {
         return chains.get(name);
     }
 
-    // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
+    // -- Tools & MCP (ROADMAP-07 Phase 5) -------------------------------------
 
     @Override
     public CafeAI tool(Object toolInstance) {
@@ -578,7 +578,7 @@ public final class CafeAIApp implements CafeAI {
         return this;
     }
 
-    // ── Application Locals ────────────────────────────────────────────────────
+    // -- Application Locals ----------------------------------------------------
 
     @Override
     public CafeAI local(String key, Object value) {
@@ -609,7 +609,7 @@ public final class CafeAIApp implements CafeAI {
                 Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    // ── Application Settings (ROADMAP-02 Phase 7) ─────────────────────────────
+    // -- Application Settings (ROADMAP-02 Phase 7) -----------------------------
 
     @Override
     public CafeAI set(Setting setting, Object value) {
@@ -636,8 +636,8 @@ public final class CafeAIApp implements CafeAI {
     public Object setting(Setting setting) {
         // getOrDefault would return null if the key maps to an explicitly stored null
         // (e.g. after app.set(Setting.VIEW_ENGINE, null)).
-        // containsKey correctly distinguishes "key absent → use default" from
-        // "key present with null value → return null".
+        // containsKey correctly distinguishes "key absent -> use default" from
+        // "key present with null value -> return null".
         return settings.containsKey(setting)
             ? settings.get(setting)
             : setting.defaultValue();
@@ -669,7 +669,7 @@ public final class CafeAIApp implements CafeAI {
      * Returns true if the setting supports enable()/disable().
      * A setting is boolean-capable if its declared type is Boolean,
      * OR if it's an Object type whose default value is a Boolean
-     * (e.g. TRUST_PROXY — can be boolean or integer hop count,
+     * (e.g. TRUST_PROXY -- can be boolean or integer hop count,
      * but enable/disable make sense for the boolean case).
      */
     private static boolean isBooleanCapable(Setting setting) {
@@ -691,7 +691,7 @@ public final class CafeAIApp implements CafeAI {
         return !enabled(setting);
     }
 
-    // ── Mount Path (ROADMAP-02 Phase 2 + 9) ──────────────────────────────────
+    // -- Mount Path (ROADMAP-02 Phase 2 + 9) ----------------------------------
 
     @Override
     public String mountpath() {
@@ -725,7 +725,7 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    // ── Template Engine (ROADMAP-02 Phase 8) ──────────────────────────────────
+    // -- Template Engine (ROADMAP-02 Phase 8) ----------------------------------
 
     @Override
     public CafeAI engine(String ext, ResponseFormatter formatter) {
@@ -750,7 +750,7 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public java.util.concurrent.CompletableFuture<String> render(
             String view, java.util.Map<String, Object> locals) {
-        // Validate configuration eagerly on the calling thread — before going async.
+        // Validate configuration eagerly on the calling thread -- before going async.
         // A missing engine or missing VIEW_ENGINE setting is a programming error that
         // should be caught immediately, not buried in an async task that may not
         // complete before the caller checks isCompletedExceptionally().
@@ -759,14 +759,14 @@ public final class CafeAIApp implements CafeAI {
         } catch (ResponseFormatter.RenderException e) {
             return CompletableFuture.failedFuture(e);
         }
-        // Config is valid — do the actual file I/O and rendering asynchronously
+        // Config is valid -- do the actual file I/O and rendering asynchronously
         return CompletableFuture.supplyAsync(
             () -> renderView(view, locals));
     }
 
     /**
-     * Validates that a render call is configured correctly — engine exists,
-     * VIEW_ENGINE is set if no extension given — without doing any I/O.
+     * Validates that a render call is configured correctly -- engine exists,
+     * VIEW_ENGINE is set if no extension given -- without doing any I/O.
      * Throws {@link ResponseFormatter.RenderException} immediately
      * if configuration is incomplete. Called eagerly on the calling thread
      * so {@code CompletableFuture.failedFuture()} can be returned synchronously.
@@ -794,7 +794,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /**
-     * Core render logic — resolves view path, selects engine, merges locals, formats.
+     * Core render logic -- resolves view path, selects engine, merges locals, formats.
      */
     private String renderView(String view, java.util.Map<String, Object> viewLocals) {
         // Determine extension from view name, or fall back to VIEW_ENGINE setting
@@ -832,7 +832,7 @@ public final class CafeAIApp implements CafeAI {
         return formatter.format(templatePath, merged);
     }
 
-    // ── Error Handling (ROADMAP-06 Phase 2) ──────────────────────────────────
+    // -- Error Handling (ROADMAP-06 Phase 2) ----------------------------------
 
     @Override
     public CafeAI onError(ErrorMiddleware handler) {
@@ -844,7 +844,7 @@ public final class CafeAIApp implements CafeAI {
 
     /**
      * Dispatches an error to the registered error-handling middleware chain.
-     * Chains multiple handlers left-to-right — each can call {@code next.run()}
+     * Chains multiple handlers left-to-right -- each can call {@code next.run()}
      * to pass to the next. If no handler handles it, logs and sends a 500.
      */
     private void dispatchError(Throwable error, Request req, Response res) {
@@ -869,7 +869,7 @@ public final class CafeAIApp implements CafeAI {
                 res.status(500).json(Map.of("error", "Internal Server Error",
                     "message", error.getMessage() != null ? error.getMessage() : ""));
             } catch (Exception ignored) {
-                // Response may already be committed — swallow
+                // Response may already be committed -- swallow
             }
         }
     }
@@ -895,7 +895,7 @@ public final class CafeAIApp implements CafeAI {
         return this;
     }
 
-    // ── HTTP Routing ──────────────────────────────────────────────────────────
+    // -- HTTP Routing ----------------------------------------------------------
 
     @Override
     public Router get(String path, Middleware... handlers) {
@@ -950,7 +950,7 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     public Router use(Middleware... middlewares) {
-        // Inline route-pipeline middleware — registered as global filters for now.
+        // Inline route-pipeline middleware -- registered as global filters for now.
         // Full inline-route scoping in ROADMAP-05.
         for (Middleware mw : middlewares) {
             Objects.requireNonNull(mw, "Middleware must not be null");
@@ -979,7 +979,7 @@ public final class CafeAIApp implements CafeAI {
         return new RouteBuilderImpl(path, this);
     }
 
-    // ── Server Lifecycle ──────────────────────────────────────────────────────
+    // -- Server Lifecycle ------------------------------------------------------
 
     @Override
     public void listen(int port) {
@@ -993,7 +993,7 @@ public final class CafeAIApp implements CafeAI {
                 "CafeAI server is already running. Create a new instance with CafeAI.create().");
         }
 
-        log.info("☕ CafeAI starting on port {}...", port);
+        log.info("[coffee] CafeAI starting on port {}...", port);
 
         var routingBuilder = buildRouting();
 
@@ -1014,14 +1014,14 @@ public final class CafeAIApp implements CafeAI {
         server = serverBuilder.build();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("☕ CafeAI shutting down gracefully...");
+            log.info("[coffee] CafeAI shutting down gracefully...");
             stop();
         }, "cafeai-shutdown"));
 
         server.start();
         running.set(true);
 
-        log.info("☕ CafeAI running on http://localhost:{}", server.port());
+        log.info("[coffee] CafeAI running on http://localhost:{}", server.port());
         log.info("   Virtual threads:    active (Helidon SE default executor)");
         if (!filterEntries.isEmpty())
             log.info("   Filters:            {}", filterEntries.size());
@@ -1040,7 +1040,7 @@ public final class CafeAIApp implements CafeAI {
         if (running.compareAndSet(true, false)) {
             if (server != null) {
                 server.stop();
-                log.info("☕ CafeAI stopped.");
+                log.info("[coffee] CafeAI stopped.");
             }
         }
     }
@@ -1050,20 +1050,20 @@ public final class CafeAIApp implements CafeAI {
         return running.get();
     }
 
-    // ── Helidon Routing Builder ───────────────────────────────────────────────
+    // -- Helidon Routing Builder -----------------------------------------------
 
     /**
      * Builds the Helidon {@link HttpRouting.Builder} from registered filters and routes.
-     * Returns the builder — not the built instance — so {@code WebServer.addRouting(Builder)}
+     * Returns the builder -- not the built instance -- so {@code WebServer.addRouting(Builder)}
      * can accept it directly without requiring a cast.
      *
      * <p>Mapping (all Helidon types are private implementation details):
      * <ul>
-     *   <li>{@code app.filter(mw)} → {@code builder.addFilter()} — pre-dispatch,
+     *   <li>{@code app.filter(mw)} -> {@code builder.addFilter()} -- pre-dispatch,
      *       every request, {@code next.run()} maps to {@code chain.proceed()}</li>
-     *   <li>{@code app.filter(path, mw)} → {@code builder.addFilter()} with internal
-     *       path-prefix guard — skips to {@code chain.proceed()} when path doesn't match</li>
-     *   <li>{@code app.get(path, mw...)} → {@code builder.get(path, handler)} where
+     *   <li>{@code app.filter(path, mw)} -> {@code builder.addFilter()} with internal
+     *       path-prefix guard -- skips to {@code chain.proceed()} when path doesn't match</li>
+     *   <li>{@code app.get(path, mw...)} -> {@code builder.get(path, handler)} where
      *       handler wraps the pre-composed middleware chain</li>
      * </ul>
      */
@@ -1127,16 +1127,16 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    // ── Helidon Adapter Helpers (private — no Helidon types leak out) ─────────
+    // -- Helidon Adapter Helpers (private -- no Helidon types leak out) ---------
 
     /**
-     * Per-request context — the single {@link HelidonRequest}/{@link HelidonResponse}
+     * Per-request context -- the single {@link HelidonRequest}/{@link HelidonResponse}
      * pair that flows through all filters AND the route handler for one HTTP request.
      *
      * <p>Keyed by the Helidon {@link ServerRequest} instance, which is the same
      * object throughout a single request lifecycle in Helidon 4. WeakHashMap
      * ensures automatic cleanup when Helidon releases the ServerRequest after
-     * the response is committed — no memory leak.
+     * the response is committed -- no memory leak.
      *
      * <p>Synchronised externally only at creation time; all subsequent reads
      * are key-equal lookups on the same reference, which is safe.
@@ -1215,7 +1215,7 @@ public final class CafeAIApp implements CafeAI {
      * Wraps a {@link Middleware} as a Helidon route {@link Handler}.
      *
      * <p>Retrieves the same {@link RequestContext} that was created when the
-     * first filter ran — the body-parsing middleware will already have populated
+     * first filter ran -- the body-parsing middleware will already have populated
      * {@code req.body()}, {@code req.bodyBytes()}, etc. on this instance.
      */
     private Handler toHelidonHandler(Middleware middleware) {
@@ -1229,26 +1229,26 @@ public final class CafeAIApp implements CafeAI {
         };
     }
 
-    // ── Path Translation ──────────────────────────────────────────────────────
+    // -- Path Translation ------------------------------------------------------
 
     /** Delegates to {@link PathUtils#toHelidonPath(String)}. */
     static String toHelidonPath(String expressPath) {
         return PathUtils.toHelidonPath(expressPath);
     }
 
-    // ── Middleware Composition ────────────────────────────────────────────────
+    // -- Middleware Composition ------------------------------------------------
 
     /**
      * Composes a varargs array of {@link Middleware} left-to-right into a single
      * {@link Middleware} using {@link Middleware#then(Middleware)}.
      *
      * <p>{@code compose(mw1, mw2, mw3)} produces {@code mw1.then(mw2.then(mw3))}.
-     * {@code mw1} receives the composed {@code mw2 → mw3} as its {@code next}.
+     * {@code mw1} receives the composed {@code mw2 -> mw3} as its {@code next}.
      * Calling {@code next.run()} in {@code mw1} executes {@code mw2}, and so on.
      *
      * <ul>
-     *   <li>Single-element array → returns that element unchanged</li>
-     *   <li>Empty array → returns {@link Middleware#NOOP}</li>
+     *   <li>Single-element array -> returns that element unchanged</li>
+     *   <li>Empty array -> returns {@link Middleware#NOOP}</li>
      * </ul>
      */
     public static Middleware compose(Middleware[] handlers) {
@@ -1261,7 +1261,7 @@ public final class CafeAIApp implements CafeAI {
         return composed;
     }
 
-    // ── Lifecycle Guards ──────────────────────────────────────────────────────
+    // -- Lifecycle Guards ------------------------------------------------------
 
     private void assertNotStarted(String method) {
         if (started.get()) {
@@ -1271,9 +1271,9 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    // ── Internal Record Types ─────────────────────────────────────────────────
+    // -- Internal Record Types -------------------------------------------------
 
-    /** A registered filter — path is null for global scope. */
+    /** A registered filter -- path is null for global scope. */
     private record FilterEntry(String path, Middleware middleware) {}
 
     /** A registered route. handler is always a pre-composed Middleware. */
@@ -1291,7 +1291,7 @@ public final class CafeAIApp implements CafeAI {
     /** A registered WebSocket endpoint. */
     private record WsEndpoint(String path, io.cafeai.core.routing.WsHandler handler) {}
 
-    // ── WebSocket Adapter ─────────────────────────────────────────────────────
+    // -- WebSocket Adapter -----------------------------------------------------
 
     /**
      * Adapts a CafeAI {@link io.cafeai.core.routing.WsHandler} to Helidon's

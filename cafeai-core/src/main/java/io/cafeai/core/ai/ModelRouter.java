@@ -3,7 +3,7 @@ package io.cafeai.core.ai;
 /**
  * Routes prompts to different LLM models based on complexity.
  *
- * <p>Reduces cost significantly without sacrificing quality — simple queries
+ * <p>Reduces cost significantly without sacrificing quality -- simple queries
  * go to a cheaper, faster model; complex queries go to a more capable model.
  *
  * <pre>{@code
@@ -25,7 +25,7 @@ public final class ModelRouter {
     }
 
     /**
-     * Sets the model for simple queries — cheap, fast.
+     * Sets the model for simple queries -- cheap, fast.
      * Used for classification, short responses, single-turn queries.
      */
     public ModelRouter simple(AiProvider provider) {
@@ -34,7 +34,7 @@ public final class ModelRouter {
     }
 
     /**
-     * Sets the model for complex queries — more capable, higher cost.
+     * Sets the model for complex queries -- more capable, higher cost.
      * Used for multi-step reasoning, tool use, long context.
      */
     public ModelRouter complex(AiProvider provider) {

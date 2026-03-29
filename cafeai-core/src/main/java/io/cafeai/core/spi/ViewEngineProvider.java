@@ -12,7 +12,7 @@ import io.cafeai.core.ResponseFormatter;
  *   META-INF/services/io.cafeai.core.spi.ViewEngineProvider
  * </pre>
  *
- * <p>This is the same pattern CafeAI uses for {@link CafeAIModule} — adding
+ * <p>This is the same pattern CafeAI uses for {@link CafeAIModule} -- adding
  * the JAR to the classpath IS the configuration. No code changes required.
  *
  * <p>Example implementation in {@code cafeai-views-mustache}:
@@ -35,7 +35,7 @@ import io.cafeai.core.ResponseFormatter;
 public interface ViewEngineProvider {
 
     /**
-     * Canonical engine identifier — used to match against
+     * Canonical engine identifier -- used to match against
      * {@code ResponseFormatter.mustache()}, {@code ResponseFormatter.markdown()}, etc.
      *
      * <p>Well-known IDs: {@code "mustache"}, {@code "markdown"}, {@code "pebble"},
@@ -52,7 +52,7 @@ public interface ViewEngineProvider {
 
     /**
      * Creates a new {@link ResponseFormatter} instance for this engine.
-     * Called once per application — the result is cached by CafeAI.
+     * Called once per application -- the result is cached by CafeAI.
      */
     ResponseFormatter create();
 }

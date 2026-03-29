@@ -16,17 +16,17 @@ import java.util.Map;
  * <p>Handles the PRE_LLM / POST_LLM / BOTH positioning logic so each
  * concrete guardrail only needs to implement:
  * <ul>
- *   <li>{@link #checkInput(String)} — inspect the user's prompt before LLM</li>
- *   <li>{@link #checkOutput(String)} — inspect the LLM's response after it</li>
+ *   <li>{@link #checkInput(String)} -- inspect the user's prompt before LLM</li>
+ *   <li>{@link #checkOutput(String)} -- inspect the LLM's response after it</li>
  * </ul>
  *
- * <p>Both return a {@link CheckResult} — either {@code pass()} to continue
+ * <p>Both return a {@link CheckResult} -- either {@code pass()} to continue
  * or {@code block(reason)} to reject the request with HTTP 400.
  *
  * <p>Violations are recorded in:
  * <ul>
- *   <li>{@code req.attribute(Attributes.GUARDRAIL_NAME)} — the triggering guardrail</li>
- *   <li>{@code req.attribute(Attributes.GUARDRAIL_SCORE)} — confidence (0.0–1.0)</li>
+ *   <li>{@code req.attribute(Attributes.GUARDRAIL_NAME)} -- the triggering guardrail</li>
+ *   <li>{@code req.attribute(Attributes.GUARDRAIL_SCORE)} -- confidence (0.0-1.0)</li>
  * </ul>
  */
 public abstract class AbstractGuardRail implements GuardRail {
@@ -44,7 +44,7 @@ public abstract class AbstractGuardRail implements GuardRail {
 
     @Override
     public void handle(Request req, Response res, Next next) {
-        // PRE_LLM check — inspect the incoming prompt
+        // PRE_LLM check -- inspect the incoming prompt
         if (position() == Position.PRE_LLM || position() == Position.BOTH) {
             String input = extractInput(req);
             if (input != null && !input.isBlank()) {
@@ -56,10 +56,10 @@ public abstract class AbstractGuardRail implements GuardRail {
             }
         }
 
-        // Call next — the LLM runs here (if this is the final pre-LLM guard)
+        // Call next -- the LLM runs here (if this is the final pre-LLM guard)
         next.run();
 
-        // POST_LLM check — inspect the response
+        // POST_LLM check -- inspect the response
         if (position() == Position.POST_LLM || position() == Position.BOTH) {
             String output = extractOutput(req);
             if (output != null && !output.isBlank()) {
@@ -83,7 +83,7 @@ public abstract class AbstractGuardRail implements GuardRail {
      */
     protected CheckResult checkOutput(String output) { return CheckResult.pass(); }
 
-    // ── Private: request/response extraction ─────────────────────────────────
+    // -- Private: request/response extraction ---------------------------------
 
     private static String extractInput(Request req) {
         // Try bodyText first, then body("message"), then body("prompt")
@@ -116,9 +116,9 @@ public abstract class AbstractGuardRail implements GuardRail {
         }
     }
 
-    // ── Nested: check result ──────────────────────────────────────────────────
+    // -- Nested: check result --------------------------------------------------
 
-    /** The result of a guardrail check — passes or blocks with a reason. */
+    /** The result of a guardrail check -- passes or blocks with a reason. */
     public record CheckResult(boolean passes, String reason, double score) {
         public static CheckResult pass()                     { return new CheckResult(true,  null,   0.0); }
         public static CheckResult block(String reason)       { return new CheckResult(false, reason, 1.0); }

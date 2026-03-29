@@ -25,6 +25,6 @@ import io.cafeai.core.middleware.Middleware;
  */
 @FunctionalInterface
 public interface ChainStep extends Middleware {
-    // Marker interface — inherits handle(Request, Response, Next) from Middleware.
+    // Marker interface -- inherits handle(Request, Response, Next) from Middleware.
     // The functional interface allows lambda ChainSteps without explicit casting.
 }

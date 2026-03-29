@@ -74,7 +74,7 @@ public final class McpEndpoint implements Connection {
             Class<?> mcpClass = Class.forName("io.cafeai.tools.McpServer");
             Object server = mcpClass.getMethod("connect", String.class).invoke(null, url);
             app.mcp(server);
-            log.info("Connected: {} → registered as MCP server", name());
+            log.info("Connected: {} -> registered as MCP server", name());
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(
                 "McpEndpoint connection requires cafeai-tools on the classpath. " +

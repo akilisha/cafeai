@@ -12,11 +12,11 @@ import io.cafeai.core.CafeAI;
  * <p>Implement this interface to configure a CafeAI application with
  * injected dependencies. CafeAI discovers implementations via:
  * <ul>
- *   <li><b>Service Loader</b> — list implementations in
+ *   <li><b>Service Loader</b> -- list implementations in
  *       {@code META-INF/services/io.cafeai.core.spi.CafeAIConfigurer}</li>
- *   <li><b>CDI</b> — annotate with {@code @ApplicationScoped} when
+ *   <li><b>CDI</b> -- annotate with {@code @ApplicationScoped} when
  *       {@code cafeai-cdi} is on the classpath</li>
- *   <li><b>Direct registration</b> — call {@code CafeAI.create().configure(myConfigurer)}</li>
+ *   <li><b>Direct registration</b> -- call {@code CafeAI.create().configure(myConfigurer)}</li>
  * </ul>
  *
  * <p>Zero-DI example (no container needed):
@@ -67,7 +67,7 @@ public interface CafeAIConfigurer {
      * All {@code @Inject} fields are guaranteed to be populated before this
      * method is called when using CDI.
      *
-     * @param app the CafeAI application to configure — never null
+     * @param app the CafeAI application to configure -- never null
      */
     void configure(CafeAI app);
 

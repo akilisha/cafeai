@@ -10,10 +10,10 @@ import java.util.function.BiConsumer;
  * <p>Mirrors Express {@code express.static(root, [options])} exactly.
  *
  * <pre>{@code
- *   // Minimal — serve from "public/" directory
+ *   // Minimal -- serve from "public/" directory
  *   app.use(CafeAI.serveStatic("public"));
  *
- *   // Production — ETags, max-age, dotfile protection
+ *   // Production -- ETags, max-age, dotfile protection
  *   app.use(CafeAI.serveStatic("public", StaticOptions.builder()
  *       .maxAge(Duration.ofDays(7))
  *       .etag(true)
@@ -62,7 +62,7 @@ public final class StaticOptions {
         ALLOW,
         /** Return 403 for dotfile requests. */
         DENY,
-        /** Pretend they don't exist — 404 (or next()). Default. */
+        /** Pretend they don't exist -- 404 (or next()). Default. */
         IGNORE
     }
 

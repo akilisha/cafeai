@@ -74,7 +74,7 @@ public final class Ollama implements Connection {
     @Override
     public void register(CafeAI app) {
         app.ai(io.cafeai.core.ai.Ollama.at(baseUrl).model(modelId));
-        log.info("Connected: {} → registered as AI provider", name());
+        log.info("Connected: {} -> registered as AI provider", name());
     }
 
     /** Fluent builder for an Ollama connection. */

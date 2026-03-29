@@ -23,13 +23,13 @@ public final class GuardRailProviderImpl implements GuardRailProvider {
     @Override public GuardRail regulatory()       { return new RegulatoryGuardRailImpl(); }
 
     @Override public GuardRail bias() {
-        // Bias detection requires a trained model — stub with clear message until
+        // Bias detection requires a trained model -- stub with clear message until
         // a lightweight classifier is bundled in a future release.
         return GuardRail.StubGuardRail.of("bias", GuardRail.Position.POST_LLM);
     }
 
     @Override public GuardRail hallucination() {
-        // Hallucination scoring requires the RAG corpus for grounding —
+        // Hallucination scoring requires the RAG corpus for grounding --
         // implemented in Phase 8 when the observability layer integrates
         // with the RAG pipeline. Stub until then.
         return GuardRail.StubGuardRail.of("hallucination", GuardRail.Position.POST_LLM);

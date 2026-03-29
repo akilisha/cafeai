@@ -22,7 +22,7 @@ public final class Locals {
 
     private Locals() {}
 
-    // ── AI Infrastructure ─────────────────────────────────────────────────────
+    // -- AI Infrastructure -----------------------------------------------------
 
     /** The registered {@link io.cafeai.core.ai.AiProvider}. */
     public static final String AI_PROVIDER      = "__cafeai.ai.provider";
@@ -42,7 +42,7 @@ public final class Locals {
     /** The registered embedding model (type: {@code EmbeddingModel}). */
     public static final String EMBEDDING_MODEL  = "__cafeai.rag.embeddingModel";
 
-    // ── Observability ─────────────────────────────────────────────────────────
+    // -- Observability ---------------------------------------------------------
 
     /** The registered {@link io.cafeai.core.observability.ObserveStrategy}, if any. */
     public static final String OBSERVE_STRATEGY = "__cafeai.observe.strategy";
@@ -54,7 +54,7 @@ public final class Locals {
      */
     public static final String CONNECTIONS      = "__cafeai.connect.connections";
 
-    // ── Internals ─────────────────────────────────────────────────────────────
+    // -- Internals -------------------------------------------------------------
 
     /**
      * Returns {@code true} if the given key is a CafeAI-internal locals key

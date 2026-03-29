@@ -16,8 +16,8 @@ import java.util.regex.Pattern;
  *
  * <p>Detects attempts to inject malicious instructions through:
  * <ul>
- *   <li><strong>User input</strong> — direct injection in the user's message</li>
- *   <li><strong>RAG documents</strong> — indirect injection via retrieved content
+ *   <li><strong>User input</strong> -- direct injection in the user's message</li>
+ *   <li><strong>RAG documents</strong> -- indirect injection via retrieved content
  *       (a document in the vector store contains hidden instructions)</li>
  * </ul>
  *

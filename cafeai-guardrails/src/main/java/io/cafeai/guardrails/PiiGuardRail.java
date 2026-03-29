@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
  *
  * <p>Action options:
  * <ul>
- *   <li>{@link GuardRail.Action#BLOCK} — reject the request immediately (default)</li>
- *   <li>{@link GuardRail.Action#WARN} — log a warning but allow through</li>
+ *   <li>{@link GuardRail.Action#BLOCK} -- reject the request immediately (default)</li>
+ *   <li>{@link GuardRail.Action#WARN} -- log a warning but allow through</li>
  * </ul>
  *
  * <p>Use {@link #scrubbing()} to redact PII in-place rather than blocking:
@@ -90,7 +90,7 @@ public final class PiiGuardRail extends AbstractGuardRail {
 
     /**
      * Scrubs PII from text by replacing matches with labelled placeholders.
-     * E.g. {@code "Call 555-867-5309"} → {@code "Call [PHONE]"}.
+     * E.g. {@code "Call 555-867-5309"} -> {@code "Call [PHONE]"}.
      */
     public static String scrub(String text) {
         for (PiiPattern pp : PATTERNS) {

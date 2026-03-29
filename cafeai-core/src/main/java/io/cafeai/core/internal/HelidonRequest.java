@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Adapts a Helidon {@link ServerRequest} to the CafeAI {@link Request} interface.
- * Package-private — never referenced directly by application code.
+ * Package-private -- never referenced directly by application code.
  */
 final class HelidonRequest implements Request {
 
@@ -26,7 +26,7 @@ final class HelidonRequest implements Request {
     private final CafeAI app;
     private final Map<String, Object> attributes = new ConcurrentHashMap<>();
 
-    // Body parsed by middleware — set lazily
+    // Body parsed by middleware -- set lazily
     private Map<String, Object> parsedBody;
     private byte[]  rawBody;
     private String  textBody;
@@ -121,13 +121,13 @@ final class HelidonRequest implements Request {
 
     @Override
     public String params(String name) {
-        // Helidon 4: pathParameters() returns Parameters — use first(name)
+        // Helidon 4: pathParameters() returns Parameters -- use first(name)
         return helidonReq.path().pathParameters().first(name).orElse(null);
     }
 
     @Override
     public Map<String, String> params() {
-        // Fix #7: Parameters has no toMap() in Helidon 4 — iterate names()
+        // Fix #7: Parameters has no toMap() in Helidon 4 -- iterate names()
         var result = new HashMap<String, String>();
         Parameters p = helidonReq.path().pathParameters();
         p.names().forEach(name ->
@@ -172,9 +172,9 @@ final class HelidonRequest implements Request {
     @SuppressWarnings("unchecked")
     public <T> T body(Class<T> type) {
         if (parsedBody == null) return null;
-        // Map<String,Object> passthrough — no re-serialization needed
+        // Map<String,Object> passthrough -- no re-serialization needed
         if (type == Map.class) return (T) parsedBody;
-        // Deserialize through Jackson: parsedBody (Map) → JSON bytes → target type.
+        // Deserialize through Jackson: parsedBody (Map) -> JSON bytes -> target type.
         // This is zero-copy relative to the wire: the map was already parsed from
         // the raw bytes; we convert it to the target type via Jackson's convertValue.
         try {
@@ -214,9 +214,9 @@ final class HelidonRequest implements Request {
     public Map<String, String> headers() {
         var result = new HashMap<String, String>();
         // Headers extends Iterable<Header>.
-        // Header.headerName().defaultCase() → HTTP/1 canonical cased name.
-        // Header.get() → inherited from Value<String>, returns first value.
-        // Header.value() is deprecated since Helidon 4.0.0 — use get() instead.
+        // Header.headerName().defaultCase() -> HTTP/1 canonical cased name.
+        // Header.get() -> inherited from Value<String>, returns first value.
+        // Header.value() is deprecated since Helidon 4.0.0 -- use get() instead.
         helidonReq.headers().forEach(h ->
             result.put(h.headerName().defaultCase(), h.get()));
         return Collections.unmodifiableMap(result);
@@ -227,7 +227,7 @@ final class HelidonRequest implements Request {
         String contentType = header("Content-Type");
         if (contentType == null) return false;
         // Note: the wildcard check uses startsWith/contains, not the literal
-        // "* /json" string — no Javadoc comment-terminator issue here
+        // "* /json" string -- no Javadoc comment-terminator issue here
         if (type.startsWith("*/")) {
             return contentType.contains("/" + type.substring(2));
         }

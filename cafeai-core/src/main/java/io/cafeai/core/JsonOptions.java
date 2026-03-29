@@ -8,7 +8,7 @@ import java.util.Set;
  * <p>Mirrors Express {@code express.json([options])} exactly.
  *
  * <pre>{@code
- *   app.filter(CafeAI.json());  // defaults — good for most applications
+ *   app.filter(CafeAI.json());  // defaults -- good for most applications
  *
  *   app.filter(CafeAI.json(JsonOptions.builder()
  *       .limit(512 * 1024)     // 512 KB max body
@@ -36,7 +36,7 @@ public final class JsonOptions {
         this.verify  = b.verify;
     }
 
-    /** Default options — matches Express defaults. */
+    /** Default options -- matches Express defaults. */
     public static JsonOptions defaults() {
         return builder().build();
     }

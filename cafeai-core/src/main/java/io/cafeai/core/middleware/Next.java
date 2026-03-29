@@ -4,7 +4,7 @@ package io.cafeai.core.middleware;
  * Represents the next step in the middleware chain.
  *
  * <p>Call {@link #run()} to pass control to the next middleware.
- * Not calling {@link #run()} short-circuits the chain — no further
+ * Not calling {@link #run()} short-circuits the chain -- no further
  * middleware or route handler will execute for this request.
  *
  * <p>Call {@link #fail(Throwable)} to route the request to the

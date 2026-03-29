@@ -10,19 +10,19 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Tiered context memory strategy for CafeAI.
  *
- * <p>The memory hierarchy mirrors hardware — start cheap and escalate only
+ * <p>The memory hierarchy mirrors hardware -- start cheap and escalate only
  * when the problem demands it (ADR-003):
  *
  * <pre>
- *   Rung 1 → inMemory()    JVM HashMap — zero deps, prototype/dev
- *   Rung 2 → mapped()      SSD-backed via Java FFM MemorySegment   (cafeai-memory)
- *   Rung 3 → chronicle()   Chronicle Map off-heap                  (cafeai-memory, stub)
- *   Rung 4 → redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
- *   Rung 5 → hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
+ *   Rung 1 -> inMemory()    JVM HashMap -- zero deps, prototype/dev
+ *   Rung 2 -> mapped()      SSD-backed via Java FFM MemorySegment   (cafeai-memory)
+ *   Rung 3 -> chronicle()   Chronicle Map off-heap                  (cafeai-memory, stub)
+ *   Rung 4 -> redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
+ *   Rung 5 -> hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
  * </pre>
  *
- * <p>Rungs 2–5 require {@code io.cafeai:cafeai-memory} on the classpath.
- * Adding the JAR is the only configuration needed — no code changes required.
+ * <p>Rungs 2-5 require {@code io.cafeai:cafeai-memory} on the classpath.
+ * Adding the JAR is the only configuration needed -- no code changes required.
  *
  * <p>Rung 1 ({@code inMemory()}) is fully functional with zero dependencies.
  * It is appropriate for development, testing, and single-instance production
@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public interface MemoryStrategy {
 
-    // ── Core Contract ─────────────────────────────────────────────────────────
+    // -- Core Contract ---------------------------------------------------------
 
     /** Stores or updates a session. Thread-safe. */
     void store(String sessionId, ConversationContext context);
@@ -47,7 +47,7 @@ public interface MemoryStrategy {
     /** Returns {@code true} if a session exists. */
     boolean exists(String sessionId);
 
-    // ── Rung 1: In-JVM HashMap (fully functional, zero deps) ─────────────────
+    // -- Rung 1: In-JVM HashMap (fully functional, zero deps) -----------------
 
     /**
      * Rung 1: In-JVM HashMap. Zero dependencies. Zero configuration.
@@ -59,7 +59,7 @@ public interface MemoryStrategy {
         return new InMemoryStrategy();
     }
 
-    // ── Rungs 2–5: Require cafeai-memory module ───────────────────────────────
+    // -- Rungs 2-5: Require cafeai-memory module -------------------------------
 
     /**
      * Rung 2: SSD-backed off-heap memory via Java FFM {@code MemorySegment}.
@@ -67,7 +67,7 @@ public interface MemoryStrategy {
      * <p>Sessions are stored as JSON files in the default directory
      * ({@code ${java.io.tmpdir}/cafeai/sessions/}) and memory-mapped for
      * fast access. The OS page cache handles hot sessions automatically.
-     * Sessions survive JVM restarts — crash recovery out of the box.
+     * Sessions survive JVM restarts -- crash recovery out of the box.
      *
      * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
      *
@@ -88,7 +88,7 @@ public interface MemoryStrategy {
 
     /**
      * Rung 3: Chronicle Map off-heap key-value store.
-     * Stub — full implementation in a future release.
+     * Stub -- full implementation in a future release.
      */
     static MemoryStrategy chronicle() {
         throw new UnsupportedOperationException(
@@ -112,7 +112,7 @@ public interface MemoryStrategy {
     }
 
     /**
-     * Rung 5: Hybrid tiered memory — warm (SSD) + cold (Redis).
+     * Rung 5: Hybrid tiered memory -- warm (SSD) + cold (Redis).
      *
      * <p>Hot sessions stay local and fast. Idle sessions are demoted to Redis.
      * Reads promote sessions back to warm automatically.
@@ -133,20 +133,20 @@ public interface MemoryStrategy {
         return loadProvider().hybrid();
     }
 
-    // ── ServiceLoader discovery ───────────────────────────────────────────────
+    // -- ServiceLoader discovery -----------------------------------------------
 
     private static MemoryStrategyProvider loadProvider() {
         return ServiceLoader.load(MemoryStrategyProvider.class)
             .findFirst()
             .orElseThrow(() -> new MemoryModuleNotFoundException(
-                "Memory rungs 2–5 require the cafeai-memory module. " +
+                "Memory rungs 2-5 require the cafeai-memory module. " +
                 "Add the following dependency:\n\n" +
                 "  Gradle: implementation 'io.cafeai:cafeai-memory'\n" +
                 "  Maven:  <artifactId>cafeai-memory</artifactId>\n\n" +
                 "For development, use MemoryStrategy.inMemory() (zero dependencies)."));
     }
 
-    // ── Nested Types ──────────────────────────────────────────────────────────
+    // -- Nested Types ----------------------------------------------------------
 
     /** Fluent builder for hybrid warm+cold strategies. */
     interface HybridBuilder {
@@ -166,10 +166,10 @@ public interface MemoryStrategy {
         }
     }
 
-    // ── Rung 1 Implementation (fully functional, zero deps) ───────────────────
+    // -- Rung 1 Implementation (fully functional, zero deps) -------------------
 
     final class InMemoryStrategy implements MemoryStrategy {
-        // Instance-scoped — each InMemoryStrategy has its own isolated store.
+        // Instance-scoped -- each InMemoryStrategy has its own isolated store.
         // Previously static, which caused test cross-contamination.
         private final ConcurrentHashMap<String, ConversationContext>
             store = new ConcurrentHashMap<>();

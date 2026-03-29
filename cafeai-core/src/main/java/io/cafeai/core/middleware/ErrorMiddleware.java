@@ -4,7 +4,7 @@ import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
 
 /**
- * Error-handling middleware — the 4-argument form invoked when
+ * Error-handling middleware -- the 4-argument form invoked when
  * {@link Next#fail(Throwable)} is called anywhere upstream.
  *
  * <p>Mirrors Express: {@code function(err, req, res, next)}
@@ -29,7 +29,7 @@ import io.cafeai.core.routing.Response;
  *       try {
  *           res.json(userService.find(req.params("id")));
  *       } catch (NotFoundException e) {
- *           next.fail(e);   // → routed to error middleware
+ *           next.fail(e);   // -> routed to error middleware
  *       }
  *   });
  * }</pre>
@@ -40,7 +40,7 @@ import io.cafeai.core.routing.Response;
  *
  * <p><strong>ADR-002 note:</strong> {@code ErrorMiddleware} is deliberately
  * a separate interface from {@link Middleware}. Express uses the same function
- * type and distinguishes by arity — Java cannot. The separation is cleaner:
+ * type and distinguishes by arity -- Java cannot. The separation is cleaner:
  * error handlers are explicit about their role and cannot be accidentally
  * registered as normal middleware.
  */
@@ -52,7 +52,7 @@ public interface ErrorMiddleware {
      *
      * @param error the thrown error
      * @param req   the request that triggered the error
-     * @param res   the response — may already be partially committed
+     * @param res   the response -- may already be partially committed
      * @param next  call {@code next.run()} to pass to the next error handler,
      *              or {@code next.fail(err)} to re-throw a different error
      */

@@ -28,7 +28,7 @@ public final class Steps {
 
     private Steps() {}
 
-    // ── Prompt ────────────────────────────────────────────────────────────────
+    // -- Prompt ----------------------------------------------------------------
 
     /**
      * Runs a named prompt template against the registered AI provider.
@@ -82,7 +82,7 @@ public final class Steps {
         };
     }
 
-    // ── Guard ─────────────────────────────────────────────────────────────────
+    // -- Guard -----------------------------------------------------------------
 
     /**
      * Applies one or more guardrails as a chain step.
@@ -106,10 +106,10 @@ public final class Steps {
         return (req, res, next) -> pipeline.handle(req, res, next);
     }
 
-    // ── Branch ────────────────────────────────────────────────────────────────
+    // -- Branch ----------------------------------------------------------------
 
     /**
-     * Conditional routing — executes one of two steps based on a predicate.
+     * Conditional routing -- executes one of two steps based on a predicate.
      *
      * <pre>{@code
      *   Steps.branch(
@@ -134,7 +134,7 @@ public final class Steps {
     }
 
     /**
-     * One-sided branch — executes a step only when the predicate matches,
+     * One-sided branch -- executes a step only when the predicate matches,
      * otherwise calls {@code next.run()} directly.
      *
      * <pre>{@code
@@ -156,19 +156,19 @@ public final class Steps {
         };
     }
 
-    // ── Chain reference ───────────────────────────────────────────────────────
+    // -- Chain reference -------------------------------------------------------
 
     /**
      * References a named chain as a step in another chain.
      *
-     * <p>The referenced chain is looked up at execution time — not at
+     * <p>The referenced chain is looked up at execution time -- not at
      * registration time. This allows forward references (a chain can
      * reference itself or chains registered after it).
      *
      * <pre>{@code
      *   app.chain("outer",
      *       Steps.prompt("classify"),
-     *       Steps.chain("inner"));   // inner registered later — fine
+     *       Steps.chain("inner"));   // inner registered later -- fine
      *
      *   app.chain("inner",
      *       Steps.prompt("handle"));
@@ -188,7 +188,7 @@ public final class Steps {
         };
     }
 
-    // ── Transform ─────────────────────────────────────────────────────────────
+    // -- Transform -------------------------------------------------------------
 
     /**
      * Applies a transformation to the last prompt response text and stores
@@ -210,7 +210,7 @@ public final class Steps {
         };
     }
 
-    // ── RAG ───────────────────────────────────────────────────────────────────
+    // -- RAG -------------------------------------------------------------------
 
     /**
      * Runs the RAG retrieval step explicitly within a chain.
@@ -229,7 +229,7 @@ public final class Steps {
     public static ChainStep rag() {
         return (req, res, next) -> {
             // RAG retrieval is automatically wired into app.prompt().call().
-            // This step is a semantic marker — it makes the intent explicit in
+            // This step is a semantic marker -- it makes the intent explicit in
             // the chain definition. Full explicit retrieval API in Phase 8.
             next.run();
         };

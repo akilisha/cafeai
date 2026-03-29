@@ -33,13 +33,13 @@ import java.util.regex.Pattern;
  */
 public final class Template {
 
-    // Matches {{variableName}} — variable names are word characters
+    // Matches {{variableName}} -- variable names are word characters
     private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{(\\w+)\\}\\}");
 
     private final String name;
     private final String body;
 
-    /** Package-private — constructed by CafeAIApp */
+    /** Package-private -- constructed by CafeAIApp */
     public Template(String name, String body) {
         this.name = name;
         this.body = body;
@@ -55,7 +55,7 @@ public final class Template {
      * Renders the template by substituting all {@code {{variable}}} placeholders
      * with values from the given map.
      *
-     * <p>Variables present in the template but absent from the map are left as-is —
+     * <p>Variables present in the template but absent from the map are left as-is --
      * this allows partial rendering. Variables present in the map but absent from
      * the template are silently ignored.
      *
@@ -81,7 +81,7 @@ public final class Template {
      * Renders the template, throwing {@link TemplateException} for any
      * {@code {{variable}}} placeholder that is not present in {@code vars}.
      *
-     * <p>Use this variant when all variables are required — it fails fast
+     * <p>Use this variant when all variables are required -- it fails fast
      * rather than sending a half-rendered prompt to the LLM.
      *
      * @param vars variable names and their string values

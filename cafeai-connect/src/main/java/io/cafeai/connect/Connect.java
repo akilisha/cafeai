@@ -12,16 +12,16 @@ import java.util.*;
  *
  * <p>Two responsibilities:
  * <ol>
- *   <li>{@link #fromEnv()} — reads {@code CAFEAI_*} environment variables and
+ *   <li>{@link #fromEnv()} -- reads {@code CAFEAI_*} environment variables and
  *       returns a list of configured {@link Connection}s. Pass each to
  *       {@code app.connect()} or register them all at once.</li>
- *   <li>{@link #healthCheck(CafeAI)} — returns a middleware that probes all
+ *   <li>{@link #healthCheck(CafeAI)} -- returns a middleware that probes all
  *       registered connections and reports their status.</li>
  * </ol>
  *
  * <pre>{@code
- *   // Environment-driven — docker-compose, Kubernetes, .env file,
- *   // CI pipeline — all the same to CafeAI:
+ *   // Environment-driven -- docker-compose, Kubernetes, .env file,
+ *   // CI pipeline -- all the same to CafeAI:
  *   var app = CafeAI.create();
  *   Connect.fromEnv().forEach(app::connect);
  *
@@ -38,7 +38,7 @@ public final class Connect {
     /**
      * Reads environment variables and returns configured {@link Connection}s.
      *
-     * <p>Each variable is optional — absent variables are silently skipped.
+     * <p>Each variable is optional -- absent variables are silently skipped.
      * The returned connections still need to be passed to {@code app.connect()},
      * which is where probing and registration happen.
      *
@@ -56,13 +56,13 @@ public final class Connect {
      *   CAFEAI_MCP_SERVERS    comma-separated MCP server URLs
      * </pre>
      *
-     * @return ordered list of configured connections — may be empty if no
+     * @return ordered list of configured connections -- may be empty if no
      *         relevant environment variables are set
      */
     public static List<Connection> fromEnv() {
         List<Connection> connections = new ArrayList<>();
 
-        // ── AI provider ───────────────────────────────────────────────────────
+        // -- AI provider -------------------------------------------------------
         String provider = env("CAFEAI_AI_PROVIDER");
         String model    = env("CAFEAI_AI_MODEL");
 
@@ -72,16 +72,16 @@ public final class Connect {
             connections.add(Ollama.at(base).model(m));
             log.debug("fromEnv: Ollama({}) model={}", base, m);
         }
-        // OpenAI and Anthropic have no separate process to probe —
+        // OpenAI and Anthropic have no separate process to probe --
         // they're cloud APIs. Registered directly, not via Connection.
 
-        // ── Memory ────────────────────────────────────────────────────────────
+        // -- Memory ------------------------------------------------------------
         String memory = env("CAFEAI_MEMORY");
         if ("redis".equalsIgnoreCase(memory)) {
             connections.add(buildRedisConnection());
         }
 
-        // ── Vector DB ─────────────────────────────────────────────────────────
+        // -- Vector DB ---------------------------------------------------------
         String vectorDb = env("CAFEAI_VECTOR_DB");
         if ("pgvector".equalsIgnoreCase(vectorDb)) {
             String url = env("DATABASE_URL");
@@ -89,11 +89,11 @@ public final class Connect {
                 connections.add(PgVector.at(url));
                 log.debug("fromEnv: PgVector({})", url);
             } else {
-                log.warn("CAFEAI_VECTOR_DB=pgvector but DATABASE_URL is not set — skipping");
+                log.warn("CAFEAI_VECTOR_DB=pgvector but DATABASE_URL is not set -- skipping");
             }
         }
 
-        // ── MCP servers ───────────────────────────────────────────────────────
+        // -- MCP servers -------------------------------------------------------
         String mcpServers = env("CAFEAI_MCP_SERVERS");
         if (mcpServers != null) {
             for (String url : mcpServers.split(",")) {
@@ -162,7 +162,7 @@ public final class Connect {
         };
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // -- Private helpers -------------------------------------------------------
 
     private static Redis buildRedisConnection() {
         String redisUrl = env("REDIS_URL");

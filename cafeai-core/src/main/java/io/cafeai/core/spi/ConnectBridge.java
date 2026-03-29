@@ -9,8 +9,8 @@ import io.cafeai.core.CafeAI;
  *
  * <p>The {@code Connection} type lives in {@code cafeai-connect}, which
  * depends on {@code cafeai-core}. So {@code cafeai-core} cannot import
- * {@code Connection} directly. This SPI bridge — registered via
- * {@link java.util.ServiceLoader} — is the seam.
+ * {@code Connection} directly. This SPI bridge -- registered via
+ * {@link java.util.ServiceLoader} -- is the seam.
  *
  * <p>Registered via:
  * {@code META-INF/services/io.cafeai.core.spi.ConnectBridge}

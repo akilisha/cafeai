@@ -66,7 +66,7 @@ public final class PgVector implements Connection {
     @Override
     public void register(CafeAI app) {
         try {
-            // PgVectorStore lives in cafeai-rag — use reflection to avoid circular dep
+            // PgVectorStore lives in cafeai-rag -- use reflection to avoid circular dep
             Class<?> configClass = Class.forName("io.cafeai.rag.PgVectorConfig");
             Object config = username != null
                 ? configClass.getMethod("of", String.class, String.class, String.class)
@@ -76,7 +76,7 @@ public final class PgVector implements Connection {
             Class<?> pgClass = Class.forName("io.cafeai.rag.PgVector");
             Object store = pgClass.getMethod("connect", configClass).invoke(null, config);
             app.vectordb(store);
-            log.info("Connected: {} → registered as vector store", name());
+            log.info("Connected: {} -> registered as vector store", name());
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(
                 "PgVector connection requires cafeai-rag on the classpath. " +

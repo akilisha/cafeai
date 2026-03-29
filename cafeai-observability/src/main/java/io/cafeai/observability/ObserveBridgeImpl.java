@@ -84,13 +84,13 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         }
     }
 
-    // ── Console output ────────────────────────────────────────────────────────
+    // -- Console output --------------------------------------------------------
 
     private static void writeConsole(PromptRequest request,
                                      PromptResponse response,
                                      Throwable error, long latencyMs) {
         StringBuilder sb = new StringBuilder();
-        sb.append("\n── LLM Call ──────────────────────────────────\n");
+        sb.append("\n-- LLM Call ------------------------------------------\n");
 
         if (error != null) {
             sb.append("  ERROR: ").append(error.getClass().getSimpleName())
@@ -116,11 +116,11 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 sb.append("  cache:      hit\n");
             }
         }
-        sb.append("──────────────────────────────────────────────");
+        sb.append("------------------------------------------------------");
         log.info(sb.toString());
     }
 
-    // ── OpenTelemetry span ────────────────────────────────────────────────────
+    // -- OpenTelemetry span ----------------------------------------------------
 
     private static void writeSpan(Span span, PromptRequest request,
                                   PromptResponse response,

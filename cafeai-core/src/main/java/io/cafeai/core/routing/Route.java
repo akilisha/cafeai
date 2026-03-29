@@ -7,8 +7,8 @@ package io.cafeai.core.routing;
  * <pre>{@code
  *   app.get("/users/:id", (req, res, next) -> {
  *       Route route = req.route();
- *       // route.path()   → "/users/:id"
- *       // route.method() → "GET"
+ *       // route.path()   -> "/users/:id"
+ *       // route.method() -> "GET"
  *   });
  * }</pre>
  */

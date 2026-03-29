@@ -46,7 +46,7 @@ import java.util.LinkedHashMap;
 /**
  * Factory for CafeAI's built-in middleware implementations.
  *
- * <p><strong>Internal implementation — do not reference directly.</strong>
+ * <p><strong>Internal implementation -- do not reference directly.</strong>
  * Always access via {@link io.cafeai.core.middleware.Middleware} or
  * {@link io.cafeai.core.CafeAI} factory methods.
  * Public only because Java package-private cannot cross package boundaries without JPMS.
@@ -64,7 +64,7 @@ public final class BuiltInMiddleware {
 
     private BuiltInMiddleware() {}
 
-    // ── JSON Body Parser (ROADMAP-01 Phase 2) ─────────────────────────────────
+    // -- JSON Body Parser (ROADMAP-01 Phase 2) ---------------------------------
 
     /**
      * Fully implemented JSON body parser.
@@ -72,7 +72,7 @@ public final class BuiltInMiddleware {
      * <p>Behaviour matches Express {@code express.json()} exactly:
      * <ul>
      *   <li>Only parses when {@code Content-Type} matches {@code options.type()}</li>
-     *   <li>Enforces {@code options.limit()} — returns 413 on oversize</li>
+     *   <li>Enforces {@code options.limit()} -- returns 413 on oversize</li>
      *   <li>When {@code strict=true}, rejects JSON primitives at root with 400</li>
      *   <li>Returns empty body map (not null) when Content-Type doesn't match</li>
      *   <li>Inflates gzip/deflate when {@code inflate=true}</li>
@@ -141,7 +141,7 @@ public final class BuiltInMiddleware {
         return jsonBody(JsonOptions.defaults());
     }
 
-    // ── Raw Body Parser (ROADMAP-01 Phase 3) ──────────────────────────────────
+    // -- Raw Body Parser (ROADMAP-01 Phase 3) ----------------------------------
 
     /**
      * Raw byte body parser. Parses body into {@code byte[]} accessible via
@@ -179,7 +179,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── Text Body Parser ───────────────────────────────────────────────────────
+    // -- Text Body Parser -------------------------------------------------------
 
     /**
      * Plain text body parser. Parses body into {@code String} accessible via
@@ -223,10 +223,10 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── CORS ──────────────────────────────────────────────────────────────────
+    // -- CORS ------------------------------------------------------------------
 
     /**
-     * Permissive CORS middleware — all origins, all methods.
+     * Permissive CORS middleware -- all origins, all methods.
      * Full options support in ROADMAP-06 Phase 3.
      */
     public static Middleware cors() {
@@ -244,7 +244,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── Request Logger ────────────────────────────────────────────────────────
+    // -- Request Logger --------------------------------------------------------
 
     /** Structured request/response logging. */
     public static Middleware requestLogger() {
@@ -259,7 +259,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── Rate Limiter ──────────────────────────────────────────────────────────
+    // -- Rate Limiter ----------------------------------------------------------
 
     /** Per-IP sliding window rate limiter. */
     public static Middleware rateLimit(int requestsPerMinute) {
@@ -288,7 +288,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── Token Budget ──────────────────────────────────────────────────────────
+    // -- Token Budget ----------------------------------------------------------
 
     /** Per-session LLM token budget enforcer. */
     public static Middleware tokenBudget(int maxTokensPerSession) {
@@ -310,9 +310,9 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── URL-Encoded Body Parser (ROADMAP-01 Phase 7) ──────────────────────────
+    // -- URL-Encoded Body Parser (ROADMAP-01 Phase 7) --------------------------
 
-    // ── Multipart Body Parser (ROADMAP-01 Phase 2 extension) ──────────────────
+    // -- Multipart Body Parser (ROADMAP-01 Phase 2 extension) ------------------
 
     /**
      * Parses {@code multipart/form-data} request bodies.
@@ -323,7 +323,7 @@ public final class BuiltInMiddleware {
      * {@code req.body()}.
      *
      * <p>Implements RFC 2046 multipart boundary parsing directly over the raw
-     * request bytes — no dependency on Helidon's media layer.
+     * request bytes -- no dependency on Helidon's media layer.
      */
     public static Middleware multipartBody(long maxSizeBytes) {
         return (req, res, next) -> {
@@ -382,7 +382,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    /** Convenience overload — 10 MB default part size limit. */
+    /** Convenience overload -- 10 MB default part size limit. */
     public static Middleware multipart() {
         return multipartBody(10L * 1024 * 1024); // 10 MB
     }
@@ -569,10 +569,10 @@ public final class BuiltInMiddleware {
                         : "";
 
                     if (options.extended() && key.contains("[")) {
-                        // nested bracket notation: a[b][c]=v → {a: {b: {c: v}}}
+                        // nested bracket notation: a[b][c]=v -> {a: {b: {c: v}}}
                         parseBracketKey(body, key, value);
                     } else {
-                        // flat: multiple values for same key → List
+                        // flat: multiple values for same key -> List
                         body.merge(key, value, (existing, v) -> {
                             if (existing instanceof List) {
                                 @SuppressWarnings("unchecked")
@@ -610,7 +610,7 @@ public final class BuiltInMiddleware {
      */
     @SuppressWarnings("unchecked")
     private static void parseBracketKey(Map<String, Object> body, String key, String value) {
-        // Extract segments: "user[name]" → ["user", "name"]
+        // Extract segments: "user[name]" -> ["user", "name"]
         List<String> parts = new ArrayList<>();
         int i = key.indexOf('[');
         if (i < 0) { body.put(key, value); return; }
@@ -632,7 +632,7 @@ public final class BuiltInMiddleware {
         current.put(parts.get(parts.size() - 1), value);
     }
 
-    // ── Static File Server (ROADMAP-01 Phase 5) ───────────────────────────────
+    // -- Static File Server (ROADMAP-01 Phase 5) -------------------------------
 
     /**
      * Serves static files from {@code root} directory with full Express-parity options.
@@ -643,7 +643,7 @@ public final class BuiltInMiddleware {
      *   <li>Cache-Control / max-age headers</li>
      *   <li>Last-Modified header and validation</li>
      *   <li>index.html fallback for directory requests</li>
-     *   <li>Extension fallback ({@code /page} → {@code /page.html})</li>
+     *   <li>Extension fallback ({@code /page} -> {@code /page.html})</li>
      *   <li>Dotfile protection per {@link StaticOptions.Dotfiles}</li>
      *   <li>{@code fallthrough=true} calls {@code next()} on 404 instead of responding</li>
      * </ul>
@@ -691,7 +691,7 @@ public final class BuiltInMiddleware {
                 }
             }
 
-            // Directory → index file fallback
+            // Directory -> index file fallback
             if (Files.isDirectory(target)) {
                 if (options.redirect() && !urlPath.endsWith("/")) {
                     res.redirect(urlPath + "/");
@@ -702,7 +702,7 @@ public final class BuiltInMiddleware {
                 }
             }
 
-            // Extension fallback: /page → /page.html
+            // Extension fallback: /page -> /page.html
             if (!Files.exists(target) && !options.extensions().isEmpty()) {
                 for (String ext : options.extensions()) {
                     Path candidate = Paths.get(
@@ -714,7 +714,7 @@ public final class BuiltInMiddleware {
                 }
             }
 
-            // 404 — file still not found
+            // 404 -- file still not found
             if (!Files.exists(target) || Files.isDirectory(target)) {
                 if (options.fallthrough()) { next.run(); } else { res.status(404).send("Not Found"); }
                 return;
@@ -771,14 +771,14 @@ public final class BuiltInMiddleware {
                 String fileName = target.getFileName().toString();
                 res.type(detectMimeType(fileName));
 
-                // HEAD — headers only, no body
+                // HEAD -- headers only, no body
                 if ("HEAD".equalsIgnoreCase(method)) {
                     res.set("Content-Length", String.valueOf(fileSize));
                     res.status(200).end();
                     return;
                 }
 
-                // GET — send file bytes
+                // GET -- send file bytes
                 byte[] bytes = Files.readAllBytes(target);
                 res.send(bytes);
 
@@ -822,7 +822,7 @@ public final class BuiltInMiddleware {
         };
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    // -- Internal helpers ------------------------------------------------------
 
     /**
      * Reads the full request body from Helidon, enforcing a size limit and
@@ -849,7 +849,7 @@ public final class BuiltInMiddleware {
             }
         }
 
-        // Read with limit enforcement — read one byte past limit to detect oversize
+        // Read with limit enforcement -- read one byte past limit to detect oversize
         byte[] buffer = new byte[8192];
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         long totalRead = 0;
@@ -895,7 +895,7 @@ public final class BuiltInMiddleware {
     /**
      * Extracts charset from {@code Content-Type} header value.
      * Falls back to {@code defaultCharset} if not specified.
-     * Example: {@code "text/plain; charset=ISO-8859-1"} → {@code ISO-8859-1}
+     * Example: {@code "text/plain; charset=ISO-8859-1"} -> {@code ISO-8859-1}
      */
     private static Charset detectCharset(String contentType, Charset defaultCharset) {
         for (String part : contentType.split(";")) {

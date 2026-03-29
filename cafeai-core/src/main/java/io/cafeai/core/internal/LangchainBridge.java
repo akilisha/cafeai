@@ -15,19 +15,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * Internal factory that converts a CafeAI {@link AiProvider} into a Langchain4j
  * {@link ChatLanguageModel}.
  *
- * <p><strong>Internal — never referenced by application code.</strong>
+ * <p><strong>Internal -- never referenced by application code.</strong>
  * Public only so that {@code io.cafeai.core.ai.Ollama} can implement
  * {@link OllamaProviderAccess} and tests can implement {@link ChatLanguageModelAccess}.
- * Both nested interfaces are load-bearing extension points — do not remove.
+ * Both nested interfaces are load-bearing extension points -- do not remove.
  *
- * <p>Models are cached per {@link AiProvider} identity after first creation —
+ * <p>Models are cached per {@link AiProvider} identity after first creation --
  * Langchain4j model objects are thread-safe and expensive to construct.
  */
 public final class LangchainBridge {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
 
-    // Cache keyed by provider identity (name + modelId) — models are thread-safe
+    // Cache keyed by provider identity (name + modelId) -- models are thread-safe
     private final Map<String, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
 
     private LangchainBridge() {}
@@ -39,7 +39,7 @@ public final class LangchainBridge {
      * caching it on first access.
      *
      * <p>If the provider implements {@link ChatLanguageModelAccess}, its model
-     * is used directly — this is the test seam for mock providers.
+     * is used directly -- this is the test seam for mock providers.
      *
      * @throws IllegalArgumentException if the provider type is not supported
      */

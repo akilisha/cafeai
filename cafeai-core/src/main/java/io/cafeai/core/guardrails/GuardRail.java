@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Ethical, regulatory, and safety guardrails for CafeAI.
  *
- * <p>Guardrails are middleware — composable, testable, replaceable.
+ * <p>Guardrails are middleware -- composable, testable, replaceable.
  * They sit in the pipeline at {@code PRE_LLM}, {@code POST_LLM}, or both.
  * In regulated industries, guardrails are first-class architectural requirements.
  * CafeAI treats them as such (ADR-002).
@@ -40,17 +40,17 @@ public interface GuardRail extends Middleware {
     /** Human-readable name used in observability traces and logs. */
     String name();
 
-    /** Position in the pipeline — before LLM, after LLM, or both. */
+    /** Position in the pipeline -- before LLM, after LLM, or both. */
     Position position();
 
     /** What happens when this guardrail triggers. */
     Action action();
 
-    // ── Factory Methods ───────────────────────────────────────────────────────
+    // -- Factory Methods -------------------------------------------------------
     // Each method delegates to GuardRailProvider (cafeai-guardrails) when present.
     // Without cafeai-guardrails, returns a pass-through stub with a logged warning.
 
-    /** PII detection and scrubbing — pre and post LLM. */
+    /** PII detection and scrubbing -- pre and post LLM. */
     static GuardRail pii() {
         return provider().map(p -> p.pii())
             .orElseGet(() -> warnedStub("pii", Position.BOTH));
@@ -62,7 +62,7 @@ public interface GuardRail extends Middleware {
             .orElseGet(() -> warnedStub("jailbreak", Position.PRE_LLM));
     }
 
-    /** Data-sourced prompt injection detection — checks user input and RAG documents. */
+    /** Data-sourced prompt injection detection -- checks user input and RAG documents. */
     static GuardRail promptInjection() {
         return provider().map(p -> p.promptInjection())
             .orElseGet(() -> warnedStub("prompt-injection", Position.PRE_LLM));
@@ -87,7 +87,7 @@ public interface GuardRail extends Middleware {
     }
 
     /**
-     * Regulatory compliance guardrail builder — GDPR, HIPAA, FCRA, CCPA.
+     * Regulatory compliance guardrail builder -- GDPR, HIPAA, FCRA, CCPA.
      *
      * <p>Returns a real implementation from {@code cafeai-guardrails} when
      * present, or a pass-through stub builder with a logged warning when absent.
@@ -112,7 +112,7 @@ public interface GuardRail extends Middleware {
         return new TopicBoundaryGuardRail();
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    // -- Internal helpers ------------------------------------------------------
 
     private static java.util.Optional<io.cafeai.core.spi.GuardRailProvider> provider() {
         return java.util.ServiceLoader
@@ -127,21 +127,21 @@ public interface GuardRail extends Middleware {
 
     private static void warnOnce(String name) {
         org.slf4j.LoggerFactory.getLogger(GuardRail.class).warn(
-            "GuardRail.{}() is a no-op — add 'io.cafeai:cafeai-guardrails' " +
+            "GuardRail.{}() is a no-op -- add 'io.cafeai:cafeai-guardrails' " +
             "to your dependencies to activate real guardrail enforcement.", name);
     }
 
-    // ── Enums ─────────────────────────────────────────────────────────────────
+    // -- Enums -----------------------------------------------------------------
 
     enum Position { PRE_LLM, POST_LLM, BOTH }
 
     enum Action   { BLOCK, WARN, LOG }
 
-    // ── Pass-through stub (used when cafeai-guardrails is absent) ─────────────
+    // -- Pass-through stub (used when cafeai-guardrails is absent) -------------
 
     /**
      * Pass-through stub returned when {@code cafeai-guardrails} is not on the
-     * classpath. Does nothing — all requests pass through unchecked.
+     * classpath. Does nothing -- all requests pass through unchecked.
      * A warning is logged once when the stub is created.
      */
     record StubGuardRail(String name, Position position) implements GuardRail {
@@ -153,11 +153,11 @@ public interface GuardRail extends Middleware {
 
         @Override
         public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through — cafeai-guardrails not on classpath
+            next.run(); // pass-through -- cafeai-guardrails not on classpath
         }
     }
 
-    // ── Stub builder classes (used when cafeai-guardrails is absent) ──────────
+    // -- Stub builder classes (used when cafeai-guardrails is absent) ----------
 
     /**
      * Pass-through regulatory guardrail builder.
@@ -179,7 +179,7 @@ public interface GuardRail extends Middleware {
 
         @Override
         public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through — cafeai-guardrails not on classpath
+            next.run(); // pass-through -- cafeai-guardrails not on classpath
         }
     }
 
@@ -207,7 +207,7 @@ public interface GuardRail extends Middleware {
 
         @Override
         public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through — cafeai-guardrails not on classpath
+            next.run(); // pass-through -- cafeai-guardrails not on classpath
         }
     }
 }

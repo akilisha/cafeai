@@ -21,7 +21,7 @@ public final class CafeAIConnectModule implements CafeAIModule {
     @Override
     public void register(CafeAIRegistry registry) {
         // Connections are registered per-instance via app.connect().
-        // No factory registration needed — each Connection implementation
+        // No factory registration needed -- each Connection implementation
         // is self-contained and carries its own probe + register logic.
     }
 }
