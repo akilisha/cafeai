@@ -59,8 +59,8 @@ public final class CafeAIConnectBridge implements ConnectBridge {
         List<Object> connections = (List<Object>) app.local(Locals.CONNECTIONS);
         if (connections == null) {
             connections = new ArrayList<>();
-            app.locals().put(Locals.CONNECTIONS, connections);
         }
         connections.add(connection);
+        app.local(Locals.CONNECTIONS, connections);
     }
 }
