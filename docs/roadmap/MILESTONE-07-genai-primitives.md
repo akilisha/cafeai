@@ -3,7 +3,7 @@
 **Roadmap:** ROADMAP-07
 **Module:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`
 **Started:** March 2026
-**Current Status:** 🟡 In Progress (Phases 1–7 complete · Phases 8–10 deferred pending observability foundation)
+**Current Status:** 🟢 Complete (Phases 1–7, 9–10 done · Phase 8 deferred to separate roadmap)
 
 ---
 
@@ -19,8 +19,8 @@
 | Phase 6 | `app.chain()` — named composable pipelines | `cafeai-core` | 🟢 Complete | March 2026 |
 | Phase 7 | `app.guard()` — guardrails as middleware | `cafeai-guardrails` | 🟢 Complete | March 2026 |
 | Phase 8 | `app.agent()` + `app.orchestrate()` | `cafeai-agents` | 🔵 Deferred | Follows observability |
-| Phase 9 | `app.observe()` + `app.eval()` | `cafeai-observability` | 🔴 Not Started | — |
-| Phase 10 | Security layer | `cafeai-security` | 🔴 Not Started | — |
+| Phase 9 | `app.observe()` + `app.eval()` | `cafeai-observability` | 🟢 Complete | March 2026 |
+| Phase 10 | Security layer | `cafeai-security` | 🟢 Complete | March 2026 |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised
 
@@ -216,3 +216,18 @@ See ADR-008 and Developer Guide Section 17 for full documentation.
 | Phase 7 complete | — | March 2026 | Real guardrail implementations |
 | cafeai-connect pivot | — | March 2026 | Architecture decision — see ADR-008 |
 | Phases 8–10 | TBD | — | Agents, observability, security |
+
+---
+
+**Phase 9 — Observability (March 2026)**
+
+- `ObserveBridge` SPI in `cafeai-core` — minimal before/after intercept; opaque context object carries strategy state
+- `app.observe(Object)` and `app.eval(Object)` on `CafeAI` interface and `CafeAIApp`
+- `executePrompt()` instrumented with try/finally — `beforePrompt()` before LLM call, `afterPrompt()` in finally on both success and error paths
+- `ObserveStrategy` — public API interface with two factory methods: `console()` and `otel()`
+- `ConsoleObserveStrategy` — structured per-call output: model, tokens, latency, RAG docs retrieved, cache hit
+- `OtelObserveStrategy` — OpenTelemetry span per LLM call; attributes: `cafeai.model`, `cafeai.prompt_tokens`, `cafeai.completion_tokens`, `cafeai.total_tokens`, `cafeai.latency_ms`, `cafeai.session_id`, `cafeai.rag_docs_retrieved`, `cafeai.cache_hit`, `cafeai.error`
+- `ObserveBridgeImpl` — ServiceLoader implementation dispatching to the registered strategy
+- `EvalHarness.defaults()` — three heuristic scores per RAG response: faithfulness, relevance, groundedness; word-overlap based, zero-cost, continuous
+- `CafeAIObservabilityModule` — self-registration; `ObserveBridgeImpl` registered in `META-INF/services`
+- OTel uses global `OpenTelemetry` instance — CafeAI does not manage SDK lifecycle; configure exporter externally

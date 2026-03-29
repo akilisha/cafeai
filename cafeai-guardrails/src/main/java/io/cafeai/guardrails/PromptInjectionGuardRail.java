@@ -107,12 +107,10 @@ public final class PromptInjectionGuardRail extends AbstractGuardRail {
 
     private boolean isInjection(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        int hits = 0;
         for (Pattern p : INJECTION_PATTERNS) {
-            if (p.matcher(lower).find()) hits++;
+            if (p.matcher(lower).find()) return true;
         }
-        return (double) hits / INJECTION_PATTERNS.size() >= threshold
-            || hits >= 2; // Two or more patterns = high confidence regardless of threshold
+        return false;
     }
 
     private static String extractText(Request req) {

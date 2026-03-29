@@ -85,27 +85,33 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
     @Override
     protected CheckResult checkInput(String input) {
         String lower = input.toLowerCase(Locale.ROOT);
-        double score = score(lower);
+        double maxHit = 0.0;
+        String topPattern = null;
 
-        if (score >= threshold) {
+        for (WeightedPattern wp : PATTERNS) {
+            if (wp.pattern().matcher(lower).find() && wp.weight() > maxHit) {
+                maxHit = wp.weight();
+                topPattern = wp.pattern().pattern().substring(0, Math.min(40, wp.pattern().pattern().length()));
+            }
+        }
+
+        if (maxHit >= threshold) {
             return CheckResult.block(
                 String.format("Potential jailbreak attempt detected (confidence %.0f%%)",
-                    score * 100),
-                score);
+                    maxHit * 100),
+                maxHit);
         }
         return CheckResult.pass();
     }
 
     private static double score(String text) {
-        double total = 0.0;
-        double max   = 0.0;
+        double max = 0.0;
         for (WeightedPattern wp : PATTERNS) {
-            max += wp.weight();
-            if (wp.pattern().matcher(text).find()) {
-                total += wp.weight();
+            if (wp.pattern().matcher(text).find() && wp.weight() > max) {
+                max = wp.weight();
             }
         }
-        return max > 0 ? total / max : 0.0;
+        return max;
     }
 
     private static WeightedPattern wp(double weight, String regex) {

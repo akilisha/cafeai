@@ -69,6 +69,13 @@
     - [19.4 Guardrail position](#194-guardrail-position)
     - [19.5 Guardrail violations](#195-guardrail-violations)
     - [19.6 Composing guardrails](#196-composing-guardrails)
+20. [Observability — Tracing, Metrics, and Eval](#20-observability--tracing-metrics-and-eval)
+    - [20.1 Why observability matters](#201-why-observability-matters-for-llm-applications)
+    - [20.2 Adding cafeai-observability](#202-adding-cafeai-observability)
+    - [20.3 Console strategy](#203-console-strategy--development)
+    - [20.4 OpenTelemetry strategy](#204-opentelemetry-strategy--production)
+    - [20.5 Eval harness](#205-eval-harness--automatic-quality-scoring)
+    - [20.6 Combining observation and eval](#206-combining-observation-and-eval)
 
 ---
 
@@ -2089,3 +2096,156 @@ Middleware safetyStack = GuardRail.pii()
 
 app.post("/chat", safetyStack, myHandler);
 ```
+
+---
+
+## 20. Observability — Tracing, Metrics, and Eval
+
+### 20.1 Why observability matters for LLM applications
+
+An LLM call is not like a database query. The response is non-deterministic. Token costs vary per call. Retrieval quality affects answer quality. Guardrails may or may not trigger. Without instrumentation, you are running blind in production.
+
+`cafeai-observability` makes every `app.prompt().call()` a first-class observed event — zero application code changes required.
+
+### 20.2 Adding cafeai-observability
+
+```groovy
+dependencies {
+    implementation 'io.cafeai:cafeai-core'
+    implementation 'io.cafeai:cafeai-observability'
+}
+```
+
+Without the module, `app.observe()` throws `IllegalStateException` with the exact dependency to add. Nothing else changes.
+
+### 20.3 Console strategy — development
+
+`ObserveStrategy.console()` writes structured output per LLM call. Use it locally and in CI where you want readable traces without running an observability stack.
+
+```java
+app.observe(ObserveStrategy.console());
+```
+
+Output per call:
+```
+── LLM Call ──────────────────────────────────
+  model:      gpt-4o
+  session:    user-abc123
+  tokens:     241 prompt + 87 completion = 328 total
+  latency:    1,243ms
+  rag docs:   3 retrieved
+──────────────────────────────────────────────
+```
+
+### 20.4 OpenTelemetry strategy — production
+
+`ObserveStrategy.otel()` creates an OpenTelemetry span per LLM call, exported to whatever backend you configure — Jaeger, Zipkin, Grafana Tempo, Honeycomb, Datadog, or any OTLP-compatible collector.
+
+```java
+app.observe(ObserveStrategy.otel());
+```
+
+CafeAI uses the global `OpenTelemetry` instance. Configure your SDK and exporter via standard OTel SDK configuration — CafeAI does not manage the SDK lifecycle. A minimal setup:
+
+```java
+// Configure OTel before app.observe() — e.g. export to a local OTLP collector
+SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+    .addSpanProcessor(BatchSpanProcessor.builder(
+        OtlpGrpcSpanExporter.builder()
+            .setEndpoint("http://otel-collector:4317")
+            .build())
+        .build())
+    .build();
+
+OpenTelemetrySdk.builder()
+    .setTracerProvider(tracerProvider)
+    .buildAndRegisterGlobal();
+
+// Now register the strategy
+var app = CafeAI.create();
+app.observe(ObserveStrategy.otel());
+```
+
+Span attributes recorded per call:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `cafeai.model` | string | Model ID that generated the response |
+| `cafeai.prompt_tokens` | int | Tokens in the prompt |
+| `cafeai.completion_tokens` | int | Tokens in the response |
+| `cafeai.total_tokens` | int | Sum of prompt + completion tokens |
+| `cafeai.latency_ms` | long | Wall-clock latency in milliseconds |
+| `cafeai.session_id` | string | Session ID if present |
+| `cafeai.rag_docs_retrieved` | int | Number of RAG documents retrieved |
+| `cafeai.cache_hit` | boolean | Whether response came from cache |
+| `cafeai.error` | string | Error class name if the call failed |
+
+### 20.5 Eval harness — automatic quality scoring
+
+`EvalHarness.defaults()` automatically scores every RAG-augmented response on three dimensions. Register it alongside an observation strategy:
+
+```java
+app.observe(ObserveStrategy.otel());
+app.eval(EvalHarness.defaults());
+```
+
+After each call, scores are available in `req.attribute(Attributes.EVAL_SCORES)`:
+
+```java
+app.post("/ask", (req, res, next) -> {
+    PromptResponse response = app.prompt(req.body("question")).call();
+
+    @SuppressWarnings("unchecked")
+    Map<String, Double> scores = (Map<String, Double>)
+        req.attribute(Attributes.EVAL_SCORES);
+
+    res.json(Map.of(
+        "answer",       response.text(),
+        "faithfulness", scores != null ? scores.get("faithfulness") : null,
+        "relevance",    scores != null ? scores.get("relevance")    : null,
+        "groundedness", scores != null ? scores.get("groundedness") : null
+    ));
+});
+```
+
+The three scores:
+
+| Score | Range | Meaning |
+|---|---|---|
+| `faithfulness` | 0.0–1.0 | Does the answer stay within the retrieved context? High = no hallucination relative to documents |
+| `relevance` | 0.0–1.0 | Does the answer address the question? Measured by keyword overlap |
+| `groundedness` | 0.0–1.0 | Is the answer content supported by retrieved documents? |
+
+These are heuristic scores — fast, zero-cost, and suitable for continuous production monitoring. They use word-overlap approximations, not a second LLM call. For rigorous offline evaluation, run a dedicated eval pipeline against a labelled dataset.
+
+When `app.observe(ObserveStrategy.otel())` is also active, eval scores are attached to the span as additional attributes:
+- `cafeai.eval.faithfulness`
+- `cafeai.eval.relevance`
+- `cafeai.eval.groundedness`
+
+### 20.6 Combining observation and eval
+
+```java
+var app = CafeAI.create();
+
+// AI infrastructure
+app.ai(OpenAI.gpt4o());
+app.vectordb(VectorStore.inMemory());
+app.embed(EmbeddingModel.local());
+app.rag(Retriever.semantic(5));
+app.ingest(Source.pdf("docs/handbook.pdf"));
+
+// Observability — every call traced and scored
+app.observe(ObserveStrategy.otel());
+app.eval(EvalHarness.defaults());
+
+app.get("/health", Connect.healthCheck(app));
+app.post("/ask", (req, res, next) -> {
+    PromptResponse r = app.prompt(req.body("question")).call();
+    res.json(Map.of("answer", r.text()));
+});
+
+app.listen(8080);
+```
+
+That is a fully observable, RAG-augmented LLM application. Every call produces an OTel span with token counts, latency, retrieved document count, and quality scores. Zero instrumentation code in the handler.

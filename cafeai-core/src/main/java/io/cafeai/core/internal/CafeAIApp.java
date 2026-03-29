@@ -88,6 +88,10 @@ public final class CafeAIApp implements CafeAI {
     // Tool registry bridge (ROADMAP-07 Phase 5) — loaded via ServiceLoader
     private io.cafeai.core.spi.ToolBridge toolBridge;
 
+    // Observability bridge (ROADMAP-07 Phase 9) — loaded via ServiceLoader
+    private io.cafeai.core.spi.ObserveBridge observeBridge;
+    private Object evalHarness;
+
     // Named chain registry (ROADMAP-07 Phase 6)
     private final java.util.Map<String, io.cafeai.core.chain.Chain> chains =
         new java.util.concurrent.ConcurrentHashMap<>();
@@ -306,24 +310,43 @@ public final class CafeAIApp implements CafeAI {
             }
         }
 
-        // ── 4. Call the LLM ───────────────────────────────────────────────────
-        String responseText;
+        // ── 4. Call the LLM (with observability intercept) ───────────────────
+        String responseText = "";
         int promptTokens = 0;
         int outputTokens = 0;
 
-        if (toolBridge != null && toolBridge.hasTools()) {
-            // Tool-use path: delegate to the ReAct loop in cafeai-tools
-            responseText = toolBridge.executeWithTools(model, messages);
-            // Token counts not available from the tool loop aggregate — left as 0
-            // Future: accumulate across all loop iterations
-        } else {
-            // Simple path: single LLM call
-            dev.langchain4j.model.output.Response<AiMessage> response =
-                model.generate(messages);
-            responseText = response.content().text();
-            TokenUsage usage = response.tokenUsage();
-            promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
-            outputTokens  = usage != null ? usage.outputTokenCount() : 0;
+        Object observeCtx = observeBridge != null
+            ? observeBridge.beforePrompt(request) : null;
+
+        Throwable observeError = null;
+        try {
+            if (toolBridge != null && toolBridge.hasTools()) {
+                responseText = toolBridge.executeWithTools(model, messages);
+            } else {
+                dev.langchain4j.model.output.Response<AiMessage> response =
+                    model.generate(messages);
+                responseText = response.content().text();
+                TokenUsage usage = response.tokenUsage();
+                promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
+                outputTokens  = usage != null ? usage.outputTokenCount() : 0;
+            }
+        } catch (Throwable t) {
+            observeError = t;
+            throw t instanceof RuntimeException re ? re : new RuntimeException(t);
+        } finally {
+            if (observeBridge != null) {
+                PromptResponse partial = observeError == null
+                    ? PromptResponse.builder()
+                        .text(responseText)
+                        .promptTokens(promptTokens)
+                        .outputTokens(outputTokens)
+                        .modelId(provider.modelId())
+                        .fromCache(false)
+                        .ragDocuments(retrievedDocs)
+                        .build()
+                    : null;
+                observeBridge.afterPrompt(observeCtx, request, partial, observeError);
+            }
         }
 
         // ── 5. Persist to memory ──────────────────────────────────────────────
@@ -379,6 +402,32 @@ public final class CafeAIApp implements CafeAI {
         this.memoryStrategy = Objects.requireNonNull(strategy, "MemoryStrategy must not be null");
         locals.put(Locals.MEMORY_STRATEGY, strategy);
         log.info("Memory strategy registered: {}", strategy.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI observe(Object strategy) {
+        assertNotStarted("observe()");
+        Objects.requireNonNull(strategy, "ObserveStrategy must not be null");
+        // Load the bridge from the strategy — strategy carries its own bridge
+        this.observeBridge = java.util.ServiceLoader
+            .load(io.cafeai.core.spi.ObserveBridge.class)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "app.observe() requires cafeai-observability on the classpath. " +
+                "Add: implementation 'io.cafeai:cafeai-observability'"));
+        this.observeBridge.setStrategy(strategy);
+        locals.put(Locals.OBSERVE_STRATEGY, strategy);
+        log.info("Observability registered: {}", strategy.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI eval(Object harness) {
+        assertNotStarted("eval()");
+        Objects.requireNonNull(harness, "EvalHarness must not be null");
+        this.evalHarness = harness;
+        log.info("Eval harness registered: {}", harness.getClass().getSimpleName());
         return this;
     }
 

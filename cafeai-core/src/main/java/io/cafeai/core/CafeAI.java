@@ -803,6 +803,43 @@ public interface CafeAI extends Router {
     java.util.concurrent.CompletableFuture<String> render(String view,
                                                           java.util.Map<String, Object> locals);
 
+    // ── Observability (ROADMAP-07 Phase 9) ───────────────────────────────────
+
+    /**
+     * Registers an observation strategy — every LLM call becomes a traced,
+     * measured event.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-observability} on the classpath.
+     *
+     * <pre>{@code
+     *   app.observe(ObserveStrategy.console());    // development — readable output
+     *   app.observe(ObserveStrategy.otel());       // production — OpenTelemetry spans
+     * }</pre>
+     *
+     * <p>Span attributes recorded per LLM call:
+     * {@code model}, {@code prompt_tokens}, {@code completion_tokens},
+     * {@code latency_ms}, {@code rag_documents_retrieved},
+     * {@code guardrail_triggered}, {@code cache_hit}, {@code session_id}.
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI observe(Object strategy);
+
+    /**
+     * Registers an evaluation harness — every RAG response is automatically
+     * scored for faithfulness, relevance, and groundedness.
+     *
+     * <p>Eval scores are attached to OTel spans and stored in
+     * {@code req.attribute(Attributes.EVAL_SCORES)}.
+     *
+     * <pre>{@code
+     *   app.eval(EvalHarness.defaults());
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI eval(Object harness);
+
     // ── Out-of-process Connections (cafeai-connect) ───────────────────────────
 
     /**

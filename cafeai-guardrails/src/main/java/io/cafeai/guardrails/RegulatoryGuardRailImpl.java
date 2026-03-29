@@ -33,9 +33,11 @@ public final class RegulatoryGuardRailImpl extends AbstractGuardRail {
     );
 
     private static final List<RegPattern> HIPAA_PATTERNS = List.of(
-        rp("HIPAA", "(patient|medical).{0,10}(record|information|data).{0,20}(share|disclose|send)"),
-        rp("HIPAA", "(diagnosis|prescription|treatment).{0,20}(without|no).{0,10}(consent|authorization)"),
-        rp("HIPAA", "protected health information|PHI|ePHI"),
+        // Match regardless of whether "share/disclose/send" comes before or after the medical data
+        rp("HIPAA", "(share|disclose|send).{0,30}(patient|medical).{0,10}(record|information|data)"),
+        rp("HIPAA", "(patient|medical).{0,10}(record|information|data).{0,30}(share|disclose|send)"),
+        rp("HIPAA", "(diagnosis|prescription|treatment).{0,20}without.{0,10}(consent|authorization)"),
+        rp("HIPAA", "protected health information|\\bPHI\\b|\\bePHI\\b"),
         rp("HIPAA", "(SSN|social security).{0,20}(medical|health|patient)")
     );
 
@@ -59,10 +61,10 @@ public final class RegulatoryGuardRailImpl extends AbstractGuardRail {
         super(action);
     }
 
-    public RegulatoryGuardRailImpl gdpr()  { return addReg("GDPR",  GDPR_PATTERNS);  }
-    public RegulatoryGuardRailImpl hipaa() { return addReg("HIPAA", HIPAA_PATTERNS); }
-    public RegulatoryGuardRailImpl fcra()  { return addReg("FCRA",  FCRA_PATTERNS);  }
-    public RegulatoryGuardRailImpl ccpa()  { return addReg("CCPA",  CCPA_PATTERNS);  }
+    public RegulatoryGuardRailImpl gdpr()  { return addReg("gdpr",  GDPR_PATTERNS);  }
+    public RegulatoryGuardRailImpl hipaa() { return addReg("hipaa", HIPAA_PATTERNS); }
+    public RegulatoryGuardRailImpl fcra()  { return addReg("fcra",  FCRA_PATTERNS);  }
+    public RegulatoryGuardRailImpl ccpa()  { return addReg("ccpa",  CCPA_PATTERNS);  }
 
     private RegulatoryGuardRailImpl addReg(String name, List<RegPattern> regPatterns) {
         activeRegs.add(name);

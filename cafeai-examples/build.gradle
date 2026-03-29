@@ -24,6 +24,7 @@ dependencies {
     implementation project(':cafeai-observability')
     implementation project(':cafeai-security')
     implementation project(':cafeai-streaming')
+    implementation project(':cafeai-connect')
 
     // Test containers for realistic integration examples
     testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
