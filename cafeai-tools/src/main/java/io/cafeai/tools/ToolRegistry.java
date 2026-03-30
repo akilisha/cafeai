@@ -32,7 +32,7 @@ public final class ToolRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(ToolRegistry.class);
 
-    /** Maximum tool-call iterations per prompt — prevents infinite loops. */
+    /** Maximum tool-call iterations per prompt -- prevents infinite loops. */
     private static final int MAX_ITERATIONS = 10;
 
     private final Map<String, ToolDefinition> tools = new ConcurrentHashMap<>();
@@ -99,7 +99,7 @@ public final class ToolRegistry {
             AiMessage aiMessage = response.content();
             messages.add(aiMessage);
 
-            // No tool calls — LLM produced a final text answer
+            // No tool calls -- LLM produced a final text answer
             if (!aiMessage.hasToolExecutionRequests()) {
                 return aiMessage.text() != null ? aiMessage.text() : "";
             }
@@ -114,7 +114,7 @@ public final class ToolRegistry {
             }
         }
 
-        log.warn("Tool loop reached max iterations ({}) — returning last response",
+        log.warn("Tool loop reached max iterations ({}) -- returning last response",
             MAX_ITERATIONS);
         // Return whatever the last AI message said
         for (int i = messages.size() - 1; i >= 0; i--) {
@@ -141,7 +141,7 @@ public final class ToolRegistry {
 
     /**
      * Parses tool arguments from the JSON string the LLM produces.
-     * Simple key→positional mapping — no full JSON parser needed for
+     * Simple key->positional mapping -- no full JSON parser needed for
      * string/number/boolean parameter types.
      */
     private static Object[] parseArguments(String json,
@@ -171,7 +171,7 @@ public final class ToolRegistry {
     private List<ToolSpecification> buildSpecifications() {
         List<ToolSpecification> specs = new ArrayList<>();
         for (ToolDefinition def : tools.values()) {
-            // Build JSON schema for parameters manually — avoids ToolParameters
+            // Build JSON schema for parameters manually -- avoids ToolParameters
             // builder API differences across langchain4j versions.
             var properties = new com.fasterxml.jackson.databind.node.ObjectNode(
                 com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);

@@ -215,7 +215,7 @@ class GuardRailTest {
         @Test
         @DisplayName("On-topic question passes through")
         void onTopic_passes() {
-            TopicBoundaryGuardRailImpl guardrail = new TopicBoundaryGuardRailImpl()
+            var guardrail = new TopicBoundaryGuardRailImpl()
                 .allow("loan", "mortgage", "credit", "income", "debt");
 
             assertThat(runGuardRail(guardrail, "What is the minimum credit score for a mortgage loan?"))
@@ -225,7 +225,7 @@ class GuardRailTest {
         @Test
         @DisplayName("Off-topic question is blocked when allow list set")
         void offTopic_blocked() {
-            TopicBoundaryGuardRailImpl guardrail = new TopicBoundaryGuardRailImpl()
+            var guardrail = new TopicBoundaryGuardRailImpl()
                 .allow("loan", "mortgage", "credit", "income", "debt");
 
             assertThat(runGuardRail(guardrail, "What is the weather like today?"))
@@ -235,7 +235,7 @@ class GuardRailTest {
         @Test
         @DisplayName("Explicitly denied topic is blocked")
         void deniedTopic_blocked() {
-            TopicBoundaryGuardRailImpl guardrail = new TopicBoundaryGuardRailImpl()
+            var guardrail = new TopicBoundaryGuardRailImpl()
                 .deny("politics", "religion");
 
             assertThat(runGuardRail(guardrail, "What do you think about politics?"))
@@ -245,7 +245,7 @@ class GuardRailTest {
         @Test
         @DisplayName("No restrictions configured — all input passes")
         void noRestrictions_allPass() {
-            TopicBoundaryGuardRailImpl guardrail = new TopicBoundaryGuardRailImpl();
+            var guardrail = new TopicBoundaryGuardRailImpl();
 
             assertThat(runGuardRail(guardrail, "Anything goes here")).isTrue();
         }
@@ -260,7 +260,7 @@ class GuardRailTest {
         @Test
         @DisplayName("Clean content passes through")
         void cleanContent_passes() {
-            RegulatoryGuardRailImpl guardrail = new RegulatoryGuardRailImpl().gdpr().hipaa();
+            var guardrail = new RegulatoryGuardRailImpl().gdpr().hipaa();
 
             assertThat(runGuardRail(guardrail,
                 "What documents do I need to apply for a mortgage?"))
@@ -270,7 +270,7 @@ class GuardRailTest {
         @Test
         @DisplayName("HIPAA — patient data disclosure is blocked")
         void hipaa_patientData_blocked() {
-            RegulatoryGuardRailImpl guardrail = new RegulatoryGuardRailImpl().hipaa();
+            var guardrail = new RegulatoryGuardRailImpl().hipaa();
 
             assertThat(runGuardRail(guardrail,
                 "Share patient medical records without consent"))
@@ -280,7 +280,7 @@ class GuardRailTest {
         @Test
         @DisplayName("GDPR — personal data export without consent is blocked")
         void gdpr_dataExport_blocked() {
-            RegulatoryGuardRailImpl guardrail = new RegulatoryGuardRailImpl().gdpr();
+            var guardrail = new RegulatoryGuardRailImpl().gdpr();
 
             assertThat(runGuardRail(guardrail,
                 "Process personal data transfer outside EU without consent"))
@@ -290,7 +290,7 @@ class GuardRailTest {
         @Test
         @DisplayName("Regulatory name includes active regulations")
         void name_includesActiveRegs() {
-            RegulatoryGuardRailImpl guardrail = new RegulatoryGuardRailImpl().gdpr().hipaa();
+            var guardrail = new RegulatoryGuardRailImpl().gdpr().hipaa();
 
             assertThat(guardrail.name())
                 .contains("gdpr")

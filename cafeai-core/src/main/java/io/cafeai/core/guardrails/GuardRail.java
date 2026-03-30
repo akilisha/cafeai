@@ -164,8 +164,10 @@ public interface GuardRail extends Middleware {
      * Fluent API is preserved so application code compiles regardless of
      * whether {@code cafeai-guardrails} is present. Enforcement is a no-op
      * without the module.
+     *
+     * <p>Non-final so {@code cafeai-guardrails} can extend this with real enforcement.
      */
-    final class RegulatoryGuardRail implements GuardRail {
+    class RegulatoryGuardRail implements GuardRail {
         private String flags = "";
 
         public RegulatoryGuardRail gdpr()  { flags += "+gdpr";  return this; }
@@ -188,8 +190,10 @@ public interface GuardRail extends Middleware {
      * Fluent API is preserved so application code compiles regardless of
      * whether {@code cafeai-guardrails} is present. Enforcement is a no-op
      * without the module.
+     *
+     * <p>Non-final so {@code cafeai-guardrails} can extend this with real enforcement.
      */
-    final class TopicBoundaryGuardRail implements GuardRail {
+    class TopicBoundaryGuardRail implements GuardRail {
         private final List<String> allowed = new ArrayList<>();
         private final List<String> denied  = new ArrayList<>();
 

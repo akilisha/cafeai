@@ -114,9 +114,22 @@ public final class PromptInjectionGuardRail extends AbstractGuardRail {
     }
 
     private static String extractText(Request req) {
-        String t = req.bodyText();
-        if (t != null && !t.isBlank()) return t;
+        // Try parsed body first (available after CafeAI.json() runs)
         Object b = req.body("message");
-        return b != null ? b.toString() : null;
+        if (b != null) return b.toString();
+        b = req.body("prompt");
+        if (b != null) return b.toString();
+        // Fall back to raw body — parse JSON field manually
+        String t = req.bodyText();
+        if (t != null && !t.isBlank()) {
+            String trimmed = t.trim();
+            if (trimmed.startsWith("{")) {
+                String extracted = AbstractGuardRail.extractJsonField(trimmed, "message");
+                if (extracted == null) extracted = AbstractGuardRail.extractJsonField(trimmed, "prompt");
+                if (extracted != null) return extracted;
+            }
+            return t;
+        }
+        return null;
     }
 }

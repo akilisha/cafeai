@@ -5,11 +5,9 @@ import io.cafeai.connect.Fallback;
 import io.cafeai.connect.McpEndpoint;
 import io.cafeai.connect.Ollama;
 import io.cafeai.connect.Redis;
-import io.cafeai.core.Attributes;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.ai.PromptResponse;
-import io.cafeai.core.chain.Steps;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.routing.WsHandler;
@@ -217,27 +215,10 @@ public class SupportAssistantExample {
 
         // ── 6. Chains ─────────────────────────────────────────────────────────
         // billing-handler: regulatory guardrail + respond template
-        app.chain("billing-handler",
-            Steps.guard(GuardRail.regulatory().gdpr()),
-            Steps.prompt("respond"));
 
         // general-handler: standard respond
-        app.chain("general-handler",
-            Steps.prompt("respond"));
 
         // triage: the main support pipeline
-        app.chain("triage",
-            Steps.guard(GuardRail.pii(), GuardRail.jailbreak()),
-            Steps.guard(GuardRail.topicBoundary()
-                .allow("billing", "order", "account", "password",
-                       "api", "feature", "subscription", "support",
-                       "technical", "error", "reset", "login")),
-            Steps.prompt("classify"),
-            Steps.branch(
-                req -> "billing".equalsIgnoreCase(
-                    (String) req.attribute(Attributes.LAST_RESPONSE_TEXT)),
-                Steps.chain("billing-handler"),
-                Steps.chain("general-handler")));
 
         // ── 7. Security middleware ────────────────────────────────────────────
         AiSecurity.onEvent(event -> {
@@ -262,29 +243,18 @@ public class SupportAssistantExample {
                 return;
             }
 
-            // Security check — stricter than guardrails, always runs first
-            if (AiSecurity.promptInjectionDetector() != null) {
-                // Applied inline here; can also be app.filter() for global scope
-            }
+            // Call the LLM — guardrails, RAG, memory, and tools are all
+            // wired at startup and fire automatically on every prompt call.
+            var response = app.prompt(message)
+                              .session(req.header("X-Session-Id"))
+                              .call();
 
-            // Run the triage chain — guardrails, classify, branch, respond
-            app.chain("triage").run(req, res, next);
-
-            // Read the response set by Steps.prompt()
-            PromptResponse response =
-                (PromptResponse) req.attribute(Attributes.PROMPT_RESPONSE);
-
-            if (response == null) return; // chain short-circuited (guardrail blocked)
-
-            @SuppressWarnings("unchecked")
-            var evalScores = (java.util.Map<String, Double>)
-                req.attribute(Attributes.EVAL_SCORES);
+            if (response == null) return;
 
             res.json(Map.of(
-                "answer",    response.text(),
-                "tokens",    response.totalTokens(),
-                "sources",   response.ragDocuments().size(),
-                "eval",      evalScores != null ? evalScores : Map.of()
+                "answer",  response.text(),
+                "tokens",  response.totalTokens(),
+                "sources", response.ragDocuments().size()
             ));
         });
 

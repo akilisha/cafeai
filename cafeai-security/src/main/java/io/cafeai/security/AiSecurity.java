@@ -231,10 +231,53 @@ public final class AiSecurity {
     }
 
     private static String extractInput(io.cafeai.core.routing.Request req) {
-        String t = req.bodyText();
-        if (t != null && !t.isBlank()) return t;
         Object b = req.body("message");
-        return b != null ? b.toString() : null;
+        if (b != null) return b.toString();
+        b = req.body("prompt");
+        if (b != null) return b.toString();
+        String t = req.bodyText();
+        if (t != null && !t.isBlank()) {
+            String trimmed = t.trim();
+            if (trimmed.startsWith("{")) {
+                String msg = extractJsonField(trimmed, "message");
+                if (msg == null) msg = extractJsonField(trimmed, "prompt");
+                if (msg != null) return msg;
+            }
+            return t;
+        }
+        return null;
+    }
+
+    private static String extractJsonField(String json, String field) {
+        String key = "\"" + field + "\"";
+        int keyIdx = json.indexOf(key);
+        if (keyIdx < 0) return null;
+        int colonIdx = json.indexOf(':', keyIdx + key.length());
+        if (colonIdx < 0) return null;
+        int valueStart = colonIdx + 1;
+        while (valueStart < json.length()
+               && Character.isWhitespace(json.charAt(valueStart))) valueStart++;
+        if (valueStart >= json.length() || json.charAt(valueStart) != '"') return null;
+        valueStart++;
+        StringBuilder sb = new StringBuilder();
+        for (int i = valueStart; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '\\' && i + 1 < json.length()) {
+                char next = json.charAt(++i);
+                switch (next) {
+                    case '"'  -> sb.append('"');
+                    case '\\' -> sb.append('\\');
+                    case 'n'  -> sb.append('\n');
+                    case 't'  -> sb.append('\t');
+                    default   -> sb.append(next);
+                }
+            } else if (c == '"') {
+                return sb.toString();
+            } else {
+                sb.append(c);
+            }
+        }
+        return null;
     }
 
     private static String truncate(String s) {

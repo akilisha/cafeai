@@ -526,47 +526,6 @@ public interface CafeAI extends Router {
      */
     CafeAI rag(Object retriever);
 
-    // ── Chains (ROADMAP-07 Phase 6) ───────────────────────────────────────────
-
-    /**
-     * Registers a named composable pipeline.
-     *
-     * <p>Chains are middleware — they implement {@link io.cafeai.core.middleware.Middleware}
-     * and can be used anywhere middleware is accepted. Chains are composable:
-     * a {@link io.cafeai.core.chain.Steps#chain(String)} step can reference
-     * any other named chain.
-     *
-     * <pre>{@code
-     *   app.chain("triage",
-     *       Steps.guard(GuardRail.pii()),
-     *       Steps.prompt("classify"),
-     *       Steps.branch(
-     *           req -> "billing".equals(req.attribute("classification")),
-     *           Steps.chain("billing-handler"),
-     *           Steps.chain("general-handler")
-     *       ));
-     *
-     *   app.post("/support", (req, res, next) ->
-     *       app.chain("triage").run(req, res, next));
-     * }</pre>
-     *
-     * @param name  the chain name — used to retrieve and compose it
-     * @param steps the ordered pipeline steps
-     * @throws IllegalStateException if called after {@link #listen(int)}
-     */
-    CafeAI chain(String name, io.cafeai.core.chain.ChainStep... steps);
-
-    /**
-     * Retrieves a named chain registered via {@link #chain(String, io.cafeai.core.chain.ChainStep...)}.
-     *
-     * <p>Returns {@code null} if no chain with the given name has been registered.
-     * {@link io.cafeai.core.chain.Steps#chain(String)} uses this internally for
-     * lazy resolution — forward references are supported.
-     *
-     * @param name the chain name
-     * @return the registered {@link io.cafeai.core.chain.Chain}, or {@code null}
-     */
-    io.cafeai.core.chain.Chain chain(String name);
 
     // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
 

@@ -91,10 +91,6 @@ public final class CafeAIApp implements CafeAI {
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ObserveBridge observeBridge;
     private Object evalHarness;
-
-    // Named chain registry (ROADMAP-07 Phase 6)
-    private final java.util.Map<String, io.cafeai.core.chain.Chain> chains =
-        new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
@@ -516,23 +512,6 @@ public final class CafeAIApp implements CafeAI {
     }
 
     // -- Chains (ROADMAP-07 Phase 6) -------------------------------------------
-
-    @Override
-    public CafeAI chain(String name, io.cafeai.core.chain.ChainStep... steps) {
-        assertNotStarted("chain()");
-        Objects.requireNonNull(name, "Chain name must not be null");
-        if (name.isBlank()) throw new IllegalArgumentException("Chain name must not be blank");
-
-        var chain = new io.cafeai.core.chain.Chain(name, java.util.List.of(steps));
-        chains.put(name, chain);
-        log.info("Chain '{}' registered ({} steps)", name, steps.length);
-        return this;
-    }
-
-    @Override
-    public io.cafeai.core.chain.Chain chain(String name) {
-        return chains.get(name);
-    }
 
     // -- Tools & MCP (ROADMAP-07 Phase 5) -------------------------------------
 
@@ -1070,20 +1049,21 @@ public final class CafeAIApp implements CafeAI {
     private HttpRouting.Builder buildRouting() {
         var builder = HttpRouting.builder();
 
-        // Register guardrails as global pre-dispatch filters.
-        // Guardrails run first — before any application filter —
-        // so they protect the entire pipeline including body parsing.
-        for (GuardRail guardRail : guardRails) {
-            builder.addFilter(toHelidonFilter(guardRail));
-        }
-
-        // Register filter-scope middleware (pre-dispatch, own call frame)
+        // Register filter-scope middleware first (pre-dispatch).
+        // This includes CafeAI.json() which parses the request body —
+        // guardrails must run after body parsing so they can read req.body("message").
         for (var entry : filterEntries) {
             if (entry.path() == null) {
                 builder.addFilter(toHelidonFilter(entry.middleware()));
             } else {
                 builder.addFilter(toPathScopedFilter(entry.path(), entry.middleware()));
             }
+        }
+
+        // Register guardrails after body parsing filters.
+        // They inspect the parsed body and block before the LLM is called.
+        for (GuardRail guardRail : guardRails) {
+            builder.addFilter(toHelidonFilter(guardRail));
         }
 
         // Register route handlers (post-dispatch, route-matched)

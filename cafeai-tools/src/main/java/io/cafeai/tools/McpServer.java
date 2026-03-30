@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * MCP (Model Context Protocol) client — connects to an MCP server and
+ * MCP (Model Context Protocol) client -- connects to an MCP server and
  * discovers its available tools.
  *
  * <p>CafeAI implements the MCP JSON-RPC protocol directly via Helidon's
@@ -96,7 +96,7 @@ public final class McpServer {
     /** The base URL of this MCP server. */
     public String baseUrl() { return baseUrl; }
 
-    // ── Private: HTTP transport (MCP over HTTP+SSE) ───────────────────────────
+    // -- Private: HTTP transport (MCP over HTTP+SSE) ---------------------------
 
     /**
      * Sends a JSON-RPC 2.0 request to the MCP server.
@@ -105,7 +105,7 @@ public final class McpServer {
     private String post(String method, String paramsJson) throws Exception {
         String requestBody = buildJsonRpc(method, paramsJson);
 
-        // Use Java's built-in HttpClient — avoids an extra dependency here.
+        // Use Java's built-in HttpClient -- avoids an extra dependency here.
         // Helidon WebClient would be used if we needed reactive/async behaviour,
         // but synchronous is correct on virtual threads.
         var client = java.net.http.HttpClient.newHttpClient();
@@ -148,7 +148,7 @@ public final class McpServer {
         return MAPPER.writeValueAsString(params);
     }
 
-    // ── Private: response parsing ─────────────────────────────────────────────
+    // -- Private: response parsing ---------------------------------------------
 
     private List<ToolDefinition> parseToolList(String responseBody) throws Exception {
         JsonNode root = MAPPER.readTree(responseBody);
@@ -175,7 +175,7 @@ public final class McpServer {
                 }
 
                 tools.add(ToolDefinition.fromMcp(name, description, params));
-                log.debug("Discovered MCP tool: {} — {}", name, description);
+                log.debug("Discovered MCP tool: {} -- {}", name, description);
             }
         }
 

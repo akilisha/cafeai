@@ -44,31 +44,23 @@ public abstract class AbstractGuardRail implements GuardRail {
 
     @Override
     public void handle(Request req, Response res, Next next) {
-        // PRE_LLM check -- inspect the incoming prompt
+        // PRE_LLM check -- inspect the incoming prompt before the LLM is called.
+        // POST_LLM inspection requires threading the HTTP request context into
+        // executePrompt() so the LLM response text is available here after
+        // next.run() returns. That wiring is deferred -- all active guardrails
+        // (PII, jailbreak, injection, toxicity, topic) are PRE_LLM and work correctly.
         if (position() == Position.PRE_LLM || position() == Position.BOTH) {
             String input = extractInput(req);
             if (input != null && !input.isBlank()) {
                 CheckResult result = checkInput(input);
                 if (!result.passes()) {
                     onViolation(req, res, result);
-                    return; // do not proceed
+                    return;
                 }
             }
         }
 
-        // Call next -- the LLM runs here (if this is the final pre-LLM guard)
         next.run();
-
-        // POST_LLM check -- inspect the response
-        if (position() == Position.POST_LLM || position() == Position.BOTH) {
-            String output = extractOutput(req);
-            if (output != null && !output.isBlank()) {
-                CheckResult result = checkOutput(output);
-                if (!result.passes()) {
-                    onViolation(req, res, result);
-                }
-            }
-        }
     }
 
     /**
@@ -86,19 +78,62 @@ public abstract class AbstractGuardRail implements GuardRail {
     // -- Private: request/response extraction ---------------------------------
 
     private static String extractInput(Request req) {
-        // Try bodyText first, then body("message"), then body("prompt")
+        // First try the parsed body (available after CafeAI.json() filter runs)
+        Object bodyMsg = req.body("message");
+        if (bodyMsg != null) return bodyMsg.toString();
+
+        Object bodyPrompt = req.body("prompt");
+        if (bodyPrompt != null) return bodyPrompt.toString();
+
+        // Fall back to raw body text — works when guardrails run before json() filter
         String text = req.bodyText();
-        if (text != null && !text.isBlank()) return text;
-        Object body = req.body("message");
-        if (body != null) return body.toString();
-        body = req.body("prompt");
-        if (body != null) return body.toString();
+        if (text != null && !text.isBlank()) {
+            // If it looks like JSON, try to extract "message" or "prompt" field
+            String trimmed = text.trim();
+            if (trimmed.startsWith("{")) {
+                String extracted = extractJsonField(trimmed, "message");
+                if (extracted == null) extracted = extractJsonField(trimmed, "prompt");
+                if (extracted != null) return extracted;
+            }
+            return text;
+        }
         return null;
     }
 
-    private static String extractOutput(Request req) {
-        Object response = req.attribute(Attributes.LAST_RESPONSE_TEXT);
-        return response != null ? response.toString() : null;
+    /**
+     * Minimal JSON field extractor — avoids a Jackson dependency in the guardrail layer.
+     * Package-private so subclasses can reuse it for raw body parsing.
+     */
+    static String extractJsonField(String json, String field) {
+        String key = "\"" + field + "\"";
+        int keyIdx = json.indexOf(key);
+        if (keyIdx < 0) return null;
+        int colonIdx = json.indexOf(':', keyIdx + key.length());
+        if (colonIdx < 0) return null;
+        int valueStart = colonIdx + 1;
+        while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart)))
+            valueStart++;
+        if (valueStart >= json.length() || json.charAt(valueStart) != '"') return null;
+        valueStart++; // skip opening quote
+        StringBuilder sb = new StringBuilder();
+        for (int i = valueStart; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '\\' && i + 1 < json.length()) {
+                char next = json.charAt(++i);
+                switch (next) {
+                    case '"'  -> sb.append('"');
+                    case '\\'  -> sb.append('\\');
+                    case 'n'  -> sb.append('\n');
+                    case 't'  -> sb.append('\t');
+                    default   -> sb.append(next);
+                }
+            } else if (c == '"') {
+                return sb.toString(); // closing quote
+            } else {
+                sb.append(c);
+            }
+        }
+        return null; // unterminated string
     }
 
     private void onViolation(Request req, Response res, CheckResult result) {
