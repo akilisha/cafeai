@@ -41,8 +41,8 @@ subprojects {
         withJavadocJar()
     }
 
-    compileJava.options.compilerArgs      += ['--enable-preview', '-Xlint:preview']
-    compileTestJava.options.compilerArgs  += ['--enable-preview', '-Xlint:preview']
+    compileJava.options.compilerArgs      += ['--enable-preview', '-Xlint:preview', '-parameters']
+    compileTestJava.options.compilerArgs  += ['--enable-preview', '-Xlint:preview', '-parameters']
 
     test {
         useJUnitPlatform()

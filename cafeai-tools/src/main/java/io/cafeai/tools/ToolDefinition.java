@@ -84,10 +84,15 @@ public final class ToolDefinition {
 
         List<ParameterSchema> params = new ArrayList<>();
         for (Parameter p : method.getParameters()) {
-            params.add(new ParameterSchema(
-                p.getName(),
-                javaTypeToJsonType(p.getType()),
-                "Parameter " + p.getName()));
+            // With -parameters compiler flag, p.getName() returns the real name.
+            // Without it, Java returns arg0, arg1, etc. Either way, include the
+            // Java type in the description so the LLM knows what to pass.
+            String paramName = p.getName();
+            String typeName  = p.getType().getSimpleName();
+            String desc      = paramName.startsWith("arg")
+                ? typeName + " parameter (position " + paramName.substring(3) + ")"
+                : paramName + " (" + typeName + ")";
+            params.add(new ParameterSchema(paramName, javaTypeToJsonType(p.getType()), desc));
         }
 
         method.setAccessible(true);
