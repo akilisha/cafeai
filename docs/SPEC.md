@@ -24,7 +24,9 @@
 7. [Tiered Memory Architecture](#7-tiered-memory-architecture)
 8. [Module Structure](#8-module-structure)
 9. [Naming Philosophy](#9-naming-philosophy)
-10. [Blog and Conference Series](#10-blog-and-conference-series)
+10. [The HTTP Identity Layer — CafeAI's Foundational Position](#10-the-http-identity-layer)
+11. [The Two Strategic Directions](#11-the-two-strategic-directions)
+12. [Blog and Conference Series](#12-blog-and-conference-series)
 
 ---
 
@@ -104,7 +106,7 @@ independently testable, and independently deployable. **The pipeline is the curr
 
 ```mermaid
 graph TD
-    Client["Client (Browser / Mobile / Service)"]
+    Client["Client (Browser / Mobile / Service / n8n / Orchestrator)"]
 
     subgraph CafeAI["CafeAI Application (Helidon SE)"]
         Router["Express-style Router\napp.get / app.post / app.filter / app.use"]
@@ -122,6 +124,9 @@ graph TD
             Stream["Streaming Response\n(SSE / WebSocket)"]
         end
 
+        MCP["MCP Server\n(Helidon MCP 1.1)\nExposes all registered tools\nand agents as discoverable nodes"]
+        Agents["Agent Registry\n(Helidon Agentic LangChain4j)\nHTTP-identity + session\nfor every agent"]
+
         Router --> Auth --> Security --> GuardPre --> Cost --> RAG --> LLM
         LLM --> GuardPost --> Observe --> MemWrite --> Stream
     end
@@ -133,12 +138,20 @@ graph TD
         OTel["OpenTelemetry\nCollector"]
     end
 
+    subgraph External["External Orchestrators"]
+        N8N["n8n"]
+        Claude["Claude Desktop"]
+        Temporal["Temporal / Other"]
+    end
+
     Client --> Router
     Stream --> Client
+    External --> MCP
     MemWrite <--> MemTier
     RAG <--> VectorDB
     LLM <--> Providers
     Observe --> OTel
+    Agents --> LLM
 ```
 
 ---
@@ -162,8 +175,8 @@ app.delete(path, middleware...)  // DELETE route
 app.filter(middleware...)        // cross-cutting pre-processing — before route dispatch
 app.filter(path, middleware...)  // path-scoped pre-processing
 app.use(path, router)           // mount a sub-router
-app.listen(port)              // start the server
-app.listen(port, onStart)     // start with startup callback
+app.listen(port)                // start the server
+app.listen(port, onStart)       // start with startup callback
 ```
 
 ### 3.2 AI Infrastructure Primitives
@@ -183,152 +196,86 @@ app.template("name", "Hello {{user}}")    // named, reusable prompt templates
 ### 3.3 Memory Primitives
 
 ```java
-app.memory(MemoryStrategy.inMemory())      // Rung 1: JVM HashMap — prototype, zero deps
-app.memory(MemoryStrategy.mapped())       // Rung 2: SSD-backed via Java FFM MemorySegment
-app.memory(MemoryStrategy.chronicle())    // Rung 3: Chronicle Map — off-heap, high-throughput
-app.memory(MemoryStrategy.redis(config))  // Rung 4: Redis via Lettuce — distributed
-app.memory(MemoryStrategy.memcached(cfg)) // Rung 5: Memcached — distributed
-app.memory(MemoryStrategy.hybrid()        // Rung 6: warm SSD + cold Redis
-        .warm(MemoryStrategy.mapped())
-        .cold(MemoryStrategy.redis(config)))
+app.memory(MemoryStrategy.inMemory())      // ephemeral — good for development
+app.memory(MemoryStrategy.mapped())        // SSD-backed FFM — production single-node
+app.memory(MemoryStrategy.redis())         // distributed — multi-node deployments
 ```
 
 ### 3.4 RAG Primitives
 
 ```java
-app.vectordb(PgVector.connect(config))    // register vector store
-app.vectordb(Chroma.local())
-app.vectordb(VectorStore.inMemory())      // prototype / testing
+app.vectordb(VectorStore.inMemory())       // development vector store
+app.vectordb(VectorStore.pgVector(url))    // production PostgreSQL + pgvector
+app.vectordb(VectorStore.chroma(url))      // Chroma vector database
 
-app.embed(EmbeddingModel.local())         // local ONNX via FFM — no API call
-app.embed(EmbeddingModel.openAi())        // remote — high quality
+app.embed(EmbeddingModel.local())          // bundled ONNX model — no API key
+app.embed(EmbeddingModel.openAI())         // OpenAI text-embedding-3-small
 
-app.ingest(Source.pdf("handbook.pdf"))    // ingest knowledge sources
-app.ingest(Source.url("https://..."))
-app.ingest(Source.directory("docs/"))
-app.ingest(Source.github("owner/repo"))
+app.ingest(Source.text(content, name))     // ingest raw text
+app.ingest(Source.file(path))              // ingest from file
+app.ingest(Source.url(url))                // ingest from URL
 
-app.rag(Retriever.semantic(5))            // dense semantic retrieval — top-K
-app.rag(Retriever.hybrid(5))              // dense + sparse (BM25) combined
+app.rag(Retriever.semantic(topK))          // semantic similarity retrieval
+app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ```
 
 ### 3.5 Tool and MCP Primitives
 
 ```java
-// A "tool"  = Java function you wrote. You own its trust and lifecycle.
-// An "mcp"  = external MCP server capability. External contract, different trust.
+app.tool(new GitHubTools())               // register @CafeAITool-annotated class
+app.mcp(McpEndpoint.at(url))              // connect to external MCP server as client
 
-app.tool(OrderLookupTool.create())         // single tool
-app.tools(tool1, tool2, tool3)             // tool suite
-app.mcp(McpServer.github())                // pre-built MCP integrations
-app.mcp(McpServer.connect("http://..."))   // any MCP server by URL
+// NEW — MCP server direction (ROADMAP-11)
+app.mcp().serve("/mcp")                   // expose all registered tools and agents
+                                          // as an MCP server via Helidon MCP 1.1
 ```
 
-### 3.6 Chain Primitives
+### 3.6 Guardrail and Security Primitives
 
 ```java
-// Chains are named, composable pipelines.
-// Crucially: chains are themselves middleware-composable — recursive by design.
+app.guard(GuardRail.promptInjection())    // block prompt injection
+app.guard(GuardRail.jailbreak())          // block adversarial prompts
+app.guard(GuardRail.topicBoundary()       // enforce topic scope
+    .allow("helios", "connection", ...))
+app.guard(GuardRail.regulatory()          // GDPR, HIPAA, FCRA, CCPA
+    .gdpr().hipaa())
 
-app.chain("classify-and-respond",
-    Steps.classify(),
-    Steps.route(),
-    Steps.respond())
-
-app.chain("triage").use(authMiddleware)    // chains accept middleware
+app.filter(AiSecurity.promptInjectionDetector())  // strict injection detection
+AiSecurity.onEvent(event -> { ... })              // typed audit event listener
 ```
 
-### 3.7 Guardrail Primitives
+### 3.7 Observability Primitives
 
 ```java
-app.guard(GuardRail.pii())                 // PII detection + scrubbing — pre and post LLM
-app.guard(GuardRail.jailbreak())           // adversarial prompt detection
-app.guard(GuardRail.promptInjection())     // data-sourced injection attack detection
-app.guard(GuardRail.bias())                // demographic bias detection in outputs
-app.guard(GuardRail.hallucination())       // factual grounding scoring vs RAG corpus
-app.guard(GuardRail.toxicity())            // harmful content filtering
-app.guard(GuardRail.regulatory()           // GDPR, HIPAA, FCRA, CCPA
-        .gdpr().hipaa().fcra())
-app.guard(GuardRail.topicBoundary()        // scope enforcement
-        .allow("customer service", "orders")
-        .deny("politics", "medical advice"))
-app.guard(myCustomGuardRail)               // bring your own
+app.observe(ObserveStrategy.console())    // development console traces
+app.observe(ObserveStrategy.otel())       // OpenTelemetry export
+app.eval(EvalStrategy.relevance())        // RAG relevance scoring
+app.eval(EvalStrategy.faithfulness())     // hallucination detection
 ```
 
-### 3.8 Agent Primitives
+### 3.8 Agent Primitives (ROADMAP-12 — Helidon Agentic Direction)
 
 ```java
-// Each agent runs in its own StructuredTaskScope.
-// Failures are isolated. Results are joined cleanly.
+// NEW — agent direction (ROADMAP-12)
+app.agent("support-agent", SupportAgent.class)  // register Helidon/LangChain4j agent
+                                                 // with HTTP identity + session + observability
 
-app.agent("classifier", AgentDefinition.react()
-        .tools(classifyTool)
-        .maxIterations(5))
-
-app.orchestrate("support-pipeline",        // multi-agent topology
-        "classifier",
-        "knowledge-retriever",
-        "response-generator")
+app.post("/support", (req, res, next) -> {
+    var result = app.agent("support-agent", SupportAgent.class)
+                    .session(req.header("X-Session-Id"))
+                    .run(agent -> agent.answer(req.body("message")));
+    res.json(Map.of("answer", result));
+});
 ```
 
-### 3.9 Observability Primitives
+### 3.9 Connection Primitives
 
 ```java
-app.observe(ObserveStrategy.otel())        // OpenTelemetry — production
-app.observe(ObserveStrategy.console())     // console logging — development
-
-app.eval(EvalHarness.defaults())           // retrieval + response quality scoring
+app.connect(Ollama.at("http://localhost:11434").model("qwen2.5")
+              .onUnavailable(Fallback.use(OpenAI.gpt4oMini())))
+app.connect(Redis.at("localhost:6379"))
+app.connect(PgVector.at(jdbcUrl))
 ```
-
-### 3.10 Full Bootstrap Example
-
-```java
-var app = CafeAI.create();
-
-// ── Infrastructure ──────────────────────────────────────────
-app.ai(OpenAI.gpt4o());
-app.memory(MemoryStrategy.mapped());
-app.vectordb(PgVector.connect(config));
-app.embed(EmbeddingModel.local());
-app.observe(ObserveStrategy.otel());
-
-// ── Knowledge ───────────────────────────────────────────────
-app.ingest(Source.pdf("docs/handbook.pdf"));
-app.rag(Retriever.semantic(5));
-
-// ── Safety ──────────────────────────────────────────────────
-app.guard(GuardRail.pii());
-app.guard(GuardRail.jailbreak());
-app.guard(GuardRail.promptInjection());
-
-// ── Persona ─────────────────────────────────────────────────
-app.system("""
-    You are a helpful, empathetic customer service agent for Acme Corp.
-    You are concise, accurate, and always escalate unresolved issues.
-    """);
-
-// ── Tools ───────────────────────────────────────────────────
-app.tool(OrderLookupTool.create());
-app.mcp(McpServer.github());
-
-// ── Routes ──────────────────────────────────────────────────
-app.filter(CafeAI.json());
-app.filter(Middleware.rateLimit(60));
-
-app.get("/health", (req, res) ->
-    res.json(Map.of("status", "ok")));
-
-app.post("/chat", (req, res) ->
-    res.stream(app.prompt(req.body("message"))));
-
-// ── Start ────────────────────────────────────────────────────
-app.listen(8080, () ->
-    System.out.println("☕ CafeAI is brewing on :8080"));
-```
-
-Read that out loud. A Java developer who has never touched Gen AI understands every line. An
-Express developer who has never touched Java understands the structure. A Python LangChain
-developer recognizes the concepts. **Three audiences. Zero confusion.**
 
 ---
 
@@ -343,12 +290,12 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | 2 | Prompt templates | `core` | Structured prompt engineering |
 | 3 | Context memory | `core` + `memory` | Conversation state, FFM memory API |
 | 4 | RAG | `core` + `memory` + `rag` | Ingestion, embeddings, retrieval |
-| 5 | Tool use / MCP | `core` + `tools` | Giving the AI actions to take |
+| 5 | Tool use / MCP client | `core` + `tools` | Giving the AI actions to take |
 | 6 | Guardrails | `core` + `guardrails` | Safety, ethics, compliance as middleware |
-| 7 | Agents | `core` + `agents` | Autonomous reasoning, Structured Concurrency |
-| 8 | Observability + Evals | `core` + `observability` | Production measurement, prompt versioning |
-| 9 | Streaming | `core` + `streaming` | SSE, backpressure, real-time UX |
-| 10 | Security | `core` + `security` | Injection, leakage, adversarial robustness |
+| 7 | Observability + Evals | `core` + `observability` | Production measurement |
+| 8 | Security | `core` + `security` | Injection, leakage, adversarial robustness |
+| 9 | MCP server | `core` + `cafeai-mcp` | Expose capabilities to external orchestrators |
+| 10 | Agents | `core` + `cafeai-agents` | Helidon agentic + HTTP identity |
 
 ---
 
@@ -357,16 +304,16 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | Concern | Technology | Version | Rationale |
 |---|---|---|---|
 | Runtime | Java | 21+ | FFM, Structured Concurrency, Vector API, Virtual Threads |
-| HTTP Server | Helidon SE | 4.1.4 | Lightweight, reactive, first-class Java 21+ support |
-| AI Framework | Langchain4j | 0.35.0 | Mirrors Python Langchain — parity for AI practitioners |
+| HTTP Server | Helidon SE | 4.4.0 | MCP 1.1 server, agentic LangChain4j, LTS release |
+| AI Framework | LangChain4j | 1.11+ | Via Helidon 4.4 integration |
 | LLM Providers | OpenAI / Anthropic / Ollama | — | Provider-agnostic — swap without changing app logic |
 | Memory Tier 1–2 | Java FFM `MemorySegment` | JDK 21 | Off-heap, SSD-backed, no GC pressure, no network |
 | Memory Tier 3 | Chronicle Map | 3.25 | Designed for off-heap key-value, high-throughput |
 | Memory Tier 4–5 | Redis via Lettuce | 6.3 | Reactive, non-blocking distributed cache |
 | Vector DB | PgVector / Chroma | — | PgVector for enterprise; Chroma for local |
 | Embeddings | ONNX via FFM / OpenAI | — | Local via FFM; remote via API |
-| Observability | OpenTelemetry | 1.40.0 | Helidon SE has first-class OTel support |
-| PII Detection | Apache OpenNLP | 2.3.3 | JVM-native NLP — no external API dependency |
+| MCP Server | Helidon MCP 1.1 | 4.4.0 | June 2025 spec, Elicitation support |
+| Observability | OpenTelemetry | 1.40.0+ | Helidon SE has first-class OTel support |
 | Build | Gradle (Groovy DSL) | 8.x | Standard Java toolchain |
 
 ---
@@ -379,10 +326,10 @@ CafeAI treats Java 21+ features as load-bearing architecture — not novelties t
 |---|---|---|
 | **FFM API** | Native ML bindings (ONNX, llama.cpp) | JNI-free native library access |
 | **FFM `MemorySegment`** | SSD-backed session memory | Off-heap, OS page cache, crash-recovery |
-| **Structured Concurrency** | Multi-agent orchestration | Isolated failures, clean result joins |
+| **Structured Concurrency** | Agent invocation + parallel tool execution | Isolated failures, clean result joins |
 | **Scoped Values** | Request context propagation | No `ThreadLocal` hacks |
 | **Vector API** | Cosine similarity, dot products for RAG | SIMD hardware acceleration |
-| **Virtual Threads** | Every request handler | I/O-bound LLM calls at zero thread cost |
+| **Virtual Threads** | Every request handler, every agent | I/O-bound LLM calls at zero thread cost |
 
 ---
 
@@ -402,35 +349,9 @@ Frozen →  Vector DB           (semantic long-term memory, RAG corpus)
 ### The Key Insight
 
 Most applications do not need Redis. The SSD-backed FFM tier handles production single-node
-deployments with:
-- Zero network overhead
-- Zero cloud tax
-- Crash-recovery for free (memory-mapped files survive restarts)
-- OS page cache doing the heavy lifting automatically
-
+deployments with zero network overhead, zero cloud tax, and crash-recovery for free.
 Redis is the **escape valve** — reached for when you genuinely need state shared across
 multiple application instances. Not the default.
-
-### Why FFM for Memory is Architecturally Coherent
-
-CafeAI uses the FFM API in two places:
-
-1. **Native ML library bindings** — ONNX runtime, llama.cpp, without JNI ceremony
-2. **Off-heap session memory** — `MemorySegment` for SSD-backed conversation context
-
-The same API surface. The same developer skills. Two completely different use cases. That
-coherence is intentional — CafeAI doesn't introduce a new tool for every new problem.
-
-### Serialization for Off-Heap Memory
-
-Conversation context stored in `MemorySegment` needs compact, schema-aware serialization.
-Candidates:
-
-| Option | Tradeoff |
-|---|---|
-| **FlatBuffers** | Zero-copy reads, schema-enforced, ideal for off-heap |
-| **Chronicle Map** | Designed for this exact pattern — off-heap key-value |
-| **Custom `MemoryLayout`** | Maximum control, excellent blog post material |
 
 ---
 
@@ -438,33 +359,28 @@ Candidates:
 
 ```
 cafeai/
-├── build.gradle                  ← root build, version catalog, shared config
-├── settings.gradle               ← module declarations
-├── README.md                     ← project front door
+├── build.gradle
+├── settings.gradle
+├── README.md
 ├── docs/
-│   ├── SPEC.md                   ← this document
-│   ├── adr/                      ← Architecture Decision Records
-│   │   ├── ADR-001-helidon-se.md
-│   │   ├── ADR-002-middleware-pattern.md
-│   │   ├── ADR-003-tiered-memory.md
-│   │   └── ADR-004-ffm-for-memory.md
-│   ├── api/                      ← generated Javadoc (gitignored)
-│   └── blog/                     ← blog post drafts in markdown
+│   ├── SPEC.md                         ← this document
+│   ├── adr/                            ← Architecture Decision Records (ADR-001 to ADR-010)
+│   └── roadmap/                        ← Roadmaps and Milestones (ROADMAP-01 to ROADMAP-12)
 │
-├── cafeai-core/                  ← Express-style API, routing, middleware, AI primitives
-├── cafeai-memory/                ← Tiered context memory
-├── cafeai-rag/                   ← RAG pipeline, vector stores, ingestion
-├── cafeai-tools/                 ← Tool registration, MCP integration
-├── cafeai-agents/                ← ReAct, multi-agent, Structured Concurrency
-├── cafeai-guardrails/            ← PII, jailbreak, bias, hallucination, compliance
-├── cafeai-observability/         ← OTel, metrics, evals, prompt versioning
-├── cafeai-security/              ← Prompt injection, data leakage, cache poisoning
-├── cafeai-streaming/             ← SSE, WebSocket, reactive backpressure
-└── cafeai-examples/              ← Runnable adoption ladder — the tutorial as code
+├── cafeai-core/                        ← Express-style API, routing, middleware, AI primitives
+├── cafeai-memory/                      ← Tiered context memory
+├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
+├── cafeai-tools/                       ← Tool registration, @CafeAITool
+├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
+├── cafeai-observability/               ← OTel, metrics, evals, prompt versioning
+├── cafeai-security/                    ← Prompt injection, data leakage, cache poisoning
+├── cafeai-connect/                     ← Provider connection, probing, fallback
+├── cafeai-mcp/                         ← MCP server — exposes CafeAI capabilities as
+│                                         discoverable nodes via Helidon MCP 1.1 (ROADMAP-11)
+├── cafeai-agents/                      ← HTTP identity layer for Helidon agentic LangChain4j
+│                                         (ROADMAP-12)
+└── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
 ```
-
-Each module is an independently useful unit. `cafeai-core` has zero AI-specific dependencies
-beyond Langchain4j core and Helidon SE. Every other module is opt-in.
 
 ---
 
@@ -473,9 +389,9 @@ beyond Langchain4j core and Helidon SE. Every other module is opt-in.
 | Principle | Examples |
 |---|---|
 | **Verbs declare actions** | `ingest`, `embed`, `guard`, `observe`, `orchestrate` |
-| **Nouns declare registrations** | `memory`, `tool`, `agent`, `chain` |
+| **Nouns declare registrations** | `memory`, `tool`, `agent`, `mcp` |
 | **Strategies are configurable** | `MemoryStrategy`, `EmbeddingModel`, `GuardRail`, `Retriever` |
-| **Everything is composable** | chains accept middleware, guardrails are middleware, agents are composable |
+| **Everything is composable** | guardrails are middleware, agents get HTTP identity, tools become MCP nodes |
 | **Names are guessable** | a developer should be right before they look it up |
 | **No abbreviations** | `vectordb` not `vdb`, `system` not `sys`, `observe` not `obs` |
 
@@ -484,25 +400,247 @@ other way. That feeling comes from consistency, not cleverness.
 
 ---
 
-## 10. Blog and Conference Series
+## 10. The HTTP Identity Layer — CafeAI's Foundational Position
+
+This section documents the architectural insight that crystallised through deep analysis of the
+Java AI ecosystem in March 2026. It explains not just *what* CafeAI is, but *why* it occupies
+the position it does — and why that position is both distinct and durable.
+
+### 10.1 How the Insight Emerged
+
+The question started simply: what should `cafeai-agents` look like?
+
+The first instinct was to build something. Chains, ChainStep, Steps — a named pipeline
+abstraction that would let developers compose multi-step LLM workflows. Those were built,
+used in a capstone application, and then removed. The removal was the insight. The chains
+duplicated what middleware already did. They added ceremony without capability.
+
+The second instinct was to look at what langchain4j-agentic was building. The Quarkus workshop
+against that library showed the full picture: `@SequenceAgent`, `@ParallelAgent`, `AgenticScope`,
+`@HumanInTheLoop`, `MonitoredAgent`. A complete workflow vocabulary. Quarkus was already
+integrating it through CDI. Helidon 4.4 was integrating it through its own declarative model.
+
+The honest question then became: what does CafeAI add that neither Helidon nor langchain4j
+already provides?
+
+The answer, arrived at through the process of elimination, is this:
+
+**CafeAI gives every AI capability the things it needs to live in a production HTTP application.**
+
+A session identity. Guardrail protection. An observability context. A registration name. A
+fallback behaviour. None of those are AI concerns. All of them are application concerns.
+CafeAI provides them. That is the role.
+
+### 10.2 The Pattern That Repeats Across Every Module
+
+Look at each CafeAI module and the pattern is identical:
+
+| Module | What Exists | What CafeAI Adds |
+|---|---|---|
+| `cafeai-connect` | Ollama, OpenAI APIs | Probed, fallback-capable HTTP identity |
+| `cafeai-rag` | LangChain4j vector stores | Registered, session-aware pipeline identity |
+| `cafeai-memory` | Redis, in-memory stores | HTTP session identity (`X-Session-Id`) |
+| `cafeai-tools` | LangChain4j `@Tool` dispatch | Named, registerable HTTP-invocable identity |
+| `cafeai-guardrails` | NLP classifiers, pattern matchers | Middleware identity in the HTTP pipeline |
+| `cafeai-mcp` *(new)* | Helidon MCP 1.1 server | Bridge from CafeAI tool registry to MCP protocol |
+| `cafeai-agents` *(new)* | Helidon agentic LangChain4j | HTTP identity + session + guardrails for agents |
+
+CafeAI never reimplements the AI capability. It gives the capability an HTTP-native home.
+
+### 10.3 The Formal Statement
+
+> **CafeAI is the HTTP identity layer for AI workloads.**
+>
+> Every AI capability — whether a single LLM call, a RAG pipeline, a tool-calling agent, or a
+> multi-agent workflow — needs the same things to exist in a production application: an HTTP
+> surface, a session identity, guardrail protection, an observability context, and a registration
+> name. None of those are AI concerns. CafeAI provides all of them through a single, composable,
+> Express-style API.
+
+### 10.4 The Coattail Strategy
+
+CafeAI rides deliberately on Helidon and LangChain4j advances. This is not a weakness — it is
+the correct strategic posture for a framework that owns the binding layer.
+
+When Helidon 4.4 shipped MCP 1.1 server support, CafeAI did not need to implement MCP. It
+needed to write the bridge between its tool registry and Helidon's MCP server. That bridge is
+~200 lines.
+
+When Helidon 4.4 shipped agentic LangChain4j support, CafeAI did not need to implement agent
+loops. It needed to write the binding between Helidon's agent lifecycle and CafeAI's HTTP
+session and observability model. That binding is similarly small.
+
+When LangChain4j 2.0 ships, CafeAI upgrades a dependency. The binding layer barely changes
+because it is defined by HTTP application concerns, not AI library internals.
+
+**Small surface area owned. Large surface area leveraged. Distinct role that no one else fills
+in exactly this way.** That is a durable position.
+
+### 10.5 The Triple-Threat
+
+The convergence of three capabilities in a single running application creates something
+genuinely powerful:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   CafeAI Application                 │
+│                                                       │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  │
+│  │ HTTP Server │  │ AI Workload  │  │ MCP Server │  │
+│  │             │  │  Executor    │  │            │  │
+│  │ Express-    │  │              │  │ Exposes    │  │
+│  │ style       │  │ RAG · Tools  │  │ all tools  │  │
+│  │ routing +   │  │ Memory ·     │  │ + agents   │  │
+│  │ middleware  │  │ Guardrails · │  │ as         │  │
+│  │             │  │ Observability│  │ discoverable│ │
+│  │             │  │ Agents       │  │ nodes      │  │
+│  └─────────────┘  └──────────────┘  └────────────┘  │
+└─────────────────────────────────────────────────────┘
+        ↑                  ↑                  ↑
+   Direct HTTP         Internal          n8n, Claude,
+   clients             workloads         Temporal, any
+                                         MCP-aware tool
+```
+
+Each prong stands independently. A developer could use CafeAI purely as an HTTP server with
+no AI at all. Or purely as an MCP server exposing AI tools. Or purely as an AI workload executor
+called from another process. The triple combination is powerful precisely because none of the
+three require the others.
+
+---
+
+## 11. The Two Strategic Directions
+
+This section documents the two new directions that emerged from the architectural analysis in
+March 2026, how each was arrived at, and what each means for CafeAI.
+
+### 11.1 Direction 1 — MCP Server (ROADMAP-11)
+
+#### The Journey
+
+The original `cafeai-tools` module was built as an MCP *client* — it could connect to external
+MCP servers and make their tools available to the LLM. The question of whether CafeAI could
+*be* an MCP server — exposing its own tools outward — was deferred as unclear.
+
+The clarity came from two observations arriving simultaneously. First, the n8n question: is
+there a way to make CafeAI capabilities graphically orchestratable from the outside, where the
+JVM handles all the AI work? Second, the Helidon 4.3/4.4 releases: Helidon already built a
+full MCP 1.1 server implementation. CafeAI sits on Helidon. CafeAI has a tool registry.
+The bridge between them is the only missing piece.
+
+#### What It Means
+
+`app.mcp().serve("/mcp")` — one line in the developer's application — causes Helidon's MCP
+server to expose every registered `@CafeAITool` method and every registered agent as a
+discoverable, typed, invocable node.
+
+Any MCP-aware orchestrator — n8n, Claude Desktop, Temporal, any future tool — can connect to
+that endpoint, discover what capabilities exist, and invoke them. The entire AI execution —
+RAG retrieval, memory, guardrails, observability — happens in the JVM. The orchestrator just
+calls HTTP.
+
+This is the correct separation. CafeAI provides the intelligence. External orchestrators
+provide the graph. Neither owns the other's domain.
+
+#### The Helidon Leverage
+
+CafeAI does not implement the MCP protocol. Helidon MCP 1.1 implements it, including the
+June 2025 spec additions like Elicitation — a mechanism for an MCP server to request
+additional structured input mid-execution, which maps naturally to CafeAI's `@HumanInTheLoop`
+concept. CafeAI writes the bridge from its tool registry to Helidon's registration API.
+Estimated code surface: one new module `cafeai-mcp`, ~300 lines of bridge code.
+
+### 11.2 Direction 2 — Agents (ROADMAP-12)
+
+#### The Journey
+
+The agent question was the most difficult. Three ideas were explored and rejected before
+arriving at the right answer.
+
+**Rejected: Chains and Steps.** `Chain`, `ChainStep`, and `Steps` were built, used in the
+capstone support assistant, and removed. The removal reason: they duplicated what middleware
+already does but added a new vocabulary the developer had to learn. Every new primitive has
+a learning cost. If that cost is not paid back in clear, immediate value, the developer stops.
+Chains did not pay back.
+
+**Rejected: Building a workflow orchestrator.** The analysis of langchain4j-agentic and the
+Quarkus workshop showed how much work a real agentic workflow system requires — `AgenticScope`,
+`@SequenceAgent`, `@ParallelAgent`, `@ConditionalAgent`, `@LoopAgent`, `@HumanInTheLoop`,
+`MonitoredAgent`. Quarkus is already building this integration against Helidon's own LangChain4j
+bindings. Building a competing implementation would be building a worse version of something
+that already exists, or is being built.
+
+**Rejected: Temporal as backing orchestrator.** Temporal was identified as a production-grade
+workflow execution engine that could back a CafeAI `Orchestrator` interface. The design was
+sound — but it was the right answer to the wrong question. Asking "how does CafeAI orchestrate
+agents" was the wrong question. The right question: "what does CafeAI give to an agent that
+neither Helidon nor LangChain4j already provides?"
+
+**The answer:** The same thing CafeAI gives to every other capability. An HTTP identity,
+a session, guardrail protection, and an observability context.
+
+#### What It Means
+
+Helidon 4.4 ships agentic LangChain4j support. Agents are defined as annotated interfaces:
+
+```java
+@Ai.Agent("support-agent")
+@Ai.ChatModel("qwen2.5")
+@Ai.Tools(GitHubTools.class)
+public interface SupportAgent {
+    @Agent(outputKey = "response")
+    String answer(@V("question") String question);
+}
+```
+
+CafeAI's job: `app.agent("support-agent", SupportAgent.class)` — register this agent with
+CafeAI so it has an HTTP identity, session threading from `X-Session-Id`, guardrail pre-screening,
+and observability wrapping. Helidon instantiates and runs the agent. CafeAI gives it a home in
+the HTTP application.
+
+The developer writes zero Helidon injection boilerplate. The agent has the same composable,
+registerable feel as `app.tool()`, `app.memory()`, `app.guard()`. The pattern is consistent.
+
+#### The Helidon Leverage
+
+CafeAI does not implement the agent loop, the tool dispatch, the `AgenticScope`, or any
+workflow patterns. Helidon 4.4 + LangChain4j 1.11 implement all of that. CafeAI writes the
+binding between Helidon's agent lifecycle and CafeAI's session/guardrail/observability model.
+Estimated code surface: one new module `cafeai-agents`, ~250 lines of binding code.
+
+### 11.3 Why Both Directions Are Complementary
+
+The MCP direction and the agents direction are not competing. They compose:
+
+- An agent registered with `app.agent()` gets an HTTP identity inside CafeAI
+- `app.mcp().serve()` exposes that agent as a discoverable MCP node
+- An external orchestrator discovers and invokes the agent via MCP
+- CafeAI's guardrails, session, and observability fire on every invocation regardless of origin
+
+The same agent is simultaneously invocable directly via HTTP, invocable via WebSocket, and
+discoverable by any MCP-aware external orchestrator. That is the triple-threat at full extension.
+
+---
+
+## 12. Blog and Conference Series
 
 Each module is a self-contained teachable unit. The project structure **is** the curriculum.
-Each post is a rung on the adoption ladder.
 
 | # | Title |
 |---|---|
 | 1 | **Brewing AI in Java** — CafeAI Introduction and Philosophy |
 | 2 | **The Middleware Pattern Meets Gen AI** — From Express to CafeAI |
-| 3 | **Your First LLM Call Without Spring Boot** — Helidon SE + Langchain4j |
+| 3 | **Your First LLM Call Without Spring Boot** — Helidon SE + LangChain4j |
 | 4 | **Prompt Engineering in Java** — Templates, System Prompts, and the API Vocabulary |
 | 5 | **Context Memory Without the Cloud Tax** — Java FFM and the Tiered Memory Model |
 | 6 | **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval |
 | 7 | **Tool Use and MCP in Java** — The Difference Between a Tool and an MCP Server |
 | 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, Bias, and Hallucination |
-| 9 | **Multi-Agent Orchestration with Java Structured Concurrency** |
-| 10 | **Production-Grade AI Observability** — OpenTelemetry, Evals, and Prompt Versioning |
-| 11 | **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, and Cache Poisoning |
-| 12 | **Token Streaming in Java** — SSE, WebSocket, and Reactive Backpressure |
+| 9 | **Production-Grade AI Observability** — OpenTelemetry, Evals, and Prompt Versioning |
+| 10 | **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, Adversarial Robustness |
+| 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities to External Orchestrators |
+| 12 | **Agents Without an Orchestrator** — Riding Helidon's Agentic LangChain4j Integration |
+| 13 | **The Triple-Threat** — HTTP Server + AI Executor + MCP Server in One JVM Process |
 
 ---
 
