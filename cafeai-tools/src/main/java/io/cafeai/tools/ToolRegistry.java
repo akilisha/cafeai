@@ -140,15 +140,13 @@ public final class ToolRegistry {
     }
 
     /**
-     * Parses tool arguments from the JSON string the LLM produces.
-     * Simple key->positional mapping -- no full JSON parser needed for
-     * string/number/boolean parameter types.
+     * Parses tool arguments from the JSON string the LLM produces,
+     * converting each value to the correct Java type for the method parameter.
      */
     private static Object[] parseArguments(String json,
             List<ToolDefinition.ParameterSchema> parameters) {
         if (parameters.isEmpty()) return new Object[0];
 
-        // Use Jackson for reliable JSON parsing
         Object[] args = new Object[parameters.size()];
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper =
@@ -159,13 +157,37 @@ public final class ToolRegistry {
             for (int i = 0; i < parameters.size(); i++) {
                 ToolDefinition.ParameterSchema p = parameters.get(i);
                 Object value = parsed.get(p.name());
-                args[i] = value != null ? value.toString() : "";
+                if (value == null) {
+                    args[i] = defaultForType(p.type());
+                    continue;
+                }
+                args[i] = switch (p.type()) {
+                    case "number"  -> ((Number) coerceToNumber(value)).doubleValue();
+                    case "integer" -> ((Number) coerceToNumber(value)).intValue();
+                    case "boolean" -> Boolean.parseBoolean(value.toString());
+                    default        -> value.toString();  // "string" and anything else
+                };
             }
         } catch (Exception e) {
             log.warn("Failed to parse tool arguments '{}': {}", json, e.getMessage());
             Arrays.fill(args, "");
         }
         return args;
+    }
+
+    private static Object coerceToNumber(Object value) {
+        if (value instanceof Number n) return n;
+        try { return Double.parseDouble(value.toString()); }
+        catch (NumberFormatException e) { return 0.0; }
+    }
+
+    private static Object defaultForType(String type) {
+        return switch (type) {
+            case "number"  -> 0.0;
+            case "integer" -> 0;
+            case "boolean" -> false;
+            default        -> "";
+        };
     }
 
     private List<ToolSpecification> buildSpecifications() {

@@ -45,6 +45,7 @@ public final class ToolDefinition {
 
     /**
      * Invokes the tool with the given arguments.
+     * Coerces numeric arguments to the exact primitive type the method expects.
      * All exceptions are caught and returned as error strings — tools
      * never propagate exceptions to the LLM.
      *
@@ -53,7 +54,13 @@ public final class ToolDefinition {
      */
     public String invoke(Object... args) {
         try {
-            Object result = method.invoke(instance, args);
+            // Coerce each argument to the exact type the method parameter expects
+            Class<?>[] paramTypes = method.getParameterTypes();
+            Object[]   coerced   = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                coerced[i] = coerce(args[i], paramTypes[i]);
+            }
+            Object result = method.invoke(instance, coerced);
             return result != null ? result.toString() : "";
         } catch (java.lang.reflect.InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -63,6 +70,23 @@ public final class ToolDefinition {
             log.warn("Tool '{}' invocation failed: {}", name, e.getMessage());
             return "ERROR: " + e.getMessage();
         }
+    }
+
+    private static Object coerce(Object value, Class<?> target) {
+        if (value == null) return null;
+        if (target == double.class || target == Double.class)
+            return value instanceof Number n ? n.doubleValue()
+                 : Double.parseDouble(value.toString());
+        if (target == int.class || target == Integer.class)
+            return value instanceof Number n ? n.intValue()
+                 : Integer.parseInt(value.toString().replace(".0",""));
+        if (target == long.class || target == Long.class)
+            return value instanceof Number n ? n.longValue()
+                 : Long.parseLong(value.toString());
+        if (target == boolean.class || target == Boolean.class)
+            return value instanceof Boolean b ? b
+                 : Boolean.parseBoolean(value.toString());
+        return value; // String and everything else — pass through
     }
 
     public String           name()        { return name; }
