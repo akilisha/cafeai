@@ -170,10 +170,12 @@ public interface GuardRail extends Middleware {
     class RegulatoryGuardRail implements GuardRail {
         private String flags = "";
 
-        public RegulatoryGuardRail gdpr()  { flags += "+gdpr";  return this; }
-        public RegulatoryGuardRail hipaa() { flags += "+hipaa"; return this; }
-        public RegulatoryGuardRail fcra()  { flags += "+fcra";  return this; }
-        public RegulatoryGuardRail ccpa()  { flags += "+ccpa";  return this; }
+        public RegulatoryGuardRail gdpr()        { flags += "+gdpr";        return this; }
+        public RegulatoryGuardRail hipaa()       { flags += "+hipaa";       return this; }
+        public RegulatoryGuardRail fcra()        { flags += "+fcra";        return this; }
+        public RegulatoryGuardRail ccpa()        { flags += "+ccpa";        return this; }
+        public RegulatoryGuardRail ecoa()        { flags += "+ecoa";        return this; }
+        public RegulatoryGuardRail fairHousing() { flags += "+fairHousing"; return this; }
 
         @Override public String   name()     { return "regulatory" + flags; }
         @Override public Position position() { return Position.BOTH; }
