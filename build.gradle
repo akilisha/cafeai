@@ -6,8 +6,8 @@
 // ── Version Catalog ─────────────────────────────────────────
 ext {
     javaVersion             = 21
-    helidonVersion          = '4.1.4'
-    langchain4jVersion      = '1.0.0-alpha1'
+    helidonVersion          = '4.3.0'
+    langchain4jVersion      = '1.5.0'
     pgvectorVersion         = '0.1.6'
     chroma4jVersion         = '0.1.0'
     chronicleMapVersion     = '3.25ea0'
@@ -47,6 +47,19 @@ subprojects {
     test {
         useJUnitPlatform()
         jvmArgs '--enable-preview'
+        testLogging {
+            events 'passed', 'failed', 'skipped'
+            showStandardStreams false
+            afterSuite { desc, result ->
+                if (!desc.parent) {
+                    println "\nTest results (${desc.name}): " +
+                        "${result.testCount} tests, " +
+                        "${result.successfulTestCount} passed, " +
+                        "${result.failedTestCount} failed, " +
+                        "${result.skippedTestCount} skipped"
+                }
+            }
+        }
     }
 
     // Javadoc: suppress lint errors for snapshot builds.
@@ -54,6 +67,8 @@ subprojects {
     // doclint checker on some platforms. Non-fatal for internal snapshots.
     tasks.withType(Javadoc).configureEach {
         options.addStringOption('Xdoclint:none', '-quiet')
+        options.addBooleanOption('-enable-preview', true)
+        options.release = rootProject.ext.javaVersion
         failOnError = false
     }
 

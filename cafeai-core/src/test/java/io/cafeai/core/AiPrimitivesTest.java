@@ -315,12 +315,12 @@ class AiPrimitivesTest {
 
     /**
      * Named inner class so it can implement both {@link AiProvider} and
-     * {@link io.cafeai.core.internal.LangchainBridge.ChatLanguageModelAccess}.
+     * {@link io.cafeai.core.internal.LangchainBridge.ChatModelAccess}.
      * Anonymous classes cannot list additional interfaces — named classes can.
      */
     private static final class MockProvider
             implements AiProvider,
-                       io.cafeai.core.internal.LangchainBridge.ChatLanguageModelAccess {
+                       io.cafeai.core.internal.LangchainBridge.ChatModelAccess {
 
         private final String providerName;
         private final String model;
@@ -337,10 +337,18 @@ class AiPrimitivesTest {
         @Override public ProviderType type() { return ProviderType.CUSTOM; }
 
         @Override
-        public dev.langchain4j.model.chat.ChatLanguageModel toLangchainModel() {
-            return messages -> dev.langchain4j.model.output.Response.from(
-                dev.langchain4j.data.message.AiMessage.from(fixedResponse),
-                new dev.langchain4j.model.output.TokenUsage(10, 5));
+        public dev.langchain4j.model.chat.ChatModel toChatModel() {
+            String response = fixedResponse;
+            return new dev.langchain4j.model.chat.ChatModel() {
+                @Override
+                public dev.langchain4j.model.chat.response.ChatResponse doChat(
+                        dev.langchain4j.model.chat.request.ChatRequest request) {
+                    return dev.langchain4j.model.chat.response.ChatResponse.builder()
+                        .aiMessage(dev.langchain4j.data.message.AiMessage.from(response))
+                        .tokenUsage(new dev.langchain4j.model.output.TokenUsage(10, 5))
+                        .build();
+                }
+            };
         }
     }
 
@@ -349,7 +357,7 @@ class AiPrimitivesTest {
      */
     static final class CapturingMockProvider
             implements AiProvider,
-                       io.cafeai.core.internal.LangchainBridge.ChatLanguageModelAccess {
+                       io.cafeai.core.internal.LangchainBridge.ChatModelAccess {
 
         final String fixedResponse;
         String lastMessage;
@@ -365,27 +373,33 @@ class AiPrimitivesTest {
         @Override public ProviderType type() { return ProviderType.CUSTOM; }
 
         @Override
-        public dev.langchain4j.model.chat.ChatLanguageModel toLangchainModel() {
-            return messages -> {
-                this.lastMessages = new java.util.ArrayList<>(messages);
-                // Capture the last user message
-                for (int i = messages.size() - 1; i >= 0; i--) {
-                    if (messages.get(i) instanceof
-                            dev.langchain4j.data.message.UserMessage um) {
-                        this.lastMessage = um.singleText();
-                        break;
+        public dev.langchain4j.model.chat.ChatModel toChatModel() {
+            return new dev.langchain4j.model.chat.ChatModel() {
+                @Override
+                public dev.langchain4j.model.chat.response.ChatResponse doChat(
+                        dev.langchain4j.model.chat.request.ChatRequest request) {
+                    var messages = request.messages();
+                    lastMessages = new java.util.ArrayList<>(messages);
+                    // Capture the last user message
+                    for (int i = messages.size() - 1; i >= 0; i--) {
+                        if (messages.get(i) instanceof
+                                dev.langchain4j.data.message.UserMessage um) {
+                            lastMessage = um.singleText();
+                            break;
+                        }
                     }
-                }
-                // Capture the system message if present
-                for (var msg : messages) {
-                    if (msg instanceof dev.langchain4j.data.message.SystemMessage sm) {
-                        this.lastSystemPrompt = sm.text();
-                        break;
+                    // Capture the system message if present
+                    for (var msg : messages) {
+                        if (msg instanceof dev.langchain4j.data.message.SystemMessage sm) {
+                            lastSystemPrompt = sm.text();
+                            break;
+                        }
                     }
+                    return dev.langchain4j.model.chat.response.ChatResponse.builder()
+                        .aiMessage(dev.langchain4j.data.message.AiMessage.from(fixedResponse))
+                        .tokenUsage(new dev.langchain4j.model.output.TokenUsage(10, 5))
+                        .build();
                 }
-                return dev.langchain4j.model.output.Response.from(
-                    dev.langchain4j.data.message.AiMessage.from(fixedResponse),
-                    new dev.langchain4j.model.output.TokenUsage(10, 5));
             };
         }
     }

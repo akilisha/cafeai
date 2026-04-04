@@ -3,7 +3,9 @@ package io.cafeai.tools;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.*;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,16 +89,19 @@ public final class ToolRegistry {
      * @param messages mutable message list (modified in place with tool exchanges)
      * @return the LLM's final text response after all tool calls are resolved
      */
-    public String executeWithTools(ChatLanguageModel model,
+    public String executeWithTools(ChatModel model,
                                    List<ChatMessage> messages) {
         // Build Langchain4j ToolSpecifications from our definitions
         List<ToolSpecification> specs = buildSpecifications();
 
         for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-            dev.langchain4j.model.output.Response<AiMessage> response =
-                model.generate(messages, specs);
+            ChatRequest chatRequest = ChatRequest.builder()
+                .messages(messages)
+                .toolSpecifications(specs)
+                .build();
+            ChatResponse response = model.chat(chatRequest);
 
-            AiMessage aiMessage = response.content();
+            AiMessage aiMessage = response.aiMessage();
             messages.add(aiMessage);
 
             // No tool calls -- LLM produced a final text answer
@@ -193,47 +198,31 @@ public final class ToolRegistry {
     private List<ToolSpecification> buildSpecifications() {
         List<ToolSpecification> specs = new ArrayList<>();
         for (ToolDefinition def : tools.values()) {
-            // Build JSON schema for parameters manually -- avoids ToolParameters
-            // builder API differences across langchain4j versions.
-            var properties = new com.fasterxml.jackson.databind.node.ObjectNode(
-                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
-            List<String> required = new ArrayList<>();
 
+            // Build parameter schema using JsonObjectSchema (ToolParameters was removed in 1.x)
+            dev.langchain4j.model.chat.request.json.JsonObjectSchema.Builder schemaBuilder =
+                dev.langchain4j.model.chat.request.json.JsonObjectSchema.builder();
+
+            List<String> required = new ArrayList<>();
             for (ToolDefinition.ParameterSchema p : def.parameters()) {
-                var prop = properties.putObject(p.name());
-                prop.put("type", p.type());
-                prop.put("description", p.description());
+                switch (p.type()) {
+                    case "integer" -> schemaBuilder.addIntegerProperty(p.name(), p.description());
+                    case "number"  -> schemaBuilder.addNumberProperty(p.name(), p.description());
+                    case "boolean" -> schemaBuilder.addBooleanProperty(p.name(), p.description());
+                    default        -> schemaBuilder.addStringProperty(p.name(), p.description());
+                }
                 required.add(p.name());
             }
-
-            var schema = new com.fasterxml.jackson.databind.node.ObjectNode(
-                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
-            schema.put("type", "object");
-            schema.set("properties", properties);
-            var reqArray = schema.putArray("required");
-            required.forEach(reqArray::add);
+            if (!required.isEmpty()) {
+                schemaBuilder.required(required.toArray(new String[0]));
+            }
 
             specs.add(ToolSpecification.builder()
                 .name(def.name())
                 .description(def.description())
-                .parameters(dev.langchain4j.agent.tool.ToolParameters.builder()
-                    .properties(toMap(properties))
-                    .required(required)
-                    .build())
+                .parameters(schemaBuilder.build())
                 .build());
         }
         return specs;
-    }
-
-    private static Map<String, Map<String, Object>> toMap(
-            com.fasterxml.jackson.databind.node.ObjectNode node) {
-        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
-        node.fields().forEachRemaining(e -> {
-            Map<String, Object> prop = new LinkedHashMap<>();
-            e.getValue().fields().forEachRemaining(f ->
-                prop.put(f.getKey(), f.getValue().asText()));
-            result.put(e.getKey(), prop);
-        });
-        return result;
     }
 }

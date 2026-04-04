@@ -12,7 +12,8 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.middleware.Middleware;
@@ -229,7 +230,7 @@ public final class CafeAIApp implements CafeAI {
      * <ol>
      *   <li>Resolve the model -- {@code ModelRouter} or single {@code AiProvider}</li>
      *   <li>Build the message list -- system prompt + conversation history + user message</li>
-     *   <li>Call Langchain4j {@code ChatLanguageModel.generate()}</li>
+     *   <li>Call Langchain4j {@code ChatModel.chat()}</li>
      *   <li>Store the exchange in memory if a session ID is present</li>
      *   <li>Return {@link PromptResponse} with text + token counts</li>
      * </ol>
@@ -238,8 +239,8 @@ public final class CafeAIApp implements CafeAI {
         // -- 1. Resolve provider -----------------------------------------------
         AiProvider provider = resolveProvider(request);
 
-        // -- 2. Get the Langchain4j ChatLanguageModel --------------------------
-        ChatLanguageModel model =
+        // -- 2. Get the Langchain4j ChatModel --------------------------
+        ChatModel model =
             LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 3. Build message list ---------------------------------------------
@@ -319,9 +320,8 @@ public final class CafeAIApp implements CafeAI {
             if (toolBridge != null && toolBridge.hasTools()) {
                 responseText = toolBridge.executeWithTools(model, messages);
             } else {
-                dev.langchain4j.model.output.Response<AiMessage> response =
-                    model.generate(messages);
-                responseText = response.content().text();
+                ChatResponse response = model.chat(messages);
+                responseText = response.aiMessage().text();
                 TokenUsage usage = response.tokenUsage();
                 promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
                 outputTokens  = usage != null ? usage.outputTokenCount() : 0;

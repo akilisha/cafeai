@@ -1,7 +1,7 @@
 package io.cafeai.tools;
 
 import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import io.cafeai.core.spi.ToolBridge;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public final class CafeAIToolBridge implements ToolBridge {
     }
 
     @Override
-    public String executeWithTools(ChatLanguageModel model, List<ChatMessage> messages) {
+    public String executeWithTools(ChatModel model, List<ChatMessage> messages) {
         return registry.executeWithTools(model, messages);
     }
 }

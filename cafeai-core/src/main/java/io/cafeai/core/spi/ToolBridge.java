@@ -1,7 +1,7 @@
 package io.cafeai.core.spi;
 
 import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 
 import java.util.List;
 
@@ -41,9 +41,9 @@ public interface ToolBridge {
      * Executes the full tool-use loop: sends tools + messages to the model,
      * handles tool invocations, and returns the final text response.
      *
-     * @param model    the Langchain4j {@link ChatLanguageModel} to call
+     * @param model    the Langchain4j {@link ChatModel} to call
      * @param messages mutable message list -- modified in place with tool exchanges
      * @return the model's final text response
      */
-    String executeWithTools(ChatLanguageModel model, List<ChatMessage> messages);
+    String executeWithTools(ChatModel model, List<ChatMessage> messages);
 }
