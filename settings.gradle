@@ -5,7 +5,6 @@ include(
     'cafeai-memory',
     'cafeai-rag',
     'cafeai-tools',
-    'cafeai-agents',
     'cafeai-guardrails',
     'cafeai-observability',
     'cafeai-security',

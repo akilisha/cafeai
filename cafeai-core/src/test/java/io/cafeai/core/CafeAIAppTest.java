@@ -988,44 +988,4 @@ class CafeAIAppTest {
         assertThat(serverCalled[0]).isEqualTo(0);
         assertThat(routingCalled[0]).isEqualTo(0);
     }
-
-    // ── app.agent() tests ──────────────────────────────────────────────────────
-
-    interface StubAgent { String ask(String q); }
-
-    @Test
-    @DisplayName("app.agent(name, interface) before listen() — returns config or null")
-    void agent_registration_beforeListen() {
-        var app = CafeAI.create();
-        // Returns AgentConfig<T> if cafeai-agents present, null if absent — both valid
-        Object result = app.agent("stub", StubAgent.class);
-        // No exception — registration is always safe whether module present or not
-        assertThat(true).isTrue();
-    }
-
-    @Test
-    @DisplayName("app.agentStateless() delegates to agent() with null sessionId")
-    void agentStateless_delegatesToAgent() {
-        var app = CafeAI.create();
-        // Without cafeai-agents on classpath, should throw clear error
-        assertThatThrownBy(() -> app.agentStateless("stub", StubAgent.class))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("cafeai-agents");
-    }
-
-    @Test
-    @DisplayName("app.agent(null name) throws NullPointerException")
-    void agent_nullName_throws() {
-        var app = CafeAI.create();
-        assertThatThrownBy(() -> app.agent(null, StubAgent.class))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("app.agent(name, null interface) throws NullPointerException")
-    void agent_nullInterface_throws() {
-        var app = CafeAI.create();
-        assertThatThrownBy(() -> app.agent("stub", null))
-            .isInstanceOf(NullPointerException.class);
-    }
 }

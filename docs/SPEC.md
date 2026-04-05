@@ -27,7 +27,7 @@
 10. [The HTTP Identity Layer — CafeAI's Foundational Position](#10-the-http-identity-layer)
 11. [The Two Strategic Directions](#11-the-two-strategic-directions)
 12. [The Helidon Escape Hatch](#12-the-helidon-escape-hatch)
-13. [The Agent Mental Model](#13-the-agent-mental-model)
+13. [The `cafeai-agents` Effort — Abandoned](#13-the-cafeai-agents-effort--abandoned)
 14. [Blog and Conference Series](#14-blog-and-conference-series)
 12. [Blog and Conference Series](#12-blog-and-conference-series)
 
@@ -696,93 +696,21 @@ for every Helidon capability.
 
 ---
 
-## 13. The Agent Mental Model
+## 13. The `cafeai-agents` Effort — Abandoned
 
-Understanding how CafeAI agents work prevents two categories of design mistake: under-using
-a single agent (building manual tool loops that LangChain4j would run automatically), and
-over-using a single agent (expecting one `app.agent()` to orchestrate a complex multi-step
-workflow with human approval and retry semantics).
+An attempt was made to build a `cafeai-agents` module that would wrap LangChain4j `AiServices`
+with CafeAI's HTTP identity, session threading, and guardrail model. The effort was abandoned.
 
-### An `AiService` is a reasoning loop, not a single LLM call
+It produced no innovative or useful ideas. Every design decision was either a re-implementation
+of something LangChain4j already does better, a forced reconciliation of incompatible
+architectural assumptions, or a cascade of compile errors caused by not reading the existing
+code before writing against it.
 
-When a developer calls `agent.advise("can I afford this house?")`, LangChain4j does not make
-one call and return. It runs a cycle internally:
-
-1. Send the user message + system prompt to the LLM
-2. LLM responds either with a final answer **or** a tool call request
-3. If tool call: LangChain4j executes the tool, appends result to conversation
-4. Send updated conversation back to LLM
-5. Repeat until LLM produces a final text response
-
-One interface method invocation may make 5–10 LLM calls internally. The loop is owned by
-LangChain4j. CafeAI wraps the entry and exit — not the individual steps.
-
-### `app.agent()` is one reasoning loop
-
-One `app.agent()` registration corresponds to one `AiService`. Multiple registered agents are
-independent — they do not share memory, model context, or tool state unless explicitly wired
-as supervisor/subagent.
-
-### Multi-agent patterns
-
-**Supervisor / subagent** — The correct pattern when one agent needs to orchestrate others.
-The supervisor `AiService` receives subagent instances as `@Tool`-annotated methods. The
-supervisor's reasoning loop decides when to invoke each subagent.
-
-```java
-// Each agent registered independently
-app.agent("researcher", ResearchAgent.class)...;
-app.agent("writer", WriterAgent.class)...;
-
-// Supervisor receives subagents as tools via escape hatch
-app.agent("editor", EditorAgent.class)
-   .configure(builder -> builder.tools(
-       researcherToolWrapper,   // wraps ResearchAgent as a @Tool
-       writerToolWrapper));     // wraps WriterAgent as a @Tool
-```
-
-**Sequential pipeline** — Different agents handle different stages. CafeAI middleware chains
-pass context via `req.local()`:
-
-```java
-app.post("/process",
-    classifyIntent(),    // invokes classifier agent, sets req.local("intent")
-    routeToSpecialist(), // reads intent, invokes specialist agent
-    (req, res, next) -> res.json(req.local("result")));
-```
-
-**Parallel fan-out** — Multiple agents invoked concurrently via `CompletableFuture`,
-results passed to an aggregator. This is application code, not a CafeAI primitive.
-
-**Durable multi-step workflows with human approval** — This is the boundary of what
-`app.agent()` should handle. When a workflow needs: retries across JVM restarts, human
-approval between agent steps, branching on step outcomes, or audit trails for compliance
-— reach for an external orchestrator (Orkes Conductor, Temporal). CafeAI agents are
-callable from those orchestrators via MCP (through `app.helidon()`) or plain HTTP. CafeAI
-owns the inner reasoning loop. The orchestrator owns the outer workflow.
-
-### The builder escape hatch
-
-`AiServices.builder()` is rich. CafeAI pre-wires the common path — model, tools, memory
-strategy, guardrails. The `.configure()` escape hatch gives access to the full builder
-for capabilities CafeAI does not abstract:
-
-| Capability | CafeAI abstraction | Via `.configure()` |
-|---|---|---|
-| Model | `app.ai()` / `.model()` | `builder.chatModel(...)` |
-| Tools | `app.tool()` / `.tool()` | `builder.tools(...)` |
-| Memory | `.memory()` | `builder.chatMemoryProvider(id -> ...)` |
-| System prompt | `.system()` | `builder.systemMessageProvider(id -> ...)` |
-| Guardrails | `.guard()` | — (CafeAI applies these, not LangChain4j) |
-| Per-session memory | ❌ not abstracted | `builder.chatMemoryProvider(...)` |
-| Advanced RAG | ❌ not abstracted | `builder.retrievalAugmentor(...)` |
-| Built-in moderation | ❌ not abstracted | `builder.moderationModel(...)` |
-| Dynamic system prompt | ❌ not abstracted | `builder.systemMessageProvider(...)` |
-| Output parsing | ❌ not abstracted | `builder.outputParser(...)` |
-
-The `.configure()` consumer receives the `AiServices.Builder` **after** CafeAI has applied
-its own configuration. The developer may override or extend anything. This is the same
-philosophy as `app.helidon()` — CafeAI never traps you.
+The correct approach to agents in CafeAI is to use LangChain4j `AiServices` directly — no
+wrapper, no module, no abstraction layer. The developer owns the agent definition. CafeAI
+provides the HTTP server, the tool registry, the guardrails middleware, and the memory
+strategies. Those are sufficient. The `app.helidon()` escape hatch covers any gap between
+what CafeAI abstracts and what Helidon or LangChain4j provides natively.
 
 ---
 

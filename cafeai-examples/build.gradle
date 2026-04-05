@@ -19,7 +19,6 @@ dependencies {
     implementation project(':cafeai-memory')
     implementation project(':cafeai-rag')
     implementation project(':cafeai-tools')
-    implementation project(':cafeai-agents')
     implementation project(':cafeai-guardrails')
     implementation project(':cafeai-observability')
     implementation project(':cafeai-security')
@@ -32,8 +31,10 @@ dependencies {
     testImplementation "org.testcontainers:postgresql:${rootProject.ext.testcontainersVersion}"
 }
 
-// Default example to run - override with -PmainClass=io.cafeai.examples.XyzExample
+// ── Active example ───────────────────────────────────────────────────────────
+// Change mainClass here to run a different example.
+// Run with: ./gradlew :cafeai-examples:run
 application {
-    mainClass = project.findProperty('mainClass') ?: 'io.cafeai.examples.HelloCafeAI'
+    mainClass = 'io.cafeai.examples.HelloCafeAI'
     applicationDefaultJvmArgs = ['--enable-preview']
 }

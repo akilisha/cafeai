@@ -90,9 +90,6 @@ public final class CafeAIApp implements CafeAI {
     // Tool registry bridge (ROADMAP-07 Phase 5) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ToolBridge toolBridge;
 
-    // Agent bridge (ROADMAP-12) -- loaded via ServiceLoader
-    private io.cafeai.core.spi.AgentBridge agentBridge;
-
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ObserveBridge observeBridge;
     private Object evalHarness;
@@ -144,12 +141,6 @@ public final class CafeAIApp implements CafeAI {
             log.info("CafeAI module loaded: {} v{}", module.name(), module.version());
             module.register(registry);
         });
-        agentBridge = ServiceLoader.load(io.cafeai.core.spi.AgentBridge.class)
-            .findFirst()
-            .orElse(null);
-        if (agentBridge != null) {
-            log.info("CafeAI agents module active");
-        }
     }
 
     private void discoverConfigurers() {
@@ -504,52 +495,6 @@ public final class CafeAIApp implements CafeAI {
             helidonRoutingConsumers.add(consumer);
             return this;
         }
-    }
-
-    // -- Agents (ROADMAP-12) ---------------------------------------------------
-
-    @Override
-    public <T> Object agent(String name, Class<T> agentInterface) {
-        assertNotStarted("agent()");
-        Objects.requireNonNull(name,           "Agent name must not be null");
-        Objects.requireNonNull(agentInterface, "Agent interface must not be null");
-        if (agentBridge == null) {
-            log.warn("[cafeai-agents] app.agent() called but cafeai-agents is not on the " +
-                     "classpath — add 'io.cafeai:cafeai-agents' to enable agent support.");
-            return null;
-        }
-        return agentBridge.register(name, agentInterface);
-    }
-
-    @Override
-    public <T> T agent(String name, Class<T> type, String sessionId) {
-        Objects.requireNonNull(name, "Agent name must not be null");
-        Objects.requireNonNull(type, "Agent type must not be null");
-        if (agentBridge == null) {
-            throw new IllegalStateException(
-                "app.agent(name, type, sessionId) requires cafeai-agents on the classpath. " +
-                "Add 'io.cafeai:cafeai-agents' to your dependencies.");
-        }
-        var provider = resolveProviderForAgent();
-        return agentBridge.resolve(name, type, sessionId, provider);
-    }
-
-    @Override
-    public <T> T agentStateless(String name, Class<T> type) {
-        return agent(name, type, null);
-    }
-
-    /** Resolves the active AI provider as a ChatModelAccess for agent use. */
-    private io.cafeai.core.internal.LangchainBridge.ChatModelAccess resolveProviderForAgent() {
-        if (modelRouter != null) {
-            return (io.cafeai.core.internal.LangchainBridge.ChatModelAccess)
-                modelRouter.simpleModel();
-        }
-        if (aiProvider != null) {
-            return (io.cafeai.core.internal.LangchainBridge.ChatModelAccess) aiProvider;
-        }
-        throw new IllegalStateException(
-            "No AI provider registered. Call app.ai(provider) before invoking an agent.");
     }
 
     @Override
