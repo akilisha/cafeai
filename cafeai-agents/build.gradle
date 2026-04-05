@@ -1,23 +1,19 @@
 // ============================================================
-//  cafeai-agents
-//  Agentic patterns for CafeAI.
-//  Covers: ReAct loop, multi-agent orchestration via Java 21
-//  Structured Concurrency, human-in-the-loop, agent registry.
+//  cafeai-agents — LangChain4j AiServices agent binding
 //
-//  Structured Concurrency is the natural backbone here —
-//  each agent runs in its own StructuredTaskScope,
-//  failures are isolated, results are joined cleanly.
+//  Gives every AiService agent an HTTP identity, session
+//  threading, guardrail protection, and observability context.
+//
+//  Uses AiServices.builder() directly from LangChain4j core —
+//  no Helidon Inject, no annotation processing, pure Helidon SE.
 // ============================================================
 
 dependencies {
-
     api project(':cafeai-core')
     api project(':cafeai-tools')
     api project(':cafeai-memory')
 
-    // ── Langchain4j Agent support ────────────────────────────
+    // LangChain4j core — AiServices, ChatMemory, tool support
     implementation 'dev.langchain4j:langchain4j-core'
-
-    // ── Helidon for agent HTTP endpoints ─────────────────────
-    implementation 'io.helidon.webserver:helidon-webserver'
+    implementation 'dev.langchain4j:langchain4j'
 }

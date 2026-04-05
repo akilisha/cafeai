@@ -26,6 +26,9 @@
 9. [Naming Philosophy](#9-naming-philosophy)
 10. [The HTTP Identity Layer — CafeAI's Foundational Position](#10-the-http-identity-layer)
 11. [The Two Strategic Directions](#11-the-two-strategic-directions)
+12. [The Helidon Escape Hatch](#12-the-helidon-escape-hatch)
+13. [The Agent Mental Model](#13-the-agent-mental-model)
+14. [Blog and Conference Series](#14-blog-and-conference-series)
 12. [Blog and Conference Series](#12-blog-and-conference-series)
 
 ---
@@ -622,7 +625,168 @@ discoverable by any MCP-aware external orchestrator. That is the triple-threat a
 
 ---
 
-## 12. Blog and Conference Series
+## 12. The Helidon Escape Hatch
+
+CafeAI is an opinion on top of Helidon SE, not a cage around it.
+
+Every CafeAI abstraction — `app.get()`, `app.ai()`, `app.tool()`, `app.guard()` — is a
+deliberate simplification of something Helidon already knows how to do. But simplifications
+have edges. When a developer reaches the edge of CafeAI's vocabulary, they should be able to
+reach through to raw Helidon without abandoning the CafeAI programming model.
+
+`app.helidon()` is that reach-through.
+
+### API
+
+```java
+app.helidon()
+   .server(Consumer<WebServerConfig.Builder>)   // server-level access
+   .routing(Consumer<HttpRouting.Builder>)       // routing-level access
+```
+
+Both consumers are registered before `listen()` and applied during server startup, after
+CafeAI has assembled its own routing but before the server is built. Registration order
+is preserved. Both methods return `HelidonConfig` for fluent chaining.
+
+### When to use it
+
+| Capability | CafeAI API | Raw Helidon via `app.helidon()` |
+|---|---|---|
+| HTTP routes | `app.get()`, `app.post()` | — |
+| Middleware | `app.filter()` | — |
+| WebSockets | `app.ws()` | — |
+| TLS / HTTPS | ❌ not abstracted | `.server(b -> b.tls(...))` |
+| HTTP/2 tuning | ❌ not abstracted | `.server(b -> b.connectionConfig(...))` |
+| gRPC endpoints | ❌ not abstracted | `.routing(r -> r.register("/grpc", svc))` |
+| MCP server | ❌ not abstracted | `.routing(r -> r.register("/mcp", mcpFeature))` |
+| Native Helidon health | ❌ not abstracted | `.routing(r -> r.register(HealthFeature.create()))` |
+| Connection limits | ❌ not abstracted | `.server(b -> b.maxConcurrentRequests(n))` |
+
+### The MCP pattern
+
+The escape hatch resolves the question of how CafeAI exposes its tools as an MCP server.
+CafeAI does not own the MCP server — Helidon does. CafeAI contributes the tools:
+
+```java
+// CafeAI registers the tools
+app.tool(new GitHubTools());
+app.tool(new DatabaseTools());
+
+// Helidon exposes them via MCP — using raw Helidon from here
+app.helidon()
+   .routing(routing -> {
+       McpFeature mcp = McpFeature.builder()
+           // bridge ToolRegistry entries into Helidon MCP tool registrations
+           .build();
+       routing.register("/mcp", mcp);
+   });
+
+app.listen(8080);
+```
+
+This is the correct separation of concerns. CafeAI provides the AI primitives. Helidon
+provides the protocol infrastructure. The escape hatch is the seam.
+
+### Design principle
+
+The existence of `app.helidon()` is a statement of intent: CafeAI will never trap you.
+If we have not abstracted something, you can reach past us cleanly. This is more honest
+than either pretending CafeAI abstracts everything, or building hollow pass-through APIs
+for every Helidon capability.
+
+---
+
+## 13. The Agent Mental Model
+
+Understanding how CafeAI agents work prevents two categories of design mistake: under-using
+a single agent (building manual tool loops that LangChain4j would run automatically), and
+over-using a single agent (expecting one `app.agent()` to orchestrate a complex multi-step
+workflow with human approval and retry semantics).
+
+### An `AiService` is a reasoning loop, not a single LLM call
+
+When a developer calls `agent.advise("can I afford this house?")`, LangChain4j does not make
+one call and return. It runs a cycle internally:
+
+1. Send the user message + system prompt to the LLM
+2. LLM responds either with a final answer **or** a tool call request
+3. If tool call: LangChain4j executes the tool, appends result to conversation
+4. Send updated conversation back to LLM
+5. Repeat until LLM produces a final text response
+
+One interface method invocation may make 5–10 LLM calls internally. The loop is owned by
+LangChain4j. CafeAI wraps the entry and exit — not the individual steps.
+
+### `app.agent()` is one reasoning loop
+
+One `app.agent()` registration corresponds to one `AiService`. Multiple registered agents are
+independent — they do not share memory, model context, or tool state unless explicitly wired
+as supervisor/subagent.
+
+### Multi-agent patterns
+
+**Supervisor / subagent** — The correct pattern when one agent needs to orchestrate others.
+The supervisor `AiService` receives subagent instances as `@Tool`-annotated methods. The
+supervisor's reasoning loop decides when to invoke each subagent.
+
+```java
+// Each agent registered independently
+app.agent("researcher", ResearchAgent.class)...;
+app.agent("writer", WriterAgent.class)...;
+
+// Supervisor receives subagents as tools via escape hatch
+app.agent("editor", EditorAgent.class)
+   .configure(builder -> builder.tools(
+       researcherToolWrapper,   // wraps ResearchAgent as a @Tool
+       writerToolWrapper));     // wraps WriterAgent as a @Tool
+```
+
+**Sequential pipeline** — Different agents handle different stages. CafeAI middleware chains
+pass context via `req.local()`:
+
+```java
+app.post("/process",
+    classifyIntent(),    // invokes classifier agent, sets req.local("intent")
+    routeToSpecialist(), // reads intent, invokes specialist agent
+    (req, res, next) -> res.json(req.local("result")));
+```
+
+**Parallel fan-out** — Multiple agents invoked concurrently via `CompletableFuture`,
+results passed to an aggregator. This is application code, not a CafeAI primitive.
+
+**Durable multi-step workflows with human approval** — This is the boundary of what
+`app.agent()` should handle. When a workflow needs: retries across JVM restarts, human
+approval between agent steps, branching on step outcomes, or audit trails for compliance
+— reach for an external orchestrator (Orkes Conductor, Temporal). CafeAI agents are
+callable from those orchestrators via MCP (through `app.helidon()`) or plain HTTP. CafeAI
+owns the inner reasoning loop. The orchestrator owns the outer workflow.
+
+### The builder escape hatch
+
+`AiServices.builder()` is rich. CafeAI pre-wires the common path — model, tools, memory
+strategy, guardrails. The `.configure()` escape hatch gives access to the full builder
+for capabilities CafeAI does not abstract:
+
+| Capability | CafeAI abstraction | Via `.configure()` |
+|---|---|---|
+| Model | `app.ai()` / `.model()` | `builder.chatModel(...)` |
+| Tools | `app.tool()` / `.tool()` | `builder.tools(...)` |
+| Memory | `.memory()` | `builder.chatMemoryProvider(id -> ...)` |
+| System prompt | `.system()` | `builder.systemMessageProvider(id -> ...)` |
+| Guardrails | `.guard()` | — (CafeAI applies these, not LangChain4j) |
+| Per-session memory | ❌ not abstracted | `builder.chatMemoryProvider(...)` |
+| Advanced RAG | ❌ not abstracted | `builder.retrievalAugmentor(...)` |
+| Built-in moderation | ❌ not abstracted | `builder.moderationModel(...)` |
+| Dynamic system prompt | ❌ not abstracted | `builder.systemMessageProvider(...)` |
+| Output parsing | ❌ not abstracted | `builder.outputParser(...)` |
+
+The `.configure()` consumer receives the `AiServices.Builder` **after** CafeAI has applied
+its own configuration. The developer may override or extend anything. This is the same
+philosophy as `app.helidon()` — CafeAI never traps you.
+
+---
+
+## 14. Blog and Conference Series
 
 Each module is a self-contained teachable unit. The project structure **is** the curriculum.
 
@@ -638,9 +802,9 @@ Each module is a self-contained teachable unit. The project structure **is** the
 | 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, Bias, and Hallucination |
 | 9 | **Production-Grade AI Observability** — OpenTelemetry, Evals, and Prompt Versioning |
 | 10 | **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, Adversarial Robustness |
-| 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities to External Orchestrators |
-| 12 | **Agents Without an Orchestrator** — Riding Helidon's Agentic LangChain4j Integration |
-| 13 | **The Triple-Threat** — HTTP Server + AI Executor + MCP Server in One JVM Process |
+| 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities via `app.helidon()` |
+| 12 | **Agents Without Magic** — Wrapping LangChain4j AiServices with HTTP Identity |
+| 13 | **The Multi-Agent Patterns** — Supervisor, Pipeline, Fan-out, and When to Use an Orchestrator |
 
 ---
 

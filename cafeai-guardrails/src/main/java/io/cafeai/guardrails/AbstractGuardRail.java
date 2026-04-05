@@ -2,6 +2,7 @@ package io.cafeai.guardrails;
 
 import io.cafeai.core.Attributes;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.guardrails.TextGuardRail;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
@@ -29,7 +30,7 @@ import java.util.Map;
  *   <li>{@code req.attribute(Attributes.GUARDRAIL_SCORE)} -- confidence (0.0-1.0)</li>
  * </ul>
  */
-public abstract class AbstractGuardRail implements GuardRail {
+public abstract class AbstractGuardRail implements GuardRail, TextGuardRail {
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -41,6 +42,20 @@ public abstract class AbstractGuardRail implements GuardRail {
 
     @Override
     public final Action action() { return action; }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Delegates to {@link #checkInput(String)} so agent-context guardrail
+     * checking uses the same pattern detection as the HTTP middleware pipeline.
+     */
+    @Override
+    public TextGuardRail.Result checkText(String text) {
+        CheckResult result = checkInput(text);
+        return result.passes()
+            ? TextGuardRail.Result.pass()
+            : TextGuardRail.Result.block(result.reason());
+    }
 
     @Override
     public void handle(Request req, Response res, Next next) {

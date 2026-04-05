@@ -581,6 +581,65 @@ public interface CafeAI extends Router {
      */
     CafeAI mcp(Object mcpServer);
 
+    // ── Agents ────────────────────────────────────────────────────────────────
+
+    /**
+     * Registers a LangChain4j {@code AiService} agent under the given name.
+     *
+     * <p>Returns a fluent {@code AgentConfig<T>} for configuring the agent's
+     * system prompt, memory strategy, guardrails, tools, and escape hatch.
+     * Registration must occur before {@link #listen(int)}.
+     *
+     * <p>Requires {@code io.cafeai:cafeai-agents} on the classpath.
+     *
+     * <pre>{@code
+     * app.agent("loan-advisor", LoanAdvisor.class)
+     *    .system("You are a conservative mortgage advisor...")
+     *    .memory(MemoryStrategy.inMemory())
+     *    .guard(GuardRail.regulatory().ecoa().fairHousing())
+     *    .configure(builder -> builder
+     *        .chatMemoryProvider(id ->
+     *            MessageWindowChatMemory.withMaxMessages(20)));
+     * }</pre>
+     *
+     * @param name           unique agent name used for routing and resolution
+     * @param agentInterface the LangChain4j AiService interface class
+     * @return an {@code AgentConfig<T>} for fluent agent configuration
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    <T> Object agent(String name, Class<T> agentInterface);
+
+    /**
+     * Resolves the agent proxy for the given name and session, ready to invoke.
+     *
+     * <p>If the agent was registered with a memory strategy and a session ID is
+     * provided, a dedicated conversation memory is created (or reused) for that
+     * session. Without a session ID the agent runs statelessly.
+     *
+     * <pre>{@code
+     * app.post("/advise", (req, res, next) -> {
+     *     LoanAdvisor advisor = app.agent("loan-advisor",
+     *                                     LoanAdvisor.class,
+     *                                     req.header("X-Session-Id"));
+     *     res.json(Map.of("advice", advisor.advise(req.body("request"))));
+     * });
+     * }</pre>
+     *
+     * @param name      registered agent name
+     * @param type      the agent interface class
+     * @param sessionId conversation session ID, or {@code null} for stateless
+     * @return the LangChain4j AiService proxy implementing {@code type}
+     * @throws IllegalArgumentException if no agent with {@code name} is registered
+     */
+    <T> T agent(String name, Class<T> type, String sessionId);
+
+    /**
+     * Resolves a stateless agent proxy — no session, no conversation history.
+     *
+     * <p>Equivalent to {@link #agent(String, Class, String)} with {@code null} session.
+     */
+    <T> T agentStateless(String name, Class<T> type);
+
     // ── Guardrails ────────────────────────────────────────────────────────────
 
     /**

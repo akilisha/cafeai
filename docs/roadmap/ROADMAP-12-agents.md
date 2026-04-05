@@ -1,43 +1,105 @@
-# ROADMAP-12: CafeAI Agents — HTTP Identity for Helidon Agentic LangChain4j
+# ROADMAP-12: CafeAI Agents — HTTP Identity for LangChain4j AiServices
 
 **Maps to:** No Express equivalent — this is CafeAI's agent binding layer  
-**Modules:** `cafeai-agents` (new), `cafeai-core`, `cafeai-guardrails`, `cafeai-observability`  
-**ADR Reference:** SPEC.md §11.2  
-**Depends On:** ROADMAP-11 Phase 1 (Helidon 4.4 upgrade), ROADMAP-07 (guardrails, observability)  
-**Status:** 🔴 Not Started
+**Modules:** `cafeai-agents` (new), `cafeai-core`  
+**ADR Reference:** SPEC.md §13  
+**Depends On:** ROADMAP-11 Phase 1 (Helidon 4.4 + LangChain4j 1.11 complete ✅)  
+**Status:** 🟡 In Progress — Phase 1 complete, Phase 2 starting
 
 ---
 
 ## Objective
 
-Give every Helidon agentic LangChain4j agent the same things CafeAI gives every other
-capability: an HTTP identity, session threading, guardrail protection, and an observability
-context. The developer registers an annotated agent interface; CafeAI handles the rest.
+Give every LangChain4j `AiService` agent the same things CafeAI gives every other capability:
+an HTTP identity, session threading, guardrail protection, and an observability context. The
+developer defines a typed agent interface; CafeAI wires it up and gives it a home on the
+HTTP server.
 
-CafeAI does not implement the agent loop, tool dispatch, workflow patterns, AgenticScope, or
-any reasoning primitives. Helidon 4.4 + LangChain4j 1.11 implement all of that. CafeAI writes
-the binding between Helidon's agent lifecycle and CafeAI's HTTP session and observability model.
+CafeAI does not implement the agent loop, tool dispatch, or reasoning primitives. LangChain4j
+`AiServices` implements all of that. CafeAI writes the binding: `AiServices.builder()` is
+called internally, pre-wired with the registered model, tools, and memory, then optionally
+extended by the developer via a builder consumer escape hatch.
 
-### Why This Exists
+---
 
-Three ideas were explored and rejected before arriving at this design.
+## Architecture Decision: `AiServices` directly, not `@Ai.Agent`
 
-**Rejected: Chains and Steps.** Built, used in capstone 1, and removed. They duplicated
-middleware without adding capability. Every primitive has a learning cost; if that cost is not
-paid back, the developer stops. Chains did not pay back.
+Helidon 4.4 introduced `@Ai.Agent` as a declarative annotation processed at compile time by
+Helidon Inject (Helidon's service registry framework). Using it would require adding Helidon
+Inject to CafeAI — the same architectural conflict that killed `cafeai-mcp`.
 
-**Rejected: Building a workflow orchestrator.** The Quarkus workshop showed the full scope of
-a real agentic workflow system. Building a competing version would produce something worse than
-what Helidon and LangChain4j are already building together.
+CafeAI uses `AiServices.builder()` directly from LangChain4j core. This is what Helidon's
+annotation processor generates anyway. By going direct we keep CafeAI's pure Helidon SE model
+intact and give the developer full builder access via the `.configure()` escape hatch.
 
-**Rejected: Temporal as backing orchestrator.** Sound design, wrong question. The question
-is not "how does CafeAI orchestrate agents" — it is "what does CafeAI give to an agent that
-neither Helidon nor LangChain4j provides." The answer is: HTTP identity, session, guardrails,
-and observability. Exactly what CafeAI gives to every other capability.
+---
 
-**The right design:** `app.agent()` registers a Helidon agentic LangChain4j interface with
-CafeAI. CafeAI binds session threading, guardrail pre-screening, and observability to every
-invocation. Helidon runs the loop.
+## Agent Mental Model (read before implementing)
+
+### One `AiService` is a reasoning loop, not a single LLM call
+
+When a developer calls `agent.advise("can I afford this house?")`, LangChain4j runs a cycle:
+
+1. Send user message + system prompt to the LLM
+2. LLM may respond with a tool call request rather than a final answer
+3. LangChain4j executes the tool, appends result to conversation
+4. Send updated conversation back to LLM
+5. Repeat until LLM produces a final text response
+
+One interface method call may make 5–6 LLM calls internally. This is what "agentic" means.
+CafeAI wraps the entry and exit of this loop — not the individual steps.
+
+### `app.agent()` corresponds to one AiService
+
+One `app.agent()` registration corresponds to one `AiService` instance (or factory). Multiple
+registered agents are independent — they do not share memory, model context, or tool state.
+
+### Multi-agent patterns
+
+Complex workflows involving multiple agents follow established patterns:
+
+**Supervisor / subagent** — a supervisor `AiService` treats other agents as tools via
+`@Tool`-annotated methods that delegate to subordinate agents. LangChain4j supports this
+natively. CafeAI registers each agent independently; the supervisor receives subagents as
+tool instances via `.configure(builder -> builder.tools(...))`.
+
+**Sequential pipeline** — CafeAI middleware chain where each step invokes a different agent
+and passes results via `req.local()`:
+
+```java
+app.post("/process",
+    agentStep("classifier"),   // sets req.local("intent")
+    agentStep("specialist"),   // reads req.local("intent"), sets req.local("result")
+    (req, res, next) -> res.json(req.local("result")));
+```
+
+**Parallel fan-out with aggregation** — `CompletableFuture` across multiple agent invocations,
+results passed to an aggregator agent. This is application code, not a CafeAI primitive.
+
+**Durable multi-step workflows with human approval** — this is the territory of an external
+orchestrator (Orkes Conductor, Temporal). CafeAI agents exposed via `app.helidon()` as MCP
+tools are callable from those orchestrators. CafeAI owns the inner loop; the orchestrator
+owns the outer workflow.
+
+### The builder escape hatch
+
+`AiServices.builder()` is rich. CafeAI pre-wires the common path. The `.configure()` escape
+hatch gives access to the full builder for cases CafeAI does not abstract:
+
+```java
+app.agent("advisor", LoanAdvisor.class)
+   .system("You are a conservative mortgage advisor...")
+   .memory(MemoryStrategy.inMemory())
+   .guard(GuardRail.regulatory().ecoa().fairHousing())
+   .configure(builder -> builder                    // escape hatch
+       .chatMemoryProvider(id ->                    // per-session memory
+           MessageWindowChatMemory.withMaxMessages(20))
+       .retrievalAugmentor(myAdvancedRag)           // advanced RAG
+       .moderationModel(openAiModeration));         // built-in moderation
+```
+
+The `.configure()` consumer receives the `AiServices.Builder` after CafeAI has applied its
+own configuration. The developer may override or extend anything.
 
 ---
 
@@ -45,275 +107,183 @@ invocation. Helidon runs the loop.
 
 ---
 
-### Phase 1 — Helidon Version Upgrade (shared with ROADMAP-11)
+### Phase 1 — Prerequisites ✅ Complete
 
-This phase is shared with ROADMAP-11 Phase 1. Helidon must be upgraded to 4.4.0 before any
-agent work begins. Complete ROADMAP-11 Phase 1 first.
-
-**Prerequisite:** ROADMAP-11 Phase 1 complete.
+- Helidon 4.4.0 migration complete
+- LangChain4j 1.11.0 migration complete  
+- `app.helidon()` escape hatch implemented
+- 311 tests passing
 
 ---
 
 ### Phase 2 — `cafeai-agents` Module Scaffold
 
-**Goal:** Create the new module with correct Gradle configuration, package structure, and
-Helidon agentic LangChain4j dependency. No functional code yet — just the buildable skeleton.
+**Goal:** Create the module skeleton. Compiles cleanly. No functional code yet.
 
-**Module:** `cafeai-agents` (new)
+**Module:** `cafeai-agents`
 
 #### Tasks
 - [ ] Add `cafeai-agents` to `settings.gradle`
-- [ ] Create `cafeai-agents/build.gradle` with:
+- [ ] Create `cafeai-agents/build.gradle`:
   - `cafeai-core` dependency
-  - `cafeai-observability` dependency
-  - `helidon-integrations-langchain4j` dependency (agentic support)
-  - LangChain4j agentic module dependency
+  - `cafeai-tools` dependency (tool registration integration)
+  - `langchain4j` core (already on classpath via BOM — `AiServices`, `ChatMemory`)
 - [ ] Create package `io.cafeai.agents`
-- [ ] Create `AgentBridge.java` — empty class placeholder
-- [ ] Create `AgentRun.java` — empty class placeholder
-- [ ] Create `AgentResult.java` — empty class placeholder
-- [ ] Verify module compiles: `./gradlew :cafeai-agents:compileJava`
+- [ ] Create `AgentRegistry.java` — placeholder
+- [ ] Create `AgentConfig.java` — placeholder  
+- [ ] Verify: `./gradlew :cafeai-agents:compileJava` → BUILD SUCCESSFUL
 
 #### Acceptance Criteria
-- [ ] `cafeai-agents` in `settings.gradle`
-- [ ] `./gradlew :cafeai-agents:compileJava` exits with BUILD SUCCESSFUL
-- [ ] No circular dependencies introduced
+- [ ] Module in `settings.gradle`
+- [ ] No circular dependencies
+- [ ] Clean compile
 
 ---
 
-### Phase 3 — `AgentRun` and `AgentResult` — Fluent Invocation API
+### Phase 3 — `AgentConfig` — Fluent Registration API
 
-**Goal:** Define the types the developer uses to invoke a registered agent and read its result.
-These mirror `PromptRequest` and `PromptResponse` in their structure and feel — same pattern,
-same ergonomics.
+**Goal:** Define the fluent API the developer uses to configure an agent at registration time.
+Mirrors the feel of `GuardRail` builder — readable, chainable, self-documenting.
 
 **Module:** `cafeai-agents`
 
 #### Tasks
-- [ ] Implement `AgentRun<T>` — fluent builder analogous to `PromptRequest`:
-  - `AgentRun<T> session(String sessionId)` — attaches session for memory threading
-  - `AgentRun<T> guard(boolean enabled)` — opt-out of guardrails for trusted callers
-  - `<R> R run(Function<T, R> invocation)` — executes the agent and returns result
-- [ ] Implement `AgentResult` — wraps agent response:
-  - `String text()` — primary text response
-  - `List<AgentStep> trace()` — reasoning steps (from LangChain4j `AgentMonitor`)
-  - `int toolCallCount()` — how many tools were invoked
-  - `TokenUsage tokenUsage()` — total tokens across all steps
-- [ ] `AgentStep` record: `String agentName`, `String input`, `String output`, `long durationMs`
+- [ ] Implement `AgentConfig<T>`:
+  - `AgentConfig<T> system(String prompt)` — system prompt
+  - `AgentConfig<T> memory(MemoryStrategy strategy)` — CafeAI memory strategy
+  - `AgentConfig<T> guard(GuardRail... rails)` — guardrails applied pre-invocation
+  - `AgentConfig<T> tool(Object toolInstance)` — additional tools beyond app-level
+  - `AgentConfig<T> model(AiProvider provider)` — override app-level provider
+  - `AgentConfig<T> configure(Consumer<AiServices.Builder<T>> consumer)` — escape hatch
+  - `T build()` — internal — builds and returns the AiService proxy
+- [ ] `AgentConfig` is not thread-safe — one instance per registration
 
 #### Output
 ```java
-// Developer usage in a route handler:
-var result = app.agent("support-agent", SupportAgent.class)
-                .session(req.header("X-Session-Id"))
-                .run(agent -> agent.answer(req.body("message")));
-
-res.json(Map.of(
-    "answer",     result.text(),
-    "steps",      result.trace().size(),
-    "toolCalls",  result.toolCallCount(),
-    "tokens",     result.tokenUsage().totalTokenCount()
-));
+app.agent("loan-advisor", LoanAdvisor.class)
+   .system("You are a conservative mortgage advisor...")
+   .memory(MemoryStrategy.inMemory())
+   .guard(GuardRail.regulatory().ecoa().fairHousing())
+   .configure(builder -> builder
+       .chatMemoryProvider(id ->
+           MessageWindowChatMemory.withMaxMessages(20)));
 ```
 
 #### Acceptance Criteria
-- [ ] `AgentRun` compiles with correct generic type binding
-- [ ] `AgentResult` exposes all fields correctly
-- [ ] `session()` is chainable and does not mutate the agent registration
-- [ ] Unit tests for `AgentRun` builder with mock agent
+- [ ] All builder methods return `AgentConfig<T>` for chaining
+- [ ] `.configure()` receives a real `AiServices.Builder<T>` — not a stub
+- [ ] Unit tests for each builder method
 
 ---
 
-### Phase 4 — `AgentBridge` — Helidon Lifecycle to CafeAI
+### Phase 4 — `AgentRegistry` — Agent Lifecycle
 
-**Goal:** Implement the bridge between Helidon's agent instantiation/execution model and
-CafeAI's session, guardrail, and observability model. This is the core of the module.
+**Goal:** Store registered agents, build them on demand, manage per-session memory.
 
 **Module:** `cafeai-agents`
 
 #### Tasks
-- [ ] Research Helidon 4.4 agent instantiation API (how `@Ai.Agent` interfaces are resolved)
-- [ ] Implement `AgentBridge`:
-  - Resolves Helidon-managed agent instance for a given interface class
-  - Applies CafeAI session threading before agent invocation:
-    - Retrieves conversation history from `MemoryStrategy` using session ID
-    - Injects history into agent context (LangChain4j `ChatMemory` or equivalent)
-    - After invocation, persists updated history back to memory strategy
-  - Wraps invocation in CafeAI observability:
-    - Records start time, agent name, input
-    - Records end time, output, token usage, tool call count
-    - Emits `ObserveEvent` to registered `ObserveStrategy`
-  - Wraps `AgentMonitor` output into `AgentResult`
-- [ ] Handle agent exceptions: wrap in `AgentExecutionException` with original cause
-- [ ] Handle session absence: agent runs without memory, no error
+- [ ] Implement `AgentRegistry`:
+  - `register(String name, Class<T> type, AgentConfig<T> config)` — stores config
+  - `<T> T resolve(String name, Class<T> type, String sessionId)` — builds or retrieves agent
+  - Per-session agent instances for agents with memory
+  - Stateless (no memory) agents built once and reused
+- [ ] Session threading:
+  - `sessionId` → `ChatMemory` mapping via `ConcurrentHashMap`
+  - `MessageWindowChatMemory` default (20 messages)
+  - Memory eviction via `MemoryStrategy` if registered
+- [ ] Guardrail application:
+  - Pre-invocation: run registered guardrails against the input
+  - If blocked: throw `GuardRailViolationException` with reason
+  - Post-invocation: run output guardrails if registered
 
 #### Acceptance Criteria
-- [ ] Agent invocation with session ID persists conversation history
-- [ ] Same session ID in two sequential calls produces memory continuity
-- [ ] Different session IDs produce isolated histories
-- [ ] Observability trace fires on every agent invocation
-- [ ] Token usage reported correctly in `AgentResult`
-- [ ] Tool call count reported correctly
-- [ ] Agent exceptions wrapped and not swallowed
+- [ ] Two sequential calls with same `sessionId` share conversation history
+- [ ] Two calls with different `sessionId` have isolated histories
+- [ ] Guardrail violation stops agent invocation — LLM never called
+- [ ] Stateless agents (no memory) build once, reuse safely
 
 ---
 
 ### Phase 5 — `app.agent()` API Surface
 
-**Goal:** Add `app.agent()` to the `CafeAI` interface and implement it in `CafeAIApp`. The
-developer registers and retrieves agents with the same ergonomic pattern as every other
-CafeAI primitive.
+**Goal:** Add `app.agent()` to the `CafeAI` interface. Two overloads — registration and
+invocation — same pattern as `app.prompt()`.
 
 **Module:** `cafeai-core`, `cafeai-agents`
 
 #### Tasks
 - [ ] Add to `CafeAI` interface:
   ```java
-  <T> CafeAI agent(String name, Class<T> agentInterface);
-  <T> AgentRun<T> agent(String name, Class<T> type);
+  // Registration (before listen())
+  <T> AgentConfig<T> agent(String name, Class<T> agentInterface);
+
+  // Invocation (in route handlers)
+  <T> T agent(String name, Class<T> type, String sessionId);
+  <T> T agent(String name, Class<T> type);   // no session
   ```
-- [ ] Implement in `CafeAIApp`:
-  - `agent(name, interface)` — registers agent name → interface mapping in locals
-  - `agent(name, type)` — returns `AgentRun<T>` wrapping the `AgentBridge` for that agent
-  - Startup log: `Agent registered: {name} ({interface.simpleName})`
-- [ ] SPI bridge in `cafeai-agents`: `AgentBridgeProvider` loaded via `ServiceLoader`
-- [ ] If `cafeai-agents` not on classpath, `app.agent(name, type)` throws clear error:
-  `"app.agent() requires cafeai-agents on the classpath"`
-- [ ] Agent registration must occur before `app.listen()` — enforce with `assertNotStarted()`
+- [ ] Implement in `CafeAIApp` via SPI (`AgentBridgeProvider` loaded by `ServiceLoader`)
+- [ ] If `cafeai-agents` absent: registration no-ops with WARN, invocation throws clear error
+- [ ] Startup log: `Agent registered: {name} ({interface.simpleName})`
 
-#### Output
+#### Output — complete developer experience
 ```java
-// Startup registration:
-app.agent("support-agent", SupportAgent.class);
+// Registration
+app.agent("loan-advisor", LoanAdvisor.class)
+   .system("You are a conservative mortgage advisor...")
+   .memory(MemoryStrategy.inMemory())
+   .guard(GuardRail.regulatory().ecoa().fairHousing());
 
-// Handler invocation:
-app.post("/support", (req, res, next) -> {
-    var result = app.agent("support-agent", SupportAgent.class)
-                    .session(req.header("X-Session-Id"))
-                    .run(agent -> agent.answer(req.body("message")));
-    res.json(Map.of("answer", result.text()));
+// Invocation in route handler
+app.post("/advise", (req, res, next) -> {
+    String sessionId = req.header("X-Session-Id");
+    LoanAdvisor advisor = app.agent("loan-advisor", LoanAdvisor.class, sessionId);
+    String advice = advisor.advise(req.body("request"));
+    res.json(Map.of("advice", advice));
 });
 ```
 
 #### Acceptance Criteria
-- [ ] `app.agent(name, interface)` compiles and runs
-- [ ] `app.agent(name, type).run(...)` invokes the Helidon-managed agent
-- [ ] Registration appears in startup log
-- [ ] `assertNotStarted()` enforced on registration
-- [ ] Clear error when `cafeai-agents` absent from classpath
-- [ ] Unit test: mock agent bridge, verify session and observability wiring
+- [ ] Registration → invocation round-trip works end-to-end
+- [ ] Session memory persists across two sequential POST requests
+- [ ] Guardrail blocks invocation before LLM is called
+- [ ] Missing `cafeai-agents` produces clear error message
+- [ ] `app.agent()` after `listen()` throws `IllegalStateException`
 
 ---
 
-### Phase 6 — Guardrail Pre-screening for Agents
+### Phase 6 — Capstone 4: `invoice-processor`
 
-**Goal:** Registered guardrails run before every agent invocation, just as they run before
-every HTTP handler. An agent should not receive a jailbreak attempt or prompt injection.
+**Goal:** Demonstrate the full agent model in a realistic fictional scenario. Shows:
+- Single agent with tools and RAG
+- Supervisor + subagent pattern
+- `app.helidon()` for any capability outside CafeAI's vocabulary
+- Multi-tenant session isolation
 
-**Module:** `cafeai-agents`
+**Fictional company:** Meridian Billing Services — accounts payable automation
 
-#### Tasks
-- [ ] `AgentBridge.invoke()` checks registered guardrails before calling the agent:
-  - Extracts input text from agent invocation parameters
-  - Runs each registered `GuardRail` against the input
-  - If any guardrail blocks: throw `AgentGuardRailException` with guardrail name and reason
-- [ ] `AgentRun.guard(false)` disables guardrail pre-screening for trusted callers
-- [ ] Route handler can catch `AgentGuardRailException` and return 400
-- [ ] Guardrails run in registration order — same order as HTTP pipeline
+**Agents:**
+- `InvoiceClassifierAgent` — classifies invoice type, detects anomalies (fast/cheap model)
+- `PolicyLookupAgent` — RAG over AP policy documents
+- `ApprovalAgent` — supervisor: calls classifier + policy lookup as tools, decides approve/reject/escalate
+- `AuditLogAgent` — writes structured audit entries (no memory needed — stateless)
 
-#### Output
-```java
-app.guard(GuardRail.jailbreak());
-app.agent("support-agent", SupportAgent.class);
-
-app.post("/support", (req, res, next) -> {
-    try {
-        var result = app.agent("support-agent", SupportAgent.class)
-                        .session(req.header("X-Session-Id"))
-                        .run(agent -> agent.answer(req.body("message")));
-        res.json(Map.of("answer", result.text()));
-    } catch (AgentGuardRailException e) {
-        res.status(400).json(Map.of(
-            "error",     "Request blocked by guardrail",
-            "guardrail", e.guardrailName(),
-            "reason",    e.reason()
-        ));
-    }
-});
-```
-
-#### Acceptance Criteria
-- [ ] Jailbreak input to agent returns `AgentGuardRailException`
-- [ ] On-topic input reaches the agent normally
-- [ ] `AgentRun.guard(false)` bypasses guardrail check
-- [ ] All registered guardrails run in order, not just the first registered
-- [ ] Unit test: mock guardrail, verify exception thrown on block
-
----
-
-### Phase 7 — MCP Exposure of Agents (Integration with ROADMAP-11)
-
-**Goal:** When `app.mcp().serve("/mcp")` is called, registered agents are exposed as MCP
-tools alongside registered `@CafeAITool` methods. An external orchestrator can discover
-and invoke CafeAI agents exactly as it invokes tools.
-
-**Module:** `cafeai-mcp`, `cafeai-agents`
-
-#### Tasks
-- [ ] Update `McpServerBridge` to also register agents from `AgentRegistry`:
-  - Agent tool name: registered name (e.g., "support-agent")
-  - Description: from `@Ai.Agent` annotation description or a default
-  - Input schema: `{ "question": "string", "sessionId": "string" }`
-  - Handler: delegates to `AgentRun.run()` — full session + guardrail + observability path
-- [ ] Session ID from MCP tool call is threaded into `AgentRun.session()`
-- [ ] Agent result serialised to MCP response as JSON string
-- [ ] Startup log: `MCP server active at /mcp — N tools, M agents registered`
-
-#### Acceptance Criteria
-- [ ] Agent appears in MCP discovery response alongside tools
-- [ ] n8n can discover and invoke a registered agent
-- [ ] Session ID passed from n8n workflow is threaded into agent memory
-- [ ] Guardrails fire on agent invocations from n8n same as from direct HTTP
-- [ ] Observability trace records agent invocations from MCP path
-
----
-
-### Phase 8 — Capstone Verification (Loan Pre-Qualification Assistant)
-
-**Goal:** Demonstrate `cafeai-agents` in capstone 2 — the loan pre-qualification assistant.
-This is the use case that will surface whether the agentic direction holds up under regulatory
-guardrail requirements, structured output, and genuinely complex routing logic.
-
-**Module:** Capstone 2 application
-
-#### Tasks
-- [ ] Build loan pre-qualification assistant using `app.agent()`
-- [ ] Register a `QualificationAgent` with regulatory guardrails (FCRA, ECOA, bias)
-- [ ] Demonstrate multi-step agent reasoning: credit check → compliance → decision
-- [ ] Verify structured output from agent maps correctly to `AgentResult`
-- [ ] Add agent to MCP server — invoke from external test client
-- [ ] All capstone 2 test assertions pass
-
-#### Acceptance Criteria
-- [ ] Loan qualification workflow runs end-to-end via `app.agent()`
-- [ ] FCRA and ECOA guardrails block non-compliant inputs
-- [ ] Agent reasoning trace available in `AgentResult.trace()`
-- [ ] Same agent invocable via HTTP and via MCP
-- [ ] Observability traces show complete agent execution including tool calls
+**Demonstrates:**
+- `app.agent()` registration for each
+- `.configure()` escape hatch for `chatMemoryProvider` (per-invoice-batch session)
+- Guardrails on `ApprovalAgent` (regulatory: SOX compliance patterns)
+- Raw Helidon route via `app.helidon()` for a webhook endpoint the AP system calls
 
 ---
 
 ## Testing Strategy
 
 ```
-Phase 1: regression — all existing 278 tests pass
-Phase 2: compile guard — :cafeai-agents:compileJava
-Phase 3: AgentRunTest, AgentResultTest — unit tests
-Phase 4: AgentBridgeTest — unit with mock Helidon agent and mock memory
-Phase 5: CafeAIAppAgentTest — unit with mock bridge, app.agent() wiring
-Phase 6: AgentGuardRailTest — unit with mock guardrails
-Phase 7: integration — McpServerBridge includes agents, manual n8n verification
-Phase 8: capstone 2 — full application test suite
+Phase 2: compile only
+Phase 3: AgentConfigTest — unit tests, mock AiServices
+Phase 4: AgentRegistryTest — session isolation, guardrail blocking
+Phase 5: CafeAIAgentTest — integration, real AiServices with mock ChatModel
+Phase 6: capstone — test.sh script, 12 acceptance scenarios
 ```
 
 ---
@@ -321,9 +291,7 @@ Phase 8: capstone 2 — full application test suite
 ## Non-Goals
 
 - CafeAI does not implement the agent reasoning loop
-- CafeAI does not implement `@SequenceAgent`, `@ParallelAgent`, `@ConditionalAgent`, `@LoopAgent`
-- CafeAI does not implement `AgenticScope`
-- CafeAI does not implement `@HumanInTheLoop` directly (Helidon does; CafeAI bridges it)
-- CafeAI does not build a workflow graph editor or visual composer
-- CafeAI does not implement Temporal integration (the `Orchestrator` interface concept was
-  explored and deferred — see SPEC.md §11.2 for the full journey)
+- CafeAI does not own multi-step workflow orchestration (that is Orkes/Temporal's job)
+- CafeAI does not build a UI for agent monitoring
+- CafeAI does not implement Agent-to-Agent (A2A) protocol directly — agents are exposed
+  as MCP tools or HTTP endpoints, and A2A orchestration happens outside CafeAI
