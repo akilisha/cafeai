@@ -862,6 +862,77 @@ public interface CafeAI extends Router {
      */
     CafeAI ws(String path, io.cafeai.core.routing.WsHandler handler);
 
+    // ── Helidon Escape Hatch ──────────────────────────────────────────────────
+
+    /**
+     * Returns a fluent configurator that gives direct access to the underlying
+     * Helidon {@link io.helidon.webserver.WebServer.Builder} and
+     * {@link io.helidon.webserver.http.HttpRouting.Builder}.
+     *
+     * <p>CafeAI is an opinion on top of Helidon SE, not a cage around it.
+     * When a capability exists in Helidon but has no CafeAI abstraction —
+     * TLS configuration, HTTP/2 tuning, gRPC endpoints, native Helidon health
+     * checks, raw routing entries — this escape hatch lets you reach through
+     * without abandoning the CafeAI programming model.
+     *
+     * <p>Consumers registered here are applied during {@link #listen(int)},
+     * after CafeAI has assembled its own routing, but before the server starts.
+     * Registration order is preserved.
+     *
+     * <pre>{@code
+     * // TLS + connection tuning via server builder
+     * app.helidon()
+     *    .server(builder -> builder
+     *        .tls(TlsConfig.builder().privateKey(...).build())
+     *        .maxConcurrentRequests(500));
+     *
+     * // Raw Helidon routing alongside CafeAI routes
+     * app.helidon()
+     *    .routing(routing -> routing
+     *        .get("/native-health", (req, res) -> res.send("ok"))
+     *        .register("/grpc", myGrpcService));
+     *
+     * app.listen(8443);
+     * }</pre>
+     *
+     * @return a {@link HelidonConfig} fluent object — calls may be chained
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    HelidonConfig helidon();
+
+    /**
+     * Fluent configurator for direct Helidon access.
+     *
+     * <p>Both methods return {@code this} for chaining. All registered
+     * consumers are applied in registration order during server startup.
+     */
+    interface HelidonConfig {
+
+        /**
+         * Registers a consumer that receives the Helidon
+         * {@link io.helidon.webserver.WebServerConfig.Builder} before the server
+         * is built. Use for TLS, port configuration, connection limits,
+         * and any other server-level Helidon setting.
+         *
+         * @param consumer receives the builder — must not call {@code .build()}
+         * @return this, for chaining
+         */
+        HelidonConfig server(
+            java.util.function.Consumer<io.helidon.webserver.WebServerConfig.Builder> consumer);
+
+        /**
+         * Registers a consumer that receives the Helidon
+         * {@link io.helidon.webserver.http.HttpRouting.Builder} alongside
+         * CafeAI's own routing. Use for raw Helidon endpoints, gRPC services,
+         * or any routing capability not covered by the CafeAI API.
+         *
+         * @param consumer receives the routing builder — add routes freely
+         * @return this, for chaining
+         */
+        HelidonConfig routing(
+            java.util.function.Consumer<io.helidon.webserver.http.HttpRouting.Builder> consumer);
+    }
+
     // ── Server Lifecycle ──────────────────────────────────────────────────────
 
     /**

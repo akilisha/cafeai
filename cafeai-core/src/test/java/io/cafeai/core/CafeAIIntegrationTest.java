@@ -237,6 +237,12 @@ class CafeAIIntegrationTest {
                 "message", err.getMessage() != null ? err.getMessage() : ""));
         });
 
+        // ── Helidon escape hatch — raw native route alongside CafeAI routes ──────
+        app.helidon()
+           .routing(routing -> routing
+               .get("/helidon-native", (req, res) ->
+                   res.send("raw-helidon-response")));
+
         // Start the server — blocks until Helidon is ready
         var latch = new CountDownLatch(1);
         app.listen(port, latch::countDown);
@@ -664,5 +670,15 @@ class CafeAIIntegrationTest {
     @DisplayName("app.isRunning() returns true while server is up")
     void server_isRunning() {
         assertThat(app.isRunning()).isTrue();
+    }
+
+    // ── Tests: Helidon escape hatch ───────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /helidon-native — raw Helidon route coexists with CafeAI routes")
+    void helidon_native_route_responds() throws Exception {
+        var res = get("/helidon-native");
+        assertThat(res.statusCode()).isEqualTo(200);
+        assertThat(res.body()).isEqualTo("raw-helidon-response");
     }
 }

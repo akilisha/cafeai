@@ -8,6 +8,7 @@ ext {
     javaVersion             = 21
     helidonVersion          = '4.4.0'
     langchain4jVersion      = '1.11.0'
+    mcpSdkVersion           = '1.1.1'
     pgvectorVersion         = '0.1.6'
     chroma4jVersion         = '0.1.0'
     chronicleMapVersion     = '3.25ea0'

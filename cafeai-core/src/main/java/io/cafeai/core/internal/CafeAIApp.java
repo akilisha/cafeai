@@ -23,6 +23,7 @@ import io.cafeai.core.spi.CafeAIModule;
 import io.cafeai.core.spi.CafeAIRegistry;
 
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.WebServerConfig;
 import io.helidon.webserver.http.Filter;
 import io.helidon.webserver.http.Handler;
 import io.helidon.webserver.http.HttpRouting;
@@ -107,6 +108,10 @@ public final class CafeAIApp implements CafeAI {
 
     // ROADMAP-06: Error-handling middleware
     private final List<ErrorMiddleware>   errorHandlers  = new ArrayList<>();
+
+    // Helidon escape hatch — direct access to WebServer.Builder and HttpRouting.Builder
+    private final List<java.util.function.Consumer<WebServerConfig.Builder>>         helidonServerConsumers  = new ArrayList<>();
+    private final List<java.util.function.Consumer<HttpRouting.Builder>>            helidonRoutingConsumers = new ArrayList<>();
 
     private WebServer server;
 
@@ -458,6 +463,38 @@ public final class CafeAIApp implements CafeAI {
         Objects.requireNonNull(handler, "WsHandler must not be null");
         wsEndpoints.add(new WsEndpoint(path, handler));
         return this;
+    }
+
+    // -- Helidon Escape Hatch --------------------------------------------------
+
+    @Override
+    public CafeAI.HelidonConfig helidon() {
+        assertNotStarted("helidon()");
+        return new HelidonConfigImpl();
+    }
+
+    /**
+     * Implementation of the Helidon escape hatch fluent configurator.
+     * Consumers are stored on the outer {@link CafeAIApp} and applied
+     * during {@link #listen(int)} after CafeAI's own routing is assembled.
+     */
+    private final class HelidonConfigImpl implements CafeAI.HelidonConfig {
+
+        @Override
+        public CafeAI.HelidonConfig server(
+                java.util.function.Consumer<WebServerConfig.Builder> consumer) {
+            Objects.requireNonNull(consumer, "server consumer must not be null");
+            helidonServerConsumers.add(consumer);
+            return this;
+        }
+
+        @Override
+        public CafeAI.HelidonConfig routing(
+                java.util.function.Consumer<HttpRouting.Builder> consumer) {
+            Objects.requireNonNull(consumer, "routing consumer must not be null");
+            helidonRoutingConsumers.add(consumer);
+            return this;
+        }
     }
 
     // -- RAG Pipeline (ROADMAP-07 Phase 4) --------------------------------------
@@ -976,9 +1013,19 @@ public final class CafeAIApp implements CafeAI {
 
         var routingBuilder = buildRouting();
 
+        // Apply any raw Helidon routing consumers registered via app.helidon().routing()
+        for (var consumer : helidonRoutingConsumers) {
+            consumer.accept(routingBuilder);
+        }
+
         var serverBuilder = WebServer.builder()
             .port(port)
             .addRouting(routingBuilder);
+
+        // Apply any raw Helidon server consumers registered via app.helidon().server()
+        for (var consumer : helidonServerConsumers) {
+            consumer.accept(serverBuilder);
+        }
 
         // Register WebSocket endpoints alongside HTTP routing
         if (!wsEndpoints.isEmpty()) {

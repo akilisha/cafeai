@@ -928,4 +928,64 @@ class CafeAIAppTest {
         }
         assertThat(count[0]).isEqualTo(5);
     }
+
+    // ── Helidon escape hatch tests ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("app.helidon() returns non-null HelidonConfig before listen()")
+    void helidon_returnsConfig() {
+        var app = CafeAI.create();
+        assertThat(app.helidon()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("app.helidon().server() registers consumer — returns HelidonConfig for chaining")
+    void helidon_server_isChainable() {
+        var app = CafeAI.create();
+        var config = app.helidon();
+        var returned = config.server(builder -> {});
+        assertThat(returned).isSameAs(config);
+    }
+
+    @Test
+    @DisplayName("app.helidon().routing() registers consumer — returns HelidonConfig for chaining")
+    void helidon_routing_isChainable() {
+        var app = CafeAI.create();
+        var config = app.helidon();
+        var returned = config.routing(builder -> {});
+        assertThat(returned).isSameAs(config);
+    }
+
+    @Test
+    @DisplayName("app.helidon().server(null) throws NullPointerException")
+    void helidon_server_null_throws() {
+        var app = CafeAI.create();
+        assertThatThrownBy(() -> app.helidon().server(null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("app.helidon().routing(null) throws NullPointerException")
+    void helidon_routing_null_throws() {
+        var app = CafeAI.create();
+        assertThatThrownBy(() -> app.helidon().routing(null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("app.helidon() fluent chain — server() and routing() both register")
+    void helidon_fluent_chain() {
+        var app = CafeAI.create();
+        int[] serverCalled  = {0};
+        int[] routingCalled = {0};
+
+        // Both consumers registered — neither fires until listen()
+        app.helidon()
+           .server(builder  -> serverCalled[0]++)
+           .routing(builder -> routingCalled[0]++);
+
+        // Consumers not yet called — server hasn't started
+        assertThat(serverCalled[0]).isEqualTo(0);
+        assertThat(routingCalled[0]).isEqualTo(0);
+    }
 }
