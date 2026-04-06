@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <pre>{@code
  *   // Zero infrastructure — development and testing
- *   app.vectordb(VectorStore.inMemory());
+ *   app.vectordb(VectorStore.chroma("http://localhost:8000", "acme-claims"));
  *
  *   // PgVector — production single-node
  *   app.vectordb(PgVector.connect(PgVectorConfig.of("jdbc:postgresql://localhost/cafeai")));
@@ -69,5 +69,52 @@ public interface VectorStore {
      */
     static VectorStore inMemory() {
         return new InMemoryVectorStore();
+    }
+
+    /**
+     * Chroma vector store. Lightweight, local-first, document-persistent.
+     *
+     * <p>Connects to Chroma running on {@code http://localhost:8000} using
+     * the default collection name {@code "cafeai"}. Documents survive
+     * application restarts.
+     *
+     * <p>Requires Chroma 0.5.x running locally:
+     * <pre>
+     *   docker run -p 8000:8000 chromadb/chroma:0.5.23
+     * </pre>
+     *
+     * @see Chroma
+     */
+    static VectorStore chroma() {
+        return Chroma.local();
+    }
+
+    /**
+     * Chroma vector store at the given base URL.
+     *
+     * <pre>{@code
+     *   app.vectordb(VectorStore.chroma("http://localhost:8000"));
+     * }</pre>
+     *
+     * @param baseUrl Chroma base URL
+     * @see Chroma#connect(String)
+     */
+    static VectorStore chroma(String baseUrl) {
+        return Chroma.connect(baseUrl);
+    }
+
+    /**
+     * Chroma vector store at the given base URL with a specific collection name.
+     *
+     * <pre>{@code
+     *   app.vectordb(VectorStore.chroma("http://localhost:8000", "acme-claims"));
+     * }</pre>
+     *
+     * @param baseUrl        Chroma base URL
+     * @param collectionName Chroma collection to use
+     * @see Chroma#connect(String, String)
+     */
+    static VectorStore chroma(String baseUrl, String collectionName) {
+        return Chroma.connect(baseUrl, collectionName);
     }
 }
