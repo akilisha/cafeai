@@ -4,6 +4,8 @@ import io.cafeai.core.Attributes;
 import io.cafeai.core.Locals;
 import io.cafeai.core.ai.PromptRequest;
 import io.cafeai.core.ai.PromptResponse;
+import io.cafeai.core.ai.VisionRequest;
+import io.cafeai.core.ai.VisionResponse;
 import io.cafeai.core.spi.ObserveBridge;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
@@ -84,6 +86,41 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         }
     }
 
+    @Override
+    public Object beforeVision(VisionRequest request) {
+        long startMs = System.currentTimeMillis();
+
+        Span span = null;
+        if (strategy instanceof OtelObserveStrategy) {
+            span = TRACER.spanBuilder("cafeai.llm.vision")
+                .setSpanKind(SpanKind.CLIENT)
+                .setParent(Context.current())
+                .startSpan();
+            span.setAttribute("cafeai.vision.mime_type",     request.mimeType());
+            span.setAttribute("cafeai.vision.content_bytes", request.content().length);
+            if (request.sessionId() != null) {
+                span.setAttribute("cafeai.session_id", request.sessionId());
+            }
+        }
+
+        return new ObserveContext(startMs, span, strategy);
+    }
+
+    @Override
+    public void afterVision(Object ctx, VisionRequest request,
+                            VisionResponse response, Throwable error) {
+        if (!(ctx instanceof ObserveContext context)) return;
+
+        long latencyMs = System.currentTimeMillis() - context.startMs();
+
+        if (context.strategy() instanceof ConsoleObserveStrategy) {
+            writeVisionConsole(request, response, error, latencyMs);
+        } else if (context.strategy() instanceof OtelObserveStrategy
+                   && context.span() != null) {
+            writeVisionSpan(context.span(), request, response, error, latencyMs);
+        }
+    }
+
     // -- Console output --------------------------------------------------------
 
     private static void writeConsole(PromptRequest request,
@@ -144,6 +181,62 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 int ragDocs = response.ragDocuments() != null
                     ? response.ragDocuments().size() : 0;
                 span.setAttribute("cafeai.rag_docs_retrieved", ragDocs);
+            }
+            span.setStatus(StatusCode.OK);
+        } finally {
+            span.end();
+        }
+    }
+
+
+    // -- Vision console output -------------------------------------------------
+
+    private static void writeVisionConsole(VisionRequest request,
+                                           VisionResponse response,
+                                           Throwable error, long latencyMs) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n-- Vision Call ----------------------------------------\n");
+        sb.append("  mimeType:   ").append(request.mimeType()).append('\n');
+        sb.append("  bytes:      ").append(String.format("%,d", request.content().length)).append('\n');
+
+        if (error != null) {
+            sb.append("  ERROR: ").append(error.getClass().getSimpleName())
+              .append(": ").append(error.getMessage()).append('\n');
+        } else if (response != null) {
+            sb.append("  model:      ").append(response.modelId()).append('\n');
+            if (request.sessionId() != null) {
+                sb.append("  session:    ").append(request.sessionId()).append('\n');
+            }
+            sb.append("  tokens:     ")
+              .append(response.promptTokens()).append(" prompt + ")
+              .append(response.outputTokens()).append(" completion")
+              .append(" = ").append(response.totalTokens()).append(" total\n");
+            sb.append(String.format("  latency:    %,dms%n", latencyMs));
+        }
+        sb.append("------------------------------------------------------");
+        log.info(sb.toString());
+    }
+
+    // -- Vision OTel span ------------------------------------------------------
+
+    private static void writeVisionSpan(Span span, VisionRequest request,
+                                        VisionResponse response,
+                                        Throwable error, long latencyMs) {
+        try {
+            span.setAttribute("cafeai.latency_ms",           latencyMs);
+            span.setAttribute("cafeai.vision.mime_type",     request.mimeType());
+            span.setAttribute("cafeai.vision.content_bytes", request.content().length);
+
+            if (error != null) {
+                span.setStatus(StatusCode.ERROR, error.getMessage());
+                span.setAttribute("cafeai.error", error.getClass().getName());
+                return;
+            }
+            if (response != null) {
+                span.setAttribute("cafeai.model",             response.modelId());
+                span.setAttribute("cafeai.prompt_tokens",     response.promptTokens());
+                span.setAttribute("cafeai.completion_tokens", response.outputTokens());
+                span.setAttribute("cafeai.total_tokens",      response.totalTokens());
             }
             span.setStatus(StatusCode.OK);
         } finally {

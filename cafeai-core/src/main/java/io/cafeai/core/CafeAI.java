@@ -431,6 +431,50 @@ public interface CafeAI extends Router {
     PromptRequest prompt(String templateName, Map<String, Object> vars);
 
     /**
+     * Creates a vision request for the registered multimodal LLM provider.
+     *
+     * <p>Vision calls send binary content (PDF, image) alongside a text prompt
+     * to a multimodal model. The vision pipeline differs from {@link #prompt()}:
+     * <ul>
+     *   <li>RAG retrieval is skipped — binary content cannot be embedded</li>
+     *   <li>PRE_LLM and POST_LLM guardrails apply to the text prompt and response</li>
+     *   <li>Session memory stores the text prompt and response (not the binary content)</li>
+     *   <li>The registered provider must declare {@code supportsVision() = true}</li>
+     * </ul>
+     *
+     * <pre>{@code
+     *   // Classify a PDF
+     *   VisionResponse response = app.vision(
+     *       "Is this an invoice? Reply YES or NO.",
+     *       pdfBytes, "application/pdf").call();
+     *
+     *   // Describe image damage with session memory
+     *   VisionResponse response = app.vision(
+     *       "What type of damage is visible?",
+     *       imageBytes, "image/jpeg")
+     *       .session(req.header("X-Session-Id"))
+     *       .call();
+     *
+     *   // Structured output from a PDF
+     *   InvoiceData invoice = app.vision(
+     *       "Extract all invoice fields.", pdfBytes, "application/pdf")
+     *       .returning(InvoiceData.class)
+     *       .call(InvoiceData.class);
+     * }</pre>
+     *
+     * @param prompt   the text instruction for the model
+     * @param content  the binary content (PDF bytes, image bytes, etc.)
+     * @param mimeType MIME type of the content, e.g. {@code "application/pdf"},
+     *                 {@code "image/jpeg"}, {@code "image/png"}
+     * @throws IllegalStateException if no AI provider has been registered
+     * @throws io.cafeai.core.ai.VisionRequest.VisionNotSupportedException if the
+     *         registered provider does not support multimodal input
+     * @throws io.cafeai.core.ai.VisionRequest.UnsupportedContentTypeException if
+     *         the MIME type is not supported by the vision pipeline
+     */
+    io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType);
+
+    /**
      * Retrieves a registered prompt template by name.
      *
      * <pre>{@code

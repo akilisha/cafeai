@@ -25,7 +25,16 @@ public final class OpenAI {
     }
 
     private record OpenAiProvider(String modelId) implements AiProvider {
-        @Override public String name()       { return "openai"; }
-        @Override public ProviderType type() { return ProviderType.OPENAI; }
+        // Vision-capable models -- gpt-4o and variants support image/PDF input.
+        // gpt-4o-mini does not support vision.
+        private static final java.util.Set<String> VISION_MODELS = java.util.Set.of(
+            "gpt-4o", "gpt-4o-2024-11-20", "gpt-4o-2024-08-06", "gpt-4o-2024-05-13",
+            "gpt-4-turbo", "gpt-4-turbo-2024-04-09", "gpt-4-vision-preview"
+        );
+        @Override public String       name()          { return "openai"; }
+        @Override public ProviderType type()          { return ProviderType.OPENAI; }
+        @Override public boolean      supportsVision() {
+            return VISION_MODELS.contains(modelId);
+        }
     }
 }

@@ -23,6 +23,16 @@ public interface AiProvider {
     /** The provider type. */
     ProviderType type();
 
+    /**
+     * Returns {@code true} if this provider supports multimodal (vision) input.
+     *
+     * <p>Providers that support vision: {@code OpenAI.gpt4o()}, {@code Ollama.llava()}.
+     * Providers that do not: {@code OpenAI.gpt4oMini()}, {@code Ollama.llama3()}.
+     *
+     * <p>Defaults to {@code false}. Override in vision-capable provider implementations.
+     */
+    default boolean supportsVision() { return false; }
+
     enum ProviderType {
         OPENAI,
         ANTHROPIC,

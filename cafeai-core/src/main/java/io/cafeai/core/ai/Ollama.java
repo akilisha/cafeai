@@ -22,6 +22,19 @@ public final class Ollama {
     private Ollama() {}
 
     public static AiProvider llama3()   { return of("llama3"); }
+
+    /**
+     * LLaVA — the canonical local vision model.
+     * Supports image input. Pull with: {@code ollama pull llava}
+     *
+     * <pre>{@code
+     *   app.ai(Ollama.llava());
+     *   VisionResponse r = app.vision("Describe this image.", bytes, "image/jpeg").call();
+     * }</pre>
+     */
+    public static AiProvider llava() {
+        return new OllamaVisionProvider("llava", DEFAULT_BASE_URL);
+    }
     public static AiProvider mistral()  { return of("mistral"); }
     public static AiProvider phi3()     { return of("phi3"); }
     public static AiProvider gemma2()   { return of("gemma2"); }
@@ -51,5 +64,13 @@ public final class Ollama {
             implements AiProvider, LangchainBridge.OllamaProviderAccess {
         @Override public String name()       { return "ollama"; }
         @Override public ProviderType type() { return ProviderType.OLLAMA; }
+    }
+
+    /** Vision-capable Ollama provider (llava and similar multimodal models). */
+    private record OllamaVisionProvider(String modelId, String baseUrl)
+            implements AiProvider, LangchainBridge.OllamaProviderAccess {
+        @Override public String       name()          { return "ollama"; }
+        @Override public ProviderType type()          { return ProviderType.OLLAMA; }
+        @Override public boolean      supportsVision() { return true; }
     }
 }

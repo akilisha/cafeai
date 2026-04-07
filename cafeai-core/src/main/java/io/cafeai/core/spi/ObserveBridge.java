@@ -53,4 +53,26 @@ public interface ObserveBridge {
      */
     void afterPrompt(Object context, PromptRequest request,
                      PromptResponse response, Throwable error);
+
+    /**
+     * Called immediately before a vision (multimodal) LLM call.
+     *
+     * @param request the vision request about to be executed
+     * @return an opaque context object passed to {@link #afterVision}
+     */
+    default Object beforeVision(io.cafeai.core.ai.VisionRequest request) {
+        return null;
+    }
+
+    /**
+     * Called immediately after a vision LLM call responds or throws.
+     *
+     * @param context  the object returned by {@link #beforeVision}
+     * @param request  the original vision request
+     * @param response the vision response, or {@code null} if an error occurred
+     * @param error    the error, or {@code null} if the call succeeded
+     */
+    default void afterVision(Object context, io.cafeai.core.ai.VisionRequest request,
+                             io.cafeai.core.ai.VisionResponse response, Throwable error) {
+    }
 }

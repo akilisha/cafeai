@@ -232,6 +232,11 @@ public final class CafeAIApp implements CafeAI {
         return new PromptRequest(rendered, this::executePrompt);
     }
 
+    @Override
+    public io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType) {
+        return new io.cafeai.core.ai.VisionRequest(prompt, content, mimeType, this::executeVision);
+    }
+
     /**
      * Executes a {@link PromptRequest} against the registered LLM provider.
      *
@@ -434,6 +439,182 @@ public final class CafeAIApp implements CafeAI {
             .modelId(provider.modelId())
             .fromCache(false)
             .ragDocuments(retrievedDocs)
+            .build();
+    }
+
+    /**
+     * Executes a {@link io.cafeai.core.ai.VisionRequest} against the registered
+     * multimodal LLM provider.
+     *
+     * <p>Pipeline:
+     * <ol>
+     *   <li>Resolve provider — verify it supports vision</li>
+     *   <li>Apply PRE_LLM guardrails to the text prompt</li>
+     *   <li>Build LangChain4j message list via {@link VisionMessageBuilder}</li>
+     *   <li>Call model (with token budget + retry)</li>
+     *   <li>Apply POST_LLM guardrails to the response</li>
+     *   <li>Store in session memory (text prompt + response only)</li>
+     *   <li>Set LLM_RESPONSE_TEXT for HTTP middleware guardrails</li>
+     *   <li>Return VisionResponse</li>
+     * </ol>
+     *
+     * <p>RAG retrieval is explicitly skipped — binary content cannot be embedded.
+     */
+    private io.cafeai.core.ai.VisionResponse executeVision(
+            io.cafeai.core.ai.VisionRequest request) {
+
+        // -- 1. Resolve provider and verify vision support --------------------
+        if (aiProvider == null && modelRouter == null) {
+            throw new IllegalStateException(
+                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                "For vision calls, use a vision-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+        }
+        // Vision always uses the primary provider — model router not applicable
+        // since vision-capability is a hard requirement, not a cost heuristic.
+        AiProvider provider = aiProvider != null ? aiProvider : modelRouter.complexModel();
+        if (!provider.supportsVision()) {
+            throw new io.cafeai.core.ai.VisionRequest.VisionNotSupportedException(
+                "The registered provider '" + provider.modelId() + "' does not support " +
+                "vision/multimodal input. Use a vision-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+        }
+
+        ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
+
+        // -- 2. PRE_LLM guardrail check on the text prompt --------------------
+        // checkOutput() delegates to checkInputAsOutput() -> checkInput() in
+        // AbstractGuardRail, applying the same pattern matching to the prompt text.
+        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
+            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
+                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
+                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
+                    rail.checkOutput(request.prompt());
+                if (result.isViolation()) {
+                    log.warn("Vision PRE_LLM guardrail '{}' triggered: {}",
+                        rail.name(), result.reason());
+                    throw new RuntimeException(
+                        "Vision prompt blocked by guardrail '" + rail.name() +
+                        "': " + result.reason());
+                }
+            }
+        }
+
+        // -- 3. Build session history (text messages only) --------------------
+        List<ChatMessage> history = new ArrayList<>();
+        if (request.sessionId() != null && memoryStrategy != null) {
+            io.cafeai.core.memory.ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx != null) {
+                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
+                    if ("user".equals(msg.role())) {
+                        history.add(UserMessage.from(msg.content()));
+                    } else if ("assistant".equals(msg.role())) {
+                        history.add(AiMessage.from(msg.content()));
+                    }
+                }
+            }
+        }
+
+        // -- 4. Determine system prompt ---------------------------------------
+        String systemPrompt = request.systemOverride() != null
+            ? request.systemOverride()
+            : this.systemPrompt;
+
+        // -- 4b. Append schema hint for structured output --------------------
+        String effectivePrompt = request.schemaHint() != null
+            ? request.prompt() + request.schemaHint()
+            : request.prompt();
+
+        // -- 5. Build LangChain4j message list via VisionMessageBuilder -------
+        List<ChatMessage> messages = VisionMessageBuilder.build(
+            effectivePrompt, request.content(), request.mimeType(),
+            systemPrompt, history);
+
+        // -- 6. Call model (with observability + token budget + retry) ---------
+        String responseText  = "";
+        int    promptTokens  = 0;
+        int    outputTokens  = 0;
+
+        Object observeCtx = observeBridge != null
+            ? observeBridge.beforeVision(request) : null;
+
+        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+
+        int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+        Throwable lastRateLimitError = null;
+
+        while (attemptsLeft > 0) {
+            attemptsLeft--;
+            lastRateLimitError = null;
+            try {
+                ChatResponse response = model.chat(messages);
+                responseText = response.aiMessage().text();
+                TokenUsage usage = response.tokenUsage();
+                promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+                break;
+            } catch (RuntimeException e) {
+                if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                        && isRateLimitException(e) && attemptsLeft > 0) {
+                    int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                    long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                    log.warn("Vision rate limit hit — retrying in {}ms", waitMs);
+                    lastRateLimitError = e;
+                    try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during vision retry", ie);
+                    }
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (lastRateLimitError != null) {
+            throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
+                "Vision rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                lastRateLimitError);
+        }
+
+        // -- 6b. Observability: afterVision ------------------------------------
+        if (observeBridge != null) {
+            io.cafeai.core.ai.VisionResponse partial = io.cafeai.core.ai.VisionResponse.builder()
+                .text(responseText)
+                .promptTokens(promptTokens)
+                .outputTokens(outputTokens)
+                .modelId(provider.modelId())
+                .build();
+            observeBridge.afterVision(observeCtx, request, partial, null);
+        }
+
+        // -- 7. POST_LLM guardrail check on the response ----------------------
+        responseText = applyPostLlmGuardrails(responseText);
+
+        // -- 8. Set LLM_RESPONSE_TEXT for HTTP middleware guardrails ----------
+        if (request.httpRequest() != null) {
+            request.httpRequest().setAttribute(
+                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
+        }
+
+        // -- 9. Persist to session memory (text only — no binary content) -----
+        if (request.sessionId() != null && memoryStrategy != null) {
+            io.cafeai.core.memory.ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
+            ctx.addMessage("user",      request.prompt());  // store text prompt, not bytes
+            ctx.addMessage("assistant", responseText);
+            ctx.addTokens(promptTokens + outputTokens);
+            memoryStrategy.store(request.sessionId(), ctx);
+        }
+
+        // -- 10. Return VisionResponse ----------------------------------------
+        return io.cafeai.core.ai.VisionResponse.builder()
+            .text(responseText)
+            .promptTokens(promptTokens)
+            .outputTokens(outputTokens)
+            .modelId(provider.modelId())
             .build();
     }
 
