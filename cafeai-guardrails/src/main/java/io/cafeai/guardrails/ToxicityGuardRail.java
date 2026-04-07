@@ -66,7 +66,7 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
     }
 
     @Override
-    protected CheckResult checkOutput(String output) {
+    protected CheckResult checkInputAsOutput(String output) {
         return check(output);
     }
 

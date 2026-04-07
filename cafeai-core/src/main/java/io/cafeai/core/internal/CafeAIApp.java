@@ -92,6 +92,10 @@ public final class CafeAIApp implements CafeAI {
 
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ObserveBridge observeBridge;
+
+    // Token budget and retry (ROADMAP-14 Phase 10)
+    private TokenBudgetTracker budgetTracker;
+    private io.cafeai.core.ai.RetryPolicy        retryPolicy;
     private Object evalHarness;
     private final Map<String, String>     templates  = new ConcurrentHashMap<>();
 
@@ -248,6 +252,14 @@ public final class CafeAIApp implements CafeAI {
         ChatModel model =
             LangchainBridge.INSTANCE.modelFor(provider);
 
+        // -- 2b. Append schema hint for structured output -------------------
+        // When returning(Class) / call(Class<T>) is used, a JSON schema hint
+        // was injected into PromptRequest. Append it to the message so the
+        // LLM knows the expected output format.
+        String effectiveMessage = request.schemaHint() != null
+            ? request.message() + request.schemaHint()
+            : request.message();
+
         // -- 3. Build message list ---------------------------------------------
         List<ChatMessage> messages = new ArrayList<>();
 
@@ -275,7 +287,7 @@ public final class CafeAIApp implements CafeAI {
         }
 
         // The current user message
-        messages.add(UserMessage.from(request.message()));
+        messages.add(UserMessage.from(effectiveMessage));
 
         // -- 3b. RAG retrieval -- inject context before the LLM call -----------
         java.util.List<Object> retrievedDocs = java.util.List.of();
@@ -320,10 +332,25 @@ public final class CafeAIApp implements CafeAI {
         Object observeCtx = observeBridge != null
             ? observeBridge.beforePrompt(request) : null;
 
+        // -- Token budget: wait if current window is exhausted ----------------
+        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+
         Throwable observeError = null;
-        try {
+        int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+        Throwable lastRateLimitError = null;
+
+        while (attemptsLeft > 0) {
+          attemptsLeft--;
+          lastRateLimitError = null;
+          try {
             if (toolBridge != null && toolBridge.hasTools()) {
                 responseText = toolBridge.executeWithTools(model, messages);
+                // -- POST_LLM guardrail check on tool-calling response ----------
+                // PRE_LLM guardrails already ran on the user's input. Now apply
+                // POST_LLM and BOTH guardrails to the assembled tool-call output.
+                // This ensures adversarial inputs that influence the tool-calling
+                // loop cannot produce harmful final responses undetected.
+                responseText = applyPostLlmGuardrails(responseText);
             } else {
                 ChatResponse response = model.chat(messages);
                 responseText = response.aiMessage().text();
@@ -331,23 +358,59 @@ public final class CafeAIApp implements CafeAI {
                 promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
                 outputTokens  = usage != null ? usage.outputTokenCount() : 0;
             }
-        } catch (Throwable t) {
-            observeError = t;
-            throw t instanceof RuntimeException re ? re : new RuntimeException(t);
-        } finally {
-            if (observeBridge != null) {
-                PromptResponse partial = observeError == null
-                    ? PromptResponse.builder()
-                        .text(responseText)
-                        .promptTokens(promptTokens)
-                        .outputTokens(outputTokens)
-                        .modelId(provider.modelId())
-                        .fromCache(false)
-                        .ragDocuments(retrievedDocs)
-                        .build()
-                    : null;
-                observeBridge.afterPrompt(observeCtx, request, partial, observeError);
+            // -- Token budget: record actual usage after successful call -------
+            if (budgetTracker != null) {
+                budgetTracker.recordUsage(promptTokens + outputTokens);
             }
+            break; // success — exit retry loop
+          } catch (RuntimeException e) {
+            // Retry on rate limit if policy is configured and attempts remain
+            if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                    && isRateLimitException(e) && attemptsLeft > 0) {
+                int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                log.warn("Rate limit hit — retrying in {}ms (attempt {}/{})",
+                    waitMs, attemptNum, retryPolicy.maxAttempts());
+                lastRateLimitError = e;
+                try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted during rate limit backoff", ie);
+                }
+            } else {
+                observeError = e;
+                throw e;
+            }
+          }
+        }
+
+        if (lastRateLimitError != null) {
+            throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
+                "Rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                lastRateLimitError);
+        }
+
+        // -- Observability: fire afterPrompt with final response ---------------
+        if (observeBridge != null) {
+            PromptResponse partial = observeError == null
+                ? PromptResponse.builder()
+                    .text(responseText)
+                    .promptTokens(promptTokens)
+                    .outputTokens(outputTokens)
+                    .modelId(provider.modelId())
+                    .fromCache(false)
+                    .ragDocuments(retrievedDocs)
+                    .build()
+                : null;
+            observeBridge.afterPrompt(observeCtx, request, partial, observeError);
+        }
+
+        // -- 4b. Set LLM_RESPONSE_TEXT for POST_LLM HTTP middleware guardrails --
+        // If this prompt was called within an HTTP request context, store the
+        // response text so guardrails with POST_LLM or BOTH position can inspect
+        // it after next.run() returns in their handle() method.
+        if (request.httpRequest() != null) {
+            request.httpRequest().setAttribute(
+                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
         }
 
         // -- 5. Persist to memory ----------------------------------------------
@@ -372,6 +435,58 @@ public final class CafeAIApp implements CafeAI {
             .fromCache(false)
             .ragDocuments(retrievedDocs)
             .build();
+    }
+
+    /**
+     * Returns true if the exception looks like a rate limit response from the provider.
+     * Checks exception class name and message for common rate-limit indicators since
+     * LangChain4j doesn't expose a typed RateLimitException.
+     */
+    private static boolean isRateLimitException(Throwable t) {
+        if (t == null) return false;
+        String className = t.getClass().getSimpleName().toLowerCase();
+        String message   = t.getMessage() != null ? t.getMessage().toLowerCase() : "";
+        return className.contains("ratelimit")
+            || message.contains("rate limit")
+            || message.contains("rate_limit")
+            || message.contains("too many requests")
+            || message.contains("429")
+            || (t.getCause() != null && isRateLimitException(t.getCause()));
+    }
+
+    /**
+     * Applies POST_LLM and BOTH guardrails to the assembled LLM response text.
+     *
+     * <p>Called after the LLM (or tool-calling loop) produces its final output.
+     * Guardrails with {@code Position.POST_LLM} or {@code Position.BOTH} inspect
+     * the response text and may redact or replace it if a violation is found.
+     *
+     * <p>This is the direct-call path for {@code app.prompt()} and
+     * {@code app.vision()} — distinct from the HTTP middleware path where
+     * guardrails run as Helidon filters. Both paths eventually call this method
+     * for the POST_LLM check.
+     *
+     * @param responseText the assembled LLM response (may be from a tool-calling loop)
+     * @return the (possibly modified) response text after POST_LLM checks
+     */
+    private String applyPostLlmGuardrails(String responseText) {
+        if (guardRails.isEmpty() || responseText == null || responseText.isBlank()) {
+            return responseText;
+        }
+        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
+            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.POST_LLM
+                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
+                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
+                    rail.checkOutput(responseText);
+                if (result != null && result.isViolation()) {
+                    log.warn("POST_LLM guardrail '{}' triggered on tool-call response: {}",
+                        rail.name(), result.reason());
+                    // Replace with a safe refusal rather than propagating the violating content
+                    return "[Response blocked by guardrail: " + rail.name() + "]";
+                }
+            }
+        }
+        return responseText;
     }
 
     /**
@@ -589,6 +704,24 @@ public final class CafeAIApp implements CafeAI {
         Objects.requireNonNull(guardRail, "GuardRail must not be null");
         guardRails.add(guardRail);
         log.info("GuardRail registered: {} ({})", guardRail.name(), guardRail.position());
+        return this;
+    }
+
+    @Override
+    public CafeAI budget(io.cafeai.core.ai.TokenBudget budget) {
+        assertNotStarted("budget()");
+        Objects.requireNonNull(budget, "TokenBudget must not be null");
+        this.budgetTracker = new TokenBudgetTracker(budget);
+        log.info("Token budget registered: {}", budget);
+        return this;
+    }
+
+    @Override
+    public CafeAI retry(io.cafeai.core.ai.RetryPolicy policy) {
+        assertNotStarted("retry()");
+        Objects.requireNonNull(policy, "RetryPolicy must not be null");
+        this.retryPolicy = policy;
+        log.info("Retry policy registered: {}", policy);
         return this;
     }
 

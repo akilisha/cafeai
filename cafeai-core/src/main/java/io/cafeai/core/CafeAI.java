@@ -594,6 +594,38 @@ public interface CafeAI extends Router {
      */
     CafeAI guard(GuardRail guardRail);
 
+    /**
+     * Configures a token budget — limits token consumption per minute to
+     * prevent runaway spend and manage rate limits automatically.
+     *
+     * <p>When a budget is set, CafeAI tracks tokens consumed in a rolling
+     * one-minute window. If a call would exceed the budget, the framework
+     * pauses automatically until the window resets — no {@code Thread.sleep()}
+     * in application code.
+     *
+     * <pre>{@code
+     *   app.budget(TokenBudget.perMinute(30_000));    // OpenAI free tier
+     *   app.budget(TokenBudget.perMinute(500_000));   // OpenAI Tier 1
+     *   app.budget(TokenBudget.unlimited());           // no limit (default)
+     * }</pre>
+     */
+    CafeAI budget(io.cafeai.core.ai.TokenBudget budget);
+
+    /**
+     * Configures retry behaviour for rate-limited or transiently failed LLM calls.
+     *
+     * <p>When a rate limit exception is thrown by the LLM provider, CafeAI
+     * catches it, waits, and retries automatically. Application code never
+     * sees a rate limit exception unless all attempts are exhausted.
+     *
+     * <pre>{@code
+     *   app.retry(RetryPolicy.onRateLimit()
+     *       .maxAttempts(3)
+     *       .backoff(Duration.ofSeconds(5)));
+     * }</pre>
+     */
+    CafeAI retry(io.cafeai.core.ai.RetryPolicy policy);
+
     // ── Application-Scoped Locals ─────────────────────────────────────────────
 
     /**

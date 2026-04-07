@@ -17,7 +17,7 @@ import java.util.Map;
  * concrete guardrail only needs to implement:
  * <ul>
  *   <li>{@link #checkInput(String)} -- inspect the user's prompt before LLM</li>
- *   <li>{@link #checkOutput(String)} -- inspect the LLM's response after it</li>
+ *   <li>{@link #checkInputAsOutput(String)} -- inspect the LLM's response after it</li>
  * </ul>
  *
  * <p>Both return a {@link CheckResult} -- either {@code pass()} to continue
@@ -45,10 +45,6 @@ public abstract class AbstractGuardRail implements GuardRail {
     @Override
     public void handle(Request req, Response res, Next next) {
         // PRE_LLM check -- inspect the incoming prompt before the LLM is called.
-        // POST_LLM inspection requires threading the HTTP request context into
-        // executePrompt() so the LLM response text is available here after
-        // next.run() returns. That wiring is deferred -- all active guardrails
-        // (PII, jailbreak, injection, toxicity, topic) are PRE_LLM and work correctly.
         if (position() == Position.PRE_LLM || position() == Position.BOTH) {
             String input = extractInput(req);
             if (input != null && !input.isBlank()) {
@@ -61,6 +57,49 @@ public abstract class AbstractGuardRail implements GuardRail {
         }
 
         next.run();
+
+        // POST_LLM check -- inspect the LLM's response after generation.
+        // The response text is stored in Attributes.LLM_RESPONSE_TEXT by
+        // the handler after calling app.prompt().call(). Guardrails with
+        // POST_LLM or BOTH position check it here.
+        if (position() == Position.POST_LLM || position() == Position.BOTH) {
+            Object responseObj = req.attribute(Attributes.LLM_RESPONSE_TEXT);
+            if (responseObj instanceof String responseText && !responseText.isBlank()) {
+                CheckResult result = checkInputAsOutput(responseText);
+                if (!result.passes()) {
+                    log.warn("POST_LLM guardrail '{}' triggered on response: {}",
+                        name(), result.reason());
+                    // Replace the stored response with a safe refusal
+                    req.setAttribute(Attributes.LLM_RESPONSE_TEXT,
+                        "[Response blocked by guardrail: " + name() + "]");
+                }
+            }
+        }
+    }
+
+    /**
+     * Inspects text as output (POST_LLM). Delegates to {@link #checkInput(String)}
+     * by default since most pattern-based guardrails apply the same logic to both
+     * input and output. Override for output-specific behaviour.
+     */
+    protected CheckResult checkInputAsOutput(String output) {
+        return checkInput(output);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Bridges the HTTP-middleware {@link CheckResult} type to the
+     * direct-call {@link GuardRail.OutputCheckResult} type so
+     * {@code CafeAIApp.applyPostLlmGuardrails()} can call this without
+     * depending on {@code cafeai-guardrails}.
+     */
+    @Override
+    public final GuardRail.OutputCheckResult checkOutput(String output) {
+        CheckResult result = checkInputAsOutput(output);
+        return result.passes()
+            ? GuardRail.OutputCheckResult.pass()
+            : GuardRail.OutputCheckResult.violation(result.reason());
     }
 
     /**
@@ -68,12 +107,6 @@ public abstract class AbstractGuardRail implements GuardRail {
      * Return {@link CheckResult#pass()} to allow, {@link CheckResult#block(String)} to reject.
      */
     protected CheckResult checkInput(String input) { return CheckResult.pass(); }
-
-    /**
-     * Inspects the LLM's output after generation.
-     * Return {@link CheckResult#pass()} to allow, {@link CheckResult#block(String)} to reject.
-     */
-    protected CheckResult checkOutput(String output) { return CheckResult.pass(); }
 
     // -- Private: request/response extraction ---------------------------------
 

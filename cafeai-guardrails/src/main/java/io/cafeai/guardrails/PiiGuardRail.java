@@ -81,7 +81,7 @@ public final class PiiGuardRail extends AbstractGuardRail {
     }
 
     @Override
-    protected CheckResult checkOutput(String output) {
+    protected CheckResult checkInputAsOutput(String output) {
         List<String> found = detect(output);
         if (found.isEmpty()) return CheckResult.pass();
         return CheckResult.block("PII detected in output: " + String.join(", ", found),

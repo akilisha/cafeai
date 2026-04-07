@@ -137,6 +137,40 @@ public interface GuardRail extends Middleware {
 
     enum Action   { BLOCK, WARN, LOG }
 
+    // -- POST_LLM output check -------------------------------------------------
+
+    /**
+     * The result of a POST_LLM output check.
+     *
+     * <p>Returned by {@link #checkOutput(String)} to indicate whether the
+     * LLM's response passes or violates this guardrail.
+     *
+     * @param isViolation {@code true} if the output violates this guardrail
+     * @param reason      human-readable reason for the violation, or {@code null} if passing
+     */
+    record OutputCheckResult(boolean isViolation, String reason) {
+        public static OutputCheckResult pass()              { return new OutputCheckResult(false, null);   }
+        public static OutputCheckResult violation(String r) { return new OutputCheckResult(true,  r);     }
+    }
+
+    /**
+     * Inspects the LLM's assembled response text after generation.
+     *
+     * <p>Called by {@code CafeAIApp} after every LLM call — including the final
+     * output of a tool-calling loop — for guardrails with position
+     * {@link Position#POST_LLM} or {@link Position#BOTH}.
+     *
+     * <p>The default implementation passes through (no check). Override in
+     * concrete guardrail implementations to inspect the response.
+     *
+     * @param output the assembled LLM response text
+     * @return {@link OutputCheckResult#pass()} to allow, or
+     *         {@link OutputCheckResult#violation(String)} to flag a violation
+     */
+    default OutputCheckResult checkOutput(String output) {
+        return OutputCheckResult.pass();
+    }
+
     // -- Pass-through stub (used when cafeai-guardrails is absent) -------------
 
     /**
