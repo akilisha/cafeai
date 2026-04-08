@@ -3,18 +3,18 @@
 > Tracks execution of ROADMAP-14. Each phase has a status and acceptance
 > criteria checkboxes. Update this file as work completes.
 
-**Current Status:** 🔴 Not Started
+**Current Status:** ✅ Complete
 
 | Phase | Description | Module | Status | Target |
 |-------|-------------|--------|--------|--------|
-| Phase 1 | `VisionRequest` + `VisionResponse` types | `cafeai-core` | 🔴 Not Started | — |
-| Phase 2 | `CafeAI.vision()` interface method | `cafeai-core` | 🔴 Not Started | — |
-| Phase 3 | `CafeAIApp.vision()` implementation | `cafeai-core` | 🔴 Not Started | — |
-| Phase 4 | LangChain4j message construction | `cafeai-core` | 🔴 Not Started | — |
-| Phase 5 | Model capability check | `cafeai-core` + `cafeai-connect` | 🔴 Not Started | — |
+| Phase 1 | `VisionRequest` + `VisionResponse` types | `cafeai-core` | ✅ Complete | — |
+| Phase 2 | `CafeAI.vision()` interface method | `cafeai-core` | ✅ Complete | — |
+| Phase 3 | `CafeAIApp.vision()` implementation | `cafeai-core` | ✅ Complete | — |
+| Phase 4 | LangChain4j message construction | `cafeai-core` | ✅ Complete | — |
+| Phase 5 | Model capability check | `cafeai-core` + `cafeai-connect` | ✅ Complete | — |
 | Phase 6 | Guardrails + observability | `cafeai-core` | 🔴 Not Started | — |
-| Phase 7 | `atlas-inbox` refactor | `atlas-inbox` | 🔴 Not Started | — |
-| Phase 8 | Tests + build verification | `cafeai-core` | 🔴 Not Started | — |
+| Phase 7 | `atlas-inbox` refactor | `atlas-inbox` | ✅ Complete | — |
+| Phase 8 | Tests + build verification | `cafeai-core` | ✅ Complete | — |
 
 ---
 
@@ -339,14 +339,14 @@ Apply it to the tool-calling path too.
 
 | Phase | Description | Module | Status |
 |-------|-------------|--------|--------|
-| Phase 1 | `VisionRequest` + `VisionResponse` types | `cafeai-core` | 🔴 Not Started |
-| Phase 2 | `CafeAI.vision()` interface method | `cafeai-core` | 🔴 Not Started |
-| Phase 3 | `CafeAIApp.vision()` implementation | `cafeai-core` | 🔴 Not Started |
-| Phase 4 | LangChain4j message construction | `cafeai-core` | 🔴 Not Started |
-| Phase 5 | Model capability check | `cafeai-core` + `cafeai-connect` | 🔴 Not Started |
-| Phase 6 | Guardrails + observability on vision | `cafeai-core` | 🔴 Not Started |
-| Phase 7 | `atlas-inbox` refactor | `atlas-inbox` | 🔴 Not Started |
-| Phase 8 | Tests + build verification | `cafeai-core` | 🔴 Not Started |
-| Phase 9 | Structured output `.returning(Class)` | `cafeai-core` | 🔴 Not Started |
-| Phase 10 | Token budget + rate limit handling | `cafeai-core` | 🔴 Not Started |
+| Phase 1 | `VisionRequest` + `VisionResponse` types | `cafeai-core` | ✅ Complete |
+| Phase 2 | `CafeAI.vision()` interface method | `cafeai-core` | ✅ Complete |
+| Phase 3 | `CafeAIApp.vision()` implementation | `cafeai-core` | ✅ Complete |
+| Phase 4 | LangChain4j message construction | `cafeai-core` | ✅ Complete |
+| Phase 5 | Model capability check | `cafeai-core` + `cafeai-connect` | ✅ Complete |
+| Phase 6 | Guardrails + observability on vision | `cafeai-core` | ✅ Complete |
+| Phase 7 | `atlas-inbox` refactor | `atlas-inbox` | ✅ Complete |
+| Phase 8 | Tests + build verification | `cafeai-core` | ✅ Complete |
+| Phase 9 | Structured output `.returning(Class)` | `cafeai-core` | ✅ Complete |
+| Phase 10 | Token budget + rate limit handling | `cafeai-core` | ✅ Complete |
 | Phase 11 | POST_LLM guardrails on tool call output | `cafeai-core` | ✅ Complete |
