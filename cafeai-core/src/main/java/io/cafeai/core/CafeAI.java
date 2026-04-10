@@ -475,6 +475,42 @@ public interface CafeAI extends Router {
     io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType);
 
     /**
+     * Creates an audio request for the registered LLM provider.
+     *
+     * <p>Audio calls send binary audio content alongside a text prompt
+     * to a model capable of speech understanding. The audio pipeline:
+     * <ul>
+     *   <li>RAG retrieval is skipped — audio bytes cannot be embedded</li>
+     *   <li>PRE_LLM and POST_LLM guardrails apply to the text prompt and transcript</li>
+     *   <li>Session memory stores the text prompt and response only (not audio bytes)</li>
+     *   <li>The registered provider must declare {@code supportsAudio() = true}</li>
+     * </ul>
+     *
+     * <pre>{@code
+     *   // Transcription
+     *   AudioResponse r = app.audio(
+     *       "Transcribe this call.", audioBytes, "audio/wav").call();
+     *
+     *   // Structured extraction
+     *   CallSummary s = app.audio(
+     *       "Extract action items.", audioBytes, "audio/mp3")
+     *       .returning(CallSummary.class)
+     *       .call(CallSummary.class);
+     * }</pre>
+     *
+     * @param prompt   the text instruction for the model
+     * @param content  the audio bytes
+     * @param mimeType MIME type, e.g. {@code "audio/wav"}, {@code "audio/mp3"},
+     *                 {@code "audio/ogg"}, {@code "audio/m4a"}, {@code "audio/flac"}
+     * @throws IllegalStateException if no AI provider has been registered
+     * @throws io.cafeai.core.ai.AudioRequest.AudioNotSupportedException if the
+     *         registered provider does not support audio input
+     * @throws io.cafeai.core.ai.AudioRequest.UnsupportedAudioFormatException if
+     *         the MIME type is not supported by the audio pipeline
+     */
+    io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType);
+
+    /**
      * Retrieves a registered prompt template by name.
      *
      * <pre>{@code

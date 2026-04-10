@@ -10,13 +10,13 @@
 
 The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring Boot abstractions, but one built on first principles — where every layer is explainable, every concern is composable, and every design decision has a reason you can articulate in a conference talk.
 
-| Problem | CafeAI's Answer |
-|---|---|
-| Spring AI abstracts too aggressively | Helidon SE — you see the plumbing |
-| Python has Langchain. Java has...? | Langchain4j, with full API parity |
-| Node devs know Express. Java devs don't | CafeAI mirrors Express pound-for-pound |
-| AI pipelines are magic black boxes | Everything is a middleware. Everything is explainable. |
-| "Just use Redis" for everything | Tiered memory — FFM/SSD first, Redis only when you need it |
+| Problem                                 | CafeAI's Answer                                            |
+|-----------------------------------------|------------------------------------------------------------|
+| Spring AI abstracts too aggressively    | Helidon SE — you see the plumbing                          |
+| Python has Langchain. Java has...?      | Langchain4j, with full API parity                          |
+| Node devs know Express. Java devs don't | CafeAI mirrors Express pound-for-pound                     |
+| AI pipelines are magic black boxes      | Everything is a middleware. Everything is explainable.     |
+| "Just use Redis" for everything         | Tiered memory — FFM/SSD first, Redis only when you need it |
 
 ---
 
@@ -32,11 +32,11 @@ The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring
 
 CafeAI stands deliberately on the shoulders of three proven traditions:
 
-| Lineage | Contribution | Why It Matters |
-|---|---|---|
-| **Java / JVM** | Robustness, FFM, Structured Concurrency, Virtual Threads | Enterprise systems are already here |
-| **Express.js / Node** | Middleware composability, ergonomic API | Zero mental model ramp-up for Java devs |
-| **Python Langchain** | AI primitives vocabulary, RAG, agents | Parity for AI practitioners across languages |
+| Lineage               | Contribution                                             | Why It Matters                               |
+|-----------------------|----------------------------------------------------------|----------------------------------------------|
+| **Java / JVM**        | Robustness, FFM, Structured Concurrency, Virtual Threads | Enterprise systems are already here          |
+| **Express.js / Node** | Middleware composability, ergonomic API                  | Zero mental model ramp-up for Java devs      |
+| **Python Langchain**  | AI primitives vocabulary, RAG, agents                    | Parity for AI practitioners across languages |
 
 ---
 

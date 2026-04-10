@@ -33,6 +33,16 @@ public interface AiProvider {
      */
     default boolean supportsVision() { return false; }
 
+    /**
+     * Returns {@code true} if this provider supports audio input via
+     * {@code app.audio()}. Providers that do: {@code OpenAI.gpt4o()},
+     * {@code OpenAI.whisper()}. Providers that do not: {@code OpenAI.gpt4oMini()},
+     * {@code Anthropic.claude35Sonnet()}, {@code Ollama.llama3()}.
+     *
+     * <p>Defaults to {@code false}. Override in audio-capable provider implementations.
+     */
+    default boolean supportsAudio() { return false; }
+
     enum ProviderType {
         OPENAI,
         ANTHROPIC,

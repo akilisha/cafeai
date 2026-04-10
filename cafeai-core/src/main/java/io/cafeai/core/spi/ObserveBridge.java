@@ -75,4 +75,26 @@ public interface ObserveBridge {
     default void afterVision(Object context, io.cafeai.core.ai.VisionRequest request,
                              io.cafeai.core.ai.VisionResponse response, Throwable error) {
     }
+
+    /**
+     * Called immediately before an audio LLM call.
+     *
+     * @param request the audio request about to be executed
+     * @return an opaque context object passed to {@link #afterAudio}
+     */
+    default Object beforeAudio(io.cafeai.core.ai.AudioRequest request) {
+        return null;
+    }
+
+    /**
+     * Called immediately after an audio LLM call responds or throws.
+     *
+     * @param context  the object returned by {@link #beforeAudio}
+     * @param request  the original audio request
+     * @param response the audio response, or {@code null} if an error occurred
+     * @param error    the error, or {@code null} if the call succeeded
+     */
+    default void afterAudio(Object context, io.cafeai.core.ai.AudioRequest request,
+                            io.cafeai.core.ai.AudioResponse response, Throwable error) {
+    }
 }

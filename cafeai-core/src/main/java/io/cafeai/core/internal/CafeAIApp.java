@@ -237,6 +237,11 @@ public final class CafeAIApp implements CafeAI {
         return new io.cafeai.core.ai.VisionRequest(prompt, content, mimeType, this::executeVision);
     }
 
+    @Override
+    public io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType) {
+        return new io.cafeai.core.ai.AudioRequest(prompt, content, mimeType, this::executeAudio);
+    }
+
     /**
      * Executes a {@link PromptRequest} against the registered LLM provider.
      *
@@ -611,6 +616,230 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 10. Return VisionResponse ----------------------------------------
         return io.cafeai.core.ai.VisionResponse.builder()
+            .text(responseText)
+            .promptTokens(promptTokens)
+            .outputTokens(outputTokens)
+            .modelId(provider.modelId())
+            .build();
+    }
+
+    /**
+     * Executes an {@link io.cafeai.core.ai.AudioRequest} against the registered
+     * audio-capable LLM provider.
+     *
+     * <p>Pipeline mirrors {@link #executeVision(io.cafeai.core.ai.VisionRequest)}
+     * exactly — same guardrail, observability, token budget, retry, and session
+     * memory pattern. The only difference is the message builder:
+     * {@link AudioMessageBuilder} wraps audio bytes in {@link dev.langchain4j.data.message.AudioContent}.
+     *
+     * <p><strong>Provider note:</strong> Works with {@code gpt-4o-audio-preview}
+     * and Gemini. Does not work with {@code whisper-1} — Whisper uses a separate
+     * transcription endpoint not yet supported by LangChain4j's chat completions
+     * path. See {@link AudioMessageBuilder} for details.
+     */
+    private io.cafeai.core.ai.AudioResponse executeAudio(
+            io.cafeai.core.ai.AudioRequest request) {
+
+        // -- 1. Resolve provider and verify audio support ---------------------
+        if (aiProvider == null && modelRouter == null) {
+            throw new IllegalStateException(
+                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                "For audio calls, use an audio-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+        }
+        AiProvider provider = aiProvider != null ? aiProvider : modelRouter.complexModel();
+        if (!provider.supportsAudio()) {
+            throw new io.cafeai.core.ai.AudioRequest.AudioNotSupportedException(
+                "The registered provider '" + provider.modelId() + "' does not support " +
+                "audio input. Use an audio-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+        }
+
+        ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
+
+        // -- 2. PRE_LLM guardrail check on the text prompt --------------------
+        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
+            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
+                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
+                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
+                    rail.checkOutput(request.prompt());
+                if (result.isViolation()) {
+                    log.warn("Audio PRE_LLM guardrail '{}' triggered: {}",
+                        rail.name(), result.reason());
+                    throw new RuntimeException(
+                        "Audio prompt blocked by guardrail '" + rail.name() +
+                        "': " + result.reason());
+                }
+            }
+        }
+
+        // -- 3. Build session history (text messages only) --------------------
+        List<ChatMessage> history = new ArrayList<>();
+        if (request.sessionId() != null && memoryStrategy != null) {
+            io.cafeai.core.memory.ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx != null) {
+                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
+                    if ("user".equals(msg.role())) {
+                        history.add(UserMessage.from(msg.content()));
+                    } else if ("assistant".equals(msg.role())) {
+                        history.add(AiMessage.from(msg.content()));
+                    }
+                }
+            }
+        }
+
+        // -- 4. Determine system prompt ---------------------------------------
+        String systemPrompt = request.systemOverride() != null
+            ? request.systemOverride()
+            : this.systemPrompt;
+
+        // -- 4b. Append schema hint for structured output --------------------
+        String effectivePrompt = request.schemaHint() != null
+            ? request.prompt() + request.schemaHint()
+            : request.prompt();
+
+        // -- 5 & 6. Call model — route by provider type ----------------------
+        // OpenAI: AudioContent not supported via chat completions.
+        // Route through Whisper /v1/audio/transcriptions directly.
+        // Gemini: AudioContent is supported natively via chat completions.
+        String responseText = "";
+        int    promptTokens = 0;
+        int    outputTokens = 0;
+
+        Object observeCtx = observeBridge != null
+            ? observeBridge.beforeAudio(request) : null;
+
+        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+
+        if (AudioMessageBuilder.requiresWhisperEndpoint(provider)) {
+            // -- OpenAI path: Whisper transcription endpoint ------------------
+            String transcript = AudioMessageBuilder.transcribeViaWhisper(
+                request.content(), request.mimeType(), request.prompt());
+
+            // If the prompt asks for more than transcription, send transcript
+            // back through the text model for reasoning/extraction
+            boolean wantsReasoning = request.schemaHint() != null
+                || !request.prompt().toLowerCase().contains("transcribe");
+
+            if (wantsReasoning) {
+                String followUp = effectivePrompt +
+                    "\n\nTranscript:\n---\n" + transcript + "\n---";
+                List<ChatMessage> textMessages = new ArrayList<>(history);
+                if (systemPrompt != null && !systemPrompt.isBlank())
+                    textMessages.add(0, dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
+                textMessages.add(dev.langchain4j.data.message.UserMessage.from(followUp));
+
+                int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+                Throwable lastRateLimitError = null;
+                while (attemptsLeft > 0) {
+                    attemptsLeft--;
+                    lastRateLimitError = null;
+                    try {
+                        ChatResponse cr = model.chat(textMessages);
+                        responseText = cr.aiMessage().text();
+                        TokenUsage usage = cr.tokenUsage();
+                        promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                        outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                        if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+                        break;
+                    } catch (RuntimeException e) {
+                        if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                                && isRateLimitException(e) && attemptsLeft > 0) {
+                            int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                            long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                            log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
+                            lastRateLimitError = e;
+                            try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                throw new RuntimeException("Interrupted during audio retry", ie);
+                            }
+                        } else { throw e; }
+                    }
+                }
+                if (lastRateLimitError != null) {
+                    throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
+                        "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                        lastRateLimitError);
+                }
+            } else {
+                // Pure transcription — return transcript directly
+                responseText = transcript;
+            }
+
+        } else {
+            // -- Gemini path: AudioContent via chat completions ---------------
+            List<ChatMessage> messages = AudioMessageBuilder.buildForGemini(
+                effectivePrompt, request.content(), request.mimeType(),
+                systemPrompt, history);
+
+            int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+            Throwable lastRateLimitError = null;
+            while (attemptsLeft > 0) {
+                attemptsLeft--;
+                lastRateLimitError = null;
+                try {
+                    ChatResponse response = model.chat(messages);
+                    responseText = response.aiMessage().text();
+                    TokenUsage usage = response.tokenUsage();
+                    promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                    if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+                    break;
+                } catch (RuntimeException e) {
+                    if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                            && isRateLimitException(e) && attemptsLeft > 0) {
+                        int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                        long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                        log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
+                        lastRateLimitError = e;
+                        try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted during audio retry", ie);
+                        }
+                    } else { throw e; }
+                }
+            }
+            if (lastRateLimitError != null) {
+                throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
+                    "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                    lastRateLimitError);
+            }
+        }
+
+        // -- 6b. Observability: afterAudio ------------------------------------
+        if (observeBridge != null) {
+            io.cafeai.core.ai.AudioResponse partial = io.cafeai.core.ai.AudioResponse.builder()
+                .text(responseText)
+                .promptTokens(promptTokens)
+                .outputTokens(outputTokens)
+                .modelId(provider.modelId())
+                .build();
+            observeBridge.afterAudio(observeCtx, request, partial, null);
+        }
+
+        // -- 7. POST_LLM guardrail check on the response ----------------------
+        responseText = applyPostLlmGuardrails(responseText);
+
+        // -- 8. Set LLM_RESPONSE_TEXT for HTTP middleware guardrails ----------
+        if (request.httpRequest() != null) {
+            request.httpRequest().setAttribute(
+                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
+        }
+
+        // -- 9. Persist to session memory (text only — never audio bytes) -----
+        if (request.sessionId() != null && memoryStrategy != null) {
+            io.cafeai.core.memory.ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
+            ctx.addMessage("user",      request.prompt());   // store text prompt, not audio
+            ctx.addMessage("assistant", responseText);
+            ctx.addTokens(promptTokens + outputTokens);
+            memoryStrategy.store(request.sessionId(), ctx);
+        }
+
+        // -- 10. Return AudioResponse -----------------------------------------
+        return io.cafeai.core.ai.AudioResponse.builder()
             .text(responseText)
             .promptTokens(promptTokens)
             .outputTokens(outputTokens)
