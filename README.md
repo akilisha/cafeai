@@ -8,7 +8,7 @@
 
 ## Why CafeAI?
 
-The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring Boot abstractions, but one built on first principles — where every layer is explainable, every concern is composable, and every design decision has a reason you can articulate in a conference talk.
+The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring Boot abstractions, but one built on first principles — where every layer is explainable, every concern is composable, and every design decision has a reason you can articulate and defend with confidence.
 
 | Problem | CafeAI's Answer |
 |---|---|
@@ -24,7 +24,7 @@ The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring
 
 **Cafe** → instantly recognizable as a coffee shop — *Java*  
 **AI** → the technology we're introducing  
-**CafeAI** → sounds like *"kaf-ai"* — a natural coming together of Java and AI
+**CafeAI** → sounds like *"ka-fay-i"* — a natural coming together of Java and AI
 
 ---
 
