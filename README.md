@@ -309,7 +309,7 @@ cd cafeai
 
 Each module is a blog post. The project is the curriculum.
 
-1. **Brewing AI in Java** — CafeAI Introduction and Philosophy
+1. **Brewing AI in Java** — (CafeAI Introduction and Philosophy)[https://github.com/akilisha/cafeai/blob/main/docs/blog/01-brewing-ai-in-java.md]
 2. **The Middleware Pattern Meets Gen AI** — From Express to CafeAI
 3. **Your First LLM Call Without Spring Boot** — Helidon SE + Langchain4j
 4. **Prompt Engineering in Java** — Templates, System Prompts, and the API Vocabulary
