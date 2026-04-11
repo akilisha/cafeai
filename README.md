@@ -228,18 +228,18 @@ Each module is an independent rung on the adoption ladder. Start with `cafeai-co
 
 CafeAI is structured so that every team can start at the bottom and climb deliberately.
 
-| Rung | Capability | What You Learn |
-|---|---|---|
-| 1 | Plain LLM call | Helidon SE + Langchain4j basics |
-| 2 | Prompt templates | Structured prompt engineering |
-| 3 | Context memory | Conversation state, FFM memory API |
-| 4 | RAG | Ingestion, embeddings, vector retrieval |
-| 5 | Tool use / MCP | Giving the AI actions to take |
-| 6 | Guardrails | Safety, ethics, compliance as middleware |
-| 7 | Agents | Autonomous reasoning loops, Structured Concurrency |
-| 8 | Observability + Evals | Production measurement, prompt versioning |
-| 9 | Streaming | SSE, backpressure, real-time UX |
-| 10 | Security | Injection, leakage, adversarial robustness |
+| Rung | Capability            | What You Learn                                     |
+|------|-----------------------|----------------------------------------------------|
+| 1    | Plain LLM call        | Helidon SE + Langchain4j basics                    |
+| 2    | Prompt templates      | Structured prompt engineering                      |
+| 3    | Context memory        | Conversation state, FFM memory API                 |
+| 4    | RAG                   | Ingestion, embeddings, vector retrieval            |
+| 5    | Tool use / MCP        | Giving the AI actions to take                      |
+| 6    | Guardrails            | Safety, ethics, compliance as middleware           |
+| 7    | Agents                | Autonomous reasoning loops, Structured Concurrency |
+| 8    | Observability + Evals | Production measurement, prompt versioning          |
+| 9    | Streaming             | SSE, backpressure, real-time UX                    |
+| 10   | Security              | Injection, leakage, adversarial robustness         |
 
 ---
 
@@ -247,14 +247,14 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 
 CafeAI treats Java 21+ features as load-bearing architecture — not demos.
 
-| Feature | Where CafeAI Uses It | Why |
-|---|---|---|
-| **FFM API** | Native ML bindings (ONNX, llama.cpp) | JNI-free native access |
-| **FFM MemorySegment** | SSD-backed session memory | Off-heap, OS page cache, crash-recovery |
-| **Structured Concurrency** | Multi-agent orchestration | Isolated failures, clean joins |
-| **Scoped Values** | Request context propagation | No ThreadLocal hacks |
-| **Vector API** | Cosine similarity, dot products | SIMD hardware acceleration for RAG |
-| **Virtual Threads** | Every request handler | I/O-bound LLM calls at zero cost |
+| Feature                    | Where CafeAI Uses It                 | Why                                     |
+|----------------------------|--------------------------------------|-----------------------------------------|
+| **FFM API**                | Native ML bindings (ONNX, llama.cpp) | JNI-free native access                  |
+| **FFM MemorySegment**      | SSD-backed session memory            | Off-heap, OS page cache, crash-recovery |
+| **Structured Concurrency** | Multi-agent orchestration            | Isolated failures, clean joins          |
+| **Scoped Values**          | Request context propagation          | No ThreadLocal hacks                    |
+| **Vector API**             | Cosine similarity, dot products      | SIMD hardware acceleration for RAG      |
+| **Virtual Threads**        | Every request handler                | I/O-bound LLM calls at zero cost        |
 
 ---
 
@@ -274,18 +274,18 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 
 ## Technology Stack
 
-| Concern | Technology | Version |
-|---|---|---|
-| Runtime | Java | 21+ |
-| HTTP Server | Helidon SE | 4.1.4 |
-| AI Framework | Langchain4j | 0.35.0 |
-| LLM Providers | OpenAI, Anthropic, Ollama | — |
-| Off-heap Memory | Java FFM / Chronicle Map | JDK 21 / 3.25 |
-| Distributed Cache | Redis (Lettuce) / Memcached | 6.3 / 2.12 |
-| Vector DB | PgVector / Chroma | — |
-| Observability | OpenTelemetry | 1.40.0 |
-| PII Detection | Apache OpenNLP | 2.3.3 |
-| Build | Gradle (Groovy DSL) | 8.x |
+| Concern           | Technology                  | Version       |
+|-------------------|-----------------------------|---------------|
+| Runtime           | Java                        | 21+           |
+| HTTP Server       | Helidon SE                  | 4.1.4         |
+| AI Framework      | Langchain4j                 | 0.35.0        |
+| LLM Providers     | OpenAI, Anthropic, Ollama   | —             |
+| Off-heap Memory   | Java FFM / Chronicle Map    | JDK 21 / 3.25 |
+| Distributed Cache | Redis (Lettuce) / Memcached | 6.3 / 2.12    |
+| Vector DB         | PgVector / Chroma           | —             |
+| Observability     | OpenTelemetry               | 1.40.0        |
+| PII Detection     | Apache OpenNLP              | 2.3.3         |
+| Build             | Gradle (Groovy DSL)         | 8.x           |
 
 ---
 
