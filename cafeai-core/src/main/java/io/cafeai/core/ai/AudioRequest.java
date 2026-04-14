@@ -66,6 +66,7 @@ public final class AudioRequest {
     private final byte[] content;
     private final String mimeType;
     private String sessionId;
+    private String providerName;
     private String systemOverride;
     private Class<?> returningType;
     private String schemaHint;
@@ -96,6 +97,20 @@ public final class AudioRequest {
      */
     public AudioRequest session(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Routes this call to a specific named provider registered via
+     * {@code app.ai(name, provider)}. Falls back to the default
+     * provider if not specified.
+     *
+     * <pre>{@code
+     *   app.audio(...).provider("tutor").call();
+     * }</pre>
+     */
+    public AudioRequest provider(String providerName) {
+        this.providerName = providerName;
         return this;
     }
 
@@ -154,6 +169,7 @@ public final class AudioRequest {
     public byte[]   content()        { return content; }
     public String   mimeType()       { return mimeType; }
     public String   sessionId()      { return sessionId; }
+    public String   providerName()  { return providerName; }
     public String   systemOverride() { return systemOverride; }
     public Class<?> returningType()  { return returningType; }
     public String   schemaHint()     { return schemaHint; }

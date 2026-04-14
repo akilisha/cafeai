@@ -43,6 +43,14 @@ public interface AiProvider {
      */
     default boolean supportsAudio() { return false; }
 
+    /**
+     * Returns {@code true} if this provider supports text-to-speech synthesis
+     * via {@code app.synthesise()}. Providers that do: {@code OpenAI.tts()}.
+     *
+     * <p>Defaults to {@code false}. Override in TTS-capable provider implementations.
+     */
+    default boolean supportsTts() { return false; }
+
     enum ProviderType {
         OPENAI,
         ANTHROPIC,

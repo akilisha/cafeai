@@ -31,6 +31,7 @@ public final class PromptRequest {
 
     private final String message;
     private String sessionId;
+    private String providerName;
     private String systemOverride;
     private io.cafeai.core.routing.Request httpRequest;
     private Class<?> returningType;
@@ -50,6 +51,20 @@ public final class PromptRequest {
      */
     public PromptRequest session(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Routes this call to a specific named provider registered via
+     * {@code app.ai(name, provider)}. Falls back to the default
+     * provider if not specified.
+     *
+     * <pre>{@code
+     *   app.prompt(...).provider("tutor").call();
+     * }</pre>
+     */
+    public PromptRequest provider(String providerName) {
+        this.providerName = providerName;
         return this;
     }
 
@@ -130,6 +145,7 @@ public final class PromptRequest {
     /** Package-private accessors for the executor */
     public String message()        { return message; }
     public String sessionId()      { return sessionId; }
+    public String providerName()    { return providerName; }
     public String systemOverride() { return systemOverride; }
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
     public Class<?> returningType()  { return returningType; }

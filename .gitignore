@@ -39,3 +39,9 @@ Thumbs.db
 # Local config
 application-local.yaml
 application-local.properties
+
+# maven publishing stuff
+*pom*.xml
+settings.xml
+**/target/
+

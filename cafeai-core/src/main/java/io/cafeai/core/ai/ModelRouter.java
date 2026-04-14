@@ -12,7 +12,7 @@ package io.cafeai.core.ai;
  *       .complex(OpenAI.gpt4o()));
  * }</pre>
  */
-public final class ModelRouter {
+public final class ModelRouter implements AiProvider {
 
     private AiProvider simpleModel;
     private AiProvider complexModel;
@@ -44,4 +44,31 @@ public final class ModelRouter {
 
     public AiProvider simpleModel()  { return simpleModel; }
     public AiProvider complexModel() { return complexModel; }
+
+    /**
+     * Routes a prompt to the appropriate model based on input length.
+     * Messages over 500 characters are considered complex.
+     *
+     * @param inputLength the length of the prompt text
+     */
+    public AiProvider route(int inputLength) {
+        return inputLength > 500 ? complexModel : simpleModel;
+    }
+
+    // ── AiProvider implementation ─────────────────────────────────────────────
+    // ModelRouter presents as the complex model for capability checks (vision,
+    // audio) and for named provider registration. Actual routing happens in
+    // CafeAIApp when it detects the provider is a ModelRouter instance.
+
+    @Override public String       name()    { return complexModel != null ? complexModel.name() : "router"; }
+    @Override public String       modelId() { return complexModel != null ? complexModel.modelId() : "router"; }
+    @Override public ProviderType type()    { return complexModel != null ? complexModel.type() : ProviderType.CUSTOM; }
+
+    @Override public boolean supportsVision() {
+        return complexModel != null && complexModel.supportsVision();
+    }
+
+    @Override public boolean supportsAudio() {
+        return complexModel != null && complexModel.supportsAudio();
+    }
 }

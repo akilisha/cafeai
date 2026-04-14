@@ -78,6 +78,7 @@ public final class CafeAIApp implements CafeAI {
     // AI state
     private AiProvider      aiProvider;
     private ModelRouter     modelRouter;
+    private final java.util.Map<String, AiProvider> namedProviders = new java.util.concurrent.ConcurrentHashMap<>();
     private String          systemPrompt;
     private MemoryStrategy  memoryStrategy;
     private final List<GuardRail>         guardRails   = new ArrayList<>();
@@ -184,6 +185,16 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
+    public CafeAI ai(String name, AiProvider provider) {
+        if (name == null || name.isBlank())
+            throw new IllegalArgumentException("Provider name must not be null or blank");
+        Objects.requireNonNull(provider, "AiProvider must not be null");
+        namedProviders.put(name, provider);
+        log.info("AI provider registered: {} ({}) [name: {}]", provider.name(), provider.modelId(), name);
+        return this;
+    }
+
+    @Override
     public CafeAI ai(ModelRouter router) {
         assertNotStarted("ai()");
         this.modelRouter = Objects.requireNonNull(router, "ModelRouter must not be null");
@@ -240,6 +251,11 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType) {
         return new io.cafeai.core.ai.AudioRequest(prompt, content, mimeType, this::executeAudio);
+    }
+
+    @Override
+    public io.cafeai.core.ai.SynthesisRequest synthesise(String text) {
+        return new io.cafeai.core.ai.SynthesisRequest(text, this::executeSynthesis);
     }
 
     /**
@@ -469,15 +485,24 @@ public final class CafeAIApp implements CafeAI {
             io.cafeai.core.ai.VisionRequest request) {
 
         // -- 1. Resolve provider and verify vision support --------------------
-        if (aiProvider == null && modelRouter == null) {
+        AiProvider provider;
+        if (request.providerName() != null) {
+            provider = namedProviders.get(request.providerName());
+            if (provider == null) {
+                throw new IllegalStateException(
+                    "No provider registered with name '" + request.providerName() + "'. " +
+                    "Registered named providers: " + namedProviders.keySet() + ".");
+            }
+        } else if (aiProvider != null) {
+            provider = aiProvider;
+        } else if (modelRouter != null) {
+            provider = modelRouter.complexModel();
+        } else {
             throw new IllegalStateException(
                 "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
                 "For vision calls, use a vision-capable provider: " +
                 "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
         }
-        // Vision always uses the primary provider — model router not applicable
-        // since vision-capability is a hard requirement, not a cost heuristic.
-        AiProvider provider = aiProvider != null ? aiProvider : modelRouter.complexModel();
         if (!provider.supportsVision()) {
             throw new io.cafeai.core.ai.VisionRequest.VisionNotSupportedException(
                 "The registered provider '" + provider.modelId() + "' does not support " +
@@ -641,13 +666,24 @@ public final class CafeAIApp implements CafeAI {
             io.cafeai.core.ai.AudioRequest request) {
 
         // -- 1. Resolve provider and verify audio support ---------------------
-        if (aiProvider == null && modelRouter == null) {
+        AiProvider provider;
+        if (request.providerName() != null) {
+            provider = namedProviders.get(request.providerName());
+            if (provider == null) {
+                throw new IllegalStateException(
+                    "No provider registered with name '" + request.providerName() + "'. " +
+                    "Registered named providers: " + namedProviders.keySet() + ".");
+            }
+        } else if (aiProvider != null) {
+            provider = aiProvider;
+        } else if (modelRouter != null) {
+            provider = modelRouter.complexModel();
+        } else {
             throw new IllegalStateException(
                 "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
                 "For audio calls, use an audio-capable provider: " +
                 "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
         }
-        AiProvider provider = aiProvider != null ? aiProvider : modelRouter.complexModel();
         if (!provider.supportsAudio()) {
             throw new io.cafeai.core.ai.AudioRequest.AudioNotSupportedException(
                 "The registered provider '" + provider.modelId() + "' does not support " +
@@ -848,6 +884,112 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /**
+     * Executes a {@link io.cafeai.core.ai.SynthesisRequest} — text-to-speech synthesis.
+     *
+     * <p>Routes through OpenAI's {@code /v1/audio/speech} endpoint directly via
+     * {@code java.net.http.HttpClient}. LangChain4j does not wrap the TTS endpoint.
+     *
+     * <p>Observability hooks fire before and after the HTTP call.
+     * Token budget is not applied — TTS is billed per character, not per token.
+     */
+    private io.cafeai.core.ai.SynthesisResponse executeSynthesis(
+            io.cafeai.core.ai.SynthesisRequest request) {
+
+        // -- 1. Resolve provider --------------------------------------------------
+        AiProvider provider;
+        if (request.providerName() != null) {
+            provider = namedProviders.get(request.providerName());
+            if (provider == null) {
+                throw new IllegalStateException(
+                    "No provider registered with name '" + request.providerName() + "'. " +
+                    "Registered named providers: " + namedProviders.keySet() + ".");
+            }
+        } else if (aiProvider != null) {
+            provider = aiProvider;
+        } else {
+            throw new IllegalStateException(
+                "No TTS provider registered. Call app.ai(OpenAI.tts()) at startup, " +
+                "or use a named provider: app.ai(\"voice\", OpenAI.tts()).");
+        }
+
+        if (!provider.supportsTts()) {
+            throw new io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException(
+                "The registered provider '" + provider.modelId() + "' does not support " +
+                "text-to-speech synthesis. Use a TTS-capable provider: " +
+                "app.ai(OpenAI.tts()) or app.ai(\"voice\", OpenAI.tts()).");
+        }
+
+        // -- 2. Observability: beforeSynthesis ------------------------------------
+        long startMs = System.currentTimeMillis();
+        if (observeBridge != null) observeBridge.beforeSynthesis(request);
+
+        // -- 3. Call /v1/audio/speech via direct HTTP -----------------------------
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("OPENAI_API_KEY environment variable is not set.");
+        }
+
+        String voice  = "alloy";
+        String format = "mp3";
+        if (provider instanceof io.cafeai.core.ai.OpenAI.OpenAiTtsProvider tts) {
+            voice  = tts.voice();
+            format = tts.format();
+        }
+
+        String safeText = request.text()
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r");
+        String body = "{\"model\":\"tts-1\",\"input\":\"" + safeText +
+            "\",\"voice\":\"" + voice +
+            "\",\"response_format\":\"" + format + "}";
+
+        byte[] audioBytes;
+        try {
+            var httpRequest = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://api.openai.com/v1/audio/speech"))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+            var response = java.net.http.HttpClient.newHttpClient()
+                .send(httpRequest, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException(
+                    "OpenAI TTS API error " + response.statusCode() + ": " +
+                    new String(response.body(), java.nio.charset.StandardCharsets.UTF_8));
+            }
+            audioBytes = response.body();
+
+        } catch (java.io.IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new RuntimeException("TTS synthesis failed: " + e.getMessage(), e);
+        }
+
+        long latencyMs = System.currentTimeMillis() - startMs;
+
+        // -- 4. Observability: afterSynthesis ------------------------------------
+        io.cafeai.core.ai.SynthesisResponse result =
+            io.cafeai.core.ai.SynthesisResponse.builder()
+                .audioBytes(audioBytes)
+                .format(format)
+                .modelId(provider.modelId())
+                .characters(request.text().length())
+                .latencyMs(latencyMs)
+                .build();
+
+        if (observeBridge != null) observeBridge.afterSynthesis(request, result, null);
+
+        log.info("[TTS] {} chars synthesised | model={} | format={} | latency={}ms | bytes={}",
+            request.text().length(), provider.modelId(), format, latencyMs, audioBytes.length);
+
+        return result;
+    }
+
+    /**
      * Returns true if the exception looks like a rate limit response from the provider.
      * Checks exception class name and message for common rate-limit indicators since
      * LangChain4j doesn't expose a typed RateLimitException.
@@ -906,7 +1048,22 @@ public final class CafeAIApp implements CafeAI {
      */
     private AiProvider resolveProvider(
             PromptRequest request) {
-        if (aiProvider == null && modelRouter == null) {
+        // Named provider takes precedence
+        if (request.providerName() != null) {
+            AiProvider named = namedProviders.get(request.providerName());
+            if (named == null) {
+                throw new IllegalStateException(
+                    "No provider registered with name '" + request.providerName() + "'. " +
+                    "Registered named providers: " + namedProviders.keySet() + ". " +
+                    "Call app.ai(\"" + request.providerName() + "\", OpenAI.gpt4o()) at startup.");
+            }
+            // If the named provider is a ModelRouter, apply its routing logic
+            if (named instanceof io.cafeai.core.ai.ModelRouter router) {
+                return router.route(request.message().length());
+            }
+            return named;
+        }
+        if (aiProvider == null && modelRouter == null && namedProviders.isEmpty()) {
             throw new IllegalStateException(
                 "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup.\n\n" +
                 "For local models (no API key needed):\n" +
@@ -1594,6 +1751,9 @@ public final class CafeAIApp implements CafeAI {
             log.info("   Filters:            {}", filterEntries.size());
         if (aiProvider != null)
             log.info("   AI provider:        {} ({})", aiProvider.name(), aiProvider.modelId());
+        if (!namedProviders.isEmpty())
+            namedProviders.forEach((name, p) ->
+                log.info("   AI provider:        {} ({}) [name: {}]", p.name(), p.modelId(), name));
         if (memoryStrategy != null)
             log.info("   Memory strategy:    {}", memoryStrategy.getClass().getSimpleName());
         if (!guardRails.isEmpty())

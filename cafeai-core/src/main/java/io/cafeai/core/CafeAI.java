@@ -346,7 +346,7 @@ public interface CafeAI extends Router {
     // ── AI Infrastructure ─────────────────────────────────────────────────────
 
     /**
-     * Registers the LLM provider. Declares: "this application is AI-powered."
+     * Registers the default LLM provider. Declares: "this application is AI-powered."
      *
      * <pre>{@code
      *   app.ai(OpenAI.gpt4o());
@@ -355,6 +355,31 @@ public interface CafeAI extends Router {
      * }</pre>
      */
     CafeAI ai(AiProvider provider);
+
+    /**
+     * Registers a named LLM provider. Multiple providers can be registered
+     * simultaneously, each accessible by name via {@code .provider(name)} on
+     * prompt, vision, and audio requests.
+     *
+     * <p>This enables applications that need different providers for different
+     * tasks — for example, a tutoring agent that uses one model for reasoning,
+     * another for transcription, and a third for speech synthesis.
+     *
+     * <pre>{@code
+     *   app.ai("tutor",         OpenAI.gpt4o());
+     *   app.ai("transcription", OpenAI.whisper());
+     *   app.ai("voice",         OpenAI.tts());
+     *
+     *   app.prompt("explain this").provider("tutor").call();
+     *   app.audio(prompt, wav, "audio/wav").provider("transcription").call();
+     * }</pre>
+     *
+     * @param name     the name to register this provider under
+     * @param provider the provider to register
+     * @throws IllegalArgumentException if name is null or blank
+     * @throws IllegalArgumentException if provider is null
+     */
+    CafeAI ai(String name, AiProvider provider);
 
     /**
      * Registers a smart model router — dispatches to cheap vs expensive models
@@ -509,6 +534,30 @@ public interface CafeAI extends Router {
      *         the MIME type is not supported by the audio pipeline
      */
     io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType);
+
+    /**
+     * Creates a text-to-speech synthesis request using the registered TTS provider.
+     *
+     * <p>Synthesis is the inverse of transcription: text in, audio bytes out.
+     * The registered provider must declare {@code supportsTts() = true}.
+     *
+     * <pre>{@code
+     *   // Basic synthesis
+     *   byte[] audio = app.synthesise("Hello, welcome to today's lesson.").call().audioBytes();
+     *
+     *   // With a named TTS provider
+     *   byte[] audio = app.synthesise("Please hold while we review your claim.")
+     *       .provider("voice")
+     *       .call()
+     *       .audioBytes();
+     * }</pre>
+     *
+     * @param text the text to synthesise into speech
+     * @throws IllegalArgumentException if text is null or blank
+     * @throws io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException if the
+     *         registered provider does not support TTS
+     */
+    io.cafeai.core.ai.SynthesisRequest synthesise(String text);
 
     /**
      * Retrieves a registered prompt template by name.

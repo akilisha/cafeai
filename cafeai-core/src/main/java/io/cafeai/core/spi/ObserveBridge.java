@@ -97,4 +97,25 @@ public interface ObserveBridge {
     default void afterAudio(Object context, io.cafeai.core.ai.AudioRequest request,
                             io.cafeai.core.ai.AudioResponse response, Throwable error) {
     }
+
+    /**
+     * Called immediately before a TTS synthesis call.
+     *
+     * @param request the synthesis request about to be executed
+     * @return an opaque context object passed to {@link #afterSynthesis}
+     */
+    default Object beforeSynthesis(io.cafeai.core.ai.SynthesisRequest request) {
+        return null;
+    }
+
+    /**
+     * Called immediately after a TTS synthesis call completes or fails.
+     *
+     * @param request  the synthesis request that was executed
+     * @param response the synthesis response, or {@code null} if an error occurred
+     * @param error    the error that occurred, or {@code null} on success
+     */
+    default void afterSynthesis(io.cafeai.core.ai.SynthesisRequest request,
+                                io.cafeai.core.ai.SynthesisResponse response, Throwable error) {
+    }
 }

@@ -20,6 +20,35 @@ public final class OpenAI {
     public static AiProvider o1Mini()       { return of("o1-mini"); }
 
     /**
+     * OpenAI TTS -- text-to-speech synthesis using the default voice (alloy) and format (mp3).
+     *
+     * <pre>{@code
+     *   app.ai("voice", OpenAI.tts());
+     *   byte[] audio = app.synthesise("Hello, welcome.").provider("voice").call().audioBytes();
+     * }</pre>
+     */
+    public static AiProvider tts() {
+        return tts("alloy", "mp3");
+    }
+
+    /**
+     * OpenAI TTS -- text-to-speech synthesis with specific voice and format.
+     *
+     * <p>Supported voices: {@code alloy}, {@code echo}, {@code fable},
+     * {@code onyx}, {@code nova}, {@code shimmer}.
+     *
+     * <p>Supported formats: {@code mp3}, {@code opus}, {@code aac},
+     * {@code flac}, {@code wav}, {@code pcm}.
+     *
+     * <pre>{@code
+     *   app.ai("voice", OpenAI.tts("nova", "wav"));
+     * }</pre>
+     */
+    public static AiProvider tts(String voice, String format) {
+        return new OpenAiTtsProvider(voice, format);
+    }
+
+    /**
      * OpenAI Whisper -- dedicated speech transcription model.
      *
      * <p>Supports audio/wav, audio/mp3, audio/ogg, audio/m4a, audio/flac.
@@ -90,4 +119,16 @@ public final class OpenAI {
                 .build();
         }
     }
+    /**
+     * TTS provider record — uses OpenAI /v1/audio/speech endpoint directly.
+     * Synthesis is performed in CafeAIApp.executeSynthesis() via java.net.http.
+     */
+    public record OpenAiTtsProvider(String voice, String format) implements AiProvider {
+        @Override public String       name()        { return "openai"; }
+        @Override public String       modelId()     { return "tts-1"; }
+        @Override public ProviderType type()        { return ProviderType.OPENAI; }
+        @Override public boolean      supportsTts() { return true; }
+    }
+
+
 }

@@ -6,6 +6,8 @@ import io.cafeai.core.ai.PromptRequest;
 import io.cafeai.core.ai.PromptResponse;
 import io.cafeai.core.ai.AudioRequest;
 import io.cafeai.core.ai.AudioResponse;
+import io.cafeai.core.ai.SynthesisRequest;
+import io.cafeai.core.ai.SynthesisResponse;
 import io.cafeai.core.ai.VisionRequest;
 import io.cafeai.core.ai.VisionResponse;
 import io.cafeai.core.spi.ObserveBridge;
@@ -224,6 +226,37 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                    && context.span() != null) {
             writeAudioSpan(context.span(), request, response, error, latencyMs);
         }
+    }
+
+    @Override
+    public Object beforeSynthesis(SynthesisRequest request) {
+        return new ObserveContext(System.currentTimeMillis(), null, strategy);
+    }
+
+    @Override
+    public void afterSynthesis(SynthesisRequest request,
+                               SynthesisResponse response, Throwable error) {
+        if (!(strategy instanceof ConsoleObserveStrategy)) return;
+
+        long latencyMs = response != null ? response.latencyMs() : 0;
+        int  bytes     = response != null && response.hasAudio() ? response.audioBytes().length : 0;
+        String fmt     = response != null ? response.format() : "unknown";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n-- TTS Synthesis -------------------------------------\n");
+        sb.append(String.format("  characters: %,d%n", request.text().length()));
+        sb.append(String.format("  format:     %s%n", fmt));
+        if (response != null) {
+            sb.append(String.format("  model:      %s%n", response.modelId()));
+            sb.append(String.format("  bytes:      %,d%n", bytes));
+        }
+        if (error != null) {
+            sb.append(String.format("  error:      %s%n", error.getMessage()));
+        } else {
+            sb.append(String.format("  latency:    %,dms%n", latencyMs));
+        }
+        sb.append("------------------------------------------------------");
+        log.info(sb.toString());
     }
 
     // -- Vision console output -------------------------------------------------
