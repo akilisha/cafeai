@@ -225,11 +225,8 @@ app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ### 3.5 Tool and MCP Primitives
 
 ```java
-app.tool(new GitHubTools())               // register @CafeAITool-annotated class
-app.mcp(McpEndpoint.at(url))              // connect to external MCP server as client
 
 // NEW — MCP server direction (ROADMAP-11)
-app.mcp().serve("/mcp")                   // expose all registered tools and agents
                                           // as an MCP server via Helidon MCP 1.1
 ```
 
@@ -373,7 +370,6 @@ cafeai/
 ├── cafeai-core/                        ← Express-style API, routing, middleware, AI primitives
 ├── cafeai-memory/                      ← Tiered context memory
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
-├── cafeai-tools/                       ← Tool registration, @CafeAITool
 ├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
 ├── cafeai-observability/               ← OTel, metrics, evals, prompt versioning
 ├── cafeai-security/                    ← Prompt injection, data leakage, cache poisoning
@@ -443,7 +439,6 @@ Look at each CafeAI module and the pattern is identical:
 | `cafeai-connect` | Ollama, OpenAI APIs | Probed, fallback-capable HTTP identity |
 | `cafeai-rag` | LangChain4j vector stores | Registered, session-aware pipeline identity |
 | `cafeai-memory` | Redis, in-memory stores | HTTP session identity (`X-Session-Id`) |
-| `cafeai-tools` | LangChain4j `@Tool` dispatch | Named, registerable HTTP-invocable identity |
 | `cafeai-guardrails` | NLP classifiers, pattern matchers | Middleware identity in the HTTP pipeline |
 | `cafeai-mcp` *(new)* | Helidon MCP 1.1 server | Bridge from CafeAI tool registry to MCP protocol |
 | `cafeai-agents` *(new)* | Helidon agentic LangChain4j | HTTP identity + session + guardrails for agents |
@@ -521,7 +516,11 @@ March 2026, how each was arrived at, and what each means for CafeAI.
 
 #### The Journey
 
-The original `cafeai-tools` module was built as an MCP *client* — it could connect to external
+Tool registration and MCP server/client capabilities are planned for ROADMAP-17.
+
+> Note: the original `cafeai-tools` module was removed because it relied on deprecated
+> LangChain4j APIs. It will be rebuilt on the current API in ROADMAP-17.
+
 MCP servers and make their tools available to the LLM. The question of whether CafeAI could
 *be* an MCP server — exposing its own tools outward — was deferred as unclear.
 
@@ -533,8 +532,6 @@ The bridge between them is the only missing piece.
 
 #### What It Means
 
-`app.mcp().serve("/mcp")` — one line in the developer's application — causes Helidon's MCP
-server to expose every registered `@CafeAITool` method and every registered agent as a
 discoverable, typed, invocable node.
 
 Any MCP-aware orchestrator — n8n, Claude Desktop, Temporal, any future tool — can connect to
@@ -602,7 +599,7 @@ and observability wrapping. Helidon instantiates and runs the agent. CafeAI give
 the HTTP application.
 
 The developer writes zero Helidon injection boilerplate. The agent has the same composable,
-registerable feel as `app.tool()`, `app.memory()`, `app.guard()`. The pattern is consistent.
+registerable feel as `app.memory()`, `app.guard()`. The pattern is consistent.
 
 #### The Helidon Leverage
 
@@ -616,7 +613,6 @@ Estimated code surface: one new module `cafeai-agents`, ~250 lines of binding co
 The MCP direction and the agents direction are not competing. They compose:
 
 - An agent registered with `app.agent()` gets an HTTP identity inside CafeAI
-- `app.mcp().serve()` exposes that agent as a discoverable MCP node
 - An external orchestrator discovers and invokes the agent via MCP
 - CafeAI's guardrails, session, and observability fire on every invocation regardless of origin
 
@@ -629,7 +625,7 @@ discoverable by any MCP-aware external orchestrator. That is the triple-threat a
 
 CafeAI is an opinion on top of Helidon SE, not a cage around it.
 
-Every CafeAI abstraction — `app.get()`, `app.ai()`, `app.tool()`, `app.guard()` — is a
+Every CafeAI abstraction — `app.get()`, `app.ai()`, `app.guard()` — is a
 deliberate simplification of something Helidon already knows how to do. But simplifications
 have edges. When a developer reaches the edge of CafeAI's vocabulary, they should be able to
 reach through to raw Helidon without abandoning the CafeAI programming model.
@@ -669,14 +665,11 @@ CafeAI does not own the MCP server — Helidon does. CafeAI contributes the tool
 
 ```java
 // CafeAI registers the tools
-app.tool(new GitHubTools());
-app.tool(new DatabaseTools());
 
 // Helidon exposes them via MCP — using raw Helidon from here
 app.helidon()
    .routing(routing -> {
        McpFeature mcp = McpFeature.builder()
-           // bridge ToolRegistry entries into Helidon MCP tool registrations
            .build();
        routing.register("/mcp", mcp);
    });

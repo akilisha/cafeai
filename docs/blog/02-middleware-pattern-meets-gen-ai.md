@@ -211,7 +211,7 @@ This is the composability payoff. It is not a theoretical benefit. It is a pract
 
 ## What the Next Post Covers
 
-Post 3 walks through the first real CafeAI application from scratch — a customer support assistant backed by a knowledge base, with session memory, tool use, and guardrails. By the end, you will have made a real LLM call through the full CafeAI pipeline, without a Spring Boot dependency in sight.
+Post 3 walks through the first real CafeAI application from scratch — a customer support assistant backed by a knowledge base, with session memory and guardrails. By the end, you will have made a real LLM call through the full CafeAI pipeline, without a Spring Boot dependency in sight.
 
 The code is in `cafeai-capstone/support-agent`. The tests pass. The application runs.
 

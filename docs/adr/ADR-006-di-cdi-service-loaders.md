@@ -68,7 +68,7 @@ CafeAI separates application concerns into three clean, orthogonal tiers:
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Tier 2 — CafeAI Bootstrap                                  │
-│  app.ai(), app.memory(), app.tool(), app.guard()            │
+│  app.ai(), app.memory(), app.guard()                        │
 │  "How CafeAI is configured with your components"            │
 └──────────────────────┬──────────────────────────────────────┘
                        │ produces a configured application
@@ -118,7 +118,6 @@ public static void main(String[] args) {
 
     var app = CafeAI.create();
     app.ai(OpenAI.gpt4o());
-    app.tool(new OrderLookupTool(orderService));
     app.post("/chat", (req, res) -> res.stream(app.prompt(req.body("message"))));
     app.listen(8080);
 }
@@ -143,7 +142,6 @@ public class AppConfig implements CafeAIConfigurer {
     public void configure(CafeAI app) {
         app.ai(OpenAI.gpt4o());
         app.memory(MemoryStrategy.mapped());
-        app.tool(new OrderLookupTool(orderService)); // injected dep flows in naturally
         app.guard(GuardRail.pii());
 
         app.use("/api", auth);

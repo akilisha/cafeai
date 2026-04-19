@@ -25,7 +25,7 @@ import java.util.concurrent.Flow;
  *   <li>Response headers use Header / HeaderValues objects objects, not raw strings</li>
  *   <li>Simplest form: {@link HeaderValues#create(String, String)} for custom headers</li>
  *   <li>Header lookup: {@code headers().value(HeaderNames.create(lc, name))}</li>
- *   <li>{@link Header#value()} is deprecated since 4.0.0 -- use {@code Header.get()} instead</li>
+ *   <li>{@code Header.value()} is deprecated since 4.0.0 -- use {@code Header.get()} instead</li>
  * </ul>
  */
 public final class HelidonResponse implements Response {

@@ -188,39 +188,6 @@ The local ONNX embedding model runs via Java FFM — no external API call, no la
 
 ## Step 5: Add Tool Use
 
-The assistant needs to look up real GitHub issue status. Tools are Java methods annotated with `@CafeAITool` — the LLM decides autonomously when to call them based on the user's question.
-
-```java
-public class GitHubTools {
-
-    @CafeAITool("Get the current status of a GitHub issue by issue number. " +
-                "Returns status, title, and whether the issue is open or closed.")
-    public String getIssueStatus(int issueNumber) {
-        // In production: call GitHub API
-        // In this example: return stub data
-        return switch (issueNumber) {
-            case 1234 -> "{\"status\": \"open\", \"title\": \"Rate limit headers missing\"}";
-            case 1189 -> "{\"status\": \"closed\", \"title\": \"Auth token refresh\"}";
-            default   -> "{\"status\": \"not found\", \"issueNumber\": " + issueNumber + "}";
-        };
-    }
-
-    @CafeAITool("Search open GitHub issues by keyword. " +
-                "Returns a list of matching issue numbers and titles.")
-    public String searchIssues(String keyword) {
-        return "{\"results\": [{\"number\": 1234, \"title\": \"Rate limit headers missing\"}]}";
-    }
-}
-
-// Register at startup
-app.tool(new GitHubTools());
-```
-
-The LLM now has access to real issue data. When a developer asks "Is issue 1234 still open?", the model calls `getIssueStatus(1234)`, receives the result, and answers factually — it does not hallucinate.
-
-This is the tool-as-enforcement pattern: tools don't just enrich responses, they constrain them. The model cannot invent issue status because it has a tool that returns the authoritative answer. The tool result is factual ground.
-
----
 
 ## Step 6: Add Guardrails and Security
 
@@ -301,8 +268,7 @@ public class SupportAgent {
         ingestDocumentation(app);
 
         // Tools
-        app.tool(new GitHubTools());
-
+        
         // Safety
         app.guard(GuardRail.topicBoundary().allow(HELIOS_TOPICS));
         app.guard(GuardRail.jailbreak());

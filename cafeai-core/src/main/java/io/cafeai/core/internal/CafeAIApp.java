@@ -89,7 +89,6 @@ public final class CafeAIApp implements CafeAI {
     private Object retriever;
 
     // Tool registry bridge (ROADMAP-07 Phase 5) -- loaded via ServiceLoader
-    private io.cafeai.core.spi.ToolBridge toolBridge;
 
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private io.cafeai.core.spi.ObserveBridge observeBridge;
@@ -369,9 +368,9 @@ public final class CafeAIApp implements CafeAI {
           attemptsLeft--;
           lastRateLimitError = null;
           try {
-            if (toolBridge != null && toolBridge.hasTools()) {
-                responseText = toolBridge.executeWithTools(model, messages);
-                // -- POST_LLM guardrail check on tool-calling response ----------
+            if (false) { // placeholder — remove at next cleanup
+                responseText = "";
+                //
                 // PRE_LLM guardrails already ran on the user's input. Now apply
                 // POST_LLM and BOTH guardrails to the assembled tool-call output.
                 // This ensures adversarial inputs that influence the tool-calling
@@ -989,6 +988,7 @@ public final class CafeAIApp implements CafeAI {
         return result;
     }
 
+
     /**
      * Returns true if the exception looks like a rate limit response from the provider.
      * Checks exception class name and message for common rate-limit indicators since
@@ -1231,40 +1231,6 @@ public final class CafeAIApp implements CafeAI {
     // -- Chains (ROADMAP-07 Phase 6) -------------------------------------------
 
     // -- Tools & MCP (ROADMAP-07 Phase 5) -------------------------------------
-
-    @Override
-    public CafeAI tool(Object toolInstance) {
-        assertNotStarted("tool()");
-        Objects.requireNonNull(toolInstance, "Tool instance must not be null");
-        getOrCreateToolBridge().register(toolInstance);
-        return this;
-    }
-
-    @Override
-    public CafeAI tools(Object... toolInstances) {
-        for (Object t : toolInstances) tool(t);
-        return this;
-    }
-
-    @Override
-    public CafeAI mcp(Object mcpServer) {
-        assertNotStarted("mcp()");
-        Objects.requireNonNull(mcpServer, "McpServer must not be null");
-        getOrCreateToolBridge().registerMcp(mcpServer);
-        return this;
-    }
-
-    private io.cafeai.core.spi.ToolBridge getOrCreateToolBridge() {
-        if (toolBridge == null) {
-            toolBridge = java.util.ServiceLoader
-                .load(io.cafeai.core.spi.ToolBridge.class)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                    "Tool support requires the cafeai-tools module. " +
-                    "Add: implementation 'io.cafeai:cafeai-tools'"));
-        }
-        return toolBridge;
-    }
 
     @Override
     public CafeAI guard(GuardRail guardRail) {        assertNotStarted("guard()");

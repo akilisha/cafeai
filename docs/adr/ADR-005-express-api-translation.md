@@ -835,8 +835,6 @@ They are AI-native extensions that follow the same design philosophy.
 | `app.embed(model)` | Register embedding model |
 | `app.ingest(source)` | Ingest knowledge sources |
 | `app.rag(retriever)` | Attach retrieval pipeline |
-| `app.tool(tool)` | Register Java LLM tool |
-| `app.mcp(server)` | Register MCP server connection |
 | `app.chain(name, steps)` | Named composable pipeline |
 | `app.guard(guardRail)` | Attach guardrail middleware |
 | `app.agent(name, def)` | Register agent definition |

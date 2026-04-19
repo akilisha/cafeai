@@ -33,7 +33,7 @@ public final class CafeAIConnectBridge implements ConnectBridge {
             throw new IllegalArgumentException(
                 "app.connect() requires an io.cafeai.connect.Connection instance. " +
                 "Got: " + connectionObj.getClass().getName() + "\n" +
-                "Use one of: Redis.at(), Ollama.at(), PgVector.at(), McpEndpoint.at(), " +
+                "Use one of: Redis.at(), Ollama.at(), PgVector.at(), " +
                 "Connect.fromEnv(), or implement Connection directly.");
         }
 

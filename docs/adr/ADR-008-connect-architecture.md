@@ -40,11 +40,11 @@ We formalise the distinction between **in-process extensions** and
 
 ### The Two Extension Models
 
-**In-process optional modules** (`cafeai-memory`, `cafeai-rag`, `cafeai-tools`):
+**In-process optional modules** (`cafeai-memory`, `cafeai-rag`):
 - Run inside the same JVM as CafeAI
 - Share CafeAI's lifecycle — they start when CafeAI starts, stop when it stops
 - Are either present (JAR on classpath) or absent — binary
-- Registered via module-specific APIs: `app.memory()`, `app.vectordb()`, `app.tool()`
+- Registered via module-specific APIs: `app.memory()`, `app.vectordb()`
 - Activated by adding a JAR; deactivated by removing it
 
 **Out-of-process connections** (`cafeai-connect`):
@@ -92,7 +92,6 @@ policy is relevant.
 app.connect(Redis.at("redis:6379"));
 app.connect(Ollama.at("http://ollama:11434").model("llama3"));
 app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai"));
-app.connect(McpEndpoint.at("http://github-mcp:3000"));
 
 // With explicit fallback policy
 app.connect(Ollama.at("http://ollama:11434").model("llama3")
@@ -107,7 +106,7 @@ Connect.fromEnv().forEach(app::connect);
 `cafeai-core` does not import anything from `cafeai-connect`. The
 `app.connect(Object)` method takes `Object` and routes through the
 `ConnectBridge` SPI — the same pattern used for `RagPipeline` and
-`ToolBridge`. `cafeai-core` is completely unaware that `cafeai-connect`
+`cafeai-core` is completely unaware that `cafeai-connect`
 exists. Adding `cafeai-connect` to the classpath activates the feature.
 
 ---
@@ -150,10 +149,8 @@ and the `Connection` abstraction.
 is semantically correct but adds surface area.
 
 **Reflection for some registrations.** `PgVector.register()` and
-`McpEndpoint.register()` use reflection to call into `cafeai-rag` and
-`cafeai-tools` respectively, to avoid compile-time circular dependencies.
+`RagPipelineEndpoint.register()` uses reflection to call into `cafeai-rag` to avoid compile-time circular dependencies.
 This is a known trade-off — the same pattern used by `RagPipeline` SPI and
-`ToolBridge` SPI throughout the codebase.
 
 ---
 
@@ -179,7 +176,7 @@ community module. None require changes to `cafeai-core`.
 ## Relationship to Other ADRs
 
 - **ADR-002 (ServiceLoader):** `ConnectBridge` SPI follows the same pattern as
-  `MemoryStrategyProvider`, `RagPipeline`, and `ToolBridge`. The ServiceLoader
+  `MemoryStrategyProvider`, `RagPipeline`, and The ServiceLoader
   is the consistent extension mechanism across all module boundaries.
 - **ADR-003 (Module Structure):** `cafeai-connect` is a new category of module —
   neither a core primitive nor an in-process optional — but the pattern fits the

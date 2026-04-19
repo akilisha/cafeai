@@ -1,9 +1,13 @@
 package io.cafeai.core.internal;
 
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
+import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Ollama;
 
@@ -50,6 +54,50 @@ public final class LangchainBridge {
         }
         String cacheKey = provider.name() + ":" + provider.modelId();
         return modelCache.computeIfAbsent(cacheKey, k -> createModel(provider));
+    }
+
+    /**
+     * Returns a {@link StreamingChatModel} for the given provider.
+     * Used by {@code executeVisionStream()} to stream vision responses.
+     *
+     * <p>If the provider implements {@link StreamingChatModelAccess}, its model
+     * is used directly -- this is the test seam for mock streaming providers.
+     */
+    StreamingChatModel streamingModelFor(AiProvider provider) {
+        if (provider instanceof StreamingChatModelAccess access) {
+            return access.toStreamingChatModel();
+        }
+        return createStreamingModel(provider);
+    }
+
+    private StreamingChatModel createStreamingModel(AiProvider provider) {
+        return switch (provider.type()) {
+            case OPENAI -> OpenAiStreamingChatModel.builder()
+                .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
+                .modelName(provider.modelId())
+                .timeout(DEFAULT_TIMEOUT)
+                .build();
+
+            case ANTHROPIC -> AnthropicStreamingChatModel.builder()
+                .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
+                .modelName(provider.modelId())
+                .timeout(DEFAULT_TIMEOUT)
+                .build();
+
+            case OLLAMA -> {
+                String baseUrl = provider instanceof OllamaProviderAccess opa
+                    ? opa.baseUrl()
+                    : "http://localhost:11434";
+                yield OllamaStreamingChatModel.builder()
+                    .baseUrl(baseUrl)
+                    .modelName(provider.modelId())
+                    .timeout(DEFAULT_TIMEOUT)
+                    .build();
+            }
+
+            default -> throw new IllegalArgumentException(
+                "Streaming not supported for provider type: " + provider.type());
+        };
     }
 
     private ChatModel createModel(AiProvider provider) {
@@ -122,5 +170,13 @@ public final class LangchainBridge {
      */
     public interface ChatModelAccess {
         ChatModel toChatModel();
+    }
+
+    /**
+     * Test seam for streaming providers. Any {@link AiProvider} that also implements
+     * this interface will have its streaming model used directly.
+     */
+    public interface StreamingChatModelAccess {
+        StreamingChatModel toStreamingChatModel();
     }
 }

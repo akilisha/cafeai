@@ -21,7 +21,7 @@ dependencies {
 
     // Document parsers
     implementation 'dev.langchain4j:langchain4j-document-parser-apache-tika'
-    implementation 'org.apache.tika:tika-core:2.9.2'   // called directly in Source.FileSource
+    implementation 'org.apache.tika:tika-core:3.2.2'   // called directly in Source.FileSource
 
     // ── Vector Stores ────────────────────────────────────────
     // PgVector - PostgreSQL with vector extension

@@ -1,5 +1,10 @@
 # ROADMAP-07: Gen AI Primitives — CafeAI-Native API
 
+> **Note:** `cafeai-tools` was removed in session 9. The module relied on deprecated
+> LangChain4j APIs (`dev.langchain4j.agent.tool`). Tool use and MCP integration
+> will be rebuilt on the current API in ROADMAP-17. This document is preserved
+> as a historical record.
+
 **Maps to:** No Express equivalent — these are CafeAI's original contribution  
 **Modules:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`, `cafeai-agents`, `cafeai-guardrails`, `cafeai-observability`, `cafeai-security`, `cafeai-streaming`  
 **ADR Reference:** ADR-003, ADR-004, ADR-005 §9  

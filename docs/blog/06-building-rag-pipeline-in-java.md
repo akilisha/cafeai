@@ -215,7 +215,7 @@ Post 11 covers token budgets, retry policies, and production observability in fu
 
 ## Post 7 — Tool Use
 
-Post 7 covers `@CafeAITool` — the mechanism for giving the AI actions to take, not just information to retrieve. Tools are the difference between an AI that answers questions and an AI that does things. The `support-agent`, `meridian-qualify`, `acme-claims`, and `atlas-inbox` capstones all use tools, each in a different way.
+Post 7 covers tool use — giving the AI actions to take, not just information to retrieve. Coming in ROADMAP-17.
 
 ---
 

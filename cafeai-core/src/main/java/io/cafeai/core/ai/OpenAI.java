@@ -110,12 +110,16 @@ public final class OpenAI {
 
         @Override
         public dev.langchain4j.model.chat.ChatModel toChatModel() {
-            // Whisper endpoint is not yet supported via LangChain4j chat completions.
-            // Route through gpt-4o-audio-preview which does support audio via chat API.
-            // Replace this when LangChain4j adds WhisperTranscriptionModel support.
+            // LangChain4j does not yet support the Whisper transcription endpoint natively.
+            // For audio-to-audio models (e.g. gpt-4o-audio-preview), use the registered
+            // modelId directly. For whisper-1, the AudioMessageBuilder handles the
+            // Whisper HTTP call separately — toChatModel() is not used for transcription.
+            String resolvedModel = (modelId() == null || modelId().equals("whisper-1"))
+                ? "gpt-4o-audio-preview"
+                : modelId();
             return dev.langchain4j.model.openai.OpenAiChatModel.builder()
                 .apiKey(System.getenv("OPENAI_API_KEY"))
-                .modelName("gpt-4o-audio-preview")
+                .modelName(resolvedModel)
                 .build();
         }
     }

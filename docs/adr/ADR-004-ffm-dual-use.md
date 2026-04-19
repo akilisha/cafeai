@@ -39,7 +39,6 @@ both purposes in CafeAI has several benefits:
 | Use Case | FFM Capability | Module |
 |---|---|---|
 | ONNX local embedding | `Linker`, `FunctionDescriptor`, `SymbolLookup` | `cafeai-rag` |
-| llama.cpp local inference | `Linker`, `FunctionDescriptor`, `SymbolLookup` | `cafeai-tools` |
 | Session context storage | `MemorySegment`, `MemoryLayout`, `Arena` | `cafeai-memory` |
 
 ## Consequences

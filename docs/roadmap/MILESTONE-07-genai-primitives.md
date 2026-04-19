@@ -1,5 +1,10 @@
 # MILESTONE-07: Gen AI Primitives
 
+> **Note:** `cafeai-tools` was removed in session 9. The module relied on deprecated
+> LangChain4j APIs (`dev.langchain4j.agent.tool`). Tool use and MCP integration
+> will be rebuilt on the current API in ROADMAP-17. This document is preserved
+> as a historical record.
+
 **Roadmap:** ROADMAP-07
 **Module:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`
 **Started:** March 2026

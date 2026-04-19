@@ -459,7 +459,7 @@ public interface CafeAI extends Router {
      * Creates a vision request for the registered multimodal LLM provider.
      *
      * <p>Vision calls send binary content (PDF, image) alongside a text prompt
-     * to a multimodal model. The vision pipeline differs from {@link #prompt()}:
+     * to a multimodal model. The vision pipeline differs from {@link #prompt(String)}:
      * <ul>
      *   <li>RAG retrieval is skipped — binary content cannot be embedded</li>
      *   <li>PRE_LLM and POST_LLM guardrails apply to the text prompt and response</li>
@@ -623,8 +623,8 @@ public interface CafeAI extends Router {
      * Ingests a knowledge source into the vector store.
      *
      * <p>The source is parsed, split into overlapping chunks, each chunk is
-     * embedded using the registered {@link io.cafeai.rag.EmbeddingModel}, and
-     * the chunks are upserted into the registered {@link io.cafeai.rag.VectorStore}.
+     * embedded using the registered {@code EmbeddingModel}, and
+     * the chunks are upserted into the registered {@code VectorStore}.
      * Re-ingesting the same source updates existing chunks without duplication.
      *
      * <pre>{@code
@@ -633,7 +633,7 @@ public interface CafeAI extends Router {
      *   app.ingest(Source.text("CafeAI is a Gen AI framework.", "cafeai-intro"));
      * }</pre>
      *
-     * @throws io.cafeai.rag.Source.SourceException if the source cannot be loaded
+     * @throws RuntimeException if the source cannot be loaded
      * @throws IllegalStateException if no vectordb or embedding model is registered
      */
     CafeAI ingest(Object source);
@@ -658,57 +658,7 @@ public interface CafeAI extends Router {
 
     // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
 
-    /**
-     * Registers a Java object as a tool provider.
-     *
-     * <p>All {@code public} methods annotated with
-     * {@code @CafeAITool("description")} on the object are exposed to the LLM
-     * as callable tools. When the LLM decides to invoke a tool, CafeAI calls
-     * the corresponding Java method and returns the result.
-     *
-     * <p>Requires {@code io.cafeai:cafeai-tools} on the classpath.
-     *
-     * <pre>{@code
-     *   public class WeatherTools {
-     *       @CafeAITool("Get current weather for a city")
-     *       public String getWeather(String city) {
-     *           return weatherApi.fetch(city).summary();
-     *       }
-     *   }
-     *   app.tool(new WeatherTools());
-     * }</pre>
-     *
-     * @throws IllegalArgumentException if the object has no {@code @CafeAITool} methods
-     * @throws IllegalStateException if called after {@link #listen(int)}
-     */
-    CafeAI tool(Object toolInstance);
 
-    /**
-     * Registers multiple tool provider instances at once.
-     *
-     * @see #tool(Object)
-     */
-    CafeAI tools(Object... toolInstances);
-
-    /**
-     * Connects to an MCP (Model Context Protocol) server.
-     *
-     * <p>CafeAI discovers the server's available tools on connection and exposes
-     * them to the LLM alongside Java tools registered via {@link #tool(Object)}.
-     * MCP tools are flagged as {@code EXTERNAL} trust level for observability.
-     *
-     * <p>The MCP protocol is implemented directly via Helidon WebClient — no
-     * third-party MCP library is used.
-     *
-     * <p>Requires {@code io.cafeai:cafeai-tools} on the classpath.
-     *
-     * <pre>{@code
-     *   app.mcp(McpServer.connect("http://github-mcp-server:3000"));
-     * }</pre>
-     *
-     * @throws IllegalStateException if called after {@link #listen(int)}
-     */
-    CafeAI mcp(Object mcpServer);
 
     // ── Guardrails ────────────────────────────────────────────────────────────
 
@@ -977,7 +927,6 @@ public interface CafeAI extends Router {
      *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
      *   app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
      *       .onUnavailable(Fallback.failFast()));
-     *   app.connect(McpEndpoint.at("http://mcp-server:3000"));
      *
      *   // Environment-driven — reads CAFEAI_* variables
      *   Connect.fromEnv().forEach(app::connect);
@@ -1027,7 +976,7 @@ public interface CafeAI extends Router {
 
     /**
      * Returns a fluent configurator that gives direct access to the underlying
-     * Helidon {@link io.helidon.webserver.WebServer.Builder} and
+     * Helidon {@code WebServer.Builder} and
      * {@link io.helidon.webserver.http.HttpRouting.Builder}.
      *
      * <p>CafeAI is an opinion on top of Helidon SE, not a cage around it.

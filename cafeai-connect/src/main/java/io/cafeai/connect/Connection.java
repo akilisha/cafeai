@@ -26,7 +26,6 @@ import io.cafeai.core.CafeAI;
  *   app.connect(Redis.at("redis:6379"));
  *   app.connect(Ollama.at("http://ollama:11434").model("llama3"));
  *   app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai"));
- *   app.connect(McpEndpoint.at("http://github-mcp:3000"));
  *
  *   // With fallback policy
  *   app.connect(Ollama.at("http://ollama:11434")

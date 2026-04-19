@@ -2,6 +2,7 @@ package io.cafeai.core;
 
 import io.cafeai.core.ai.*;
 import io.cafeai.core.ai.ModelRouter;
+import io.cafeai.core.ai.OpenAI;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -193,6 +194,197 @@ class NamedProviderTest {
             var req = app.audio("transcribe", new byte[]{1}, "audio/wav")
                 .provider("transcription");
             assertThat(req.providerName()).isEqualTo("transcription");
+        }
+    }
+
+    // ── AudioResponse.audioBytes() extension ─────────────────────────────────
+
+    @Nested
+    @DisplayName("AudioResponse.audioBytes() extension")
+    class AudioResponseExtension {
+
+        @Test
+        @DisplayName("audioBytes() returns null by default")
+        void audioBytes_nullByDefault() {
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .text("transcript").modelId("whisper-1").build();
+            assertThat(r.audioBytes()).isNull();
+        }
+
+        @Test
+        @DisplayName("hasSpeech() returns false when audioBytes is null")
+        void hasSpeech_falseWhenNull() {
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .text("transcript").modelId("whisper-1").build();
+            assertThat(r.hasSpeech()).isFalse();
+        }
+
+        @Test
+        @DisplayName("hasSpeech() returns false when audioBytes is empty")
+        void hasSpeech_falseWhenEmpty() {
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .audioBytes(new byte[0]).build();
+            assertThat(r.hasSpeech()).isFalse();
+        }
+
+        @Test
+        @DisplayName("hasSpeech() returns true when audioBytes is present")
+        void hasSpeech_trueWhenPresent() {
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .audioBytes(new byte[]{1, 2, 3}).build();
+            assertThat(r.hasSpeech()).isTrue();
+        }
+
+        @Test
+        @DisplayName("audioBytes() returns the bytes set via builder")
+        void audioBytes_returnsBytes() {
+            byte[] audio = {10, 20, 30, 40};
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .text("transcript")
+                .audioBytes(audio)
+                .modelId("gpt-4o-audio-preview")
+                .build();
+            assertThat(r.audioBytes()).isEqualTo(audio);
+            assertThat(r.hasSpeech()).isTrue();
+            assertThat(r.text()).isEqualTo("transcript");
+        }
+
+        @Test
+        @DisplayName("existing AudioResponse fields still work correctly")
+        void existingFields_unchanged() {
+            var r = io.cafeai.core.ai.AudioResponse.builder()
+                .text("hello")
+                .promptTokens(50)
+                .outputTokens(10)
+                .modelId("whisper-1")
+                .build();
+            assertThat(r.totalTokens()).isEqualTo(60);
+            assertThat(r.fromCache()).isFalse();
+            assertThat(r.ragDocuments()).isEmpty();
+            assertThat(r.toString()).isEqualTo("hello");
+        }
+    }
+
+    // ── TTS synthesis types and capability ───────────────────────────────────
+
+    @Nested
+    @DisplayName("SynthesisRequest and TTS capability")
+    class TtsSynthesis {
+
+        @Test
+        @DisplayName("OpenAI.tts() supportsTts() returns true")
+        void openAiTts_supportsTts() {
+            assertThat(OpenAI.tts().supportsTts()).isTrue();
+        }
+
+        @Test
+        @DisplayName("OpenAI.tts(voice, format) supportsTts() returns true")
+        void openAiTtsWithArgs_supportsTts() {
+            assertThat(OpenAI.tts("nova", "wav").supportsTts()).isTrue();
+        }
+
+        @Test
+        @DisplayName("OpenAI.gpt4o() supportsTts() returns false")
+        void gpt4o_doesNotSupportTts() {
+            assertThat(OpenAI.gpt4o().supportsTts()).isFalse();
+        }
+
+        @Test
+        @DisplayName("AiProvider default supportsTts() returns false")
+        void default_supportsTts_returnsFalse() {
+            AiProvider custom = new AiProvider() {
+                @Override public String       name()    { return "custom"; }
+                @Override public String       modelId() { return "my-model"; }
+                @Override public ProviderType type()    { return ProviderType.CUSTOM; }
+            };
+            assertThat(custom.supportsTts()).isFalse();
+        }
+
+        @Test
+        @DisplayName("SynthesisRequest null text throws IllegalArgumentException")
+        void nullText_throws() {
+            var app = CafeAI.create();
+            app.ai("voice", OpenAI.tts());
+            assertThatIllegalArgumentException()
+                .isThrownBy(() -> app.synthesise(null))
+                .withMessageContaining("text");
+        }
+
+        @Test
+        @DisplayName("SynthesisRequest blank text throws IllegalArgumentException")
+        void blankText_throws() {
+            var app = CafeAI.create();
+            app.ai("voice", OpenAI.tts());
+            assertThatIllegalArgumentException()
+                .isThrownBy(() -> app.synthesise("  "))
+                .withMessageContaining("text");
+        }
+
+        @Test
+        @DisplayName("app.synthesise().provider() stores name and returns this")
+        void provider_storesNameAndChains() {
+            var app = CafeAI.create();
+            app.ai("voice", OpenAI.tts());
+            var req = app.synthesise("Hello").provider("voice");
+            assertThat(req.providerName()).isEqualTo("voice");
+            assertThat(req.text()).isEqualTo("Hello");
+        }
+
+        @Test
+        @DisplayName("app.synthesise() with non-TTS provider throws TtsNotSupportedException")
+        void nonTtsProvider_throwsTtsNotSupportedException() {
+            var app = CafeAI.create();
+            app.ai(mockProvider("gpt-4o", "ok"));  // does not support TTS
+
+            assertThatThrownBy(() -> app.synthesise("Hello").call())
+                .isInstanceOf(io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException.class)
+                .hasMessageContaining("gpt-4o")
+                .hasMessageContaining("tts");
+        }
+
+        @Test
+        @DisplayName("app.synthesise() with named non-TTS provider throws TtsNotSupportedException")
+        void namedNonTtsProvider_throwsTtsNotSupportedException() {
+            var app = CafeAI.create();
+            app.ai("tutor", mockProvider("gpt-4o", "ok"));
+
+            assertThatThrownBy(() -> app.synthesise("Hello").provider("tutor").call())
+                .isInstanceOf(io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException.class);
+        }
+
+        @Test
+        @DisplayName("OpenAI.tts() modelId() returns tts-1")
+        void tts_modelId() {
+            assertThat(OpenAI.tts().modelId()).isEqualTo("tts-1");
+        }
+
+        @Test
+        @DisplayName("SynthesisResponse builder produces correct values")
+        void synthesisResponse_builder() {
+            byte[] audio = {1, 2, 3, 4};
+            var r = io.cafeai.core.ai.SynthesisResponse.builder()
+                .audioBytes(audio)
+                .format("mp3")
+                .modelId("tts-1")
+                .characters(5)
+                .latencyMs(1200)
+                .build();
+
+            assertThat(r.audioBytes()).isEqualTo(audio);
+            assertThat(r.format()).isEqualTo("mp3");
+            assertThat(r.modelId()).isEqualTo("tts-1");
+            assertThat(r.characters()).isEqualTo(5);
+            assertThat(r.latencyMs()).isEqualTo(1200);
+            assertThat(r.hasAudio()).isTrue();
+        }
+
+        @Test
+        @DisplayName("SynthesisResponse hasAudio() false when bytes empty")
+        void hasAudio_falseWhenEmpty() {
+            var r = io.cafeai.core.ai.SynthesisResponse.builder()
+                .audioBytes(new byte[0])
+                .build();
+            assertThat(r.hasAudio()).isFalse();
         }
     }
 

@@ -44,7 +44,7 @@ public final class Locals {
 
     // -- Observability ---------------------------------------------------------
 
-    /** The registered {@link io.cafeai.core.observability.ObserveStrategy}, if any. */
+    /** The registered {@code ObserveStrategy}, if any. */
     public static final String OBSERVE_STRATEGY = "__cafeai.observe.strategy";
 
     /**

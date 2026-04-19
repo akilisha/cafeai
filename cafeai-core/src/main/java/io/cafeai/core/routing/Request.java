@@ -332,7 +332,7 @@ public interface Request {
 
     /**
      * Parses the {@code Range} header for the given content size.
-     * Returns a list of {@link Range} objects.
+     * Returns a list of byte range objects.
      * Returns {@code null} if no Range header is present.
      * Returns {@code -1} for an unsatisfiable range.
      * Returns {@code -2} for a malformed Range header.

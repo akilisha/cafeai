@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import java.util.function.Consumer;
+
 /**
  * A fluent builder for a single multimodal LLM call with binary content.
  *
@@ -54,6 +56,7 @@ public final class VisionRequest {
     private String schemaHint;
     private io.cafeai.core.routing.Request httpRequest;
     private final VisionExecutor executor;
+    private VisionStreamExecutor streamExecutor;
 
     /** Package-private — constructed by CafeAIApp.vision() */
     public VisionRequest(String prompt, byte[] content, String mimeType,
@@ -134,6 +137,34 @@ public final class VisionRequest {
     }
 
     /**
+     * Executes the vision call and streams tokens to the consumer as they arrive.
+     *
+     * <p>Use this when you want to display tokens progressively — for example,
+     * streaming a classification description to the user while it is generated.
+     *
+     * <p>Note: streaming is not compatible with {@link #returning(Class)} structured
+     * output — you need the complete JSON before parsing. Use {@link #call()} for
+     * structured output.
+     *
+     * <pre>{@code
+     *   app.vision("Classify this document.", pdf, "application/pdf")
+     *       .stream(chunk -> System.out.print(chunk));
+     * }</pre>
+     *
+     * @param onChunk called for each token chunk as it arrives
+     * @throws IllegalStateException if no stream executor is registered
+     */
+    public void stream(Consumer<String> onChunk) {
+        if (streamExecutor == null)
+            throw new IllegalStateException(
+                "Streaming vision is not available. " +
+                "Ensure CafeAI is initialised via CafeAI.create().");
+        if (onChunk == null)
+            throw new IllegalArgumentException("onChunk consumer must not be null");
+        streamExecutor.execute(this, onChunk);
+    }
+
+    /**
      * Executes the vision call and deserialises the response to the target type.
      *
      * @throws ResponseDeserializer.StructuredOutputException if deserialisation fails
@@ -144,6 +175,12 @@ public final class VisionRequest {
         this.schemaHint = SchemaHintBuilder.instruction(type, hint);
         VisionResponse response = executor.execute(this);
         return ResponseDeserializer.deserialise(response.text(), type);
+    }
+
+    /** Package-private: allows CafeAIApp to inject the stream executor */
+    public VisionRequest withStreamExecutor(VisionStreamExecutor se) {
+        this.streamExecutor = se;
+        return this;
     }
 
     /** Package-private accessors for the executor */
@@ -164,6 +201,15 @@ public final class VisionRequest {
     @FunctionalInterface
     public interface VisionExecutor {
         VisionResponse execute(VisionRequest request);
+    }
+
+    /**
+     * Internal executor interface for streaming vision calls.
+     * Implemented by CafeAIApp.
+     */
+    @FunctionalInterface
+    public interface VisionStreamExecutor {
+        void execute(VisionRequest request, Consumer<String> onChunk);
     }
 
     /**

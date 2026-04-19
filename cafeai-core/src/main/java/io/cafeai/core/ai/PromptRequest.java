@@ -6,7 +6,7 @@ import java.util.Map;
  * A fluent builder for a single LLM prompt call.
  *
  * <p>Obtained via {@code app.prompt(message)} or {@code app.prompt(templateName, vars)}.
- * Executes when {@link #call()} or {@link #stream()} is invoked.
+ * Executes when {@link #call()} is invoked.
  *
  * <pre>{@code
  *   // Simple prompt

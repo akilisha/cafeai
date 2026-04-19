@@ -2,7 +2,7 @@
 
 **Status:** 🟢 Initial release complete  
 **Module:** `cafeai-connect`  
-**Depends on:** `cafeai-core` (compile), `cafeai-memory` (optional runtime), `cafeai-rag` (optional runtime), `cafeai-tools` (optional runtime)
+**Depends on:** `cafeai-core` (compile), `cafeai-memory` (optional runtime), `cafeai-rag` (optional runtime), `cafeai-tools` *(removed — see ROADMAP-17)*
 
 ---
 
@@ -81,7 +81,7 @@ Three states — not two:
 | `Redis.at(host:port)` | TCP socket connect | `MemoryStrategy.redis()` |
 | `Ollama.at(url).model(id)` | HTTP `/api/tags` + model check | `app.ai(Ollama.at(...))` |
 | `PgVector.at(jdbcUrl)` | JDBC connection attempt | `app.vectordb(PgVectorStore)` |
-| `McpEndpoint.at(url)` | HTTP GET (any 2xx/4xx = up) | `app.mcp(McpServer)` |
+| `McpEndpoint.at(url)` | *(removed — see ROADMAP-17)* | — |
 
 **Registration surface:**
 

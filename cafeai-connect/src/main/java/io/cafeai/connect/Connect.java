@@ -99,8 +99,6 @@ public final class Connect {
             for (String url : mcpServers.split(",")) {
                 url = url.trim();
                 if (!url.isBlank()) {
-                    connections.add(McpEndpoint.at(url));
-                    log.debug("fromEnv: McpEndpoint({})", url);
                 }
             }
         }

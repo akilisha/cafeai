@@ -18,7 +18,6 @@ dependencies {
     implementation project(':cafeai-core')
     implementation project(':cafeai-memory')
     implementation project(':cafeai-rag')
-    implementation project(':cafeai-tools')
     implementation project(':cafeai-guardrails')
     implementation project(':cafeai-observability')
     implementation project(':cafeai-security')

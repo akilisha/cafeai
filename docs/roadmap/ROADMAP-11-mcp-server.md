@@ -1,5 +1,10 @@
 # ROADMAP-11: Helidon Escape Hatch + MCP Exposure Pattern
 
+> **Note:** `cafeai-tools` was removed in session 9. The module relied on deprecated
+> LangChain4j APIs (`dev.langchain4j.agent.tool`). Tool use and MCP integration
+> will be rebuilt on the current API in ROADMAP-17. This document is preserved
+> as a historical record.
+
 **Maps to:** No Express equivalent — this is CafeAI's strategy for raw Helidon access  
 **Modules:** `cafeai-core` (escape hatch implemented), `cafeai-mcp` (abandoned — see below)  
 **ADR Reference:** SPEC.md §11  

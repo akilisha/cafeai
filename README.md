@@ -8,15 +8,15 @@
 
 ## Why CafeAI?
 
-The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring Boot abstractions, but one built on first principles — where every layer is explainable, every concern is composable, and every design decision has a reason you can articulate and defend with confidence.
+The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring Boot abstractions, but one built on first principles — where every layer is explainable, every concern is composable, and every design decision has a reason you can articulate in a conference talk.
 
-| Problem                                 | CafeAI's Answer                                            |
-|-----------------------------------------|------------------------------------------------------------|
-| Spring AI abstracts too aggressively    | Helidon SE — you see the plumbing                          |
-| Python has Langchain. Java has...?      | Langchain4j, with full API parity                          |
-| Node devs know Express. Java devs don't | CafeAI mirrors Express pound-for-pound                     |
-| AI pipelines are magic black boxes      | Everything is a middleware. Everything is explainable.     |
-| "Just use Redis" for everything         | Tiered memory — FFM/SSD first, Redis only when you need it |
+| Problem | CafeAI's Answer |
+|---|---|
+| Spring AI abstracts too aggressively | Helidon SE — you see the plumbing |
+| Python has Langchain. Java has...? | Langchain4j, with full API parity |
+| Node devs know Express. Java devs don't | CafeAI mirrors Express pound-for-pound |
+| AI pipelines are magic black boxes | Everything is a middleware. Everything is explainable. |
+| "Just use Redis" for everything | Tiered memory — FFM/SSD first, Redis only when you need it |
 
 ---
 
@@ -24,7 +24,7 @@ The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring
 
 **Cafe** → instantly recognizable as a coffee shop — *Java*  
 **AI** → the technology we're introducing  
-**CafeAI** → sounds like *"ka-fay-i"* — a natural coming together of Java and AI
+**CafeAI** → sounds like *"kaf-ai"* — a natural coming together of Java and AI
 
 ---
 
@@ -32,11 +32,11 @@ The Java ecosystem deserves a serious Gen AI story. Not one hidden behind Spring
 
 CafeAI stands deliberately on the shoulders of three proven traditions:
 
-| Lineage               | Contribution                                             | Why It Matters                               |
-|-----------------------|----------------------------------------------------------|----------------------------------------------|
-| **Java / JVM**        | Robustness, FFM, Structured Concurrency, Virtual Threads | Enterprise systems are already here          |
-| **Express.js / Node** | Middleware composability, ergonomic API                  | Zero mental model ramp-up for Java devs      |
-| **Python Langchain**  | AI primitives vocabulary, RAG, agents                    | Parity for AI practitioners across languages |
+| Lineage | Contribution | Why It Matters |
+|---|---|---|
+| **Java / JVM** | Robustness, FFM, Structured Concurrency, Virtual Threads | Enterprise systems are already here |
+| **Express.js / Node** | Middleware composability, ergonomic API | Zero mental model ramp-up for Java devs |
+| **Python Langchain** | AI primitives vocabulary, RAG, agents | Parity for AI practitioners across languages |
 
 ---
 
@@ -165,10 +165,6 @@ app.rag(Retriever.hybrid(5))             // dense + sparse retrieval
 
 ### Tools and MCP
 ```java
-app.tool(OrderLookupTool.create())       // Java function — you own trust + lifecycle
-app.tools(tool1, tool2, tool3)           // tool suite
-app.mcp(McpServer.github())              // external MCP server — different trust level
-app.mcp(McpServer.connect("http://..."))
 ```
 
 ### Guardrails
@@ -211,7 +207,6 @@ cafeai/
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-memory         ← Tiered context memory (FFM, Chronicle, Redis, Memcached)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
-├── cafeai-tools          ← Java tool registration, MCP server integration
 ├── cafeai-agents         ← ReAct, multi-agent orchestration via Structured Concurrency
 ├── cafeai-guardrails     ← PII, jailbreak, bias, hallucination, regulatory compliance
 ├── cafeai-observability  ← OpenTelemetry, metrics, eval harness, prompt versioning
@@ -228,18 +223,18 @@ Each module is an independent rung on the adoption ladder. Start with `cafeai-co
 
 CafeAI is structured so that every team can start at the bottom and climb deliberately.
 
-| Rung | Capability            | What You Learn                                     |
-|------|-----------------------|----------------------------------------------------|
-| 1    | Plain LLM call        | Helidon SE + Langchain4j basics                    |
-| 2    | Prompt templates      | Structured prompt engineering                      |
-| 3    | Context memory        | Conversation state, FFM memory API                 |
-| 4    | RAG                   | Ingestion, embeddings, vector retrieval            |
-| 5    | Tool use / MCP        | Giving the AI actions to take                      |
-| 6    | Guardrails            | Safety, ethics, compliance as middleware           |
-| 7    | Agents                | Autonomous reasoning loops, Structured Concurrency |
-| 8    | Observability + Evals | Production measurement, prompt versioning          |
-| 9    | Streaming             | SSE, backpressure, real-time UX                    |
-| 10   | Security              | Injection, leakage, adversarial robustness         |
+| Rung | Capability | What You Learn |
+|---|---|---|
+| 1 | Plain LLM call | Helidon SE + Langchain4j basics |
+| 2 | Prompt templates | Structured prompt engineering |
+| 3 | Context memory | Conversation state, FFM memory API |
+| 4 | RAG | Ingestion, embeddings, vector retrieval |
+| 5 | Tool use / MCP | Giving the AI actions to take |
+| 6 | Guardrails | Safety, ethics, compliance as middleware |
+| 7 | Agents | Autonomous reasoning loops, Structured Concurrency |
+| 8 | Observability + Evals | Production measurement, prompt versioning |
+| 9 | Streaming | SSE, backpressure, real-time UX |
+| 10 | Security | Injection, leakage, adversarial robustness |
 
 ---
 
@@ -247,14 +242,14 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 
 CafeAI treats Java 21+ features as load-bearing architecture — not demos.
 
-| Feature                    | Where CafeAI Uses It                 | Why                                     |
-|----------------------------|--------------------------------------|-----------------------------------------|
-| **FFM API**                | Native ML bindings (ONNX, llama.cpp) | JNI-free native access                  |
-| **FFM MemorySegment**      | SSD-backed session memory            | Off-heap, OS page cache, crash-recovery |
-| **Structured Concurrency** | Multi-agent orchestration            | Isolated failures, clean joins          |
-| **Scoped Values**          | Request context propagation          | No ThreadLocal hacks                    |
-| **Vector API**             | Cosine similarity, dot products      | SIMD hardware acceleration for RAG      |
-| **Virtual Threads**        | Every request handler                | I/O-bound LLM calls at zero cost        |
+| Feature | Where CafeAI Uses It | Why |
+|---|---|---|
+| **FFM API** | Native ML bindings (ONNX, llama.cpp) | JNI-free native access |
+| **FFM MemorySegment** | SSD-backed session memory | Off-heap, OS page cache, crash-recovery |
+| **Structured Concurrency** | Multi-agent orchestration | Isolated failures, clean joins |
+| **Scoped Values** | Request context propagation | No ThreadLocal hacks |
+| **Vector API** | Cosine similarity, dot products | SIMD hardware acceleration for RAG |
+| **Virtual Threads** | Every request handler | I/O-bound LLM calls at zero cost |
 
 ---
 
@@ -274,18 +269,18 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 
 ## Technology Stack
 
-| Concern           | Technology                  | Version       |
-|-------------------|-----------------------------|---------------|
-| Runtime           | Java                        | 21+           |
-| HTTP Server       | Helidon SE                  | 4.1.4         |
-| AI Framework      | Langchain4j                 | 0.35.0        |
-| LLM Providers     | OpenAI, Anthropic, Ollama   | —             |
-| Off-heap Memory   | Java FFM / Chronicle Map    | JDK 21 / 3.25 |
-| Distributed Cache | Redis (Lettuce) / Memcached | 6.3 / 2.12    |
-| Vector DB         | PgVector / Chroma           | —             |
-| Observability     | OpenTelemetry               | 1.40.0        |
-| PII Detection     | Apache OpenNLP              | 2.3.3         |
-| Build             | Gradle (Groovy DSL)         | 8.x           |
+| Concern | Technology | Version |
+|---|---|---|
+| Runtime | Java | 21+ |
+| HTTP Server | Helidon SE | 4.1.4 |
+| AI Framework | Langchain4j | 0.35.0 |
+| LLM Providers | OpenAI, Anthropic, Ollama | — |
+| Off-heap Memory | Java FFM / Chronicle Map | JDK 21 / 3.25 |
+| Distributed Cache | Redis (Lettuce) / Memcached | 6.3 / 2.12 |
+| Vector DB | PgVector / Chroma | — |
+| Observability | OpenTelemetry | 1.40.0 |
+| PII Detection | Apache OpenNLP | 2.3.3 |
+| Build | Gradle (Groovy DSL) | 8.x |
 
 ---
 

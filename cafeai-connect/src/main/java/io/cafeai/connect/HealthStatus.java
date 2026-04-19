@@ -9,9 +9,9 @@ import java.time.Instant;
  * out-of-process services have three states:
  *
  * <ul>
- *   <li>{@link #REACHABLE} -- the service responded within the probe timeout</li>
- *   <li>{@link #UNREACHABLE} -- the service did not respond or refused the connection</li>
- *   <li>{@link #DEGRADED} -- the service responded but reported an internal problem</li>
+ *   <li>{@code REACHABLE} -- the service responded within the probe timeout</li>
+ *   <li>{@code UNREACHABLE} -- the service did not respond or refused the connection</li>
+ *   <li>{@code DEGRADED} -- the service responded but reported an internal problem</li>
  * </ul>
  *
  * <p>This distinction matters. {@code UNREACHABLE} means "we can't get to it" --

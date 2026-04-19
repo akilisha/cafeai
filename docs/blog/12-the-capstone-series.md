@@ -24,8 +24,6 @@ What `support-agent` proved:
 
 **Local model + cloud fallback works as a deployment pattern.** Ollama runs locally in development with no API cost. OpenAI runs in production or environments where Ollama is unavailable. The same code, the same application, two different runtime profiles — switched by one line at startup.
 
-**`@CafeAITool` as enforcement, not enrichment.** The GitHub issue status tool does not add colour to the answer — it constrains it. The model cannot invent an issue status because the tool returns the authoritative answer. This pattern reappears in every subsequent capstone. It is the correct mental model for tools in a safety-conscious application.
-
 ---
 
 ## Capstone 2 — `meridian-qualify`: Stress Test
@@ -50,7 +48,7 @@ None of these changes required framework modifications. The one-line swap betwee
 
 What `acme-claims` proved:
 
-**The framework transfers to new domains without modification.** The primitives are genuinely reusable. A developer building an insurance application uses the same `app.tool()`, `app.guard()`, `app.rag()`, and `app.memory()` as a developer building a lending application. The domain is in the configuration, not in the framework.
+**The framework transfers to new domains without modification.** The primitives are genuinely reusable. A developer building an insurance application uses the same `app.guard()`, `app.rag()`, and `app.memory()` as a developer building a lending application. The domain is in the configuration, not in the framework.
 
 **The tiered memory model works as specified.** `MemoryStrategy.redis()` is a drop-in replacement for `MemoryStrategy.mapped()`. Sessions persist across restarts. Multiple instances share the session store. One line changed.
 
@@ -83,7 +81,7 @@ What `atlas-inbox` proved:
 | Metric | Value |
 |--------|-------|
 | Total tests | 359 |
-| Test modules | cafeai-core (267), cafeai-guardrails (33), cafeai-memory (20), cafeai-rag (13), cafeai-security (14), cafeai-tools (12) |
+| Test modules | cafeai-core (307), cafeai-guardrails (33), cafeai-memory (20), cafeai-rag (13), cafeai-security (14) |
 | Capstones | 4 complete, 1 specified (nova-tutor) |
 | Roadmap items | 15 complete |
 | Framework modules | 10 (core, memory, rag, tools, agents, guardrails, observability, security, streaming, connect) |
@@ -158,7 +156,7 @@ That is what the four capstones prove. Not that CafeAI does everything — that 
 | 4 | [Prompt Engineering in Java](04-prompt-engineering-in-java.md) |
 | 5 | [Context Memory Without the Cloud Tax](05-context-memory-without-cloud-tax.md) |
 | 6 | [Building a RAG Pipeline in Java](06-building-rag-pipeline-in-java.md) |
-| 7 | [Tool Use in Java](07-tool-use-in-java.md) |
+| 7 | Tool Use in Java *(coming in ROADMAP-17)* |
 | 8 | [Ethical Guardrails as Middleware](08-ethical-guardrails-as-middleware.md) |
 | 9 | [Vision and Audio in Java](09-vision-and-audio-in-java.md) |
 | 10 | [Structured Output](10-structured-output.md) |
