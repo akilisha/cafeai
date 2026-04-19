@@ -304,16 +304,16 @@ cd cafeai
 
 Each module is a blog post. The project is the curriculum.
 
-1. **Brewing AI in Java** — CafeAI Introduction and Philosophy
-2. **The Middleware Pattern Meets Gen AI** — From Express to CafeAI
-3. **Your First LLM Call Without Spring Boot** — Helidon SE + Langchain4j
-4. **Prompt Engineering in Java** — Templates, System Prompts, and the API Vocabulary
-5. **Context Memory Without the Cloud Tax** — Java FFM and the Tiered Memory Model
+1. **Brewing AI in Java** — [CafeAI Introduction and Philosophy](https://github.com/akilisha/cafeai/blob/main/docs/blog/01-brewing-ai-in-java.md)
+2. **The Middleware Pattern Meets Gen AI** — [From Express to CafeAI](https://github.com/akilisha/cafeai/blob/main/docs/blog/02-middleware-pattern-meets-gen-ai.md)
+3. **Your First LLM Call Without Spring Boot** — [Helidon SE + Langchain4j](https://github.com/akilisha/cafeai/blob/main/docs/blog/03-first-llm-call-without-spring-boot.md)
+4. **Prompt Engineering in Java** — [Templates, System Prompts, and the API Vocabulary](https://github.com/akilisha/cafeai/blob/main/docs/blog/04-prompt-engineering-in-java.md)
+5. **Context Memory Without the Cloud Tax** — [Java FFM and the Tiered Memory Model](https://github.com/akilisha/cafeai/blob/main/docs/blog/05-context-memory-without-cloud-tax.md)
 6. **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval
-7. **Tool Use and MCP in Java** — The Difference Between a Tool and an MCP Server
-8. **Ethical Guardrails as Middleware** — PII, Jailbreak, Bias, and Hallucination
+7. **Tool Use and MCP in Java** — [The Difference Between a Tool and an MCP Server](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
+8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Hallucination](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
 9. **Multi-Agent Orchestration with Java Structured Concurrency**
-10. **Production-Grade AI Observability** — OpenTelemetry, Evals, and Prompt Versioning
+10. **Production-Grade AI Observability** — [OpenTelemetry, Evals, and Prompt Versioning](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
 11. **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, and Cache Poisoning
 12. **Token Streaming in Java** — SSE, WebSocket, and Reactive Backpressure
 
