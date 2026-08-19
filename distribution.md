@@ -50,7 +50,7 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 <licenses>
  <license>
    <name>The Apache License, Version 2.0</name>
-   <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+   <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
  </license>
 </licenses>
 
@@ -268,4 +268,6 @@ cafeai-tools
 cafeai-views-mustache
 cafeai-streaming
 cafeai-connect
+cafeai-security
+cafeai-rag
 ```

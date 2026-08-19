@@ -42,6 +42,7 @@ application-local.properties
 
 # maven publishing stuff
 *pom*.xml
+!pom-dist.xml
 settings.xml
 **/target/
 
