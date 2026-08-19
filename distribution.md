@@ -28,8 +28,8 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 </settings>
 ```
 
-4. Configure an activation profile in the *settings.xml* file, where commons properties can be configured and picked up. This will allow
-easier management of distribution version through the pom-dist.xml files in individual modules
+4. Configure an activation profile in the *settings.xml* file, where commons properties can be configured and picked up. This works only 
+for non-top-level values in pom.xml
 
 ```xml
 <profiles>
@@ -40,13 +40,13 @@ easier management of distribution version through the pom-dist.xml files in indi
             <activeByDefault>true</activeByDefault>
         </activation>
         <properties>
-            <artifact.version>0.1.0</artifact.version>
+            <release.version>23</release.version>
         </properties>
     </profile>
     <profile>
         <id>distribution</id>
         <properties>
-            <artifact.version>0.1.1</artifact.version>
+            <release.version>23</release.version>
         </properties>
     </profile>
 </profiles>
@@ -62,10 +62,11 @@ mvn clean install -Pdistribution.
 <groupId>com.akilisha.oss</groupId>
 ```
 
-6. Ensure that the published artifact is not a SNAPSHOT version, and that it is picked up from the property configured in settings.xml.
+6. Ensure that the published artifact is not a SNAPSHOT version
+
 ```xml
 <!-- don't use SNAPSHOT -->
-<version>${artifact.version}</version>
+<version>0.1.0</version>
 ```
 
 7. In the *pom-dist.xml* file, configure license, developer details and repository type. Adjust values to match your project details
@@ -230,28 +231,28 @@ mvn clean install -Pdistribution.
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-shade-plugin</artifactId>
-            <version>3.5.1</version> <executions>
-            <execution>
-                <phase>package</phase>
-                <goals>
-                    <goal>shade</goal>
-                </goals>
-                <configuration>
-                    <transformers>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                            <!--                <mainClass>com.jaynats.stream.http.JayNatsLiveDemoApp</mainClass>-->
-                            <manifestEntries>
-                                <Implementation-Title>CafeAi Core Module</Implementation-Title>
-                                <Implementation-Version>${project.version}</Implementation-Version>
-                                <Implementation-Vendor>CafeAi</Implementation-Vendor>
-                            </manifestEntries>
-                        </transformer>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                    </transformers>
-                    <finalName>cafeai-core</finalName>
-                </configuration>
-            </execution>
-        </executions>
+            <version>3.5.1</version> 
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>shade</goal>
+                    </goals>
+                    <configuration>
+                        <transformers>
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <manifestEntries>
+                                    <Implementation-Title>CafeAi Core Module</Implementation-Title>
+                                    <Implementation-Version>${distribution.version}</Implementation-Version>
+                                    <Implementation-Vendor>CafeAi</Implementation-Vendor>
+                                </manifestEntries>
+                            </transformer>
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                        </transformers>
+                        <finalName>cafeai-core</finalName>
+                    </configuration>
+                </execution>
+            </executions>
         </plugin>
     </plugins>
 </build>

@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-rag</artifactId>
-  <version>${artifact.version}</version>
+  <version>0.1.1</version>
 
   <packaging>jar</packaging>
   <name>cafeai-rag</name>
@@ -256,28 +256,29 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.1</version> <executions>
-        <execution>
-          <phase>package</phase>
-          <goals>
-            <goal>shade</goal>
-          </goals>
-          <configuration>
-            <transformers>
-              <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                <!--                <mainClass>com.jaynats.stream.http.JayNatsLiveDemoApp</mainClass>-->
-                <manifestEntries>
-                  <Implementation-Title>CafeAi RAG Module</Implementation-Title>
-                  <Implementation-Version>${project.version}</Implementation-Version>
-                  <Implementation-Vendor>CafeAi</Implementation-Vendor>
-                </manifestEntries>
-              </transformer>
-              <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-            </transformers>
-            <finalName>cafeai-rag</finalName>
-          </configuration>
-        </execution>
-      </executions>
+        <version>3.5.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <!--                <mainClass>com.jaynats.stream.http.JayNatsLiveDemoApp</mainClass>-->
+                  <manifestEntries>
+                    <Implementation-Title>CafeAi RAG Module</Implementation-Title>
+                    <Implementation-Version>${project.version}</Implementation-Version>
+                    <Implementation-Vendor>CafeAi</Implementation-Vendor>
+                  </manifestEntries>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+              <finalName>cafeai-rag</finalName>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
