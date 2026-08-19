@@ -68,7 +68,7 @@ CafeAI stands deliberately on the shoulders of three proven traditions:
 
 - **Cafe** → instantly recognizable as a coffee shop — *Java*
 - **AI** → the technology we're introducing
-- **CafeAI** → phonetically *"kaf-ai"* — a natural coming together of Java and AI
+- **CafeAI** → phonetically *"kah-fay-eye"* — a natural coming together of Java and AI
 
 ---
 

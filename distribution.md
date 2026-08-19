@@ -232,7 +232,7 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 mvn --settings ../settings.xml -f pom-dist.xml clean package
 ```
 
-10. Publish binaries to maven central, the manually publish them in *https://central.sonatype.com/publishing* to public repo
+10. Publish binaries to maven central, then manually publish them in *https://central.sonatype.com/publishing* to public repo
 ```bash
 mvn --settings ../settings.xml -f pom-dist.xml -DskipTests deploy
 ```
@@ -267,4 +267,5 @@ cafeai-observability
 cafeai-tools
 cafeai-views-mustache
 cafeai-streaming
+cafeai-connect
 ```
