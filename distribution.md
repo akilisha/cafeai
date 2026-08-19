@@ -28,8 +28,8 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 </settings>
 ```
 
-4. Configure an activation profile in the *settings.xml* file, where commons properties can be configured and picked up. This works only 
-for non-top-level values in pom.xml
+4. Configure an activation profile in the *settings.xml* file, where commons properties can be configured and picked up. 
+This works only for non-top-level values in the pom.xml but are great for other resolvable values
 
 ```xml
 <profiles>
@@ -40,12 +40,14 @@ for non-top-level values in pom.xml
             <activeByDefault>true</activeByDefault>
         </activation>
         <properties>
+            <revision>0.1.0-SNAPSHOT</revision>
             <release.version>23</release.version>
         </properties>
     </profile>
     <profile>
         <id>distribution</id>
         <properties>
+            <revision>0.1.1</revision>
             <release.version>23</release.version>
         </properties>
     </profile>

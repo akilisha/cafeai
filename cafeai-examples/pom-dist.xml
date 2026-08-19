@@ -73,49 +73,49 @@
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-core</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-memory</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-rag</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-guardrails</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-observability</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-security</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-streaming</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-connect</artifactId>
-      <version>0.1.0</version>
+      <version>${revision}</version>
     </dependency>
 
     <dependency>
