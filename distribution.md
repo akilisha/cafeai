@@ -166,12 +166,14 @@ mvn clean install -Pdistribution.
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.13.0</version> <configuration>
-            <release>23</release>
-            <compilerArgs>
-                <arg>--enable-preview</arg>
-            </compilerArgs>
-        </configuration>
+            <version>3.13.0</version> 
+            <configuration>
+                <!-- release.version value is configured in the settings.xml distribution profile -->
+                <release>${release.version}</release>
+                <compilerArgs>
+                    <arg>--enable-preview</arg>
+                </compilerArgs>
+            </configuration>
         </plugin>
 
         <plugin>
