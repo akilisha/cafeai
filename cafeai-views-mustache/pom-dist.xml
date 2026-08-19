@@ -218,7 +218,7 @@
               <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                 <!--                <mainClass>com.jaynats.stream.http.JayNatsLiveDemoApp</mainClass>-->
                 <manifestEntries>
-                  <Implementation-Title>CafeAi Core Module</Implementation-Title>
+                  <Implementation-Title>CafeAi View Mustache Module</Implementation-Title>
                   <Implementation-Version>${project.version}</Implementation-Version>
                   <Implementation-Vendor>CafeAi</Implementation-Vendor>
                 </manifestEntries>
