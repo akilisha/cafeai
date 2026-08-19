@@ -26,21 +26,49 @@ Ensure that the *settings.xml* is in the parent project's root folder.
         </server>
     </servers>
 </settings>
-
 ```
 
-4. Update *GroupId* in the deployment pom file to match namespace in maven central, if it doesn't already
+4. Configure an activation profile in the *settings.xml* file, where commons properties can be configured and picked up. This will allow
+easier management of distribution version through the pom-dist.xml files in individual modules
+
+```xml
+<profiles>
+    <profile>
+        <id>local</id>
+        <activation>
+            <!-- Actives automatically if you don't explicitly choose another profile -->
+            <activeByDefault>true</activeByDefault>
+        </activation>
+        <properties>
+            <artifact.version>0.1.0</artifact.version>
+        </properties>
+    </profile>
+    <profile>
+        <id>distribution</id>
+        <properties>
+            <artifact.version>0.1.1</artifact.version>
+        </properties>
+    </profile>
+</profiles>
+```
+
+>If not using the default activation profile, then the target profile should be specified in the command, for example:
+```agsl
+mvn clean install -Pdistribution.
+```
+
+5. Update *GroupId* in the deployment pom file to match namespace in maven central, if it doesn't already
 ```xml
 <groupId>com.akilisha.oss</groupId>
 ```
 
-5. Ensure that the published artifact is not a SNAPSHOT version.
+6. Ensure that the published artifact is not a SNAPSHOT version, and that it is picked up from the property configured in settings.xml.
 ```xml
 <!-- don't use SNAPSHOT -->
-<version>0.1.0</version>
+<version>${artifact.version}</version>
 ```
 
-6. In the *pom-dist.xml* file, configure license, developer details and repository type. Adjust values to match your project details
+7. In the *pom-dist.xml* file, configure license, developer details and repository type. Adjust values to match your project details
 ```xml
 <packaging>jar</packaging>
 <name>cafeai-core</name>
@@ -69,7 +97,7 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 </scm>
 ```
 
-7. In the *pom-dist.xml* file, remove all *&lt;scope&gt;runtime&lt;/scope&gt;* entries from every dependency and also add testing dependencies
+8. In the *pom-dist.xml* file, remove all *&lt;scope&gt;runtime&lt;/scope&gt;* entries from every dependency and also add testing dependencies
 ```xml
 <properties>
     <junit.version>6.0.3</junit.version>
@@ -120,7 +148,7 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 </dependencies>
 ```
 
-8. In the *pom-dist.xml* file, configure the plugins necessary to satisfy the publishing requirements
+9. In the *pom-dist.xml* file, configure the plugins necessary to satisfy the publishing requirements
 ```xml
 <build>
     <plugins>
@@ -227,17 +255,17 @@ Ensure that the *settings.xml* is in the parent project's root folder.
 </build>
 ```
 
-9. Build the project to ensures tests pass and binaries as created
+10. Build the project to ensures tests pass and binaries as created
 ```bash
-mvn --settings ../settings.xml -f pom-dist.xml clean package
+mvn --settings ../settings.xml -f pom-dist.xml -Pdistribution clean package
 ```
 
-10. Publish binaries to maven central, then manually publish them in *https://central.sonatype.com/publishing* to public repo
+11. Publish binaries to maven central, then manually publish them in *https://central.sonatype.com/publishing* to public repo
 ```bash
-mvn --settings ../settings.xml -f pom-dist.xml -DskipTests deploy
+mvn --settings ../settings.xml -f pom-dist.xml -Pdistribution -DskipTests deploy
 ```
 
-11. Miscellaneous - Manually update the pom for deploying. Configuring the 'maven-gpg-plugin' in particular is tricky
+12. Miscellaneous - Manually update the pom for deploying. Configuring the 'maven-gpg-plugin' in particular is tricky
 ```xml
 <!-- manual mode -->
 <configuration>
@@ -258,16 +286,16 @@ mvn --settings ../settings.xml -f pom-dist.xml -DskipTests deploy
 </configuration>
 ```
 
-12. Order of publishing
+13. Order of publishing
 ```bash
 cafeai-core
 cafeai-memory
 cafeai-guardrails
 cafeai-observability
-cafeai-tools
 cafeai-views-mustache
 cafeai-streaming
 cafeai-connect
-cafeai-security
 cafeai-rag
+cafeai-security
+cafeai-examples
 ```

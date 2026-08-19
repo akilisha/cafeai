@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-guardrails</artifactId>
-  <version>0.1.0</version>
+  <version>${artifact.version}</version>
 
   <packaging>jar</packaging>
   <name>cafeai-guardrails</name>
