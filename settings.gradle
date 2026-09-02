@@ -10,5 +10,6 @@ include(
     'cafeai-streaming',
     'cafeai-views-mustache',
     'cafeai-connect',
+    'cafeai-agents',
     'cafeai-examples'
 )

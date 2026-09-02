@@ -1,46 +1,72 @@
 package io.cafeai.core.spi;
 
+import dev.langchain4j.model.chat.ChatModel;
+import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.agents.AgentConfig;
+import io.cafeai.core.memory.MemoryStrategy;
+
 /**
- * SPI allowing {@code cafeai-agents} to provide agent registration and resolution
- * without creating a circular compile-time dependency on {@code cafeai-core}.
+ * SPI that lets {@code cafeai-agents} provide agent registration and resolution
+ * without a circular compile-time dependency on {@code cafeai-core}.
  *
- * <p>{@code cafeai-core} calls this via {@link java.util.ServiceLoader};
- * {@code cafeai-agents} provides the implementation.
+ * <p>{@code cafeai-core} loads the single implementation via
+ * {@link java.util.ServiceLoader}, calls {@link #init(AgentSupport)} once right
+ * after loading, then delegates {@code app.agent(...)} to {@link #register} and
+ * {@link #resolve}.
  *
- * <p>Registered via:
- * {@code META-INF/services/io.cafeai.core.spi.AgentBridge}
+ * <p><strong>No wrapper.</strong> {@link #resolve} returns LangChain4j's own
+ * {@code AiService} proxy. CafeAI's contributions (guardrails, observability,
+ * session memory, tools) are applied at {@code AiServices.builder()} time by the
+ * implementation, using the capabilities handed over in {@link AgentSupport}.
+ *
+ * <p>Registered via {@code META-INF/services/io.cafeai.core.spi.AgentBridge}.
  */
 public interface AgentBridge {
 
     /**
-     * Registers an agent interface under the given name.
-     *
-     * @param name           unique agent name
-     * @param agentInterface the LangChain4j AiService interface class
-     * @return an opaque configuration handle — cast to {@code AgentConfig<T>}
-     *         in the {@code cafeai-agents} module
+     * Called once by {@code CafeAIApp}, immediately after this bridge is loaded,
+     * to lend it the {@code cafeai-core} capabilities it needs at build time.
      */
-    <T> Object register(String name, Class<T> agentInterface);
+    void init(AgentSupport support);
 
     /**
-     * Resolves the agent proxy for the given name and session.
-     *
-     * @param name      registered agent name
-     * @param type      the agent interface class
-     * @param sessionId conversation session ID, or {@code null} for stateless
-     * @param provider  the app-level model provider
-     * @return the LangChain4j AiService proxy implementing {@code type}
+     * Registers an agent interface under {@code name} and returns its fluent
+     * configuration. Called from {@code CafeAI.agent(String, Class)} at startup.
      */
-    <T> T resolve(String name, Class<T> type, String sessionId,
-                  io.cafeai.core.internal.LangchainBridge.ChatModelAccess provider);
+    <T> AgentConfig<T> register(String name, Class<T> agentInterface);
 
     /**
-     * Returns {@code true} if an agent with the given name is registered.
+     * Builds (or returns a cached) LangChain4j {@code AiService} proxy for the
+     * named agent. Called from {@code CafeAI.agent(String, Class, String)} in a
+     * route handler.
+     *
+     * @param sessionId conversation session id, or {@code null} for a stateless agent
      */
+    <T> T resolve(String name, Class<T> type, String sessionId);
+
+    /** {@code true} if an agent with the given name is registered. */
     boolean isRegistered(String name);
 
-    /**
-     * Returns the number of registered agents.
-     */
+    /** Number of registered agents. */
     int count();
+
+    /**
+     * The {@code cafeai-core} capabilities {@code cafeai-agents} borrows to
+     * assemble an {@code AiServices} builder. All accessors may return
+     * {@code null} when the corresponding capability is not configured.
+     */
+    interface AgentSupport {
+
+        /** Resolves an {@link AiProvider} to a LangChain4j {@link ChatModel} (via the internal bridge). */
+        ChatModel chatModel(AiProvider provider);
+
+        /** The application-level default provider — used when {@code AgentConfig.model()} is unset. */
+        AiProvider defaultProvider();
+
+        /** The application-level observability bridge, or {@code null}. */
+        ObserveBridge observeBridge();
+
+        /** The application-level default memory strategy, or {@code null}. */
+        MemoryStrategy defaultMemory();
+    }
 }

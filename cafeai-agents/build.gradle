@@ -1,0 +1,28 @@
+// ============================================================
+//  cafeai-agents
+//  HTTP identity for LangChain4j AiServices agents.
+//
+//  CafeAI does not implement the reasoning loop, tool dispatch,
+//  or chat memory — LangChain4j `AiServices` owns all of that.
+//  This module writes the binding: a typed agent interface gets
+//  a registration name, session threading, guardrail
+//  pre-screening, and an observability context, applied at
+//  `AiServices.builder()` time via adapters (no wrapper proxy).
+//
+//  See docs/roadmap/ROADMAP-12-agents.md.
+// ============================================================
+
+description = 'HTTP identity for LangChain4j AiServices agents — session threading, ' +
+    'guardrail pre-screening, and observability, bound at AiServices.builder() time.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+
+    api project(':cafeai-core')
+
+    // AiServices, InputGuardrail/OutputGuardrail, AiServiceListener,
+    // ChatMemoryProvider, ToolProvider — all from LangChain4j 1.11.
+    implementation 'dev.langchain4j:langchain4j'
+    implementation 'dev.langchain4j:langchain4j-core'
+}

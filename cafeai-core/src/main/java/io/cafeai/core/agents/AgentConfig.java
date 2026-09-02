@@ -32,13 +32,13 @@ import java.util.function.Consumer;
  */
 public final class AgentConfig<T> {
 
-    private final Class<T>        agentInterface;
-    private       String          systemPrompt;
-    private       AiProvider      provider;
-    private       MemoryStrategy  memoryStrategy;
-    private final List<GuardRail> guardRails     = new ArrayList<>();
-    private final List<Object>    tools          = new ArrayList<>();
-    private       Consumer<?>     builderConsumer;
+    private final Class<T>          agentInterface;
+    private       String            systemPrompt;
+    private       AiProvider        provider;
+    private       MemoryStrategy    memoryStrategy;
+    private final List<GuardRail>   guardRails  = new ArrayList<>();
+    private final List<ToolSource>  tools       = new ArrayList<>();
+    private       Consumer<?>       builderConsumer;
 
     public AgentConfig(Class<T> agentInterface) {
         this.agentInterface = agentInterface;
@@ -83,10 +83,20 @@ public final class AgentConfig<T> {
     }
 
     /**
-     * Adds a tool instance to this agent.
+     * Adds a {@code @Tool}-annotated Java object the agent may call.
      */
     public AgentConfig<T> tool(Object toolInstance) {
-        tools.add(toolInstance);
+        tools.add(new ToolSource.JavaTool(toolInstance));
+        return this;
+    }
+
+    /**
+     * Adds the tools of a named MCP server connection (registered via
+     * {@code app.connect(McpEndpoint.at(...))}). Planned — requires the
+     * {@code cafeai-connect} {@code McpEndpoint} connector.
+     */
+    public AgentConfig<T> mcp(String connectionName) {
+        tools.add(new ToolSource.McpTool(connectionName));
         return this;
     }
 
@@ -96,8 +106,10 @@ public final class AgentConfig<T> {
      * does not abstract: per-session memory providers, advanced RAG augmentors,
      * moderation models, dynamic system prompt providers, output parsers, etc.
      *
-     * <p>The consumer receives an {@code AiServices<T>} instance and may call
-     * any builder method on it. It must not call {@code .build()}.
+     * <p>LangChain4j has no separate {@code Builder} type — {@code AiServices.builder(cls)}
+     * returns the builder-shaped {@code AiServices<T>} itself. The consumer receives that
+     * object (after CafeAI has applied its own config) and may call any builder method on
+     * it. It must not call {@code .build()}.
      *
      * @param consumer receives the {@code AiServices<T>} builder
      */
@@ -107,13 +119,17 @@ public final class AgentConfig<T> {
         return this;
     }
 
-    // ── Accessors (package-visible to cafeai-agents via SPI) ──────────────────
+    // ── Accessors (read by cafeai-agents via the AgentBridge SPI) ─────────────
 
-    public Class<T>        agentInterface()  { return agentInterface; }
-    public String          systemPrompt()    { return systemPrompt; }
-    public AiProvider      provider()        { return provider; }
-    public MemoryStrategy  memoryStrategy()  { return memoryStrategy; }
-    public List<GuardRail> guardRails()      { return List.copyOf(guardRails); }
-    public List<Object>    tools()           { return List.copyOf(tools); }
-    public Consumer<?>     builderConsumer() { return builderConsumer; }
+    public Class<T>           agentInterface()  { return agentInterface; }
+    public String             systemPrompt()    { return systemPrompt; }
+    public AiProvider         provider()        { return provider; }
+    public MemoryStrategy     memoryStrategy()  { return memoryStrategy; }
+    public List<GuardRail>    guardRails()      { return List.copyOf(guardRails); }
+    public List<ToolSource>   tools()           { return List.copyOf(tools); }
+
+    @SuppressWarnings("unchecked")
+    public Consumer<AiServices<T>> builderConsumer() {
+        return (Consumer<AiServices<T>>) builderConsumer;
+    }
 }

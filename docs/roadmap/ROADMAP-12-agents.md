@@ -41,18 +41,24 @@ bind" mistake ROADMAP-12 exists to avoid.
 Everything CafeAI wants to contribute is applied at `AiServices.builder()` time, by adapting
 CafeAI abstractions to LangChain4j's own hooks:
 
-| CafeAI abstraction | LangChain4j hook (build-time) |
-|---|---|
-| `GuardRail` | `InputGuardrail` / `OutputGuardrail` → `.inputGuardrails(...)` / `.outputGuardrails(...)` |
-| `ObserveBridge` | `ChatModelListener` → `.listeners(...)` on the model |
-| `MemoryStrategy` | `ChatMemoryProvider` → `.chatMemoryProvider(id -> ...)` |
-| RAG retriever | `RetrievalAugmentor` → `.retrievalAugmentor(...)` |
-| Java `@Tool` objects / MCP tools | `ToolProvider` → `.toolProvider(...)` |
+All hooks are on `AiServices<T>` itself (LangChain4j has no separate `.Builder` — `AiServices.builder(cls)` returns the builder-shaped `AiServices<T>`, chain, then `.build()`).
 
-**Residual cases for a thin `java.lang.reflect.Proxy` (deferred, add only if a capstone needs it):**
-a single observability span around the *whole* agent method (vs. per model call), and
-surfacing the agent's final output to POST_LLM HTTP filters via `LLM_RESPONSE_TEXT`. Neither
-is required for v1.
+| CafeAI abstraction | LangChain4j hook (verified, 1.11.0) |
+|---|---|
+| `GuardRail` (PRE) | `InputGuardrail` → `.inputGuardrails(I...)` |
+| `GuardRail` (POST) | `OutputGuardrail` → `.outputGuardrails(O...)` |
+| `ObserveBridge` | `AiServiceListener<AiServiceStartedEvent \| …ResponseReceivedEvent \| …CompletedEvent \| …ErrorEvent>` → `.registerListeners(...)` — **whole-invocation events**, not per model call |
+| `MemoryStrategy` | `ChatMemoryProvider` → `.chatMemoryProvider(id -> ...)` |
+| system prompt override | `.systemMessage(String)` |
+| RAG retriever | `RetrievalAugmentor` → `.retrievalAugmentor(...)` |
+| Java `@Tool` object | `.tools(Object...)` |
+| MCP tools | `ToolProvider` → `.toolProvider(...)` |
+
+Because `AiServiceListener` fires on the *whole* invocation (start / response / completed /
+error), the "wrap it in a proxy for a whole-method span" case is already covered — **no
+`java.lang.reflect.Proxy` is needed at all** for v1. The only thing a proxy would still add
+is surfacing the agent's final text to POST_LLM *HTTP* filters via `LLM_RESPONSE_TEXT`; that
+is niche and deferred.
 
 ### `AgentBridge` SPI — signature fix needed
 
@@ -169,13 +175,19 @@ own configuration. The developer may override or extend anything.
     `@Tool`, `McpToolProvider`); tool + MCP support comes from LangChain4j directly,
     there is no separate `cafeai-tools` module
 - [ ] Create package `io.cafeai.agents`
-- [ ] Move `AgentConfig<T>` into `cafeai-agents` (it currently sits in `cafeai-core/agents/`
-  as a stub); `cafeai-core` keeps only the `AgentBridge` SPI
-- [ ] **Correct the `AgentBridge` SPI**: `resolve(...)` must take the resolved `AiProvider`
-  (or `ChatModel`), not `LangchainBridge.ChatModelAccess`
-- [ ] Add a `ToolSource` type (sealed: `JavaTool(Object)` | `ProviderTool(ToolProvider)`)
-- [ ] Create `AgentRegistry.java` — placeholder implementing `AgentBridge`
-- [ ] Verify: `./gradlew :cafeai-agents:compileJava` → BUILD SUCCESSFUL
+- [ ] `AgentConfig<T>` **stays in `cafeai-core`** — `CafeAI.agent(name, iface)` returns it for
+  chaining, and core already depends on `langchain4j` (so `Consumer<AiServices<T>>` is fine).
+  Fix its `.configure()` doc (the arg *is* `AiServices<T>`, not a `.Builder`).
+- [ ] Add a `ToolSource` sealed type in `cafeai-core` (`JavaTool(Object)` |
+  `McpTool(String connectionName)`); `AgentConfig` collects `List<ToolSource>`.
+- [ ] **Correct the `AgentBridge` SPI** — `resolve(name, type, sessionId)` (no bogus
+  `ChatModelAccess` arg); add `init(AgentSupport)` so `cafeai-core` lends it
+  `chatModel(AiProvider)`, `defaultProvider()`, `observeBridge()`, `defaultMemory()`.
+  `register(...)` returns `AgentConfig<T>`.
+- [ ] Create `AgentRegistry.java` implementing `AgentBridge` — methods throw
+  `UnsupportedOperationException` (Phase 3/4 fill them in)
+- [ ] `META-INF/services/io.cafeai.core.spi.AgentBridge` → `AgentRegistry`
+- [ ] Verify: `./gradlew :cafeai-agents:compileJava` and full `build` → BUILD SUCCESSFUL
 
 #### Acceptance Criteria
 - [ ] Module in `settings.gradle`, opted into `gradle/maven-central.gradle`
