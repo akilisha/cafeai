@@ -74,6 +74,32 @@ class AiPrimitivesTest {
     }
 
     @Test
+    @DisplayName("Jlama.llama3() has correct metadata")
+    void jlama_llama3_metadata() {
+        var p = Jlama.llama3();
+        assertThat(p.name()).isEqualTo("jlama");
+        assertThat(p.modelId()).isEqualTo("tjake/Llama-3.2-1B-Instruct-JQ4");
+        assertThat(p.type()).isEqualTo(AiProvider.ProviderType.JLAMA);
+    }
+
+    @Test
+    @DisplayName("Jlama.of(modelId) accepts arbitrary Hugging Face ids")
+    void jlama_of_arbitraryModelId() {
+        var p = Jlama.of("tjake/Mistral-7B-Instruct-v0.3-JQ4");
+        assertThat(p.name()).isEqualTo("jlama");
+        assertThat(p.modelId()).isEqualTo("tjake/Mistral-7B-Instruct-v0.3-JQ4");
+        assertThat(p.type()).isEqualTo(AiProvider.ProviderType.JLAMA);
+    }
+
+    @Test
+    @DisplayName("Jlama.cachedIn(path).model(id) sets the model cache directory")
+    void jlama_customCache() {
+        var p = Jlama.cachedIn("/opt/models").model("tjake/gemma-2-2b-it-JQ4");
+        assertThat(p.name()).isEqualTo("jlama");
+        assertThat(p.modelId()).isEqualTo("tjake/gemma-2-2b-it-JQ4");
+    }
+
+    @Test
     @DisplayName("ModelRouter.smart() stores simple and complex providers")
     void modelRouter_storesProviders() {
         var router = ModelRouter.smart()
@@ -306,7 +332,136 @@ class AiPrimitivesTest {
             .doesNotThrowAnyException();
     }
 
+    // ── Phase 2: Prompt streaming ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("app.prompt().stream() emits tokens in order and completes")
+    void prompt_stream_emitsTokens() throws Exception {
+        var app = CafeAI.create();
+        app.ai(new StreamingMockProvider("Hel", "lo", ", ", "world"));
+
+        var received = collect(app.prompt("hi").stream());
+
+        assertThat(String.join("", received)).isEqualTo("Hello, world");
+        assertThat(received).containsExactly("Hel", "lo", ", ", "world");
+    }
+
+    @Test
+    @DisplayName("app.prompt().stream() persists the assembled response to session memory")
+    void prompt_stream_persistsToMemory() throws Exception {
+        var app = CafeAI.create();
+        app.ai(new StreamingMockProvider("2", "+", "2", "=", "4"));
+        app.memory(MemoryStrategy.inMemory());
+
+        collect(app.prompt("What is 2+2?").session("s1").stream());
+
+        MemoryStrategy strategy = app.local(Locals.MEMORY_STRATEGY, MemoryStrategy.class);
+        var stored = strategy.retrieve("s1");
+        assertThat(stored.messages()).hasSize(2);
+        assertThat(stored.messages().get(0).content()).isEqualTo("What is 2+2?");
+        assertThat(stored.messages().get(1).role()).isEqualTo("assistant");
+        assertThat(stored.messages().get(1).content()).isEqualTo("2+2=4");
+    }
+
+    @Test
+    @DisplayName("app.prompt().stream(Consumer) invokes the callback per token and blocks until done")
+    void prompt_stream_consumerOverload() {
+        var app = CafeAI.create();
+        app.ai(new StreamingMockProvider("one ", "two ", "three"));
+
+        var sb = new StringBuilder();
+        app.prompt("count").stream(sb::append);   // blocks
+
+        assertThat(sb.toString()).isEqualTo("one two three");
+    }
+
+    @Test
+    @DisplayName("app.prompt().stream(Consumer) rethrows a provider error")
+    void prompt_stream_consumerOverload_error() {
+        var app = CafeAI.create();
+        app.ai(new StreamingMockProvider());   // no tokens → error
+
+        assertThatThrownBy(() -> app.prompt("boom").stream(t -> {}))
+            .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("app.prompt().stream() surfaces a provider error to the subscriber")
+    void prompt_stream_propagatesError() throws Exception {
+        var app = CafeAI.create();
+        app.ai(new StreamingMockProvider());   // no tokens → handler.onError
+
+        var latch = new java.util.concurrent.CountDownLatch(1);
+        var err   = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        app.prompt("boom").stream().subscribe(new java.util.concurrent.Flow.Subscriber<>() {
+            public void onSubscribe(java.util.concurrent.Flow.Subscription s) { s.request(Long.MAX_VALUE); }
+            public void onNext(String item) {}
+            public void onError(Throwable t) { err.set(t); latch.countDown(); }
+            public void onComplete() { latch.countDown(); }
+        });
+
+        assertThat(latch.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        assertThat(err.get()).isInstanceOf(IllegalStateException.class);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Subscribes to a token publisher and blocks until it completes, returning the tokens. */
+    private static java.util.List<String> collect(
+            java.util.concurrent.Flow.Publisher<String> publisher) throws InterruptedException {
+        var out   = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        var latch = new java.util.concurrent.CountDownLatch(1);
+        var error = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        publisher.subscribe(new java.util.concurrent.Flow.Subscriber<>() {
+            public void onSubscribe(java.util.concurrent.Flow.Subscription s) { s.request(Long.MAX_VALUE); }
+            public void onNext(String item) { out.add(item); }
+            public void onError(Throwable t) { error.set(t); latch.countDown(); }
+            public void onComplete() { latch.countDown(); }
+        });
+        assertThat(latch.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            .as("stream did not complete in time").isTrue();
+        if (error.get() != null) throw new AssertionError("stream errored", error.get());
+        return out;
+    }
+
+    /**
+     * Mock streaming provider — replays a fixed token list via the
+     * {@link io.cafeai.core.internal.LangchainBridge.StreamingChatModelAccess}
+     * test seam. With no tokens, it reports an error instead of completing.
+     */
+    static final class StreamingMockProvider
+            implements AiProvider,
+                       io.cafeai.core.internal.LangchainBridge.StreamingChatModelAccess {
+
+        private final java.util.List<String> tokens;
+
+        StreamingMockProvider(String... tokens) { this.tokens = java.util.List.of(tokens); }
+
+        @Override public String name()       { return "mock-stream"; }
+        @Override public String modelId()    { return "mock-stream-model"; }
+        @Override public ProviderType type() { return ProviderType.CUSTOM; }
+
+        @Override
+        public dev.langchain4j.model.chat.StreamingChatModel toStreamingChatModel() {
+            var toks = tokens;
+            return new dev.langchain4j.model.chat.StreamingChatModel() {
+                @Override
+                public void chat(java.util.List<dev.langchain4j.data.message.ChatMessage> messages,
+                                 dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {
+                    if (toks.isEmpty()) {
+                        handler.onError(new IllegalStateException("mock stream failure"));
+                        return;
+                    }
+                    toks.forEach(handler::onPartialResponse);
+                    handler.onCompleteResponse(
+                        dev.langchain4j.model.chat.response.ChatResponse.builder()
+                            .aiMessage(dev.langchain4j.data.message.AiMessage.from(String.join("", toks)))
+                            .tokenUsage(new dev.langchain4j.model.output.TokenUsage(3, 4))
+                            .build());
+                }
+            };
+        }
+    }
 
     /** Mock provider that returns a fixed response. */
     private static AiProvider mockProvider(String name, String modelId, String response) {

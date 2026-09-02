@@ -4,12 +4,13 @@ import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.jlama.JlamaChatModel;
+import dev.langchain4j.model.jlama.JlamaStreamingChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.ai.AiProvider;
-import io.cafeai.core.ai.Ollama;
 
 import java.time.Duration;
 import java.util.Map;
@@ -95,6 +96,14 @@ public final class LangchainBridge {
                     .build();
             }
 
+            case JLAMA -> {
+                var builder = JlamaStreamingChatModel.builder().modelName(provider.modelId());
+                if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
+                    builder.modelCachePath(java.nio.file.Path.of(jpa.modelCachePath()));
+                }
+                yield builder.build();
+            }
+
             default -> throw new IllegalArgumentException(
                 "Streaming not supported for provider type: " + provider.type());
         };
@@ -129,9 +138,17 @@ public final class LangchainBridge {
                     .build();
             }
 
+            case JLAMA -> {
+                var builder = JlamaChatModel.builder().modelName(provider.modelId());
+                if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
+                    builder.modelCachePath(java.nio.file.Path.of(jpa.modelCachePath()));
+                }
+                yield builder.build();
+            }
+
             default -> throw new IllegalArgumentException(
                 "Unsupported provider type: " + provider.type() +
-                ". Supported: OPENAI, ANTHROPIC, OLLAMA. " +
+                ". Supported: OPENAI, ANTHROPIC, OLLAMA, JLAMA. " +
                 "For other providers, implement AiProvider and wire Langchain4j manually.");
         };
     }
@@ -148,7 +165,8 @@ public final class LangchainBridge {
                 "Set the " + envVar + " environment variable:\n\n" +
                 "  export " + envVar + "=your-key-here\n\n" +
                 "Or use a local model with no API key:\n" +
-                "  app.ai(Ollama.llama3())  // runs on your machine, no key needed");
+                "  app.ai(Ollama.llama3())  // via a local Ollama server\n" +
+                "  app.ai(Jlama.tinyLlama()) // pure-Java, in-process, no server");
         }
         return key;
     }
@@ -160,6 +178,16 @@ public final class LangchainBridge {
      */
     public interface OllamaProviderAccess {
         String baseUrl();
+    }
+
+    /**
+     * Internal interface for Jlama providers that carry an on-disk model cache
+     * path. A {@code null} return means "use Jlama's default cache directory".
+     * Public so {@link io.cafeai.core.ai.Jlama.JlamaProvider} can implement it
+     * without violating package access rules.
+     */
+    public interface JlamaProviderAccess {
+        String modelCachePath();
     }
 
     /**

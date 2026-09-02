@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 
 /**
@@ -211,25 +210,27 @@ public class DocumentServerExample {
             // SubmissionPublisher implements Flow.Publisher<String>
             var publisher = new SubmissionPublisher<String>();
 
-            // res.stream() sets SSE headers and subscribes — returns immediately.
-            // The publisher keeps the connection open until closed.
-            res.stream(publisher);
-
-            // Simulate a live event source: emit 5 events then close.
-            // In production this would be a real event stream (DB changes, queue, etc.)
+            // Produce events on another thread. Start it BEFORE res.stream():
+            // res.stream() blocks this handler until the publisher completes
+            // (Helidon SE's virtual-thread model — the handler holds the request
+            // thread while streaming). Simulate a live event source: 5 events
+            // then close. In production this is a DB change feed, a queue, etc.
             Thread.ofVirtual().start(() -> {
                 try {
                     for (int i = 1; i <= 5; i++) {
                         publisher.submit("event " + i + " at " + System.currentTimeMillis());
                         Thread.sleep(500);
                     }
-                    publisher.submit("[DONE]");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } finally {
                     publisher.close();
                 }
             });
+
+            // Blocks here, writing each event as an SSE frame, until the
+            // publisher closes — then sends `data: [DONE]` and returns.
+            res.stream(publisher);
         });
 
         // ── WebSocket: Chat room ──────────────────────────────────────────────

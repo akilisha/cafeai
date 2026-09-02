@@ -1,6 +1,9 @@
 package io.cafeai.core.ai;
 
-import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * A fluent builder for a single LLM prompt call.
@@ -37,11 +40,18 @@ public final class PromptRequest {
     private Class<?> returningType;
     private String schemaHint;
     private final PromptExecutor executor;
+    private final PromptStreamExecutor streamExecutor;
 
-    /** Package-private -- constructed by CafeAIApp.prompt() */
+    /** Constructed by CafeAIApp.prompt() -- no streaming executor. */
     public PromptRequest(String message, PromptExecutor executor) {
-        this.message  = message;
-        this.executor = executor;
+        this(message, executor, null);
+    }
+
+    /** Constructed by CafeAIApp.prompt() -- with a streaming executor. */
+    public PromptRequest(String message, PromptExecutor executor, PromptStreamExecutor streamExecutor) {
+        this.message        = message;
+        this.executor       = executor;
+        this.streamExecutor = streamExecutor;
     }
 
     /**
@@ -119,6 +129,72 @@ public final class PromptRequest {
     }
 
     /**
+     * Executes the prompt and streams the response token-by-token as a reactive
+     * publisher. The LLM call runs on a virtual thread; tokens are emitted as
+     * they arrive and the publisher completes when generation finishes.
+     *
+     * <p>Usually you don't call this directly — {@code res.stream(app.prompt(...))}
+     * takes the {@code PromptRequest} and does it for you. Call {@code stream()}
+     * when you need the raw publisher (bridging to another reactive library,
+     * tests, non-HTTP consumers).
+     *
+     * <p>Session memory ({@link #session(String)}), the token budget, named
+     * providers and observability all apply exactly as they do for {@link #call()};
+     * the full assembled response is persisted once the stream completes.
+     *
+     * <p>Not compatible with {@link #returning(Class)} / {@link #call(Class)} —
+     * structured output needs the complete JSON before it can be parsed.
+     *
+     * @throws IllegalStateException if CafeAI was not initialised via {@code CafeAI.create()}
+     */
+    public Flow.Publisher<String> stream() {
+        if (streamExecutor == null) {
+            throw new IllegalStateException(
+                "Prompt streaming is not available. Initialise CafeAI via CafeAI.create().");
+        }
+        return streamExecutor.stream(this);
+    }
+
+    /**
+     * Executes the prompt and invokes {@code onToken} for each token as it
+     * arrives. Blocks until generation completes; propagates any provider error.
+     *
+     * <p>The zero-ceremony form of {@link #stream()} — no {@code Flow.Subscriber}
+     * to write:
+     * <pre>{@code
+     *   app.prompt("Explain virtual threads").stream(System.out::print);
+     * }</pre>
+     *
+     * <p>Session memory, token budget, and observability apply exactly as for
+     * {@link #call()}.
+     *
+     * @throws IllegalStateException if CafeAI was not initialised via {@code CafeAI.create()}
+     */
+    public void stream(Consumer<String> onToken) {
+        if (onToken == null) {
+            throw new IllegalArgumentException("onToken consumer must not be null");
+        }
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        stream().subscribe(new Flow.Subscriber<String>() {
+            @Override public void onSubscribe(Flow.Subscription s) { s.request(Long.MAX_VALUE); }
+            @Override public void onNext(String token) { onToken.accept(token); }
+            @Override public void onError(Throwable t) { error.set(t); done.countDown(); }
+            @Override public void onComplete() { done.countDown(); }
+        });
+        try {
+            done.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while streaming the prompt response", e);
+        }
+        Throwable t = error.get();
+        if (t instanceof RuntimeException re) throw re;
+        if (t instanceof Error er) throw er;
+        if (t != null) throw new RuntimeException(t);
+    }
+
+    /**
      * Executes the prompt and deserialises the response to the target type.
      *
      * <p>Appends a JSON schema instruction to the prompt before calling the LLM,
@@ -158,5 +234,14 @@ public final class PromptRequest {
     @FunctionalInterface
     public interface PromptExecutor {
         PromptResponse execute(PromptRequest request);
+    }
+
+    /**
+     * Internal streaming executor interface -- implemented by CafeAIApp.
+     * Returns a publisher that emits response tokens as they are generated.
+     */
+    @FunctionalInterface
+    public interface PromptStreamExecutor {
+        java.util.concurrent.Flow.Publisher<String> stream(PromptRequest request);
     }
 }

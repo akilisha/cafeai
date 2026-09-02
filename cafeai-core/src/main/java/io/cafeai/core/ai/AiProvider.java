@@ -55,6 +55,7 @@ public interface AiProvider {
         OPENAI,
         ANTHROPIC,
         OLLAMA,
+        JLAMA,
         AZURE_OPENAI,
         GOOGLE_VERTEX,
         CUSTOM

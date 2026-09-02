@@ -1,7 +1,6 @@
 package io.cafeai.core.ai;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -432,6 +431,36 @@ class VisionPipelineTest {
         }
     }
 
+    // ── Vision streaming ─────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("app.vision(...).stream(Consumer)")
+    class VisionStreaming {
+
+        @Test
+        @DisplayName("streams tokens to the callback and blocks until complete")
+        void streamsTokens() {
+            var app = CafeAI.create();
+            app.ai(new StreamingVisionMockProvider("a ", "cat ", "sitting"));
+
+            var sb = new StringBuilder();
+            app.vision("Describe this.", new byte[]{1, 2, 3}, "image/png").stream(sb::append);
+
+            assertThat(sb.toString()).isEqualTo("a cat sitting");
+        }
+
+        @Test
+        @DisplayName("rejects a provider that does not support vision")
+        void rejectsNonVisionProvider() {
+            var app = CafeAI.create();
+            app.ai(Ollama.llama3());   // no vision
+
+            assertThatThrownBy(() ->
+                app.vision("x", new byte[]{1}, "image/png").stream(t -> {}))
+                .isInstanceOf(VisionRequest.VisionNotSupportedException.class);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
@@ -439,6 +468,38 @@ class VisionPipelineTest {
      */
     private static AiProvider visionMockProvider(String response) {
         return new VisionMockProvider(response);
+    }
+
+    /** Vision-capable mock that streams a fixed token list via the streaming seam. */
+    static final class StreamingVisionMockProvider
+            implements AiProvider,
+                       io.cafeai.core.internal.LangchainBridge.StreamingChatModelAccess {
+
+        private final java.util.List<String> tokens;
+
+        StreamingVisionMockProvider(String... tokens) { this.tokens = java.util.List.of(tokens); }
+
+        @Override public String       name()          { return "vision-stream-mock"; }
+        @Override public String       modelId()       { return "mock-vision-stream"; }
+        @Override public ProviderType type()          { return ProviderType.CUSTOM; }
+        @Override public boolean      supportsVision() { return true; }
+
+        @Override
+        public dev.langchain4j.model.chat.StreamingChatModel toStreamingChatModel() {
+            var toks = tokens;
+            return new dev.langchain4j.model.chat.StreamingChatModel() {
+                @Override
+                public void chat(java.util.List<dev.langchain4j.data.message.ChatMessage> messages,
+                                 dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {
+                    toks.forEach(handler::onPartialResponse);
+                    handler.onCompleteResponse(
+                        dev.langchain4j.model.chat.response.ChatResponse.builder()
+                            .aiMessage(dev.langchain4j.data.message.AiMessage.from(String.join("", toks)))
+                            .tokenUsage(new dev.langchain4j.model.output.TokenUsage(9, 3))
+                            .build());
+                }
+            };
+        }
     }
 
     private static final class VisionMockProvider

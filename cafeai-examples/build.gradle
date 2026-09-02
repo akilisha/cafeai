@@ -33,9 +33,23 @@ dependencies {
     testImplementation "org.testcontainers:postgresql:${rootProject.ext.testcontainersVersion}"
 }
 
+// Jlama (in-process inference) requires the incubating Vector API module and
+// native access; without --add-modules it fails at model load with
+// ClassNotFoundException: jdk.incubator.vector.FloatVector.
+def jlamaJvmArgs = [
+    '--add-modules', 'jdk.incubator.vector',
+    '--enable-native-access=ALL-UNNAMED',
+]
+
 // ── Active example ───────────────────────────────────────────────────────────
-// Change mainClass here to run a different example.
-// Run with: ./gradlew :cafeai-examples:run
+// Default is HelloCafeAI; pick another without editing this file:
+//   ./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.JlamaStreamingExample
 application {
-    mainClass = 'io.cafeai.examples.HelloCafeAI'
+    mainClass = providers.gradleProperty('mainClass')
+        .orElse('io.cafeai.examples.HelloCafeAI')
+    applicationDefaultJvmArgs = jlamaJvmArgs
+}
+
+tasks.named('test') {
+    jvmArgs jlamaJvmArgs
 }

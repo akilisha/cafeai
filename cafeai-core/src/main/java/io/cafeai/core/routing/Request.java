@@ -4,7 +4,6 @@ import io.cafeai.core.CafeAI;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * The per-request HTTP request object.
@@ -364,7 +363,7 @@ public interface Request {
      *       if (req.stream()) {
      *           res.stream(app.prompt(req.body("message")));
      *       } else {
-     *           res.json(app.complete(req.body("message")));
+     *           res.send(app.prompt(req.body("message")).call().text());
      *       }
      *   });
      * }</pre>

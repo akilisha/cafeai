@@ -14,10 +14,9 @@ import java.util.function.Consumer;
  * response at once — the first sentence is available as audio while the rest
  * of the response is still being assembled.
  *
- * <p>Note: This implementation uses synchronous chunking. True token-by-token
- * streaming (feeding partial tokens to TTS as they arrive) requires
- * {@code app.prompt().stream()} which is not yet implemented. This will be
- * upgraded when streaming is available in a future roadmap item.
+ * <p>Note: This implementation uses synchronous chunking. Feeding partial tokens
+ * to TTS as they arrive (via {@code app.prompt().stream()}) would lower latency
+ * further; that refinement is tracked as a separate roadmap item.
  *
  * <h2>Usage</h2>
  * <pre>{@code

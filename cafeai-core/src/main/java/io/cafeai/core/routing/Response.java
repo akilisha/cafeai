@@ -1,10 +1,10 @@
 package io.cafeai.core.routing;
 
 import io.cafeai.core.CafeAI;
-import java.util.concurrent.Flow;
 
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.Flow;
 
 /**
  * The per-request HTTP response builder.
@@ -322,14 +322,39 @@ public interface Response {
      * <p>This method is terminal — calling any other send method after
      * {@code stream()} throws {@link IllegalStateException}.
      *
+     * <p><strong>Blocks</strong> the request handler (a virtual thread) until the
+     * publisher completes — Helidon SE's request model requires the handler to
+     * hold the thread while the response streams. Feed the publisher from a
+     * <em>separate</em> thread started <em>before</em> this call:
      * <pre>{@code
-     *   app.post("/chat", (req, res, next) ->
-     *       res.stream(app.prompt(req.body("message"))));
+     *   var publisher = new SubmissionPublisher<String>();
+     *   Thread.ofVirtual().start(() -> {
+     *       try { produce(publisher::submit); } finally { publisher.close(); }
+     *   });
+     *   res.stream(publisher);   // blocks until publisher.close()
      * }</pre>
+     * The {@link #stream(io.cafeai.core.ai.PromptRequest)} overload handles this
+     * wiring for you.
      *
      * @param tokens a reactive publisher of string tokens
      */
     void stream(Flow.Publisher<String> tokens);
+
+    /**
+     * Streams an LLM prompt response as Server-Sent Events — the common case.
+     * Equivalent to {@code stream(prompt.stream())}: the model call runs on a
+     * virtual thread and tokens are forwarded to the client as they arrive.
+     *
+     * <p>Terminal, like {@link #stream(java.util.concurrent.Flow.Publisher)}.
+     *
+     * <pre>{@code
+     *   app.post("/chat", (req, res, next) ->
+     *       res.stream(app.prompt(req.body("message"))));
+     * }</pre>
+     */
+    default void stream(io.cafeai.core.ai.PromptRequest prompt) {
+        stream(prompt.stream());
+    }
 
     // ── Paired Request ────────────────────────────────────────────────────────
 

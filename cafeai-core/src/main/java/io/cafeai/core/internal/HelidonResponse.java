@@ -1,18 +1,21 @@
 package io.cafeai.core.internal;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.routing.*;
+import io.cafeai.core.routing.ContentMap;
+import io.cafeai.core.routing.CookieOptions;
+import io.cafeai.core.routing.Request;
+import io.cafeai.core.routing.Response;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.Status;
 import io.helidon.webserver.http.ServerResponse;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.io.IOException;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Flow;
 
@@ -356,6 +359,14 @@ public final class HelidonResponse implements Response {
         setHeader("Connection",    "keep-alive");
         commit();
 
+        // Helidon SE has a blocking, virtual-thread request model: the handler must
+        // hold the request thread until the response is finished. So open the
+        // output stream here (on the request thread) and block until the publisher
+        // completes, writing SSE frames as tokens arrive. A blocked virtual thread
+        // is cheap — this is the idiomatic Helidon SE streaming shape.
+        final java.io.OutputStream out = helidonRes.outputStream();
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+
         tokens.subscribe(new Flow.Subscriber<>() {
             private Flow.Subscription subscription;
 
@@ -368,35 +379,44 @@ public final class HelidonResponse implements Response {
             @Override
             public void onNext(String token) {
                 try {
-                    helidonRes.outputStream()
-                        .write(("data: " + token + "\n\n")
-                            .getBytes(StandardCharsets.UTF_8));
-                    helidonRes.outputStream().flush();
+                    out.write(("data: " + token + "\n\n").getBytes(StandardCharsets.UTF_8));
+                    out.flush();
                 } catch (IOException e) {
                     subscription.cancel();
+                    done.countDown();
                 }
             }
 
             @Override
             public void onError(Throwable t) {
                 try {
-                    helidonRes.outputStream()
-                        .write("data: [ERROR]\n\n"
-                            .getBytes(StandardCharsets.UTF_8));
-                    helidonRes.outputStream().close();
-                } catch (IOException ignored) {}
+                    out.write("data: [ERROR]\n\n".getBytes(StandardCharsets.UTF_8));
+                } catch (IOException ignored) {
+                } finally {
+                    done.countDown();
+                }
             }
 
             @Override
             public void onComplete() {
                 try {
-                    helidonRes.outputStream()
-                        .write("data: [DONE]\n\n"
-                            .getBytes(StandardCharsets.UTF_8));
-                    helidonRes.outputStream().close();
-                } catch (IOException ignored) {}
+                    out.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                } catch (IOException ignored) {
+                } finally {
+                    done.countDown();
+                }
             }
         });
+
+        try {
+            done.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            out.close();
+        } catch (IOException ignored) {}
     }
 
     // -- Paired Request --------------------------------------------------------

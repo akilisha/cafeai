@@ -1,46 +1,40 @@
 package io.cafeai.core.internal;
 
-import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.AiProvider;
-import io.cafeai.core.ai.ModelRouter;
-import io.cafeai.core.guardrails.GuardRail;
-import io.cafeai.core.memory.MemoryStrategy;
-import io.cafeai.core.ai.PromptRequest;
-import io.cafeai.core.ai.PromptResponse;
-import io.cafeai.core.ai.Template;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
+import io.cafeai.core.CafeAI;
+import io.cafeai.core.Locals;
+import io.cafeai.core.ResponseFormatter;
+import io.cafeai.core.Setting;
+import io.cafeai.core.ai.*;
+import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.ConversationContext;
+import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.core.routing.*;
+import io.cafeai.core.routing.Request;
+import io.cafeai.core.routing.Response;
+import io.cafeai.core.routing.Router;
 import io.cafeai.core.spi.CafeAIConfigurer;
 import io.cafeai.core.spi.CafeAIModule;
-import io.cafeai.core.spi.CafeAIRegistry;
-
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.WebServerConfig;
-import io.helidon.webserver.http.Filter;
-import io.helidon.webserver.http.Handler;
-import io.helidon.webserver.http.HttpRouting;
-import io.helidon.webserver.http.ServerRequest;
-import io.helidon.webserver.http.ServerResponse;
+import io.helidon.webserver.http.*;
 import io.helidon.webserver.websocket.WsRouting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
-import io.cafeai.core.Locals;
-import io.cafeai.core.ResponseFormatter;
-import io.cafeai.core.Setting;
-import io.cafeai.core.middleware.ErrorMiddleware;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -232,19 +226,20 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public PromptRequest prompt(String message) {
         Objects.requireNonNull(message, "Prompt message must not be null");
-        return new PromptRequest(message, this::executePrompt);
+        return new PromptRequest(message, this::executePrompt, this::executePromptStream);
     }
 
     @Override
     public PromptRequest prompt(String templateName, Map<String, Object> vars) {
         Objects.requireNonNull(templateName, "Template name must not be null");
         String rendered = template(templateName).render(vars != null ? vars : Map.of());
-        return new PromptRequest(rendered, this::executePrompt);
+        return new PromptRequest(rendered, this::executePrompt, this::executePromptStream);
     }
 
     @Override
     public io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType) {
-        return new io.cafeai.core.ai.VisionRequest(prompt, content, mimeType, this::executeVision);
+        return new io.cafeai.core.ai.VisionRequest(prompt, content, mimeType, this::executeVision)
+            .withStreamExecutor(this::executeVisionStream);
     }
 
     @Override
@@ -463,6 +458,123 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /**
+     * Streaming counterpart of {@link #executePrompt(PromptRequest)}.
+     *
+     * <p>Resolves the provider, builds the message list (system prompt +
+     * session history + user message), then runs the Langchain4j
+     * {@link StreamingChatModel} on a virtual thread. Tokens are pushed to the
+     * returned {@link java.util.concurrent.Flow.Publisher} as they arrive; on
+     * completion the assembled response is persisted to session memory, recorded
+     * against the token budget, exposed to POST_LLM guardrails, and reported to
+     * observability -- mirroring the non-streaming path.
+     *
+     * <p>RAG retrieval and structured-output schema hints are not applied here;
+     * use {@link #executePrompt(PromptRequest)} when those are needed.
+     */
+    private java.util.concurrent.Flow.Publisher<String> executePromptStream(PromptRequest request) {
+        AiProvider provider = resolveProvider(request);
+        StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
+
+        // -- Build message list: system + history + user ---------------------
+        List<ChatMessage> messages = new ArrayList<>();
+
+        String sysPrompt = request.systemOverride() != null
+            ? request.systemOverride()
+            : systemPrompt;
+        if (sysPrompt != null && !sysPrompt.isBlank()) {
+            messages.add(SystemMessage.from(sysPrompt));
+        }
+
+        if (request.sessionId() != null && memoryStrategy != null) {
+            ConversationContext ctx = memoryStrategy.retrieve(request.sessionId());
+            if (ctx != null) {
+                for (var msg : ctx.messages()) {
+                    if ("user".equalsIgnoreCase(msg.role())) {
+                        messages.add(UserMessage.from(msg.content()));
+                    } else if ("assistant".equalsIgnoreCase(msg.role())) {
+                        messages.add(AiMessage.from(msg.content()));
+                    }
+                }
+            }
+        }
+        messages.add(UserMessage.from(request.message()));
+
+        // Cold publisher: the model call starts only when someone subscribes,
+        // and only after that subscriber is wired to the SubmissionPublisher.
+        // A fast or synchronous provider (a mock, or Jlama on a small model)
+        // must not be able to emit — and close the stream — before the SSE
+        // sink is listening.
+        return subscriber -> {
+            var publisher = new java.util.concurrent.SubmissionPublisher<String>();
+            publisher.subscribe(subscriber);
+            StringBuilder assembled = new StringBuilder();
+
+            Thread.ofVirtual().name("cafeai-prompt-stream").start(() -> {
+                Object observeCtx = observeBridge != null ? observeBridge.beforePrompt(request) : null;
+                try {
+                    if (budgetTracker != null) budgetTracker.waitIfNeeded();
+
+                    model.chat(messages, new StreamingChatResponseHandler() {
+                        @Override
+                        public void onPartialResponse(String token) {
+                            assembled.append(token);
+                            publisher.submit(token);
+                        }
+
+                        @Override
+                        public void onCompleteResponse(ChatResponse response) {
+                            String full = assembled.toString();
+                            TokenUsage usage = response.tokenUsage();
+                            int promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                            int outputTokens = usage != null ? usage.outputTokenCount() : 0;
+
+                            if (budgetTracker != null) {
+                                budgetTracker.recordUsage(promptTokens + outputTokens);
+                            }
+                            if (request.httpRequest() != null) {
+                                request.httpRequest().setAttribute(
+                                    io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, full);
+                            }
+                            if (request.sessionId() != null && memoryStrategy != null) {
+                                ConversationContext ctx = memoryStrategy.retrieve(request.sessionId());
+                                if (ctx == null) ctx = new ConversationContext(request.sessionId());
+                                ctx.addMessage("user",      request.message());
+                                ctx.addMessage("assistant", full);
+                                ctx.addTokens(promptTokens + outputTokens);
+                                memoryStrategy.store(request.sessionId(), ctx);
+                            }
+                            if (observeBridge != null) {
+                                PromptResponse pr = PromptResponse.builder()
+                                    .text(full)
+                                    .promptTokens(promptTokens)
+                                    .outputTokens(outputTokens)
+                                    .modelId(provider.modelId())
+                                    .fromCache(false)
+                                    .build();
+                                observeBridge.afterPrompt(observeCtx, request, pr, null);
+                            }
+                            publisher.close();
+                        }
+
+                        @Override
+                        public void onError(Throwable error) {
+                            if (observeBridge != null) {
+                                observeBridge.afterPrompt(observeCtx, request, null, error);
+                            }
+                            publisher.closeExceptionally(error);
+                        }
+                    });
+                } catch (Throwable t) {
+                    if (observeBridge != null) {
+                        observeBridge.afterPrompt(observeCtx, request, null, t);
+                    }
+                    publisher.closeExceptionally(t);
+                }
+            });
+        };
+    }
+
+    /**
      * Executes a {@link io.cafeai.core.ai.VisionRequest} against the registered
      * multimodal LLM provider.
      *
@@ -645,6 +757,149 @@ public final class CafeAIApp implements CafeAI {
             .outputTokens(outputTokens)
             .modelId(provider.modelId())
             .build();
+    }
+
+    /**
+     * Streaming counterpart of {@link #executeVision(io.cafeai.core.ai.VisionRequest)}.
+     *
+     * <p>Resolves the vision-capable provider, runs PRE_LLM guardrails on the
+     * prompt text, builds the multimodal message list via {@link VisionMessageBuilder},
+     * then streams tokens from the Langchain4j {@link StreamingChatModel} to
+     * {@code onChunk}. Blocks until generation completes; on completion the
+     * assembled text is run through POST_LLM guardrails and persisted to session
+     * memory (text only).
+     *
+     * <p>Because tokens are emitted as they arrive, POST_LLM guardrails cannot
+     * suppress an in-flight token — they gate what reaches memory and the
+     * {@code LLM_RESPONSE_TEXT} attribute, not the stream itself.
+     */
+    private void executeVisionStream(
+            io.cafeai.core.ai.VisionRequest request,
+            java.util.function.Consumer<String> onChunk) {
+
+        // -- Resolve provider + verify vision support -----------------------
+        AiProvider provider;
+        if (request.providerName() != null) {
+            provider = namedProviders.get(request.providerName());
+            if (provider == null) {
+                throw new IllegalStateException(
+                    "No provider registered with name '" + request.providerName() + "'. " +
+                    "Registered named providers: " + namedProviders.keySet() + ".");
+            }
+        } else if (aiProvider != null) {
+            provider = aiProvider;
+        } else if (modelRouter != null) {
+            provider = modelRouter.complexModel();
+        } else {
+            throw new IllegalStateException(
+                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                "For vision calls, use a vision-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+        }
+        if (!provider.supportsVision()) {
+            throw new io.cafeai.core.ai.VisionRequest.VisionNotSupportedException(
+                "The registered provider '" + provider.modelId() + "' does not support " +
+                "vision/multimodal input. Use a vision-capable provider: " +
+                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+        }
+
+        // -- PRE_LLM guardrails on the prompt text --------------------------
+        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
+            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
+                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
+                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
+                    rail.checkOutput(request.prompt());
+                if (result.isViolation()) {
+                    throw new RuntimeException(
+                        "Vision prompt blocked by guardrail '" + rail.name() +
+                        "': " + result.reason());
+                }
+            }
+        }
+
+        // -- Build history + system + multimodal message list --------------
+        List<ChatMessage> history = new ArrayList<>();
+        if (request.sessionId() != null && memoryStrategy != null) {
+            io.cafeai.core.memory.ConversationContext ctx =
+                memoryStrategy.retrieve(request.sessionId());
+            if (ctx != null) {
+                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
+                    if ("user".equals(msg.role()))      history.add(UserMessage.from(msg.content()));
+                    else if ("assistant".equals(msg.role())) history.add(AiMessage.from(msg.content()));
+                }
+            }
+        }
+        String sysPrompt = request.systemOverride() != null
+            ? request.systemOverride()
+            : this.systemPrompt;
+        List<ChatMessage> messages = VisionMessageBuilder.build(
+            request.prompt(), request.content(), request.mimeType(), sysPrompt, history);
+
+        StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
+
+        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+        Object observeCtx = observeBridge != null ? observeBridge.beforeVision(request) : null;
+
+        CountDownLatch done = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<Throwable> error = new java.util.concurrent.atomic.AtomicReference<>();
+        StringBuilder assembled = new StringBuilder();
+
+        model.chat(messages, new StreamingChatResponseHandler() {
+            @Override
+            public void onPartialResponse(String token) {
+                assembled.append(token);
+                onChunk.accept(token);
+            }
+
+            @Override
+            public void onCompleteResponse(ChatResponse response) {
+                TokenUsage usage = response.tokenUsage();
+                int promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                int outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+
+                String full = applyPostLlmGuardrails(assembled.toString());
+
+                if (observeBridge != null) {
+                    io.cafeai.core.ai.VisionResponse partial = io.cafeai.core.ai.VisionResponse.builder()
+                        .text(full).promptTokens(promptTokens).outputTokens(outputTokens)
+                        .modelId(provider.modelId()).build();
+                    observeBridge.afterVision(observeCtx, request, partial, null);
+                }
+                if (request.httpRequest() != null) {
+                    request.httpRequest().setAttribute(
+                        io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, full);
+                }
+                if (request.sessionId() != null && memoryStrategy != null) {
+                    io.cafeai.core.memory.ConversationContext ctx =
+                        memoryStrategy.retrieve(request.sessionId());
+                    if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
+                    ctx.addMessage("user",      request.prompt());
+                    ctx.addMessage("assistant", full);
+                    ctx.addTokens(promptTokens + outputTokens);
+                    memoryStrategy.store(request.sessionId(), ctx);
+                }
+                done.countDown();
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                if (observeBridge != null) observeBridge.afterVision(observeCtx, request, null, t);
+                error.set(t);
+                done.countDown();
+            }
+        });
+
+        try {
+            done.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while streaming the vision response", e);
+        }
+        Throwable t = error.get();
+        if (t instanceof RuntimeException re) throw re;
+        if (t instanceof Error er) throw er;
+        if (t != null) throw new RuntimeException(t);
     }
 
     /**

@@ -37,6 +37,8 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-anthropic'
     // Ollama (local models via llama.cpp)
     implementation 'dev.langchain4j:langchain4j-ollama'
+    // Jlama (pure-Java in-process inference — no server, no native code)
+    implementation 'dev.langchain4j:langchain4j-jlama'
 
     // ── Serialization ────────────────────────────────────────
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"

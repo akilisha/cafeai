@@ -14,10 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for CafeAI — full HTTP round-trip over a real Helidon SE server.
@@ -177,6 +176,11 @@ class CafeAIIntegrationTest {
         app.post("/is-json",
             (req, res, next) ->
                 res.json(Map.of("isJson", req.is("application/json"))));
+
+        // ── LLM streaming: res.stream(PromptRequest) → SSE ────────────────────
+        app.ai(new StreamingProvider("Hel", "lo", " ", "SSE"));
+        app.post("/sse-chat",
+            (req, res, next) -> res.stream(app.prompt(req.body("message"))));
 
         // ── Variadic inline middleware chain ──────────────────────────────────
         Middleware stamp = (req, res, next) -> {
@@ -680,5 +684,60 @@ class CafeAIIntegrationTest {
         var res = get("/helidon-native");
         assertThat(res.statusCode()).isEqualTo(200);
         assertThat(res.body()).isEqualTo("raw-helidon-response");
+    }
+
+    // ── Tests: LLM streaming ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST /sse-chat — res.stream(app.prompt(...)) streams tokens as SSE")
+    void sseChat_streamsPromptTokens() throws Exception {
+        var res = http.send(
+            HttpRequest.newBuilder(URI.create(base + "/sse-chat"))
+                .version(HttpClient.Version.HTTP_1_1)   // SSE is an HTTP/1.1 pattern
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"message\":\"hi\"}"))
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+
+        assertThat(res.statusCode()).isEqualTo(200);
+        assertThat(res.headers().firstValue("Content-Type").orElse(""))
+            .contains("text/event-stream");
+        assertThat(res.body())
+            .contains("data: Hel")
+            .contains("data: lo")
+            .contains("data: SSE")
+            .contains("data: [DONE]");
+    }
+
+    /** Mock provider that streams a fixed token list via the streaming test seam. */
+    static final class StreamingProvider
+            implements io.cafeai.core.ai.AiProvider,
+                       io.cafeai.core.internal.LangchainBridge.StreamingChatModelAccess {
+
+        private final java.util.List<String> tokens;
+
+        StreamingProvider(String... tokens) { this.tokens = java.util.List.of(tokens); }
+
+        @Override public String name()    { return "it-stream-mock"; }
+        @Override public String modelId() { return "it-stream-model"; }
+        @Override public ProviderType type() { return ProviderType.CUSTOM; }
+
+        @Override
+        public dev.langchain4j.model.chat.StreamingChatModel toStreamingChatModel() {
+            var toks = tokens;
+            return new dev.langchain4j.model.chat.StreamingChatModel() {
+                @Override
+                public void chat(java.util.List<dev.langchain4j.data.message.ChatMessage> messages,
+                                 dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {
+                    toks.forEach(handler::onPartialResponse);
+                    handler.onCompleteResponse(
+                        dev.langchain4j.model.chat.response.ChatResponse.builder()
+                            .aiMessage(dev.langchain4j.data.message.AiMessage.from(String.join("", toks)))
+                            .tokenUsage(new dev.langchain4j.model.output.TokenUsage(2, 3))
+                            .build());
+                }
+            };
+        }
     }
 }
