@@ -2,14 +2,20 @@
 
 **Current Status:** 🔴 Not Started
 
+> **Superseded (agent phases).** Phases 1–6 below describe a bespoke ReAct loop,
+> `AgentDefinition` builder, and `app.orchestrate()` primitive. That design was
+> abandoned — CafeAI binds LangChain4j `AiServices` instead of reimplementing the
+> reasoning loop. The current plan is **ROADMAP-12 / MILESTONE-12**. Phases 7–12
+> (PgVector, OTel, hybrid retrieval, 0.2.0 release) still stand.
+
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 1 | ReAct agent loop (`cafeai-agents`) | 🔴 |
-| 2 | `AgentDefinition` API | 🔴 |
-| 3 | `app.agent()` entry point | 🔴 |
-| 4 | Multi-agent orchestration (Structured Concurrency) | 🔴 |
-| 5 | `app.orchestrate()` entry point | 🔴 |
-| 6 | nova-tutor agent integration | 🔴 |
+| 1 | ~~ReAct agent loop~~ | ⚫ Superseded by ROADMAP-12 |
+| 2 | ~~`AgentDefinition` API~~ | ⚫ Superseded by ROADMAP-12 |
+| 3 | ~~`app.agent()` entry point~~ (ReAct flavour) | ⚫ Superseded by ROADMAP-12 |
+| 4 | ~~Multi-agent orchestration (Structured Concurrency)~~ | ⚫ Superseded by ROADMAP-12 |
+| 5 | ~~`app.orchestrate()` entry point~~ | ⚫ Superseded by ROADMAP-12 |
+| 6 | ~~nova-tutor agent integration~~ | ⚫ Superseded by ROADMAP-12 |
 | 7 | PgVector implementation | 🔴 |
 | 8 | PgVector integration test | 🔴 |
 | 9 | Real OpenTelemetry spans | 🔴 |
@@ -19,159 +25,22 @@
 
 ---
 
-## Phase 1 — ReAct Agent Loop
+## Phases 1–6 — Agents & Orchestration &nbsp;⚫ Superseded by ROADMAP-12
 
-**Status:** 🔴 Not Started
+The original plan here was a CafeAI-owned **ReAct loop** (`ReActAgent`,
+`AgentResult.trace()`, `maxIterations`), an **`AgentDefinition.react()`** builder,
+and an **`app.orchestrate()`** primitive with `StructuredTaskScope` fan-out.
 
-### Acceptance Criteria
-- [ ] `ReActAgent` class in `cafeai-agents` implements the reason/act loop
-- [ ] `AgentResult` carries final answer and full reasoning trace
-- [ ] `maxIterations` guard throws `AgentMaxIterationsException`
-- [ ] Tool errors are caught and returned as observations, not exceptions
-- [ ] Each iteration traced via `ObserveBridge`
-- [ ] Agent unit tests: 2-iteration success, max iterations exceeded,
-      tool error handled gracefully
+That was abandoned. CafeAI does not reimplement the reasoning loop, tool dispatch,
+or multi-agent orchestration — **LangChain4j `AiServices` owns all of it**. CafeAI
+writes only the HTTP binding (typed agent interface → `AiService`, plus session
+threading, guardrail pre-screening, an observability context). Multi-agent
+workflows are supervisor-as-tool or a middleware chain, not a bespoke primitive.
 
-### ReAct Loop Contract
-```
-while not finished and iterations < maxIterations:
-    thought = prompt(state + tools)
-    if thought.isFinal():
-        return AgentResult(thought.answer, trace)
-    action = thought.action
-    observation = tools.invoke(action.tool, action.args)
-    state = state + [thought, observation]
-    iterations++
-throw AgentMaxIterationsException(maxIterations)
-```
+Current plan: **[ROADMAP-12](ROADMAP-12-agents.md)** / **[MILESTONE-12](MILESTONE-12-agents.md)**.
 
-### Notes
-<!-- Add implementation notes here -->
-
----
-
-## Phase 2 — `AgentDefinition` API
-
-**Status:** 🔴 Not Started
-
-### Acceptance Criteria
-- [ ] `AgentDefinition.react()` fluent builder
-- [ ] `.tools(Object... toolObjects)` — registers `@CafeAITool` methods
-- [ ] `.maxIterations(int)` — loop guard (default: 5)
-- [ ] `.systemPrompt(String)` — agent-specific system prompt
-- [ ] `.provider(String name)` — use named provider for reasoning
-- [ ] `.stopWhen(StopCondition)` — early exit condition
-- [ ] `AgentDefinition` is immutable once built
-
-### Notes
-<!-- Add implementation notes here -->
-
----
-
-## Phase 3 — `app.agent()` Entry Point
-
-**Status:** 🔴 Not Started
-
-### Acceptance Criteria
-- [ ] `CafeAI.agent(String name, AgentDefinition def)` registers an agent
-- [ ] `CafeAI.agent(String name)` returns an `AgentRequest`
-- [ ] `AgentRequest.run(String input)`, `.session(String)`, `.call()` chain
-- [ ] `AgentResult.answer()`, `.trace()`, `.iterations()` accessible
-- [ ] `beforeAgent`/`afterAgent` hooks on `ObserveBridge`
-- [ ] Guardrails apply to agent final output (POST_LLM position)
-- [ ] Unknown agent name throws with helpful message
-- [ ] `./gradlew :cafeai-agents:test` — all tests pass
-
-### Usage
-```java
-app.agent("qualifier", AgentDefinition.react()
-    .tools(new CreditCheckTool(), new ComplianceTool())
-    .maxIterations(5)
-    .provider("tutor"));
-
-AgentResult result = app.agent("qualifier")
-    .run("Qualify applicant A123 for $250,000 mortgage")
-    .session("applicant-A123")
-    .call();
-
-System.out.println(result.answer());     // final answer
-System.out.println(result.iterations()); // how many iterations
-result.trace().forEach(System.out::println); // reasoning trace
-```
-
-### Notes
-<!-- Add implementation notes here -->
-
----
-
-## Phase 4 — Multi-Agent Orchestration
-
-**Status:** 🔴 Not Started
-
-### Acceptance Criteria
-- [ ] `StructuredTaskScope.ShutdownOnFailure` used for agent fan-out
-- [ ] All agents in scope cancelled immediately if any fails
-- [ ] `OrchestrationResult` carries results from all agents
-- [ ] `OrchestrationResult.get(String agentName)` retrieves individual result
-- [ ] Orchestration traced end-to-end via `ObserveBridge`
-- [ ] Unit tests: all succeed, one fails (all cancelled), timeout behaviour
-
-### Structured Concurrency Contract
-```
-ShutdownOnFailure scope:
-    fork all agents as subtasks
-    join — blocks until all complete or any fails
-    if any failed: throwIfFailed() propagates first failure
-    all subtasks cancelled on failure — no resource leaks
-```
-
-### Notes
-<!-- Add implementation notes here -->
-
----
-
-## Phase 5 — `app.orchestrate()` Entry Point
-
-**Status:** 🔴 Not Started
-
-### Acceptance Criteria
-- [ ] `CafeAI.orchestrate(String name, String... agentNames)` registers pipeline
-- [ ] `CafeAI.orchestrate(String name)` (no agents) returns `OrchestrationRequest`
-- [ ] `OrchestrationRequest.input(String)`, `.session(String)`, `.call()` chain
-- [ ] All named agents must be registered before orchestration is defined
-- [ ] Unknown agent name in orchestration throws at registration time (not call time)
-
-### Usage
-```java
-app.orchestrate("loan-pipeline", "classifier", "qualifier", "compliance");
-
-OrchestrationResult result = app.orchestrate("loan-pipeline")
-    .input(applicantData)
-    .session("A123")
-    .call();
-
-result.get("qualifier").answer();   // → "APPROVED"
-result.get("compliance").answer();  // → "COMPLIANT"
-```
-
-### Notes
-<!-- Add implementation notes here -->
-
----
-
-## Phase 6 — nova-tutor Agent Integration
-
-**Status:** 🔴 Not Started  
-**Depends on:** Phases 1–5, Capstone 5 Phases 1–5
-
-### Acceptance Criteria
-- [ ] `nova-tutor` `TutorAgent.java` manual loop replaced with `app.agent()`
-- [ ] `WhiteboardTool` and `LessonProgressTool` registered as `@CafeAITool`
-- [ ] End-to-end test passes with agent-based loop
-- [ ] Reasoning trace visible in observability output
-
-### Notes
-<!-- Add implementation notes here -->
+*(nova-tutor's manual agent loop, formerly Phase 6, migrates to `app.agent()` once
+ROADMAP-12 Phase 5 lands.)*
 
 ---
 
@@ -296,20 +165,22 @@ In-memory BM25 for now. PgVector-backed sparse index is a stretch goal.
 - [ ] POM metadata complete: description, URL, SCM, developers, licenses
 - [ ] GPG signing configured
 - [ ] `./gradlew publishToMavenCentral` succeeds
-- [ ] Artifacts visible at `search.maven.org/artifact/io.cafeai`
+- [ ] Artifacts visible at `search.maven.org/artifact/com.akilisha.oss`
 - [ ] GitHub release `v0.2.0` tagged with release notes
 - [ ] capstone `build.gradle` files updated from `mavenLocal()` to `mavenCentral()`
 
 ### Maven Coordinates
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
 implementation 'com.akilisha.oss:cafeai-guardrails:0.2.0'
 implementation 'com.akilisha.oss:cafeai-observability:0.2.0'
-implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
-implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
 implementation 'com.akilisha.oss:cafeai-security:0.2.0'
-implementation 'com.akilisha.oss:cafeai-tools:0.2.0'
+implementation 'com.akilisha.oss:cafeai-streaming:0.2.0'
+implementation 'com.akilisha.oss:cafeai-connect:0.2.0'
+implementation 'com.akilisha.oss:cafeai-views-mustache:0.2.0'
+// cafeai-agents — added when ROADMAP-12 lands
 ```
 
 ### Notes
@@ -321,13 +192,11 @@ implementation 'com.akilisha.oss:cafeai-tools:0.2.0'
 
 MILESTONE-17 is **complete** when:
 
-1. All 12 phases show ✅ Complete
-2. Test count >= 450 (359 + agent tests + PgVector + OTel + hybrid retrieval)
+1. Phases 7–12 show ✅ Complete (phases 1–6 → tracked under MILESTONE-12)
+2. Test count grows by the PgVector + OTel + hybrid-retrieval suites
 3. `./gradlew clean build` — BUILD SUCCESSFUL, zero warnings
 4. `./gradlew javadoc` — zero warnings
 5. `cafeai` 0.2.0 visible on Maven Central
-6. nova-tutor Capstone 5 uses `app.agent()` for the tutor reasoning loop
-7. `app.orchestrate()` demonstrated in a test
 
 **What success looks like — the full API, realized:**
 
@@ -351,19 +220,16 @@ app.guard(GuardRail.pii());
 app.observe(ObserveStrategy.otel());
 app.budget(TokenBudget.perMinute(60_000));
 
-// Registered agents
-app.agent("tutor", AgentDefinition.react()
-    .tools(new WhiteboardTool(), new LessonProgressTool())
-    .maxIterations(20)
-    .provider("tutor"));
+// Registered agents (see ROADMAP-12 — LangChain4j AiServices binding)
+app.agent("tutor", TutorAgent.class)
+    .tool(new WhiteboardTool()).tool(new LessonProgressTool())
+    .model("tutor");
 
-app.agent("assessor", AgentDefinition.react()
-    .tools(new ComprehensionCheckTool())
-    .maxIterations(3)
-    .provider("tutor"));
-
-// Multi-agent orchestration
-app.orchestrate("lesson-pipeline", "tutor", "assessor");
+app.agent("assessor", AssessorAgent.class)
+    .tool(new ComprehensionCheckTool())
+    .model("tutor");
+// Multi-agent: the tutor agent calls the assessor as a @Tool, or a
+// middleware chain sequences them — no orchestrate() primitive.
 
 // HTTP routes
 app.filter(CafeAI.json());

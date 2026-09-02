@@ -1,10 +1,13 @@
 # ROADMAP-17 — Framework Completeness
 
-> Agents, orchestration, PgVector, real OTel spans, hybrid retrieval,
-> and the 0.2.0 release to Maven Central.
+> PgVector, real OTel spans, hybrid retrieval, and the 0.2.0 release to Maven Central.
 >
 > This roadmap follows Capstone 5 (nova-tutor) and the evangelism push.
 > The framework is already solid. ROADMAP-17 makes it complete.
+>
+> **Superseded:** the agent + orchestration portions of this roadmap have been
+> replaced by **[ROADMAP-12](ROADMAP-12-agents.md)** — CafeAI binds LangChain4j
+> `AiServices` rather than implementing its own ReAct loop / `app.orchestrate()`.
 
 ---
 
@@ -29,44 +32,13 @@ Building in public before the audience exists is how good tools stay unknown.
 
 ## What ROADMAP-17 delivers
 
-### Agents — `app.agent()`
+### Agents & orchestration → moved to ROADMAP-12
 
-```java
-app.agent("qualifier", AgentDefinition.react()
-    .tools(new CreditCheckTool(), new ComplianceTool())
-    .maxIterations(5)
-    .provider("tutor"));
-
-AgentResult result = app.agent("qualifier")
-    .run("Qualify applicant A123 for $250,000 mortgage")
-    .session("applicant-A123")
-    .call();
-
-result.answer();      // final answer
-result.iterations();  // how many tool calls were needed
-result.trace();       // full thought/action/observation log
-```
-
-ReAct loop (Reason + Act): the agent reasons about what to do, calls a tool,
-observes the result, reasons again. Stops when it has a final answer or hits
-`maxIterations`.
-
-### Multi-agent orchestration — `app.orchestrate()`
-
-```java
-app.orchestrate("loan-pipeline", "classifier", "qualifier", "compliance");
-
-OrchestrationResult result = app.orchestrate("loan-pipeline")
-    .input(applicantData)
-    .call();
-
-result.get("classifier").answer();  // CONVENTIONAL
-result.get("qualifier").answer();   // APPROVED
-result.get("compliance").answer();  // COMPLIANT
-```
-
-Powered by Java 21 Structured Concurrency (`ShutdownOnFailure`): all agents
-run concurrently, any failure cancels all, no dangling threads.
+The bespoke `AgentDefinition.react()` builder, `AgentResult.trace()`, and the
+`app.orchestrate()` Structured-Concurrency primitive were dropped. CafeAI binds
+LangChain4j `AiServices` — which owns the reasoning loop, tool dispatch, and chat
+memory — and gives it an HTTP identity. Multi-agent workflows are supervisor-as-tool
+or a middleware chain. See **[ROADMAP-12](ROADMAP-12-agents.md)**.
 
 ### PgVector — `VectorStore.pgVector()`
 
@@ -109,7 +81,8 @@ identifiers — anything with exact-match requirements alongside semantic search
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
-implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
+// + cafeai-memory, -guardrails, -observability, -security, -streaming,
+//   -connect, -views-mustache (cafeai-agents once ROADMAP-12 lands)
 ```
 
 No more `mavenLocal()`. No more `publishToMavenLocal` before every project.
@@ -121,12 +94,7 @@ A versioned, tagged release with stable API guarantees.
 
 | Phase | Description |
 |-------|-------------|
-| 1 | ReAct agent loop |
-| 2 | `AgentDefinition` API |
-| 3 | `app.agent()` entry point |
-| 4 | Multi-agent orchestration (Structured Concurrency) |
-| 5 | `app.orchestrate()` entry point |
-| 6 | nova-tutor agent integration |
+| 1–6 | ~~Agents & orchestration~~ → **[ROADMAP-12](ROADMAP-12-agents.md)** |
 | 7 | PgVector implementation |
 | 8 | PgVector integration test (Testcontainers) |
 | 9 | Real OpenTelemetry spans |

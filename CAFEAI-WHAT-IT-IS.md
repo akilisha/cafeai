@@ -166,7 +166,7 @@ Express-style routing built in. AI calls live inside route handlers.
 ```java
 app.filter(CafeAI.json());
 
-app.post("/classify", (req, res) -> {
+app.post("/classify", (req, res, next) -> {
     byte[] pdf     = req.bodyBytes();
     String result  = app.vision("Classify this document.", pdf, "application/pdf").call().text();
     res.json(Map.of("classification", result));

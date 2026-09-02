@@ -2,7 +2,8 @@
 
 > Closes the three framework gaps surfaced by Capstone 5 (nova-tutor),
 > adds TTS synthesis as a first-class primitive, and pays down accumulated
-> technical debt. ROADMAP-17 handles agents, orchestration, and the 0.2.0 release.
+> technical debt. Agents are ROADMAP-12; PgVector / OTel / hybrid retrieval /
+> the 0.2.0 release are ROADMAP-17.
 
 ---
 

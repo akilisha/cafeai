@@ -2,11 +2,11 @@
 
 > **Note:** `cafeai-tools` was removed in session 9. The module relied on deprecated
 > LangChain4j APIs (`dev.langchain4j.agent.tool`). Tool use and MCP integration
-> will be rebuilt on the current API in ROADMAP-17. This document is preserved
+> will be rebuilt on LangChain4j's current API — see ROADMAP-12 (agents) and ROADMAP-11 (MCP). This document is preserved
 > as a historical record.
 
 **Maps to:** No Express equivalent — these are CafeAI's original contribution  
-**Modules:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`, `cafeai-agents`, `cafeai-guardrails`, `cafeai-observability`, `cafeai-security`, `cafeai-streaming`  
+**Modules:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-guardrails`, `cafeai-observability`, `cafeai-security`, `cafeai-streaming` (`cafeai-tools` removed; `cafeai-agents` → ROADMAP-12)  
 **ADR Reference:** ADR-003, ADR-004, ADR-005 §9  
 **Depends On:** ROADMAP-01 through ROADMAP-06 (full Express foundation complete)  
 **Status:** 🔴 Not Started
@@ -368,7 +368,12 @@ app.post("/support", (req, res, next) ->
 
 ---
 
-### Phase 8 — `app.agent()` + `app.orchestrate()`
+### Phase 8 — `app.agent()` + `app.orchestrate()` &nbsp;⚫ Superseded by ROADMAP-12
+
+> The bespoke `AgentDefinition.react()` / `app.orchestrate()` / `StructuredTaskScope`
+> design below was abandoned. CafeAI binds LangChain4j `AiServices` instead of
+> reimplementing the reasoning loop. Current plan: **[ROADMAP-12](ROADMAP-12-agents.md)**.
+> The rest of this section is a historical record.
 
 **Goal:** Agentic patterns powered by Java 21 Structured Concurrency.
 

@@ -1,24 +1,24 @@
 # MILESTONE-12: CafeAI Agents
 
 **Roadmap:** ROADMAP-12  
-**Module:** `cafeai-agents` (new), `cafeai-core`, `cafeai-guardrails`, `cafeai-observability`  
+**Module:** `cafeai-agents` (new), `cafeai-core`  
 **Started:** —  
-**Current Status:** 🔴 Not Started
+**Current Status:** 🟡 In Progress — Phase 1 complete, Phase 2 next
 
 ---
 
 ## Progress Tracker
 
-| Phase | Description | Module | Status | Completed |
-|---|---|---|---|---|
-| Phase 1 | Helidon 4.4 upgrade (shared with ROADMAP-11) | root `build.gradle` | 🔴 Not Started | — |
-| Phase 2 | `cafeai-agents` module scaffold | `cafeai-agents` | 🔴 Not Started | — |
-| Phase 3 | `AgentRun` and `AgentResult` — fluent API types | `cafeai-agents` | 🔴 Not Started | — |
-| Phase 4 | `AgentBridge` — Helidon lifecycle to CafeAI | `cafeai-agents` | 🔴 Not Started | — |
-| Phase 5 | `app.agent()` API surface | `cafeai-core`, `cafeai-agents` | 🔴 Not Started | — |
-| Phase 6 | Guardrail pre-screening for agents | `cafeai-agents` | 🔴 Not Started | — |
-| Phase 7 | MCP exposure of agents (integration with ROADMAP-11) | `cafeai-mcp` | 🔴 Not Started | — |
-| Phase 8 | Capstone 2 verification | capstone 2 app | 🔴 Not Started | — |
+Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
+
+| Phase | Description | Module | Status |
+|---|---|---|---|
+| 1 | Prerequisites — Helidon 4.4, LangChain4j 1.11, `app.helidon()` | root, `cafeai-core` | 🟢 Complete |
+| 2 | `cafeai-agents` module scaffold | `cafeai-agents` | 🔴 Not Started |
+| 3 | `AgentConfig<T>` — fluent registration API | `cafeai-agents` | 🔴 Not Started |
+| 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-agents` | 🔴 Not Started |
+| 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-agents` | 🔴 Not Started |
+| 6 | Capstone 4 — `invoice-processor` | capstone app | 🔴 Not Started |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised · 🔷 Deferred
 
@@ -26,28 +26,26 @@
 
 ## Measurable Outputs
 
-By the end of this milestone, the following must be demonstrable:
-
 | Output | How Measured |
 |---|---|
-| `app.agent(name, interface)` compiles and registers | Startup log shows agent line |
-| `AgentRun.run(agent -> agent.method(...))` invokes agent | Returns `AgentResult` with text |
-| Session memory threads into agent | Second call in same session has memory of first |
-| Guardrail blocks jailbreak before agent sees it | `AgentGuardRailException` thrown |
+| `app.agent(name, Interface.class)` compiles and registers | Startup log shows agent line |
+| `app.agent(name, Interface.class, sessionId).method(...)` invokes the `AiService` | Returns the interface's return type |
+| Session memory threads into the agent | Second call in same session has memory of the first |
+| Guardrail blocks a jailbreak before the agent's LLM is called | `GuardRailViolationException` thrown |
 | Observability trace fires on agent invocation | Console trace shows agent execution |
-| Agent discoverable via MCP (Phase 7) | `curl http://localhost:8080/mcp` shows agent |
-| Capstone 2 test suite passes | All capstone 2 assertions pass |
-| `cafeai-agents` module published to mavenLocal | `./gradlew publishToMavenLocal` succeeds |
+| Supervisor pattern works — an agent calls another agent as a `@Tool` | Capstone 4 `ApprovalAgent` scenario |
+| `cafeai-agents` published to Maven Central | Part of the 0.2.x release |
 
 ---
 
 ## Key Decisions Recorded
 
 **Why CafeAI does not own the agent loop:**
-The agent loop — reasoning steps, tool dispatch, AgenticScope, termination conditions — is
-Helidon 4.4 + LangChain4j 1.11's domain. Building a competing version would produce something
-worse. CafeAI gives the agent an HTTP identity, session threading, guardrail protection, and
-observability. The loop itself is opaque to CafeAI.
+The agent loop — reasoning steps, tool dispatch, chat memory, termination conditions — is
+LangChain4j `AiServices`' domain. CafeAI calls `AiServices.builder()` directly (not Helidon's
+`@Ai.Agent` annotation, which needs Helidon Inject), pre-wires the common path, and exposes the
+full builder via `.configure()`. CafeAI adds an HTTP identity, session threading, guardrail
+protection, and observability. The loop itself is opaque to CafeAI.
 
 **Why the rejected alternatives matter:**
 Three designs were explored: Chains/Steps (removed — duplicated middleware), building a
@@ -56,10 +54,11 @@ as backing execution engine (explored — sound design, wrong question). The rej
 documented in SPEC.md §11.2. Understanding what was rejected is as important as understanding
 what was chosen.
 
-**Why `app.agent()` follows the same pattern as `app.tool()`, `app.memory()`, etc.:**
-The naming philosophy requires consistency. A developer who knows `app.tool(new GitHubTools())`
-and `app.memory(MemoryStrategy.inMemory())` should be able to guess `app.agent("name", Interface.class)`
-before reading the documentation. The pattern is the API.
+**Why `app.agent()` follows the same pattern as `app.memory()`, `app.guard()`, etc.:**
+The naming philosophy requires consistency. A developer who knows
+`app.memory(MemoryStrategy.inMemory())` and `app.guard(GuardRail.pii())` should be able to
+guess `app.agent("name", Interface.class)` before reading the documentation. The pattern is
+the API.
 
 **Why guardrails apply to agents:**
 An agent that can call tools and affect external systems is a higher-risk target than a plain
@@ -78,7 +77,10 @@ durable execution is needed in practice (capstone 2 and beyond will surface this
 
 ## Dependencies
 
-- Helidon 4.4.0+ (provides agentic LangChain4j support, LangChain4j 1.11)
-- ROADMAP-07 Phases 7, 9 complete (guardrails and observability)
-- ROADMAP-11 Phase 1 complete (Helidon upgrade — shared prerequisite)
-- ROADMAP-11 Phase 3–4 complete (MCP bridge built — required for Phase 7)
+- Helidon 4.4.0 + LangChain4j 1.11.0 (on the classpath via the BOM — `AiServices`,
+  `ChatMemory`, `@Tool`, `McpToolProvider`) ✅
+- `cafeai-guardrails` and `cafeai-observability` (guardrail pre-screening + trace context) ✅
+- `app.helidon()` escape hatch (for exposing an agent as an MCP tool) ✅
+
+MCP *exposure* of an agent is not a phase here — it's the supervisor/`app.helidon()`
+pattern described in ROADMAP-12's mental-model section.

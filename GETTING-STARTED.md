@@ -1,24 +1,55 @@
 # Getting Started with CafeAI
 
+## Using CafeAI in Your Project
+
+CafeAI is published to Maven Central under `com.akilisha.oss`. If you just want to
+build an app *with* CafeAI, this is all you need — the rest of this document is
+for building or contributing to CafeAI itself.
+
+**Gradle** (`build.gradle`)
+```groovy
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.1.3'
+    // add capability modules as needed — cafeai-memory, cafeai-rag,
+    // cafeai-guardrails, cafeai-observability, cafeai-security,
+    // cafeai-streaming, cafeai-connect, cafeai-views-mustache
+}
+```
+
+**Maven** (`pom.xml`)
+```xml
+<dependency>
+  <groupId>com.akilisha.oss</groupId>
+  <artifactId>cafeai-core</artifactId>
+  <version>0.1.3</version>
+</dependency>
+```
+
+Requires **Java 23+**. For a local `Jlama` model, add
+`--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` to your
+run arguments.
+
+---
+
 ## Prerequisites
 
-- **Java 21+** — required for FFM API, Structured Concurrency, Virtual Threads
+- **Java 23+** — required for the FFM API, the Vector API (Jlama), and Virtual Threads
 - **IntelliJ IDEA** 2023.3+ (recommended) or any IDE with Gradle support
 - **Git**
 
 ## First-Time Setup
 
-### 1. Bootstrap the Gradle Wrapper
+### 1. Clone and build
 
-The `gradle-wrapper.jar` is not included in the repository (binary file).
-Generate it once after cloning:
+The Gradle wrapper is committed — no local Gradle install needed. The wrapper
+downloads Gradle 9.7.1 and all dependencies on first run.
 
 ```bash
-# Option A — if you have Gradle installed locally
-gradle wrapper --gradle-version 8.10
-
-# Option B — IntelliJ IDEA will offer to download Gradle automatically
-# when you open the project. Click "Load Gradle Project" when prompted.
+git clone https://github.com/akilisha/cafeai.git
+cd cafeai
+./gradlew build
 ```
 
 ### 2. Open in IntelliJ IDEA
@@ -27,8 +58,8 @@ gradle wrapper --gradle-version 8.10
 File → Open → select the cafeai/ directory → Open as Project
 ```
 
-IntelliJ will detect `settings.gradle` and prompt to load the Gradle project.
-Accept. It will download Gradle 8.10 and all dependencies automatically.
+IntelliJ detects `settings.gradle` and prompts to load the Gradle project.
+Accept — it uses the wrapper's Gradle 9.7.1 and resolves everything automatically.
 
 ### 3. Run HelloCafeAI
 
@@ -44,77 +75,83 @@ Or from the terminal:
 
 ### 4. Test the endpoints
 
+`HelloCafeAI` needs an LLM provider — set `OPENAI_API_KEY`, or edit the source to
+use `Ollama.llama3()` / `Jlama.qwen2()` (no key).
+
 ```bash
 # Health check
 curl http://localhost:8080/health
 
-# Echo (demonstrates req/res round-trip)
-curl -X POST http://localhost:8080/echo \
+# One-shot question
+curl -X POST http://localhost:8080/ask \
      -H "Content-Type: application/json" \
-     -d '{"message":"hello cafeai"}'
+     -d '{"question":"What is a virtual thread?"}'
 
-# Path parameter
-curl http://localhost:8080/users/42
+# Session-aware chat (X-Session-Id threads conversation history)
+curl -X POST http://localhost:8080/chat \
+     -H "Content-Type: application/json" -H "X-Session-Id: demo" \
+     -d '{"message":"My name is Ada."}'
 
-# Rate-limited endpoint
-curl http://localhost:8080/api/hello
+# Template-based classification
+curl -X POST http://localhost:8080/classify \
+     -H "Content-Type: application/json" \
+     -d '{"message":"Where is my package?"}'
 ```
 
 ## Project Structure
 
 ```
 cafeai/
-├── cafeai-core/          ← Start here — the Express API + AI primitives
-├── cafeai-memory/        ← Tiered context memory (build after ROADMAP-01)
-├── cafeai-rag/           ← RAG pipeline (build after ROADMAP-07 Phase 4)
-├── cafeai-tools/         ← Tool use + MCP (build after ROADMAP-07 Phase 5)
-├── cafeai-agents/        ← Multi-agent (build after ROADMAP-07 Phase 8)
-├── cafeai-guardrails/    ← Guardrails (build after ROADMAP-07 Phase 7)
-├── cafeai-observability/ ← OTel (build after ROADMAP-07 Phase 9)
-├── cafeai-security/      ← Security layer (build after ROADMAP-07 Phase 10)
-├── cafeai-streaming/     ← SSE/WebSocket (build after ROADMAP-09)
-├── cafeai-examples/      ← Runnable examples — always kept working
+├── cafeai-core/            ← Start here — the Express API + AI primitives
+├── cafeai-memory/          ← Tiered context memory
+├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
+├── cafeai-guardrails/      ← PII, jailbreak, bias, hallucination, regulatory
+├── cafeai-observability/   ← OpenTelemetry, metrics, eval harness
+├── cafeai-security/        ← Prompt injection, data leakage, cache poisoning
+├── cafeai-streaming/       ← SSE / WebSocket token streaming
+├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector, MCP
+├── cafeai-views-mustache/  ← Optional Mustache view engine
+├── cafeai-examples/        ← Runnable examples — always kept working
 └── docs/
-    ├── SPEC.md           ← Full formal specification
-    ├── adr/              ← Architecture Decision Records (ADR-001 to ADR-008)
-    └── roadmap/          ← ROADMAP + MILESTONE documents (01 to 09)
+    ├── SPEC.md             ← Full formal specification
+    ├── adr/                ← Architecture Decision Records
+    └── roadmap/            ← ROADMAP + MILESTONE documents
 ```
 
-## Build Order
+`cafeai-agents` (LangChain4j `AiServices` binding) is planned — see `docs/roadmap/ROADMAP-12`.
 
-Follow the roadmaps in sequence. Each phase has defined acceptance criteria.
-Run `HelloCafeAI` after every phase to confirm nothing regressed.
+## Building and Testing
 
-```
-ROADMAP-01  →  ROADMAP-02  →  ROADMAP-03  →  ROADMAP-04
-     ↓               ↓
-ROADMAP-05       ROADMAP-06
-     ↓
-ROADMAP-08 (DI layer — parallel with 02-06)
-     ↓
-ROADMAP-07 (Gen AI primitives — after Express foundation complete)
-     ↓
-ROADMAP-09 (Connectivity — WebSocket, SSE, gRPC, app.helidon())
+```bash
+./gradlew build            # compile + test every module
+./gradlew :cafeai-core:test # one module
+./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.HelloCafeAI
 ```
 
-## Enable Preview Features
+The `docs/roadmap/` `ROADMAP-*` / `MILESTONE-*` documents track what's been built
+and what's planned; each has explicit acceptance criteria. Publishing to Maven
+Central is covered in `distribution.md`.
 
-Java 21 preview features (required for some FFM and Structured Concurrency APIs)
-are already configured in `build.gradle`:
+## JVM Flags for Local Models (Jlama)
 
-```groovy
-compileJava.options.compilerArgs += ['--enable-preview', '-Xlint:preview']
+CafeAI itself needs no special JVM flags — it targets stable Java 23. The one
+exception is `Jlama`, the pure-Java local inference provider: its model classes
+use the incubating Vector API, so any process that runs a Jlama model must add
+
+```
+--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED
 ```
 
-Your IDE may need `--enable-preview` added to the run configuration JVM args.
-In IntelliJ: Run → Edit Configurations → VM Options → `--enable-preview`
+`cafeai-examples` sets this already. In IntelliJ: Run → Edit Configurations →
+VM Options. Without it, model construction fails with
+`ClassNotFoundException: jdk.incubator.vector.FloatVector`.
 
 ## Key Design Decisions
 
-Before writing any code, read:
+Before changing anything architectural, read:
 
-- `docs/adr/ADR-001` through `ADR-008` — the permanent architectural decisions
+- `docs/adr/` — the Architecture Decision Records (permanent decisions and their rationale)
 - `docs/SPEC.md` — the full formal specification
-- `docs/roadmap/ROADMAP-01` — the first implementation phase
+- `DEVELOPER_GUIDE.md` — how the pieces fit together from a user's perspective
 
-The ADRs answer *why* before the ROADMAPs answer *how*.
+The ADRs answer *why*; the ROADMAPs answer *how*.

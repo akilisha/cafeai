@@ -1,9 +1,29 @@
 # CafeAI Developer Guide
 
-**Version:** 0.1.0-SNAPSHOT  
-**Java:** 21+  
-**Runtime:** Helidon SE 4.x  
-**Last updated:** March 2026
+**Version:** 0.1.3  
+**Java:** 23+  
+**Runtime:** Helidon SE 4.4  
+**Last updated:** September 2026
+
+---
+
+## Getting the Library
+
+CafeAI is on Maven Central under `com.akilisha.oss`. It is modular — pull
+`cafeai-core` plus whichever capability modules you use:
+
+```groovy
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.1.3'
+    // cafeai-memory · cafeai-rag · cafeai-guardrails · cafeai-observability
+    // cafeai-security · cafeai-streaming · cafeai-connect · cafeai-views-mustache
+}
+```
+
+Requires **Java 23+**. Snippets throughout this guide use `com.akilisha.oss:cafeai-*`
+without a version — pin them to `0.1.3` (or import a version catalog).
 
 ---
 
@@ -250,7 +270,7 @@ app.use(async (req, res, next) => {
 });
 ```
 
-In CafeAI, `next.run()` is a real **blocking call** on a Java 21 virtual thread. The thread
+In CafeAI, `next.run()` is a real **blocking call** on a virtual thread. The thread
 parks, the entire downstream chain executes, and control returns to the line after `next.run()`.
 No async ceremony. No `await`. No promise chaining:
 
@@ -1022,27 +1042,26 @@ registered as filters.
 
 ---
 
-### 11.7 What's Coming Next
+### 11.7 Beyond the Core AI Layer
 
-The AI layer in this release covers Phases 1 and 2 of ROADMAP-07. Here's what's ahead:
+The `app.prompt(...)` / `app.vision(...)` / streaming APIs above are the foundation.
+The capability modules build on them:
 
-**Phase 3 — Memory tiers.** `MemoryStrategy.inMemory()` is fully functional. The remaining
-tiers — `mapped()` (SSD-backed, survives restarts), `redis()` (distributed, multi-instance),
-and `hybrid()` (warm SSD + cold Redis) — are stubbed and will be implemented next. For most
-development work, `inMemory()` is all you need.
+- **Memory** — `cafeai-memory` adds SSD-backed (`mapped()`, via the FFM API) and
+  Redis-backed tiers to the in-JVM default. See §14.
+- **RAG** — `cafeai-rag` adds `app.vectordb()`, `app.embed()`, `app.ingest()`,
+  `app.rag()` — prompts grounded in your own documents. See §15.
+- **Guardrails** — `cafeai-guardrails` turns the `GuardRail.*()` factories from
+  logged pass-throughs into real PII / jailbreak / injection / toxicity /
+  regulatory checks. Register them now; adding the module makes them live. See §19.
+- **Observability** — `cafeai-observability` traces and scores every LLM call. See §20.
 
-**Phase 4 — RAG pipeline.** `app.vectordb()`, `app.embed()`, `app.ingest()`, `app.rag()`.
-Ingest a PDF or a directory of documents, and CafeAI automatically retrieves the most
-relevant chunks and injects them into the LLM context before every prompt. This is where
-LLMs stop making things up and start answering from your actual data.
-
-**Phase 5 — Tools and MCP.** `app.tool()` lets you register Java methods as LLM tools —
-the model can invoke them as part of its reasoning. `app.mcp()` connects to any MCP server
-and makes its capabilities available to the LLM alongside your Java tools.
-
-**Phase 7 — Guardrails.** `GuardRail.pii()`, `GuardRail.jailbreak()`, etc. are currently
-pass-through stubs. Full implementations using NLP and classifier models arrive in Phase 7.
-Register them now — the API doesn't change, only the behaviour becomes real.
+**Agents and tool use** are the remaining frontier, and the design changed course.
+Rather than a bespoke ReAct loop, CafeAI binds LangChain4j `AiServices` — which
+already owns tool dispatch, the reasoning loop, and chat memory — to an HTTP
+identity: session threading, guardrail pre-screening, an observability context.
+MCP tools attach the same way, through LangChain4j's `McpToolProvider`, not a
+reimplemented protocol. See `docs/roadmap/ROADMAP-12`.
 
 ---
 
@@ -1200,9 +1219,27 @@ curl -H "Accept: text/event-stream" http://localhost:8080/stream/events
 # data: [DONE]
 ```
 
-LLM response streaming uses the same mechanism — `res.stream()` accepts any
-`Flow.Publisher<String>`. Once the RAG and streaming phases are complete,
-`app.prompt().stream()` will return one directly.
+LLM response streaming uses the same mechanism. `res.stream()` takes a
+`PromptRequest` directly:
+
+```java
+app.post("/chat", (req, res, next) ->
+    res.stream(app.prompt(req.body("message"))));
+```
+
+The LLM call runs on a virtual thread; tokens are emitted as the model produces
+them. Session memory, the token budget, and observability apply exactly as for
+`.call()`. (RAG retrieval and structured output are `.call()`-only.)
+
+`res.stream()` also accepts any `Flow.Publisher<String>` — `app.prompt(...).stream()`
+returns one if you need to bridge to another reactive library. And for
+hand-consuming tokens outside an HTTP response, the callback form blocks until
+the stream finishes and needs no `Flow.Subscriber`:
+
+```java
+app.prompt("Explain virtual threads").stream(System.out::print);
+app.vision("Describe this.", bytes, "image/png").stream(chunk -> ui.append(chunk));
+```
 
 ---
 
@@ -1523,7 +1560,6 @@ in between. You register them with module-specific methods:
 ```java
 app.memory(MemoryStrategy.inMemory());         // cafeai-memory in-process
 app.vectordb(VectorStore.inMemory());          // cafeai-rag in-process
-app.tool(new MyTools());                       // cafeai-tools in-process
 ```
 
 **Out-of-process connections** run in separate processes. Redis doesn't start
@@ -1535,7 +1571,6 @@ reachable, unreachable, or degraded. You register them all through one surface:
 app.connect(Redis.at("redis:6379"));
 app.connect(Ollama.at("http://ollama:11434").model("llama3"));
 app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai"));
-app.connect(McpEndpoint.at("http://mcp-server:3000"));
 ```
 
 This distinction is not cosmetic. A binary present/absent model is wrong for
@@ -1551,15 +1586,14 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-connect'   // unlocks app.connect()
     implementation 'com.akilisha.oss:cafeai-memory'    // for Redis.at() to register memory
     implementation 'com.akilisha.oss:cafeai-rag'       // for PgVector.at() to register vectordb
-    implementation 'com.akilisha.oss:cafeai-tools'     // for McpEndpoint.at() to register tools
 }
 ```
 
 `cafeai-connect` only hard-requires `cafeai-core`. The other modules are
 needed if you use connectors that register into them (`Redis` → `cafeai-memory`,
-`PgVector` → `cafeai-rag`, `McpEndpoint` → `cafeai-tools`).
+`PgVector` → `cafeai-rag`).
 
-### 17.3 The four built-in connectors
+### 17.3 The three built-in connectors
 
 **Redis** — connects to a Redis server and registers it as the memory strategy:
 
@@ -1583,13 +1617,11 @@ app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai"));
 app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai").credentials("user", "pass"));
 ```
 
-**McpEndpoint** — connects to an MCP server and registers its tools (requires
-`cafeai-tools`):
-
-```java
-app.connect(McpEndpoint.at("http://github-mcp:3000"));
-app.connect(McpEndpoint.at("http://filesystem-mcp:3001"));
-```
+> **MCP endpoints — planned.** Connecting to an MCP server as a `Connection`
+> (three-state reachability, fallback policy, the same as the connectors above)
+> is on the roadmap. The current thinking is to bind LangChain4j's MCP client
+> (`McpToolProvider`) to that surface rather than reimplement the protocol — see
+> `docs/roadmap/ROADMAP-11` and `ROADMAP-12`.
 
 ### 17.4 Fallback policies — operational intelligence at the connection level
 
@@ -1616,7 +1648,7 @@ app.connect(Redis.at("redis-primary:6379")
     .onUnavailable(Fallback.connectInstead(Redis.at("redis-replica:6379"))));
 
 // Completely optional service — silently skip if absent
-app.connect(McpEndpoint.at("http://experimental-mcp:3000")
+app.connect(Redis.at("redis-cache:6379")
     .onUnavailable(Fallback.ignore()));
 ```
 

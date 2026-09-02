@@ -2,7 +2,7 @@
 
 **Status:** 🟢 Initial release complete  
 **Module:** `cafeai-connect`  
-**Depends on:** `cafeai-core` (compile), `cafeai-memory` (optional runtime), `cafeai-rag` (optional runtime), `cafeai-tools` *(removed — see ROADMAP-17)*
+**Depends on:** `cafeai-core` (compile), `cafeai-memory` (optional runtime), `cafeai-rag` (optional runtime), `cafeai-tools` *(removed — tool/MCP support → LangChain4j, see ROADMAP-12)*
 
 ---
 

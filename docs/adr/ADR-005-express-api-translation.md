@@ -4,6 +4,13 @@
 **Date:** March 2026  
 **Source:** https://expressjs.com/en/4x/api.html
 
+**Amendment (2026-09):** the agent entries in the API table originally read
+`app.agent(name, def)` / `app.orchestrate(name, agents)`, describing a bespoke
+`AgentDefinition` builder and a Structured-Concurrency orchestration primitive.
+That design was dropped — CafeAI binds LangChain4j `AiServices`. See
+[ROADMAP-12](../roadmap/ROADMAP-12-agents.md). The table below reflects the
+current shape.
+
 ---
 
 ## Purpose
@@ -638,7 +645,7 @@ In CafeAI, this maps to Java 21's **`ScopedValue`** — a request-scoped, immuta
 inheritable value carrier that is explicitly designed for exactly this use case.
 The difference from `ThreadLocal` is important: `ScopedValue` has a defined scope
 lifetime (the request), is safe with virtual threads, and is inherited by child
-threads in a `StructuredTaskScope` — critical for CafeAI's multi-agent pipelines.
+threads forked within the request.
 
 ```java
 // Middleware sets a local
@@ -837,8 +844,7 @@ They are AI-native extensions that follow the same design philosophy.
 | `app.rag(retriever)` | Attach retrieval pipeline |
 | `app.chain(name, steps)` | Named composable pipeline |
 | `app.guard(guardRail)` | Attach guardrail middleware |
-| `app.agent(name, def)` | Register agent definition |
-| `app.orchestrate(name, agents)` | Multi-agent topology |
+| `app.agent(name, Interface.class)` | Register a LangChain4j `AiService` agent (ROADMAP-12) |
 | `app.observe(strategy)` | Attach observability |
 | `app.eval(harness)` | Attach eval harness |
 | `req.stream()` | Detect SSE streaming client |

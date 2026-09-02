@@ -2,13 +2,13 @@
 
 > **Note:** `cafeai-tools` was removed in session 9. The module relied on deprecated
 > LangChain4j APIs (`dev.langchain4j.agent.tool`). Tool use and MCP integration
-> will be rebuilt on the current API in ROADMAP-17. This document is preserved
+> will be rebuilt on LangChain4j's current API — see ROADMAP-12 (agents) and ROADMAP-11 (MCP). This document is preserved
 > as a historical record.
 
 **Roadmap:** ROADMAP-07
-**Module:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-tools`
+**Module:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`
 **Started:** March 2026
-**Current Status:** 🟢 Complete (Phases 1–7, 9–10 done · Phase 8 deferred to separate roadmap)
+**Current Status:** 🟢 Complete (Phases 1–4, 6–7, 9–10 done · Phase 5 `cafeai-tools` removed · Phase 8 agents → ROADMAP-12)
 
 ---
 
@@ -20,10 +20,10 @@
 | Phase 2 | `app.system()` + `app.template()` | `cafeai-core` | 🟢 Complete | March 2026 |
 | Phase 3 | `app.memory()` — tiered context memory | `cafeai-memory` | 🟢 Complete | March 2026 |
 | Phase 4 | `app.vectordb()` + `app.embed()` + `app.ingest()` + `app.rag()` | `cafeai-rag` | 🟢 Complete | March 2026 |
-| Phase 5 | `app.tool()` + `app.mcp()` | `cafeai-tools` | 🟢 Complete | March 2026 |
+| Phase 5 | ~~`app.tool()` + `app.mcp()`~~ | ~~`cafeai-tools`~~ | ⚫ Removed | tool/MCP support → LangChain4j, see ROADMAP-12 |
 | Phase 6 | `app.chain()` — named composable pipelines | `cafeai-core` | 🟢 Complete | March 2026 |
 | Phase 7 | `app.guard()` — guardrails as middleware | `cafeai-guardrails` | 🟢 Complete | March 2026 |
-| Phase 8 | `app.agent()` + `app.orchestrate()` | `cafeai-agents` | 🔵 Deferred | Follows observability |
+| Phase 8 | ~~`app.agent()` + `app.orchestrate()`~~ | `cafeai-agents` | ⚫ Superseded | → ROADMAP-12 |
 | Phase 9 | `app.observe()` + `app.eval()` | `cafeai-observability` | 🟢 Complete | March 2026 |
 | Phase 10 | Security layer | `cafeai-security` | 🟢 Complete | March 2026 |
 

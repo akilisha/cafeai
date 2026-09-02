@@ -40,6 +40,44 @@ CafeAI stands deliberately on the shoulders of three proven traditions:
 
 ---
 
+## Installation
+
+On Maven Central under `com.akilisha.oss`. CafeAI is modular — start with
+`cafeai-core` and add capability modules as you climb the adoption ladder.
+
+**Gradle**
+```groovy
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.1.3'
+
+    // add only what you use:
+    implementation 'com.akilisha.oss:cafeai-memory:0.1.3'         // tiered context memory
+    implementation 'com.akilisha.oss:cafeai-rag:0.1.3'            // retrieval-augmented generation
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.1.3'     // PII, jailbreak, bias, …
+    implementation 'com.akilisha.oss:cafeai-observability:0.1.3'  // OpenTelemetry, evals
+    implementation 'com.akilisha.oss:cafeai-security:0.1.3'       // prompt injection, data leakage
+    implementation 'com.akilisha.oss:cafeai-streaming:0.1.3'      // SSE / WebSocket streaming
+    implementation 'com.akilisha.oss:cafeai-connect:0.1.3'        // Redis, Ollama, pgvector, MCP
+    implementation 'com.akilisha.oss:cafeai-views-mustache:0.1.3' // Mustache view engine
+}
+```
+
+**Maven**
+```xml
+<dependency>
+  <groupId>com.akilisha.oss</groupId>
+  <artifactId>cafeai-core</artifactId>
+  <version>0.1.3</version>
+</dependency>
+```
+
+Requires **Java 23+**. For a local `Jlama` model, also add
+`--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` to your run args.
+
+---
+
 ## Quick Start
 
 ```java
@@ -61,9 +99,9 @@ app.system("You are a helpful customer service agent for Acme Corp...");
 app.use(Middleware.json());
 app.use(Middleware.rateLimit(60));
 
-app.get("/health", (req, res) -> res.json(Map.of("status", "ok")));
+app.get("/health", (req, res, next) -> res.json(Map.of("status", "ok")));
 
-app.post("/chat", (req, res) -> {
+app.post("/chat", (req, res, next) -> {
     res.stream(app.prompt(req.body("message")));
 });
 
@@ -71,6 +109,21 @@ app.listen(8080, () -> System.out.println("☕ CafeAI is brewing on :8080"));
 ```
 
 Read that out loud. A Java developer who has never touched Gen AI understands every line. An Express developer who has never touched Java understands the structure. A Python LangChain developer recognizes the concepts. That's three audiences, zero confusion.
+
+Talk to it with any HTTP client. `/chat` streams the answer back as Server-Sent Events:
+
+```bash
+curl -N -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+     -d '{"message": "What is your return policy?"}' \
+     http://localhost:8080/chat
+
+# data: Our
+# data:  return
+# data:  policy
+# data:  allows
+# ...
+# data: [DONE]
+```
 
 ---
 
@@ -135,7 +188,10 @@ app.listen(port)             // start the server
 ```java
 app.ai(OpenAI.gpt4o())                    // register LLM provider
 app.ai(Anthropic.claude35Sonnet())        // swap providers freely
-app.ai(Ollama.llama3())                   // local model, no data leaves your infra
+app.ai(Ollama.llama3())                   // local model via Ollama, no data leaves your infra
+app.ai(Jlama.qwen2())                     // pure-Java local model — in-process, no server
+                                          //   run with: --add-modules jdk.incubator.vector
+                                          //             --enable-native-access=ALL-UNNAMED
 app.ai(ModelRouter.smart()                // smart routing — cheap vs expensive
         .simple(OpenAI.gpt4oMini())
         .complex(OpenAI.gpt4o()))
@@ -163,10 +219,6 @@ app.rag(Retriever.semantic(5))           // attach retrieval pipeline
 app.rag(Retriever.hybrid(5))             // dense + sparse retrieval
 ```
 
-### Tools and MCP
-```java
-```
-
 ### Guardrails
 ```java
 app.guard(GuardRail.pii())               // PII scrub — pre and post LLM
@@ -182,14 +234,23 @@ app.guard(GuardRail.topicBoundary()      // scope enforcement
     .deny("politics", "medical advice"))
 ```
 
-### Agents
+### Agents, Tools & MCP &nbsp;<sub>🚧 planned — see ROADMAP-12</sub>
 ```java
-app.agent("classifier", AgentDefinition.react()   // ReAct loop agent
-    .tools(classifyTool)
-    .maxIterations(5))
-app.orchestrate("pipeline",                        // multi-agent via Structured Concurrency
-    "classifier", "retriever", "responder")
+// You define a typed interface; CafeAI binds it to a LangChain4j AiService —
+// which owns the reasoning loop, tool dispatch, and chat memory — and gives it
+// an HTTP identity: session threading, guardrail pre-screening, observability.
+app.agent("support", SupportAgent.class)
+    .system("You are a support specialist for Acme.")
+    .tool(new OrderLookupTool())                   // @Tool-annotated Java methods
+    .memory(MemoryStrategy.inMemory())
+    .guard(GuardRail.jailbreak())                  // runs before the agent loop
+    .configure(b -> b /* full AiServices.Builder escape hatch */);
 ```
+
+CafeAI does **not** reimplement the ReAct loop, tool protocol, or MCP client —
+LangChain4j does all of that. CafeAI writes the HTTP binding. MCP servers attach
+through LangChain4j's MCP support; multi-agent workflows are a supervisor agent
+calling sub-agents as tools, or a middleware chain — not bespoke primitives.
 
 ### Observability
 ```java
@@ -207,12 +268,15 @@ cafeai/
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-memory         ← Tiered context memory (FFM, Chronicle, Redis, Memcached)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
-├── cafeai-agents         ← ReAct, multi-agent orchestration via Structured Concurrency
 ├── cafeai-guardrails     ← PII, jailbreak, bias, hallucination, regulatory compliance
 ├── cafeai-observability  ← OpenTelemetry, metrics, eval harness, prompt versioning
 ├── cafeai-security       ← Prompt injection, data leakage, semantic cache poisoning
 ├── cafeai-streaming      ← SSE and WebSocket token streaming with backpressure
+├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector, MCP endpoints
+├── cafeai-views-mustache ← Optional Mustache view engine
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder
+
+cafeai-agents             ← 🚧 planned (ROADMAP-12): binds LangChain4j AiServices to the HTTP server
 ```
 
 Each module is an independent rung on the adoption ladder. Start with `cafeai-core`. Graduate when you're ready.
@@ -231,22 +295,21 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 | 4    | RAG                   | Ingestion, embeddings, vector retrieval            |
 | 5    | Tool use / MCP        | Giving the AI actions to take                      |
 | 6    | Guardrails            | Safety, ethics, compliance as middleware           |
-| 7    | Agents                | Autonomous reasoning loops, Structured Concurrency |
+| 7    | Agents                | Typed agent interfaces, tool-call loops via LangChain4j |
 | 8    | Observability + Evals | Production measurement, prompt versioning          |
 | 9    | Streaming             | SSE, backpressure, real-time UX                    |
 | 10   | Security              | Injection, leakage, adversarial robustness         |
 
 ---
 
-## Java 21+ Feature Map
+## Modern Java Feature Map
 
-CafeAI treats Java 21+ features as load-bearing architecture — not demos.
+CafeAI treats modern Java (21–23) features as load-bearing architecture — not demos.
 
 | Feature                    | Where CafeAI Uses It                 | Why                                     |
 |----------------------------|--------------------------------------|-----------------------------------------|
 | **FFM API**                | Native ML bindings (ONNX, llama.cpp) | JNI-free native access                  |
 | **FFM MemorySegment**      | SSD-backed session memory            | Off-heap, OS page cache, crash-recovery |
-| **Structured Concurrency** | Multi-agent orchestration            | Isolated failures, clean joins          |
 | **Scoped Values**          | Request context propagation          | No ThreadLocal hacks                    |
 | **Vector API**             | Cosine similarity, dot products      | SIMD hardware acceleration for RAG      |
 | **Virtual Threads**        | Every request handler                | I/O-bound LLM calls at zero cost        |
@@ -269,18 +332,18 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 
 ## Technology Stack
 
-| Concern           | Technology                  | Version       |
-|-------------------|-----------------------------|---------------|
-| Runtime           | Java                        | 21+           |
-| HTTP Server       | Helidon SE                  | 4.1.4         |
-| AI Framework      | Langchain4j                 | 0.35.0        |
-| LLM Providers     | OpenAI, Anthropic, Ollama   | —             |
-| Off-heap Memory   | Java FFM / Chronicle Map    | JDK 21 / 3.25 |
-| Distributed Cache | Redis (Lettuce) / Memcached | 6.3 / 2.12    |
-| Vector DB         | PgVector / Chroma           | —             |
-| Observability     | OpenTelemetry               | 1.40.0        |
-| PII Detection     | Apache OpenNLP              | 2.3.3         |
-| Build             | Gradle (Groovy DSL)         | 8.x           |
+| Concern           | Technology                        | Version        |
+|-------------------|-----------------------------------|----------------|
+| Runtime           | Java                              | 23+            |
+| HTTP Server       | Helidon SE                        | 4.4.0          |
+| AI Framework      | LangChain4j                       | 1.11.0         |
+| LLM Providers     | OpenAI, Anthropic, Ollama, Jlama  | —              |
+| Off-heap Memory   | Java FFM / Chronicle Map          | JDK 23 / 3.25  |
+| Distributed Cache | Redis (Lettuce) / Memcached       | 6.3 / 2.12     |
+| Vector DB         | PgVector / Chroma                 | —              |
+| Observability     | OpenTelemetry                     | 1.40.0         |
+| PII Detection     | Apache OpenNLP                    | 2.3.3          |
+| Build             | Gradle (Groovy DSL)               | 9.7.1          |
 
 ---
 
@@ -288,7 +351,7 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 
 ```bash
 # Clone
-git clone https://github.com/your-org/cafeai.git
+git clone https://github.com/akilisha/cafeai.git
 cd cafeai
 
 # Run the hello world example
@@ -312,7 +375,7 @@ Each module is a blog post. The project is the curriculum.
 6. **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval
 7. **Tool Use and MCP in Java** — [The Difference Between a Tool and an MCP Server](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
 8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Hallucination](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
-9. **Multi-Agent Orchestration with Java Structured Concurrency**
+9. **Multi-Agent Patterns in Java** — Supervisors, Sequential Pipelines, and Parallel Fan-Out
 10. **Production-Grade AI Observability** — [OpenTelemetry, Evals, and Prompt Versioning](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
 11. **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, and Cache Poisoning
 12. **Token Streaming in Java** — SSE, WebSocket, and Reactive Backpressure

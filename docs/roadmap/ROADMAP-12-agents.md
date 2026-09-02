@@ -126,8 +126,9 @@ own configuration. The developer may override or extend anything.
 - [ ] Add `cafeai-agents` to `settings.gradle`
 - [ ] Create `cafeai-agents/build.gradle`:
   - `cafeai-core` dependency
-  - `cafeai-tools` dependency (tool registration integration)
-  - `langchain4j` core (already on classpath via BOM — `AiServices`, `ChatMemory`)
+  - `langchain4j` core (already on classpath via BOM — `AiServices`, `ChatMemory`,
+    `@Tool`, `McpToolProvider`); tool + MCP support comes from LangChain4j directly,
+    there is no separate `cafeai-tools` module
 - [ ] Create package `io.cafeai.agents`
 - [ ] Create `AgentRegistry.java` — placeholder
 - [ ] Create `AgentConfig.java` — placeholder  
