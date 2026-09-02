@@ -121,6 +121,13 @@ Additional built-in connectors for the most common out-of-process services:
 - `Qdrant.at(url)` — Qdrant vector search engine
 - `OpenAICompatible.at(url)` — any OpenAI-API-compatible LLM (vLLM, LM Studio, Groq)
 - `Pinecone.at(url).apiKey(key)` — Pinecone managed vector database
+- **`McpEndpoint.at(url)`** — an external MCP server. Probe = the MCP `initialize`
+  handshake; holds the persistent transport (stdio or HTTP/SSE); `DEGRADED` if the server
+  is up but advertises no tools. Wraps LangChain4j's `McpClient` — CafeAI does not
+  reimplement the protocol. Unlike the other connectors it does not register into a
+  target module; it publishes a named connection that **`cafeai-agents` looks up** (SPI)
+  and adapts to a LangChain4j `ToolProvider` when building an agent's `AiService`
+  (ROADMAP-12). See ROADMAP-11 for the full three-way MCP split.
 
 ---
 

@@ -65,6 +65,25 @@ An agent that can call tools and affect external systems is a higher-risk target
 LLM call. Guardrail pre-screening before agent invocation is not optional — it is the correct
 default. The `guard(false)` opt-out exists for trusted internal callers.
 
+**Why there is no CafeAI proxy:**
+`app.agent(name, Interface.class, sessionId)` returns LangChain4j's *own* `AiService` proxy.
+CafeAI's contributions are applied at `AiServices.builder()` time by adapting CafeAI
+abstractions to LangChain4j's build-time hooks — `GuardRail` → `InputGuardrail`/`OutputGuardrail`,
+`ObserveBridge` → `ChatModelListener`, `MemoryStrategy` → `ChatMemoryProvider`, tool sources →
+`ToolProvider`. Wrapping the proxy in a second proxy would be the "wrap, don't bind" mistake
+this milestone exists to avoid. A thin `java.lang.reflect.Proxy` is deferred to if-and-when
+a capstone proves it necessary (whole-invocation span; POST_LLM output attribute).
+
+**The three MCP concerns are three different things, in three places:**
+1. *Serve* CafeAI's tools/agents as an MCP server → `app.helidon()` + Helidon `McpFeature`
+   (routing lifecycle, no module).
+2. *Reach* an external MCP server → `cafeai-connect` `McpEndpoint` connector (persistent
+   transport, three-state reachability, fallback policy — like Redis/Ollama/pgvector).
+3. *Give* an agent those tools → `cafeai-agents` adapts a named MCP connection to a
+   `ToolProvider` at `AiServices.builder()` time.
+`cafeai-agents` v1 does #3 for **Java `@Tool` objects only**; MCP tool sources are additive
+once #2 exists.
+
 **On the Temporal direction:**
 Temporal was identified as a production-grade orchestration engine that could give agent
 workflows durable, long-running execution semantics. The design — an `Orchestrator` interface
@@ -78,9 +97,9 @@ durable execution is needed in practice (capstone 2 and beyond will surface this
 ## Dependencies
 
 - Helidon 4.4.0 + LangChain4j 1.11.0 (on the classpath via the BOM — `AiServices`,
-  `ChatMemory`, `@Tool`, `McpToolProvider`) ✅
-- `cafeai-guardrails` and `cafeai-observability` (guardrail pre-screening + trace context) ✅
-- `app.helidon()` escape hatch (for exposing an agent as an MCP tool) ✅
-
-MCP *exposure* of an agent is not a phase here — it's the supervisor/`app.helidon()`
-pattern described in ROADMAP-12's mental-model section.
+  `ChatMemory`, `@Tool`, `InputGuardrail`/`OutputGuardrail`, `ChatModelListener`,
+  `ChatMemoryProvider`, `ToolProvider`, `McpToolProvider`) ✅
+- `cafeai-guardrails` and `cafeai-observability` (adapted to the LangChain4j hooks above) ✅
+- `app.helidon()` escape hatch — for exposing an agent *as* an MCP tool ✅
+- `cafeai-connect` `McpEndpoint` connector — for *consuming* an external MCP server's tools
+  (not required for v1; makes MCP a tool source once it lands)

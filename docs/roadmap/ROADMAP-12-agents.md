@@ -32,6 +32,45 @@ CafeAI uses `AiServices.builder()` directly from LangChain4j core. This is what 
 annotation processor generates anyway. By going direct we keep CafeAI's pure Helidon SE model
 intact and give the developer full builder access via the `.configure()` escape hatch.
 
+### No CafeAI proxy — adapt to LangChain4j's extension points
+
+`app.agent(name, Interface.class, sessionId)` returns the **raw LangChain4j `AiService`
+proxy**, not a CafeAI wrapper around it. A proxy-of-a-proxy would be exactly the "wrap, don't
+bind" mistake ROADMAP-12 exists to avoid.
+
+Everything CafeAI wants to contribute is applied at `AiServices.builder()` time, by adapting
+CafeAI abstractions to LangChain4j's own hooks:
+
+| CafeAI abstraction | LangChain4j hook (build-time) |
+|---|---|
+| `GuardRail` | `InputGuardrail` / `OutputGuardrail` → `.inputGuardrails(...)` / `.outputGuardrails(...)` |
+| `ObserveBridge` | `ChatModelListener` → `.listeners(...)` on the model |
+| `MemoryStrategy` | `ChatMemoryProvider` → `.chatMemoryProvider(id -> ...)` |
+| RAG retriever | `RetrievalAugmentor` → `.retrievalAugmentor(...)` |
+| Java `@Tool` objects / MCP tools | `ToolProvider` → `.toolProvider(...)` |
+
+**Residual cases for a thin `java.lang.reflect.Proxy` (deferred, add only if a capstone needs it):**
+a single observability span around the *whole* agent method (vs. per model call), and
+surfacing the agent's final output to POST_LLM HTTP filters via `LLM_RESPONSE_TEXT`. Neither
+is required for v1.
+
+### `AgentBridge` SPI — signature fix needed
+
+`spi/AgentBridge.resolve(...)` currently takes `LangchainBridge.ChatModelAccess` (a test
+seam) as the provider argument. It needs the resolved `AiProvider` (or `ChatModel`). Correct
+this signature in Phase 2 before anything is built against it.
+
+### MCP scope for v1
+
+`cafeai-agents` v1 handles **Java `@Tool` objects only** (`.tool(new OrderLookupTool())`).
+Consuming an external **MCP server's** tools is a follow-on: the *connection* (probe,
+reachability, fallback) belongs in `cafeai-connect` as an `McpEndpoint` connector, and
+`cafeai-agents` references it by name and adapts it to a `ToolProvider`. So `AgentConfig`
+must model tools as a list of **tool sources** (a `ToolProvider` is one source, a plain
+`@Tool` object is another) — not a hard-coded `List<Object>` — so the MCP source is additive.
+Exposing CafeAI's *own* tools/agents *as* an MCP server is unrelated — that is the
+`app.helidon()` escape hatch (see ROADMAP-11).
+
 ---
 
 ## Agent Mental Model (read before implementing)
@@ -130,14 +169,18 @@ own configuration. The developer may override or extend anything.
     `@Tool`, `McpToolProvider`); tool + MCP support comes from LangChain4j directly,
     there is no separate `cafeai-tools` module
 - [ ] Create package `io.cafeai.agents`
-- [ ] Create `AgentRegistry.java` — placeholder
-- [ ] Create `AgentConfig.java` — placeholder  
+- [ ] Move `AgentConfig<T>` into `cafeai-agents` (it currently sits in `cafeai-core/agents/`
+  as a stub); `cafeai-core` keeps only the `AgentBridge` SPI
+- [ ] **Correct the `AgentBridge` SPI**: `resolve(...)` must take the resolved `AiProvider`
+  (or `ChatModel`), not `LangchainBridge.ChatModelAccess`
+- [ ] Add a `ToolSource` type (sealed: `JavaTool(Object)` | `ProviderTool(ToolProvider)`)
+- [ ] Create `AgentRegistry.java` — placeholder implementing `AgentBridge`
 - [ ] Verify: `./gradlew :cafeai-agents:compileJava` → BUILD SUCCESSFUL
 
 #### Acceptance Criteria
-- [ ] Module in `settings.gradle`
-- [ ] No circular dependencies
-- [ ] Clean compile
+- [ ] Module in `settings.gradle`, opted into `gradle/maven-central.gradle`
+- [ ] No circular dependencies (`cafeai-agents` → `cafeai-core`; never the reverse)
+- [ ] Clean compile; corrected `AgentBridge` SPI signature
 
 ---
 
@@ -153,10 +196,12 @@ Mirrors the feel of `GuardRail` builder — readable, chainable, self-documentin
   - `AgentConfig<T> system(String prompt)` — system prompt
   - `AgentConfig<T> memory(MemoryStrategy strategy)` — CafeAI memory strategy
   - `AgentConfig<T> guard(GuardRail... rails)` — guardrails applied pre-invocation
-  - `AgentConfig<T> tool(Object toolInstance)` — additional tools beyond app-level
+  - `AgentConfig<T> tool(Object toolInstance)` — a Java `@Tool`-annotated object (a *tool source*)
   - `AgentConfig<T> model(AiProvider provider)` — override app-level provider
   - `AgentConfig<T> configure(Consumer<AiServices.Builder<T>> consumer)` — escape hatch
-  - `T build()` — internal — builds and returns the AiService proxy
+  - `T build()` — internal — builds and returns the raw LangChain4j AiService proxy
+- [ ] Store tools as a `List<ToolSource>` (a `@Tool` object is one kind; a `ToolProvider`
+  — e.g. an MCP connection — is another). Do **not** hard-code `List<Object>`.
 - [ ] `AgentConfig` is not thread-safe — one instance per registration
 
 #### Output
@@ -184,25 +229,27 @@ app.agent("loan-advisor", LoanAdvisor.class)
 **Module:** `cafeai-agents`
 
 #### Tasks
-- [ ] Implement `AgentRegistry`:
+- [ ] Implement `AgentRegistry` (the `AgentBridge` SPI impl):
   - `register(String name, Class<T> type, AgentConfig<T> config)` — stores config
-  - `<T> T resolve(String name, Class<T> type, String sessionId)` — builds or retrieves agent
-  - Per-session agent instances for agents with memory
-  - Stateless (no memory) agents built once and reused
-- [ ] Session threading:
-  - `sessionId` → `ChatMemory` mapping via `ConcurrentHashMap`
-  - `MessageWindowChatMemory` default (20 messages)
-  - Memory eviction via `MemoryStrategy` if registered
-- [ ] Guardrail application:
-  - Pre-invocation: run registered guardrails against the input
-  - If blocked: throw `GuardRailViolationException` with reason
-  - Post-invocation: run output guardrails if registered
+  - `<T> T resolve(String name, Class<T> type, String sessionId)` — builds or retrieves the
+    raw AiService proxy
+  - Per-session proxy for agents with memory; stateless agents built once and reused
+- [ ] Assembly — `AiServices.builder(type)` wired from `AgentConfig` via **adapters**, not
+  a wrapper:
+  - `GuardRail` → `InputGuardrail` / `OutputGuardrail` (`.inputGuardrails` / `.outputGuardrails`)
+  - `ObserveBridge` → `ChatModelListener` (`.listeners` on the model)
+  - `MemoryStrategy` → `ChatMemoryProvider` (`.chatMemoryProvider`)
+  - tool sources → `ToolProvider` (`.toolProvider`) and/or `.tools(...)`
+  - then `.configure()` consumer runs last, over the assembled builder
+- [ ] Session threading: `sessionId` → `ChatMemory` via `ConcurrentHashMap`;
+  `MessageWindowChatMemory` default (20 messages); eviction via `MemoryStrategy` if set
 
 #### Acceptance Criteria
 - [ ] Two sequential calls with same `sessionId` share conversation history
 - [ ] Two calls with different `sessionId` have isolated histories
-- [ ] Guardrail violation stops agent invocation — LLM never called
+- [ ] An `InputGuardrail` violation stops the agent before the LLM is called
 - [ ] Stateless agents (no memory) build once, reuse safely
+- [ ] The returned object is LangChain4j's proxy — no CafeAI `Proxy` in the call path
 
 ---
 

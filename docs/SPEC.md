@@ -278,7 +278,13 @@ app.connect(Ollama.at("http://localhost:11434").model("qwen2.5")
               .onUnavailable(Fallback.use(OpenAI.gpt4oMini())))
 app.connect(Redis.at("localhost:6379"))
 app.connect(PgVector.at(jdbcUrl))
+app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — external MCP server;
+                                                       // agents adapt it to a ToolProvider
 ```
+
+MCP splits three ways: **serve** CafeAI as an MCP server → `app.helidon()` (§12); **reach**
+an external MCP server → the `McpEndpoint` connection above; **give** its tools to an agent →
+`cafeai-agents` (ROADMAP-12). No `cafeai-mcp` module in any of them.
 
 ---
 

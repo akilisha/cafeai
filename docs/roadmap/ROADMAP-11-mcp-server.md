@@ -14,6 +14,22 @@
 
 ---
 
+## MCP is three concerns, in three places
+
+"MCP" is not one feature. The reconciliation with ROADMAP-12 settled it as three distinct
+things with three different homes and lifecycles:
+
+| # | Concern | Home | Lifecycle |
+|---|---|---|---|
+| 1 | **Serve** — expose CafeAI's tools/agents *as* an MCP server | `app.helidon()` + Helidon `McpFeature` | routing registration, no module, no external state |
+| 2 | **Reach** — connect to an external MCP server | `cafeai-connect` `McpEndpoint` connector *(planned)* | persistent transport, three-state reachability, fallback policy — like Redis/Ollama/pgvector |
+| 3 | **Give** — make a reached server's tools callable by an agent | `cafeai-agents` — adapt a named MCP connection to a LangChain4j `ToolProvider` (ROADMAP-12) | built with the agent's `AiService`, disposable |
+
+This document covers **#1**. #2 is a follow-on connector in `cafeai-connect` (see ROADMAP-10);
+#3 is ROADMAP-12. There is no `cafeai-mcp` module in any of them.
+
+---
+
 ## What Changed and Why
 
 The original ROADMAP-11 planned a `cafeai-mcp` module that would bridge CafeAI's tool
@@ -139,7 +155,15 @@ interface HelidonConfig {
 ### Phase 3 — `cafeai-mcp` Module ❌ Abandoned
 
 The `cafeai-mcp` module was attempted and abandoned. See "What Changed and Why" above.
-The correct pattern for MCP exposure is documented in Phase 2 using `app.helidon()`.
+The correct pattern for MCP *exposure* is Phase 2's `app.helidon()`.
+
+### Follow-on (not this roadmap) — `McpEndpoint` connector in `cafeai-connect`
+
+MCP *consumption* — reaching an external MCP server so its tools are available to agents —
+is a planned `cafeai-connect` connector: `app.connect(McpEndpoint.at(url).onUnavailable(...))`.
+It owns the `initialize` handshake, the persistent transport, health state, and the fallback
+policy. `cafeai-agents` then references it by name and adapts it to a LangChain4j
+`ToolProvider`. Tracked against `cafeai-connect` (ROADMAP-10), consumed by ROADMAP-12.
 
 ---
 
@@ -147,4 +171,6 @@ The correct pattern for MCP exposure is documented in Phase 2 using `app.helidon
 
 - CafeAI does not own the MCP server — that is Helidon's or the developer's responsibility
 - CafeAI does not require Helidon Inject or any annotation processing framework
+- CafeAI does not reimplement the MCP client protocol — LangChain4j's `McpClient` /
+  `McpToolProvider` does that; `cafeai-connect` wraps it in a `Connection` lifecycle
 - `app.helidon()` is an escape hatch, not an invitation to bypass CafeAI for routine work
