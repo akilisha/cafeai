@@ -49,7 +49,7 @@ public interface EmbeddingModel {
      * {@code all-MiniLM-L6-v2} model (384 dimensions). Appropriate for
      * production single-node deployments where data sovereignty matters.
      *
-     * <p>Requires {@code io.cafeai:cafeai-rag} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-rag} on the classpath.
      */
     static EmbeddingModel local() {
         return new LocalEmbeddingModel();

@@ -9,6 +9,11 @@
 //  Rung 5 → Hybrid warm+cold         (SSD + Redis)
 // ============================================================
 
+description = 'Tiered context-memory strategies for CafeAI — in-JVM, off-heap SSD, ' +
+    'Chronicle Map, and Redis.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

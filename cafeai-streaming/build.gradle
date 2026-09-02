@@ -7,6 +7,11 @@
 //  and chunked response assembly.
 // ============================================================
 
+description = 'Token streaming with backpressure for CafeAI — SSE, WebSocket, and ' +
+    'chunked response assembly over Helidon SE.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

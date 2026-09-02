@@ -1371,8 +1371,8 @@ Tiers 2, 4, and 5 require `cafeai-memory` on the classpath. Without it, calling
 ```groovy
 // build.gradle
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-memory'   // unlocks mapped, redis, hybrid
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-memory'   // unlocks mapped, redis, hybrid
 }
 ```
 
@@ -1404,8 +1404,8 @@ conversation history → user question.
 
 ```groovy
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-rag'    // unlocks vectordb, embed, ingest, rag
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-rag'    // unlocks vectordb, embed, ingest, rag
 }
 ```
 
@@ -1485,20 +1485,20 @@ code changes required. This is the same mechanism Java uses for JDBC drivers.
 ```groovy
 // Minimal — HTTP framework only
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-core'
 }
 
 // Add AI memory tiers
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-memory'
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-memory'
 }
 
 // Add RAG pipeline
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-memory'
-    implementation 'io.cafeai:cafeai-rag'
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-memory'
+    implementation 'com.akilisha.oss:cafeai-rag'
 }
 ```
 
@@ -1547,11 +1547,11 @@ correctly with three reachability states and an explicit degradation policy.
 
 ```groovy
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-connect'   // unlocks app.connect()
-    implementation 'io.cafeai:cafeai-memory'    // for Redis.at() to register memory
-    implementation 'io.cafeai:cafeai-rag'       // for PgVector.at() to register vectordb
-    implementation 'io.cafeai:cafeai-tools'     // for McpEndpoint.at() to register tools
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-connect'   // unlocks app.connect()
+    implementation 'com.akilisha.oss:cafeai-memory'    // for Redis.at() to register memory
+    implementation 'com.akilisha.oss:cafeai-rag'       // for PgVector.at() to register vectordb
+    implementation 'com.akilisha.oss:cafeai-tools'     // for McpEndpoint.at() to register tools
 }
 ```
 
@@ -1982,8 +1982,8 @@ Guardrails in `cafeai-core` are pass-through stubs by default. Add
 
 ```groovy
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-guardrails'   // activates real enforcement
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-guardrails'   // activates real enforcement
 }
 ```
 
@@ -2111,8 +2111,8 @@ An LLM call is not like a database query. The response is non-deterministic. Tok
 
 ```groovy
 dependencies {
-    implementation 'io.cafeai:cafeai-core'
-    implementation 'io.cafeai:cafeai-observability'
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-observability'
 }
 ```
 

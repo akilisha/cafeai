@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   Rung 5 -> hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
  * </pre>
  *
- * <p>Rungs 2-5 require {@code io.cafeai:cafeai-memory} on the classpath.
+ * <p>Rungs 2-5 require {@code com.akilisha.oss:cafeai-memory} on the classpath.
  * Adding the JAR is the only configuration needed -- no code changes required.
  *
  * <p>Rung 1 ({@code inMemory()}) is fully functional with zero dependencies.
@@ -69,7 +69,7 @@ public interface MemoryStrategy {
      * fast access. The OS page cache handles hot sessions automatically.
      * Sessions survive JVM restarts -- crash recovery out of the box.
      *
-     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-memory} on the classpath.
      *
      * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
@@ -103,7 +103,7 @@ public interface MemoryStrategy {
      * <p>The distributed escape valve. Sessions are shared across all application
      * instances and survive deployments. TTL is enforced at the Redis level.
      *
-     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-memory} on the classpath.
      *
      * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
@@ -125,7 +125,7 @@ public interface MemoryStrategy {
      *       .build());
      * }</pre>
      *
-     * <p>Requires {@code io.cafeai:cafeai-memory} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-memory} on the classpath.
      *
      * @throws MemoryModuleNotFoundException if {@code cafeai-memory} is absent
      */
@@ -141,7 +141,7 @@ public interface MemoryStrategy {
             .orElseThrow(() -> new MemoryModuleNotFoundException(
                 "Memory rungs 2-5 require the cafeai-memory module. " +
                 "Add the following dependency:\n\n" +
-                "  Gradle: implementation 'io.cafeai:cafeai-memory'\n" +
+                "  Gradle: implementation 'com.akilisha.oss:cafeai-memory'\n" +
                 "  Maven:  <artifactId>cafeai-memory</artifactId>\n\n" +
                 "For development, use MemoryStrategy.inMemory() (zero dependencies)."));
     }

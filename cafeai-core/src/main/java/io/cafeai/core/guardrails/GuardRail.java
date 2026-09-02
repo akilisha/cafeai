@@ -22,7 +22,7 @@ import java.util.List;
  *
  * <pre>{@code
  *   // build.gradle
- *   implementation 'io.cafeai:cafeai-guardrails'
+ *   implementation 'com.akilisha.oss:cafeai-guardrails'
  * }</pre>
  *
  * <p>Usage:
@@ -127,7 +127,7 @@ public interface GuardRail extends Middleware {
 
     private static void warnOnce(String name) {
         org.slf4j.LoggerFactory.getLogger(GuardRail.class).warn(
-            "GuardRail.{}() is a no-op -- add 'io.cafeai:cafeai-guardrails' " +
+            "GuardRail.{}() is a no-op -- add 'com.akilisha.oss:cafeai-guardrails' " +
             "to your dependencies to activate real guardrail enforcement.", name);
     }
 

@@ -175,7 +175,7 @@ Then in your project's `build.gradle`:
 
 ```groovy
 dependencies {
-    implementation 'io.cafeai:cafeai-core:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-core:0.1.0-SNAPSHOT'
 }
 ```
 

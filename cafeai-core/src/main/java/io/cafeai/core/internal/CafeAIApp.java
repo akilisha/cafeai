@@ -1098,7 +1098,7 @@ public final class CafeAIApp implements CafeAI {
             .findFirst()
             .orElseThrow(() -> new IllegalStateException(
                 "app.observe() requires cafeai-observability on the classpath. " +
-                "Add: implementation 'io.cafeai:cafeai-observability'"));
+                "Add: implementation 'com.akilisha.oss:cafeai-observability'"));
         this.observeBridge.setStrategy(strategy);
         locals.put(Locals.OBSERVE_STRATEGY, strategy);
         log.info("Observability registered: {}", strategy.getClass().getSimpleName());
@@ -1126,7 +1126,7 @@ public final class CafeAIApp implements CafeAI {
         } else {
             // No cafeai-connect -- store for later, log clearly
             log.warn("app.connect() called but cafeai-connect is not on the classpath. " +
-                "Add: implementation 'io.cafeai:cafeai-connect'");
+                "Add: implementation 'com.akilisha.oss:cafeai-connect'");
         }
         return this;
     }
@@ -1215,7 +1215,7 @@ public final class CafeAIApp implements CafeAI {
             .findFirst()
             .orElseThrow(() -> new IllegalStateException(
                 "RAG ingestion requires the cafeai-rag module. " +
-                "Add: implementation 'io.cafeai:cafeai-rag'"))
+                "Add: implementation 'com.akilisha.oss:cafeai-rag'"))
             .ingest(source, vectorStore, embeddingModel);
         return this;
     }
@@ -1469,7 +1469,7 @@ public final class CafeAIApp implements CafeAI {
             throw new ResponseFormatter.RenderException(
                 "No engine registered for extension \"" + ext + "\". " +
                 "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
-                "after adding io.cafeai:cafeai-views-mustache to your dependencies.");
+                "after adding com.akilisha.oss:cafeai-views-mustache to your dependencies.");
         }
     }
 

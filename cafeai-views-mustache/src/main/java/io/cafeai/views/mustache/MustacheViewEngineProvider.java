@@ -14,7 +14,7 @@ import java.util.Map;
  * Mustache view engine provider for CafeAI.
  *
  * <p>Self-registers via {@link java.util.ServiceLoader} — no code changes needed.
- * Adding {@code io.cafeai:cafeai-views-mustache} to the classpath activates this provider.
+ * Adding {@code com.akilisha.oss:cafeai-views-mustache} to the classpath activates this provider.
  *
  * <p>Mustache is chosen as the reference CafeAI view engine because:
  * <ul>

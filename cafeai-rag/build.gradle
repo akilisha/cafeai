@@ -11,6 +11,11 @@
 //    - In-memory  (prototype / testing)
 // ============================================================
 
+description = 'Retrieval-Augmented Generation pipeline for CafeAI — document ingestion, ' +
+    'chunking, embedding, semantic retrieval, and reranking.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

@@ -7,6 +7,11 @@
 //  This is a middleware layer. Everything is composable.
 // ============================================================
 
+description = 'AI-specific security layer for CafeAI — prompt-injection and jailbreak ' +
+    'detection, RAG data-leakage prevention, and token-budget enforcement.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

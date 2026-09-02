@@ -302,14 +302,14 @@ In-memory BM25 for now. PgVector-backed sparse index is a stretch goal.
 
 ### Maven Coordinates
 ```groovy
-implementation 'io.cafeai:cafeai-core:0.2.0'
-implementation 'io.cafeai:cafeai-rag:0.2.0'
-implementation 'io.cafeai:cafeai-guardrails:0.2.0'
-implementation 'io.cafeai:cafeai-observability:0.2.0'
-implementation 'io.cafeai:cafeai-memory:0.2.0'
-implementation 'io.cafeai:cafeai-agents:0.2.0'
-implementation 'io.cafeai:cafeai-security:0.2.0'
-implementation 'io.cafeai:cafeai-tools:0.2.0'
+implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
+implementation 'com.akilisha.oss:cafeai-guardrails:0.2.0'
+implementation 'com.akilisha.oss:cafeai-observability:0.2.0'
+implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
+implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
+implementation 'com.akilisha.oss:cafeai-security:0.2.0'
+implementation 'com.akilisha.oss:cafeai-tools:0.2.0'
 ```
 
 ### Notes

@@ -39,11 +39,11 @@ plugins {
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 dependencies {
-    implementation 'io.cafeai:cafeai-core:0.1.0-SNAPSHOT'
-    implementation 'io.cafeai:cafeai-rag:0.1.0-SNAPSHOT'
-    implementation 'io.cafeai:cafeai-guardrails:0.1.0-SNAPSHOT'
-    implementation 'io.cafeai:cafeai-observability:0.1.0-SNAPSHOT'
-    implementation 'io.cafeai:cafeai-security:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-core:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-rag:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-observability:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-security:0.1.0-SNAPSHOT'
 }
 
 application {

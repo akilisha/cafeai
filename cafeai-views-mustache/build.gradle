@@ -3,7 +3,7 @@
 //  Optional Mustache template engine for CafeAI.
 //
 //  Add to your project:
-//    implementation 'io.cafeai:cafeai-views-mustache'
+//    implementation 'com.akilisha.oss:cafeai-views-mustache'
 //
 //  Then register in your app:
 //    app.engine("html", ResponseFormatter.mustache());
@@ -11,6 +11,10 @@
 //
 //  That's it. No other configuration needed.
 // ============================================================
+
+description = 'Optional Mustache template engine for CafeAI views.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
 
 dependencies {
     implementation project(':cafeai-core')

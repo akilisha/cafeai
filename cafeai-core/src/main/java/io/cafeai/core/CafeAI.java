@@ -879,7 +879,7 @@ public interface CafeAI extends Router {
      * Registers an observation strategy — every LLM call becomes a traced,
      * measured event.
      *
-     * <p>Requires {@code io.cafeai:cafeai-observability} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-observability} on the classpath.
      *
      * <pre>{@code
      *   app.observe(ObserveStrategy.console());    // development — readable output
@@ -919,7 +919,7 @@ public interface CafeAI extends Router {
      * the connection's fallback policy if not. Accepts an
      * {@code io.cafeai.connect.Connection} instance.
      *
-     * <p>Requires {@code io.cafeai:cafeai-connect} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-connect} on the classpath.
      *
      * <pre>{@code
      *   app.connect(Redis.at("redis:6379"));

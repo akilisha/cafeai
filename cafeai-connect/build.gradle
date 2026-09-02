@@ -18,6 +18,11 @@
 //    lifecycles. Adding this JAR activates the Connect abstraction.
 // ============================================================
 
+description = 'Out-of-process service connectivity for CafeAI — Redis, Ollama, ' +
+    'pgvector, and MCP endpoints.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

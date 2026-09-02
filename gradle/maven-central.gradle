@@ -1,0 +1,59 @@
+// ============================================================
+//  Maven Central publishing — opt-in convention
+//
+//  A module that ships to Maven Central adds ONE line to its
+//  own build.gradle:
+//
+//      apply from: "$rootDir/gradle/maven-central.gradle"
+//
+//  and (optionally, but recommended) sets a description:
+//
+//      description = 'What this module is.'
+//
+//  Everything else — the sources jar, the javadoc jar, the POM,
+//  GPG signing, and the upload to the Sonatype Central Portal —
+//  is handled here. The POM and the Gradle Module Metadata are
+//  generated from the module's real dependency graph, so
+//  transitive dependencies resolve for consumers.
+//
+//  Credentials & signing key: see distribution.md.
+//  Publish everything opted-in:  ./gradlew publishToMavenCentral
+// ============================================================
+
+apply plugin: 'com.vanniktech.maven.publish'
+
+mavenPublishing {
+    // Uploads a deployment to the Central Portal and stops. Release it from
+    // https://central.sonatype.com/publishing after eyeballing the validation.
+    // Swap for `publishToMavenCentral(true)` to auto-release on success.
+    publishToMavenCentral()
+    signAllPublications()
+
+    // coordinates() defaults to project.group / project.name / project.version
+
+    pom {
+        name = project.name
+        description = project.description ?: 'CafeAI — the Express-inspired AI application framework for Java.'
+        url = 'https://github.com/akilisha/cafeai'
+
+        licenses {
+            license {
+                name = 'The Apache License, Version 2.0'
+                url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                distribution = 'repo'
+            }
+        }
+        developers {
+            developer {
+                id = 'm41na'
+                name = 'Maina, Stephen'
+                email = 'm41na@yahoo.com'
+            }
+        }
+        scm {
+            connection = 'scm:git:git://github.com/akilisha/cafeai.git'
+            developerConnection = 'scm:git:ssh://git@github.com/akilisha/cafeai.git'
+            url = 'https://github.com/akilisha/cafeai'
+        }
+    }
+}

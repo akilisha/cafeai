@@ -40,9 +40,6 @@ Thumbs.db
 application-local.yaml
 application-local.properties
 
-# maven publishing stuff
-*pom*.xml
-!pom-dist.xml
+# Publishing — credentials live in ~/.gradle/gradle.properties, never in the repo
 settings.xml
-**/target/
 

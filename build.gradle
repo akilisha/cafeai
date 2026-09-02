@@ -1,11 +1,19 @@
 // ============================================================
 //  CafeAI - Root Build Configuration
-//  Groovy DSL | Java 21+ | Helidon SE | Langchain4j
+//  Groovy DSL | Java 23+ | Helidon SE | Langchain4j
 // ============================================================
+
+plugins {
+    // Publishing to Maven Central via the Sonatype Central Portal.
+    // Put on the classpath here; each module that ships opts in with
+    //   apply from: "$rootDir/gradle/maven-central.gradle"
+    // 0.37.x requires Gradle 9.0+ (see gradle/wrapper — pinned to 9.7.x).
+    id 'com.vanniktech.maven.publish' version '0.37.0' apply false
+}
 
 // ── Version Catalog ─────────────────────────────────────────
 ext {
-    javaVersion             = 21
+    javaVersion             = 23
     helidonVersion          = '4.4.0'
     langchain4jVersion      = '1.11.0'
     mcpSdkVersion           = '1.1.1'
@@ -29,46 +37,32 @@ ext {
 // ── Shared Config for All Subprojects ───────────────────────
 subprojects {
     apply plugin: 'java-library'
-    apply plugin: 'maven-publish'
 
-    group   = 'io.cafeai'
-    version = '0.1.0-SNAPSHOT'
+    group   = 'com.akilisha.oss'
+    version = '0.1.2'
 
     java {
         toolchain {
             languageVersion = JavaLanguageVersion.of(rootProject.ext.javaVersion)
         }
-        withSourcesJar()
-        withJavadocJar()
     }
 
-    compileJava.options.compilerArgs      += ['--enable-preview', '-Xlint:preview', '-parameters']
-    compileTestJava.options.compilerArgs  += ['--enable-preview', '-Xlint:preview', '-parameters']
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs << '-parameters'
+    }
 
     test {
         useJUnitPlatform()
-        jvmArgs '--enable-preview'
         testLogging {
             events 'passed', 'failed', 'skipped'
-            showStandardStreams false
-            afterSuite { desc, result ->
-                if (!desc.parent) {
-                    println "\nTest results (${desc.name}): " +
-                        "${result.testCount} tests, " +
-                        "${result.successfulTestCount} passed, " +
-                        "${result.failedTestCount} failed, " +
-                        "${result.skippedTestCount} skipped"
-                }
-            }
+            showStandardStreams = false
         }
     }
 
-    // Javadoc: suppress lint errors for snapshot builds.
-    // Our Javadoc uses em-dashes and Unicode that can trip up the strict
-    // doclint checker on some platforms. Non-fatal for internal snapshots.
+    // Javadoc: our docs use em-dashes / Unicode that trip the strict
+    // doclint checker on some platforms. Non-fatal for the sources we ship.
     tasks.withType(Javadoc).configureEach {
         options.addStringOption('Xdoclint:none', '-quiet')
-        options.addBooleanOption('-enable-preview', true)
         options.addStringOption('-release', rootProject.ext.javaVersion.toString())
         failOnError = false
     }
@@ -83,24 +77,17 @@ subprojects {
         implementation platform("dev.langchain4j:langchain4j-bom:${rootProject.ext.langchain4jVersion}")
 
         implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
-        runtimeOnly    "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
+
+        // logback is an SLF4J binding, not API — a library must not put one on its
+        // consumers' runtime classpath. Modules get it only for their own tests;
+        // runnable artifacts (cafeai-examples) declare it themselves.
+        testRuntimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
 
         testImplementation "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}"
         testImplementation "org.junit.jupiter:junit-jupiter-params:${rootProject.ext.junitVersion}"
+        testRuntimeOnly    "org.junit.platform:junit-platform-launcher"
         testImplementation "org.assertj:assertj-core:${rootProject.ext.assertjVersion}"
         testImplementation "org.mockito:mockito-core:${rootProject.ext.mockitoVersion}"
         testImplementation "org.mockito:mockito-junit-jupiter:${rootProject.ext.mockitoVersion}"
-    }
-
-    // ── Maven Publishing ─────────────────────────────────────
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                from components.java
-            }
-        }
-        repositories {
-            mavenLocal()
-        }
     }
 }

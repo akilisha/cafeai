@@ -10,7 +10,7 @@ import java.time.Duration;
 /**
  * ServiceLoader registration for {@code cafeai-memory}.
  *
- * <p>Adding {@code io.cafeai:cafeai-memory} to the classpath activates this
+ * <p>Adding {@code com.akilisha.oss:cafeai-memory} to the classpath activates this
  * provider, enabling {@link MemoryStrategy#mapped()}, {@link MemoryStrategy#redis},
  * and {@link MemoryStrategy#hybrid()} without any code changes.
  *

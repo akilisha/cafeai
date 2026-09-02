@@ -107,9 +107,9 @@ identifiers — anything with exact-match requirements alongside semantic search
 ### 0.2.0 on Maven Central
 
 ```groovy
-implementation 'io.cafeai:cafeai-core:0.2.0'
-implementation 'io.cafeai:cafeai-rag:0.2.0'
-implementation 'io.cafeai:cafeai-agents:0.2.0'
+implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
+implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
 ```
 
 No more `mavenLocal()`. No more `publishToMavenLocal` before every project.

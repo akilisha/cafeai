@@ -30,9 +30,9 @@ import java.util.ServiceLoader;
  * <table>
  *   <tr><th>Method</th><th>Module</th><th>Dependency</th></tr>
  *   <tr><td>{@link #mustache()}</td><td>{@code cafeai-views-mustache}</td>
- *       <td>{@code io.cafeai:cafeai-views-mustache}</td></tr>
+ *       <td>{@code com.akilisha.oss:cafeai-views-mustache}</td></tr>
  *   <tr><td>{@link #markdown()}</td><td>{@code cafeai-views-markdown}</td>
- *       <td>{@code io.cafeai:cafeai-views-markdown}</td></tr>
+ *       <td>{@code com.akilisha.oss:cafeai-views-markdown}</td></tr>
  * </table>
  *
  * <pre>{@code
@@ -71,7 +71,7 @@ public interface ResponseFormatter {
     /**
      * Returns a Mustache template formatter.
      *
-     * <p>Requires {@code io.cafeai:cafeai-views-mustache} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-views-mustache} on the classpath.
      * That module self-registers via {@link ServiceLoader} — no code changes needed.
      * Supports {@code {{variable}}}, {@code {{#section}}}, {@code {{>partial}}} syntax.
      *
@@ -81,20 +81,20 @@ public interface ResponseFormatter {
      * @throws RenderException if {@code cafeai-views-mustache} is not on the classpath
      */
     static ResponseFormatter mustache() {
-        return loadEngine("mustache", "io.cafeai:cafeai-views-mustache");
+        return loadEngine("mustache", "com.akilisha.oss:cafeai-views-mustache");
     }
 
     /**
      * Returns a Markdown-to-HTML formatter.
      *
-     * <p>Requires {@code io.cafeai:cafeai-views-markdown} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-views-markdown} on the classpath.
      * Variables are interpolated via {@code {{variable}}} before Markdown rendering.
      * Output is wrapped in a configurable HTML shell.
      *
      * @throws RenderException if {@code cafeai-views-markdown} is not on the classpath
      */
     static ResponseFormatter markdown() {
-        return loadEngine("markdown", "io.cafeai:cafeai-views-markdown");
+        return loadEngine("markdown", "com.akilisha.oss:cafeai-views-markdown");
     }
 
     /**

@@ -80,7 +80,7 @@ public final class PgVector implements Connection {
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(
                 "PgVector connection requires cafeai-rag on the classpath. " +
-                "Add: implementation 'io.cafeai:cafeai-rag'", e);
+                "Add: implementation 'com.akilisha.oss:cafeai-rag'", e);
         } catch (Exception e) {
             throw new IllegalStateException(
                 "Failed to register PgVector connection: " + e.getMessage(), e);

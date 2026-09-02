@@ -7,6 +7,11 @@
 //  detection, and output validation.
 // ============================================================
 
+description = 'Ethical, regulatory, and safety guardrails for CafeAI — bias detection, ' +
+    'PII scrubbing, content safety, and output validation middleware.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')

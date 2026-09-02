@@ -24,6 +24,9 @@ dependencies {
     implementation project(':cafeai-streaming')
     implementation project(':cafeai-connect')
 
+    // Concrete SLF4J binding for the runnable app (the library modules ship none)
+    runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
+
     // Test containers for realistic integration examples
     testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
     testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
@@ -35,5 +38,4 @@ dependencies {
 // Run with: ./gradlew :cafeai-examples:run
 application {
     mainClass = 'io.cafeai.examples.HelloCafeAI'
-    applicationDefaultJvmArgs = ['--enable-preview']
 }

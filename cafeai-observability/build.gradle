@@ -6,6 +6,11 @@
 //  has first-class OTel support built in.
 // ============================================================
 
+description = 'Tracing, metrics, an eval harness, and prompt versioning for CafeAI, ' +
+    'built on OpenTelemetry.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
 
     api project(':cafeai-core')
