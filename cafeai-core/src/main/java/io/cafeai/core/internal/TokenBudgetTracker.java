@@ -1,11 +1,9 @@
 package io.cafeai.core.internal;
 
 import io.cafeai.core.ai.TokenBudget;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 

@@ -2,11 +2,9 @@ package io.cafeai.core;
 
 import io.cafeai.core.internal.CafeAIApp;
 import org.junit.jupiter.api.DisplayName;
-import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
-import java.nio.file.Files;
 
-import java.util.List;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 

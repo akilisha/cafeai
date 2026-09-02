@@ -1,6 +1,6 @@
 package io.cafeai.core;
 
-import io.cafeai.core.ai.*;
+import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.ModelRouter;
 import io.cafeai.core.ai.OpenAI;
 import org.junit.jupiter.api.DisplayName;

@@ -1,7 +1,6 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.Attributes;
-import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;

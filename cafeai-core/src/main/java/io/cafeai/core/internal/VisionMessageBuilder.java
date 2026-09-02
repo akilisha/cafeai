@@ -1,11 +1,6 @@
 package io.cafeai.core.internal;
 
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ImageContent;
-import dev.langchain4j.data.message.PdfFileContent;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.TextContent;
-import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.data.message.*;
 import io.cafeai.core.ai.VisionRequest;
 
 import java.util.ArrayList;

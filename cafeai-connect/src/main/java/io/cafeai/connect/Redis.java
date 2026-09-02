@@ -1,8 +1,8 @@
 package io.cafeai.connect;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.memory.RedisConfig;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.memory.RedisConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -4,11 +4,7 @@ import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.rag.Chroma;
-import io.cafeai.rag.EmbeddingModel;
-import io.cafeai.rag.Retriever;
-import io.cafeai.rag.Source;
-import io.cafeai.rag.VectorStore;
+import io.cafeai.rag.*;
 
 import java.util.Map;
 

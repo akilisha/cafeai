@@ -1,15 +1,6 @@
 package io.cafeai.observability;
 
-import io.cafeai.core.Attributes;
-import io.cafeai.core.Locals;
-import io.cafeai.core.ai.PromptRequest;
-import io.cafeai.core.ai.PromptResponse;
-import io.cafeai.core.ai.AudioRequest;
-import io.cafeai.core.ai.AudioResponse;
-import io.cafeai.core.ai.SynthesisRequest;
-import io.cafeai.core.ai.SynthesisResponse;
-import io.cafeai.core.ai.VisionRequest;
-import io.cafeai.core.ai.VisionResponse;
+import io.cafeai.core.ai.*;
 import io.cafeai.core.spi.ObserveBridge;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;

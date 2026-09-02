@@ -1,8 +1,5 @@
 package io.cafeai.observability;
 
-import io.cafeai.core.Attributes;
-import io.cafeai.core.ai.PromptRequest;
-import io.cafeai.core.ai.PromptResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,8 +1,8 @@
 package io.cafeai.core.internal;
 
 import dev.langchain4j.data.message.*;
-import io.cafeai.core.ai.AudioRequest;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.ai.AudioRequest;
 
 import java.io.IOException;
 import java.net.URI;

@@ -1,10 +1,5 @@
 package io.cafeai.core.spi;
 
-import io.cafeai.core.guardrails.GuardRail;
-import io.cafeai.core.memory.MemoryStrategy;
-
-import java.util.function.Consumer;
-
 /**
  * SPI allowing {@code cafeai-agents} to provide agent registration and resolution
  * without creating a circular compile-time dependency on {@code cafeai-core}.

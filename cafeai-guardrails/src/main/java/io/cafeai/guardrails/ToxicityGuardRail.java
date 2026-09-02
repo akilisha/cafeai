@@ -1,7 +1,5 @@
 package io.cafeai.guardrails;
 
-import io.cafeai.core.guardrails.GuardRail;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;

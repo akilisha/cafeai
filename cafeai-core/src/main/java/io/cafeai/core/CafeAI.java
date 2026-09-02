@@ -1,9 +1,6 @@
 package io.cafeai.core;
 
-import io.cafeai.core.ai.AiProvider;
-import io.cafeai.core.ai.ModelRouter;
-import io.cafeai.core.ai.PromptRequest;
-import io.cafeai.core.ai.Template;
+import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.internal.CafeAIApp;
@@ -12,9 +9,8 @@ import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Router;
 import io.cafeai.core.spi.CafeAIConfigurer;
+
 import java.util.Map;
-import io.cafeai.core.StaticOptions;
-import io.cafeai.core.UrlEncodedOptions;
 
 /**
  * CafeAI — The main application interface.
@@ -497,7 +493,7 @@ public interface CafeAI extends Router {
      * @throws io.cafeai.core.ai.VisionRequest.UnsupportedContentTypeException if
      *         the MIME type is not supported by the vision pipeline
      */
-    io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType);
+    VisionRequest vision(String prompt, byte[] content, String mimeType);
 
     /**
      * Creates an audio request for the registered LLM provider.
@@ -533,7 +529,7 @@ public interface CafeAI extends Router {
      * @throws io.cafeai.core.ai.AudioRequest.UnsupportedAudioFormatException if
      *         the MIME type is not supported by the audio pipeline
      */
-    io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType);
+    AudioRequest audio(String prompt, byte[] content, String mimeType);
 
     /**
      * Creates a text-to-speech synthesis request using the registered TTS provider.
@@ -557,7 +553,7 @@ public interface CafeAI extends Router {
      * @throws io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException if the
      *         registered provider does not support TTS
      */
-    io.cafeai.core.ai.SynthesisRequest synthesise(String text);
+    SynthesisRequest synthesise(String text);
 
     /**
      * Retrieves a registered prompt template by name.

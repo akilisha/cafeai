@@ -1,7 +1,6 @@
 package io.cafeai.examples;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.AudioRequest;
 import io.cafeai.core.ai.AudioResponse;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.guardrails.GuardRail;
