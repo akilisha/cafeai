@@ -4,7 +4,7 @@
 **Module:** `cafeai-core`  
 **ADR Reference:** ADR-005 §6  
 **Depends On:** ROADMAP-02 Phases 3, 4, 5, 6  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete — foundational framework layer; see MILESTONE-05 for the phase record.
 
 ---
 

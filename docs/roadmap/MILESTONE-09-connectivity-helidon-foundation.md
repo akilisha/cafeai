@@ -5,7 +5,7 @@
 **Started:** —  
 **Target:** —  
 **Completed:** —  
-**Current Status:** 🔴 Not Started
+**Current Status:** 🟡 Partially delivered — `app.ws()`, `res.stream()` (SSE), `app.helidon()` all shipped via MILESTONE-10/11 + streaming. `app.sse()` as a distinct method and `app.grpc()` were not pursued. See ROADMAP-09.
 
 ---
 

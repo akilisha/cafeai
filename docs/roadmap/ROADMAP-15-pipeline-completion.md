@@ -1,5 +1,12 @@
 # ROADMAP-15 — Pipeline Completion
 
+**Status:** 🔵 Absorbed into ROADMAP-16. The audio phases (`app.audio()`,
+`OpenAI.whisper()`, `AudioTranscriptionExample`) shipped under ROADMAP-16 Track A
+("nova-tutor enablement"), alongside `app.synthesise()` / `OpenAI.tts()` and the
+named-provider registry. Streaming vision (`app.vision().stream()`) and
+atlas-inbox streaming classification were **deferred** there (ROADMAP-16 Phases 6–7)
+and remain open. The blog series was written. This file is kept for its context.
+
 > Completes the work that ROADMAP-14 started but deferred.
 > These phases were always implicit in the multimodal story —
 > `app.audio()` is the third modality, streaming vision is the

@@ -3,7 +3,10 @@
 > Tracks execution of ROADMAP-15. Each phase has a status and acceptance
 > criteria checkboxes. Update this file as work completes.
 
-**Current Status:** 🔴 Not Started
+**Current Status:** 🔵 Absorbed into MILESTONE-16. Audio (`app.audio()`, Whisper,
+`AudioTranscriptionExample`) shipped there as Track A; streaming vision + atlas-inbox
+streaming (Phases 6–8 below) were deferred (MILESTONE-16 Phases 6–7) and are still open.
+The phase table below is historical — do not track work here.
 
 | Phase | Description | Module | Status | Target |
 |-------|-------------|--------|--------|--------|

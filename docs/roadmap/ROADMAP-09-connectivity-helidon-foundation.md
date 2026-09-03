@@ -5,7 +5,10 @@
 **Modules:** `cafeai-core`, `cafeai-streaming` (extended)  
 **ADR Reference:** ADR-008  
 **Depends On:** ROADMAP-01 Phase 1, ROADMAP-04 Phase 7 (`res.stream()`)  
-**Status:** 🔴 Not Started
+**Status:** 🟡 Partially delivered — `app.ws()` (WebSocket), `res.stream()` (SSE), and
+`app.helidon()` all shipped (through ROADMAP-10/11 and the streaming work). `app.sse()`
+as a distinct method and `app.grpc()` were not pursued — SSE is covered by
+`res.stream()` and no gRPC use case has appeared. See MILESTONE-10 / MILESTONE-11.
 
 ---
 

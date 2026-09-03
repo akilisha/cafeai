@@ -3,7 +3,7 @@
 **Maps to:** Express `express()` + `express.json()` / `express.raw()` / `express.Router()` / `express.static()` / `express.text()` / `express.urlencoded()`  
 **Module:** `cafeai-core`  
 **ADR Reference:** ADR-001, ADR-002, ADR-005 §1–2  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete — foundational framework layer; see MILESTONE-01 for the phase record.
 
 ---
 

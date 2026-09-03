@@ -1,6 +1,8 @@
 # MILESTONE-17 — Framework Completeness
 
-**Current Status:** 🔴 Not Started
+**Current Status:** 🟡 Phases 7–11 complete (PgVector + Testcontainers test, OTel
+GenAI semconv, hybrid-retrieval rewrite). Phase 12 — the 0.2.0 Maven Central
+release — is the only remaining item.
 
 > **Superseded (agent phases).** Phases 1–6 below describe a bespoke ReAct loop,
 > `AgentDefinition` builder, and `app.orchestrate()` primitive. That design was

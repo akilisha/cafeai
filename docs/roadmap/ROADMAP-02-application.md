@@ -4,7 +4,7 @@
 **Module:** `cafeai-core`  
 **ADR Reference:** ADR-001, ADR-002, ADR-005 §3  
 **Depends On:** ROADMAP-01 Phase 1 (factory), ROADMAP-01 Phase 4 (Router)  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete — foundational framework layer; see MILESTONE-02 for the phase record.
 
 ---
 

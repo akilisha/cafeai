@@ -1,12 +1,19 @@
 # ROADMAP-17 — Framework Completeness
 
-> PgVector, real OTel spans, hybrid retrieval, and the 0.2.0 release to Maven Central.
+> PgVector, OTel GenAI semantic conventions, hybrid retrieval, and the 0.2.0
+> release to Maven Central.
 >
-> This roadmap follows Capstone 5 (nova-tutor) and the evangelism push.
-> The framework is already solid. ROADMAP-17 makes it complete.
+> **Status (2026-09):** Phases 7–11 complete. Phase 12 (the 0.2.0 release) is the
+> only thing left — see MILESTONE-17. Notes on what the phases turned out to be:
+> - *OTel* — the spans were already real (a `GlobalOpenTelemetry` tracer, started
+>   in `before*` / ended in `after*`). Phases 9–10 were an attribute-name pass to
+>   the OTel GenAI semantic conventions, not a from-scratch implementation.
+> - *Hybrid retrieval* — `Retriever.hybrid(k)` already existed as a stub with a
+>   broken BM25; Phase 11 rewrote it with real term-frequency scoring and
+>   `.denseWeight`/`.sparseWeight`.
 >
-> **Superseded:** the agent + orchestration portions of this roadmap have been
-> replaced by **[ROADMAP-12](ROADMAP-12-agents.md)** — CafeAI binds LangChain4j
+> **Superseded:** the agent + orchestration portions of this roadmap (Phases 1–6)
+> were replaced by **[ROADMAP-12](ROADMAP-12-agents.md)** — CafeAI binds LangChain4j
 > `AiServices` rather than implementing its own ReAct loop / `app.orchestrate()`.
 
 ---
@@ -54,13 +61,16 @@ app.vectordb(VectorStore.pgVector(
 Production vector store on existing PostgreSQL infrastructure. ACID
 transactions, SQL queryable, no new database service to operate.
 
-### Real OpenTelemetry spans
+### OpenTelemetry GenAI semantic conventions
 
 ```java
 app.observe(ObserveStrategy.otel());
-// Every call produces a real span with GenAI semantic conventions:
-// gen_ai.system, gen_ai.operation.name, gen_ai.request.model,
-// gen_ai.usage.input_tokens, gen_ai.usage.output_tokens
+// Every call produces a span named by gen_ai.operation.name
+// (chat / transcribe / invoke_agent / retrieve), carrying
+// gen_ai.system, gen_ai.response.model,
+// gen_ai.usage.input_tokens, gen_ai.usage.output_tokens.
+// cafeai.latency_ms / cache_hit / rag.documents_retrieved / session.id
+// remain as CafeAI extensions.
 ```
 
 Integrates with Jaeger, Grafana, Honeycomb, Datadog out of the box.
@@ -92,15 +102,15 @@ A versioned, tagged release with stable API guarantees.
 
 ## Phase inventory
 
-| Phase | Description |
-|-------|-------------|
-| 1–6 | ~~Agents & orchestration~~ → **[ROADMAP-12](ROADMAP-12-agents.md)** |
-| 7 | PgVector implementation |
-| 8 | PgVector integration test (Testcontainers) |
-| 9 | Real OpenTelemetry spans |
-| 10 | OTel GenAI semantic conventions |
-| 11 | Hybrid retrieval (BM25 + dense) |
-| 12 | 0.2.0 release to Maven Central |
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1–6 | ~~Agents & orchestration~~ → **[ROADMAP-12](ROADMAP-12-agents.md)** | ⚫ superseded |
+| 7 | PgVector implementation | 🟢 |
+| 8 | PgVector integration test (Testcontainers) | 🟢 (needs Docker to run) |
+| 9 | OTel spans → GenAI semconv attribute names | 🟢 |
+| 10 | RAG retrieval + agent spans, semconv keys | 🟢 |
+| 11 | Hybrid retrieval (BM25 + dense) — rewrite the stub | 🟢 |
+| 12 | 0.2.0 release to Maven Central | 🔴 |
 
 ---
 

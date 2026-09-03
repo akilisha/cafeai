@@ -221,7 +221,7 @@ app.rag(Retriever.semantic(topK))          // semantic similarity retrieval
 app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ```
 
-### 3.5 Tool and MCP Primitives &nbsp;<sub>🚧 planned — ROADMAP-12</sub>
+### 3.5 Tool and MCP Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
 
 Tools and MCP clients attach to an agent through LangChain4j — `@Tool`-annotated
 Java methods and `McpToolProvider` — not a separate CafeAI primitive (the old
@@ -256,12 +256,11 @@ app.eval(EvalStrategy.relevance())        // RAG relevance scoring
 app.eval(EvalStrategy.faithfulness())     // hallucination detection
 ```
 
-### 3.8 Agent Primitives (ROADMAP-12 — Helidon Agentic Direction)
+### 3.8 Agent Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
 
 ```java
-// NEW — agent direction (ROADMAP-12)
-app.agent("support-agent", SupportAgent.class)  // register Helidon/LangChain4j agent
-                                                 // with HTTP identity + session + observability
+app.agent("support-agent", SupportAgent.class)  // bind a LangChain4j AiService,
+                                                 // give it an HTTP identity + session + observability
 
 app.post("/support", (req, res, next) -> {
     var result = app.agent("support-agent", SupportAgent.class)
@@ -304,7 +303,7 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | 7 | Streaming | `core` + `streaming` | SSE / WebSocket token streaming |
 | 8 | Security | `core` + `security` | Injection, leakage, adversarial robustness |
 | 9 | Out-of-process services | `core` + `connect` | Redis, Ollama, pgvector with fallback policy |
-| 10 | Agents, tools, MCP &nbsp;<sub>🚧</sub> | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
+| 10 | Agents, tools, MCP | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
 | — | MCP server | `core` + `app.helidon()` | Expose capabilities to external orchestrators (§12) |
 
 ---
@@ -384,8 +383,8 @@ cafeai/
 ├── cafeai-streaming/                   ← SSE / WebSocket token streaming
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector, MCP
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
-├── cafeai-agents/                      ← 🚧 planned (ROADMAP-12): binds LangChain4j AiServices
-│                                         to an HTTP identity — session, guardrails, observability
+├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity
+│                                         — session, guardrails, RAG, observability (ROADMAP-12)
 └── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
 ```
 

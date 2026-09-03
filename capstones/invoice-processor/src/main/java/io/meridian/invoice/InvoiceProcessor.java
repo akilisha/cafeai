@@ -42,33 +42,33 @@ import java.util.List;
  *   Gmail (unread emails)
  *       |
  *       v
- *   Pre-filter             <- skip obvious non-vendor emails (no token cost)
+ *   Pre-filter             ← skip obvious non-vendor emails (no token cost)
  *       |
  *       v
- *   Sentiment Analysis     <- tone + urgency -> escalation decision
+ *   Sentiment Analysis     ← tone + urgency → escalation decision
  *       |
- *       +- escalate=true -> EscalationNotifier -> supervisor + vendor ack
- *       |
- *       v
- *   Attachment Classification  <- is this an invoice?
+ *       └ escalate=true → EscalationNotifier -> supervisor + vendor ack
  *       |
  *       v
- *   Invoice Extraction         <- structured fields from PDF/image/body
+ *   Attachment Classification  ← is this an invoice?
  *       |
  *       v
- *   Reconciliation             <- contracted vs invoiced via a tool-calling agent
+ *   Invoice Extraction         ← structured fields from PDF/image/body
  *       |
  *       v
- *   Response Composition       <- draft vendor reply
+ *   Reconciliation             ← contracted vs invoiced via a tool-calling agent
  *       |
  *       v
- *   Gmail (send reply)         <- skipped in dry-run mode
+ *   Response Composition       ← draft vendor reply
+ *       |
+ *       v
+ *   Gmail (send reply)         ← skipped in dry-run mode
  * </pre>
  *
  * <p>Run modes:
  * <pre>
- *   ./gradlew run          -> full processing run
- *   ./gradlew run -Pdry    -> dry run, no emails sent
+ *   ./gradlew run          → full processing run
+ *   ./gradlew run -Pdry    → dry run, no emails sent
  * </pre>
  */
 public class InvoiceProcessor {

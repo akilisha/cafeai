@@ -6,7 +6,11 @@ Service Loader self-registration, optional `cafeai-cdi` module, `@CafeAIRoute`
 **ADR Reference:** ADR-006  
 **Depends On:** ROADMAP-01 Phase 1 (`CafeAI.create()` must exist)  
 **Parallel With:** ROADMAP-02 through ROADMAP-07 (DI wires into Tier 2, not Tier 3)  
-**Status:** 🔴 Not Started
+**Status:** 🟡 Partially delivered — the Tier-2/Tier-3 seams shipped in `cafeai-core`
+(`CafeAIConfigurer`, `CafeAIModule` SPI, ServiceLoader self-registration, and every
+`io.cafeai.core.spi.*` bridge the modules use). The optional `cafeai-cdi` module and
+`@CafeAIRoute` were not pursued — Helidon SE has no injection container and the SPI
+seams cover what the capstones needed. Revisit only if a real CDI use case appears.
 
 ---
 

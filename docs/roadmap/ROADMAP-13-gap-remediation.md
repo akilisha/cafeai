@@ -1,5 +1,7 @@
 # ROADMAP-13 — Gap Remediation
 
+**Status:** 🟢 Complete — see MILESTONE-13.
+
 > Addresses the structural gaps identified after completing Capstones 1–4.
 > These are not polish items. They are unproven claims and architectural
 > failures that undermine CafeAI's core differentiators.

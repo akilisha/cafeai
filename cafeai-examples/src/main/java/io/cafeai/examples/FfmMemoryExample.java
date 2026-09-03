@@ -43,7 +43,7 @@ import java.util.Map;
  *
  *   # Step 2 — check the session file exists on disk
  *   ls /tmp/cafeai/sessions/
- *   # demo-session.json  <-- session is on disk, not in heap
+ *   # demo-session.json  -- session is on disk, not in heap
  *
  *   # Step 3 — stop the app (Ctrl+C), restart it
  *

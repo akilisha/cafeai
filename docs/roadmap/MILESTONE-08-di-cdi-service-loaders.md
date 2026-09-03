@@ -5,7 +5,7 @@
 **Started:** —  
 **Target:** —  
 **Completed:** —  
-**Current Status:** 🔴 Not Started
+**Current Status:** 🟡 Partially delivered — the SPI/configurer seams (`CafeAIConfigurer`, `CafeAIModule`, ServiceLoader self-registration) shipped in `cafeai-core`; the optional `cafeai-cdi` module + `@CafeAIRoute` were not pursued (Helidon SE has no injection container). See ROADMAP-08.
 
 ---
 

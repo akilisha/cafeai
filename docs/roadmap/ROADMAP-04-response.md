@@ -4,7 +4,7 @@
 **Module:** `cafeai-core` + `cafeai-streaming`  
 **ADR Reference:** ADR-005 §5  
 **Depends On:** ROADMAP-01 Phase 1, ROADMAP-03 Phase 1  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete — foundational framework layer; see MILESTONE-04 for the phase record.
 
 ---
 

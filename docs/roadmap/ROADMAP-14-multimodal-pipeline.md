@@ -1,5 +1,8 @@
 # ROADMAP-14 — Multimodal Pipeline
 
+**Status:** 🟢 Complete — `app.vision()`, `.returning(Class)` structured output,
+`app.budget()` / `app.retry()`. See MILESTONE-14.
+
 > Adds first-class multimodal entry points to CafeAI's pipeline.
 > Closes the architectural gap exposed by Capstone 4 (`atlas-inbox`),
 > where the entire vision workload bypassed `app.prompt()` entirely
