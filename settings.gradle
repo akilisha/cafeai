@@ -18,7 +18,8 @@ include(
 // Runnable reference applications. Consume the framework via
 // project() deps so API drift breaks the build. Not published.
 include(
-    'capstones:invoice-processor'
+    'capstones:invoice-processor',
+    'capstones:support-desk',
+    'capstones:meridian-qualify',
+    'capstones:acme-claims'
 )
-// support-desk, meridian-qualify, acme-claims — added in Phase 3 once migrated
-// (they need AgentConfig.rag(), landing in Phase 2).

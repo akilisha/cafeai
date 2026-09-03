@@ -1,0 +1,29 @@
+// ============================================================
+//  Capstone 2 — meridian-qualify
+//  Loan pre-qualification assistant for Meridian Home Loans.
+//  Regulated domain: ECOA / FCRA / Fair Housing guardrails, a
+//  forced tool protocol (footprint, DTI, payment), structured
+//  QualificationDecision output, per-session memory, WebSocket.
+//
+//  Evolved from the standalone build on io.cafeai:*:0.1.0-SNAPSHOT
+//  + the removed cafeai-tools module.
+// ============================================================
+
+description = 'Capstone: regulated loan pre-qualification — a tool-protocol agent + regulatory guardrails.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-agents')
+    implementation project(':cafeai-rag')
+    implementation project(':cafeai-memory')
+    implementation project(':cafeai-guardrails')
+    implementation project(':cafeai-observability')
+    implementation project(':cafeai-security')
+    implementation project(':cafeai-connect')
+}
+
+application {
+    mainClass = 'io.meridian.qualify.QualifyApp'
+}

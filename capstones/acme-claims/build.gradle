@@ -1,0 +1,29 @@
+// ============================================================
+//  Capstone 3 — acme-claims
+//  Insurance claims intake assistant for Acme Insurance Group.
+//  HIPAA + fraud-coaching guardrails, a claims-API agent
+//  (lookup / verify-coverage / open-claim), Redis session memory,
+//  Chroma vector store, structured ClaimsDecision output, WebSocket.
+//
+//  Evolved from the standalone build on io.cafeai:*:0.1.1 + the
+//  removed cafeai-tools module.
+// ============================================================
+
+description = 'Capstone: insurance claims intake — a claims-API agent, Redis memory, Chroma RAG, HIPAA guardrails.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-agents')
+    implementation project(':cafeai-rag')
+    implementation project(':cafeai-memory')
+    implementation project(':cafeai-guardrails')
+    implementation project(':cafeai-observability')
+    implementation project(':cafeai-security')
+    implementation project(':cafeai-connect')
+}
+
+application {
+    mainClass = 'io.acme.claims.ClaimsApp'
+}

@@ -1,0 +1,28 @@
+// ============================================================
+//  Capstone 1 — support-desk
+//  Technical support assistant for the Helios connection-pool
+//  library. RAG over the docs + a GitHub issue-lookup agent,
+//  per-session memory, guardrails, security, WebSocket.
+//
+//  Evolved from the cafeai-support capstone. Was: standalone
+//  Gradle build on io.cafeai:*:0.1.0-SNAPSHOT + cafeai-tools.
+// ============================================================
+
+description = 'Capstone: Helios support assistant — RAG + a GitHub-issue agent, over HTTP and WebSocket.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-agents')
+    implementation project(':cafeai-rag')
+    implementation project(':cafeai-memory')
+    implementation project(':cafeai-guardrails')
+    implementation project(':cafeai-observability')
+    implementation project(':cafeai-security')
+    implementation project(':cafeai-connect')
+}
+
+application {
+    mainClass = 'io.cafeai.support.SupportApp'
+}

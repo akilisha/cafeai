@@ -1,0 +1,50 @@
+# acme-claims — infrastructure dependencies
+#
+# Starts Redis (session memory) and Chroma (vector store).
+# Run before starting the application:
+#
+#   docker-compose up -d
+#   ./gradlew run
+#
+# Stop:
+#   docker-compose down
+#
+# Stop and wipe all data:
+#   docker-compose down -v
+
+services:
+
+  redis:
+    image: redis:7-alpine
+    container_name: acme-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  chroma:
+    # Pin to 0.5.23 -- LangChain4j ChromaEmbeddingStore does not yet support
+    # Chroma 0.6+ (API breaking change). Update when langchain4j-chroma is patched.
+    image: chromadb/chroma:0.5.23
+    container_name: acme-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  redis-data:
+  chroma-data:
