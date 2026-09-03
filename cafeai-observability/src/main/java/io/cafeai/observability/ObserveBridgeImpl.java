@@ -219,6 +219,56 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         }
     }
 
+    // -- Agents (app.agent) --------------------------------------------------
+    // The reasoning loop, tool calls, and chat memory are LangChain4j's; this
+    // brackets the whole invocation. Token accounting is not available on the
+    // agent path, so the trace records name, latency, and outcome only.
+
+    @Override
+    public Object beforeAgent(String agentName) {
+        Span span = null;
+        if (strategy instanceof OtelObserveStrategy) {
+            span = TRACER.spanBuilder("cafeai.agent.invoke")
+                .setSpanKind(SpanKind.CLIENT)
+                .setParent(Context.current())
+                .startSpan();
+            span.setAttribute("cafeai.agent", agentName);
+        }
+        return new ObserveContext(System.currentTimeMillis(), span, strategy);
+    }
+
+    @Override
+    public void afterAgent(Object ctx, String agentName, Throwable error) {
+        if (!(ctx instanceof ObserveContext context)) return;
+        long latencyMs = System.currentTimeMillis() - context.startMs();
+
+        if (context.strategy() instanceof ConsoleObserveStrategy) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n-- Agent Invocation ---------------------------------\n");
+            sb.append("  agent:      ").append(agentName).append('\n');
+            if (error != null) {
+                sb.append("  ERROR:      ").append(error.getClass().getSimpleName())
+                  .append(": ").append(error.getMessage()).append('\n');
+            } else {
+                sb.append(String.format("  latency:    %,dms%n", latencyMs));
+            }
+            sb.append("------------------------------------------------------");
+            log.info(sb.toString());
+        } else if (context.strategy() instanceof OtelObserveStrategy && context.span() != null) {
+            try {
+                context.span().setAttribute("cafeai.latency_ms", latencyMs);
+                if (error != null) {
+                    context.span().setStatus(StatusCode.ERROR, error.getMessage());
+                    context.span().setAttribute("cafeai.error", error.getClass().getName());
+                } else {
+                    context.span().setStatus(StatusCode.OK);
+                }
+            } finally {
+                context.span().end();
+            }
+        }
+    }
+
     @Override
     public Object beforeSynthesis(SynthesisRequest request) {
         return new ObserveContext(System.currentTimeMillis(), null, strategy);

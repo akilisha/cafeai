@@ -5,6 +5,7 @@ import dev.langchain4j.observability.api.event.AiServiceErrorEvent;
 import dev.langchain4j.observability.api.event.AiServiceEvent;
 import dev.langchain4j.observability.api.event.AiServiceStartedEvent;
 import dev.langchain4j.observability.api.listener.AiServiceListener;
+import io.cafeai.core.spi.ObserveBridge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,9 +14,12 @@ import java.util.function.Consumer;
 
 /**
  * Whole-invocation observability for an agent, via LangChain4j's
- * {@code AiServiceListener}. For v1 this logs at INFO; routing the events through
- * CafeAI's {@code ObserveBridge} (spans, token counts) is a follow-on that needs
- * {@code beforeAgent}/{@code afterAgent} on that SPI.
+ * {@code AiServiceListener}. Always logs at INFO; when an {@link ObserveBridge}
+ * is present it also brackets the invocation with
+ * {@link ObserveBridge#beforeAgent(String)} / {@link ObserveBridge#afterAgent}.
+ *
+ * <p>The bridge context is held in a {@link ThreadLocal}: an {@code AiService}
+ * method call and its listener events run synchronously on the caller's thread.
  */
 public final class AgentObserveListener {
 
@@ -23,14 +27,29 @@ public final class AgentObserveListener {
 
     private AgentObserveListener() {}
 
-    public static List<AiServiceListener<?>> forAgent(String name) {
+    public static List<AiServiceListener<?>> forAgent(String name, ObserveBridge observeBridge) {
+        ThreadLocal<Object> ctx = new ThreadLocal<>();
         return List.of(
-            listener(AiServiceStartedEvent.class,
-                e -> log.info("agent '{}' invoked", name)),
-            listener(AiServiceCompletedEvent.class,
-                e -> log.info("agent '{}' completed", name)),
-            listener(AiServiceErrorEvent.class,
-                e -> log.warn("agent '{}' failed: {}", name, String.valueOf(e.error())))
+            listener(AiServiceStartedEvent.class, e -> {
+                log.info("agent '{}' invoked", name);
+                if (observeBridge != null) {
+                    ctx.set(observeBridge.beforeAgent(name));
+                }
+            }),
+            listener(AiServiceCompletedEvent.class, e -> {
+                log.info("agent '{}' completed", name);
+                if (observeBridge != null) {
+                    observeBridge.afterAgent(ctx.get(), name, null);
+                    ctx.remove();
+                }
+            }),
+            listener(AiServiceErrorEvent.class, e -> {
+                log.warn("agent '{}' failed: {}", name, String.valueOf(e.error()));
+                if (observeBridge != null) {
+                    observeBridge.afterAgent(ctx.get(), name, e.error());
+                    ctx.remove();
+                }
+            })
         );
     }
 

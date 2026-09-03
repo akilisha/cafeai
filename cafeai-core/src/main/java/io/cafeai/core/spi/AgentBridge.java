@@ -68,5 +68,18 @@ public interface AgentBridge {
 
         /** The application-level default memory strategy, or {@code null}. */
         MemoryStrategy defaultMemory();
+
+        /**
+         * The application-level RAG retriever from {@code app.rag(...)}, or {@code null}.
+         * An agent uses this when {@code AgentConfig.rag(...)} is not set.
+         * Typed {@code Object} — a {@code io.cafeai.rag.Retriever}.
+         */
+        default Object ragRetriever() { return null; }
+
+        /** The application-level vector store from {@code app.vectordb(...)}, or {@code null}. */
+        default Object vectorStore() { return null; }
+
+        /** The application-level embedding model from {@code app.embed(...)}, or {@code null}. */
+        default Object embeddingModel() { return null; }
     }
 }

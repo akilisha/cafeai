@@ -167,6 +167,9 @@ public final class CafeAIApp implements CafeAI {
         @Override public AiProvider     defaultProvider() { return aiProvider; }
         @Override public ObserveBridge  observeBridge()   { return observeBridge; }
         @Override public MemoryStrategy defaultMemory()   { return memoryStrategy; }
+        @Override public Object         ragRetriever()    { return retriever; }
+        @Override public Object         vectorStore()     { return vectorStore; }
+        @Override public Object         embeddingModel()  { return embeddingModel; }
     }
 
     // -- Agents (ROADMAP-12) -------------------------------------------------

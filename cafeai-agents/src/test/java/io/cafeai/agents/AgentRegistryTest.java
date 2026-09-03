@@ -183,12 +183,46 @@ class AgentRegistryTest {
             .hasMessageContaining("McpEndpoint");
     }
 
+    @Test
+    void observeBridge_bracketsTheInvocation() {
+        RecordingObserveBridge bridge = new RecordingObserveBridge();
+        support.observeBridge = bridge;
+        registry.init(support);
+        support.model = fixedModel("done");
+        registry.register("assistant", Assistant.class);
+
+        registry.resolve("assistant", Assistant.class, null).chat("go");
+
+        assertThat(bridge.before).containsExactly("assistant");
+        assertThat(bridge.afterOk).containsExactly("assistant");
+        assertThat(bridge.afterErr).isEmpty();
+    }
+
+    @Test
+    void rag_wiringDegradesGracefullyWithoutCafeaiRag() {
+        // retriever + store + model all present, but no RagPipeline on the test
+        // classpath — the content retriever must return nothing, not throw.
+        support.ragRetriever = "retriever-handle";
+        support.vectorStore = "store-handle";
+        support.embeddingModel = "model-handle";
+        registry.init(support);
+        support.model = fixedModel("answer");
+        registry.register("assistant", Assistant.class);
+
+        Assistant agent = registry.resolve("assistant", Assistant.class, null);
+        assertThat(agent.chat("q")).isEqualTo("answer");
+    }
+
     // ── fakes ────────────────────────────────────────────────────────────────
 
     private static final class FakeSupport implements AgentBridge.AgentSupport {
         FixedModel model = fixedModel("");
         final AiProvider defaultProvider = namedProvider("default");
         final java.util.Map<AiProvider, FixedModel> overrides = new java.util.HashMap<>();
+        ObserveBridge observeBridge;
+        Object ragRetriever;
+        Object vectorStore;
+        Object embeddingModel;
 
         @Override
         public ChatModel chatModel(AiProvider provider) {
@@ -197,8 +231,31 @@ class AgentRegistryTest {
         }
 
         @Override public AiProvider defaultProvider() { return defaultProvider; }
-        @Override public ObserveBridge observeBridge() { return null; }
+        @Override public ObserveBridge observeBridge() { return observeBridge; }
         @Override public MemoryStrategy defaultMemory() { return null; }
+        @Override public Object ragRetriever() { return ragRetriever; }
+        @Override public Object vectorStore() { return vectorStore; }
+        @Override public Object embeddingModel() { return embeddingModel; }
+    }
+
+    private static final class RecordingObserveBridge implements ObserveBridge {
+        final List<String> before  = new java.util.ArrayList<>();
+        final List<String> afterOk = new java.util.ArrayList<>();
+        final List<String> afterErr = new java.util.ArrayList<>();
+
+        @Override public void setStrategy(Object strategy) {}
+        @Override public Object beforePrompt(io.cafeai.core.ai.PromptRequest r) { return null; }
+        @Override public void afterPrompt(Object c, io.cafeai.core.ai.PromptRequest r,
+                                          io.cafeai.core.ai.PromptResponse resp, Throwable e) {}
+
+        @Override public Object beforeAgent(String agentName) {
+            before.add(agentName);
+            return "ctx:" + agentName;
+        }
+
+        @Override public void afterAgent(Object context, String agentName, Throwable error) {
+            (error == null ? afterOk : afterErr).add(agentName);
+        }
     }
 
     private static AiProvider namedProvider(String name) {

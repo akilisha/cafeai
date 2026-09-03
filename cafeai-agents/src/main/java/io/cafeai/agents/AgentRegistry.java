@@ -8,6 +8,7 @@ import dev.langchain4j.observability.api.listener.AiServiceListener;
 import dev.langchain4j.service.AiServices;
 import io.cafeai.agents.adapter.AgentObserveListener;
 import io.cafeai.agents.adapter.CafeAiChatMemoryStore;
+import io.cafeai.agents.adapter.CafeAiContentRetriever;
 import io.cafeai.agents.adapter.GuardrailAdapters;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.agents.ToolSource;
@@ -128,6 +129,16 @@ public final class AgentRegistry implements AgentBridge {
         if (!inputRails.isEmpty())  builder.inputGuardrails(inputRails);
         if (!outputRails.isEmpty()) builder.outputGuardrails(outputRails);
 
+        // -- RAG --------------------------------------------------------
+        Object ragRetriever = config.ragRetriever() != null
+            ? config.ragRetriever() : support.ragRetriever();
+        Object vectorStore    = support.vectorStore();
+        Object embeddingModel = support.embeddingModel();
+        if (ragRetriever != null && vectorStore != null && embeddingModel != null) {
+            builder.contentRetriever(
+                new CafeAiContentRetriever(ragRetriever, vectorStore, embeddingModel));
+        }
+
         // -- memory ------------------------------------------------------
         if (memory != null) {
             builder.chatMemory(MessageWindowChatMemory.builder()
@@ -138,10 +149,9 @@ public final class AgentRegistry implements AgentBridge {
         }
 
         // -- observability ---------------------------------------------
-        if (support.observeBridge() != null) {
-            for (AiServiceListener<?> l : AgentObserveListener.forAgent(name)) {
-                builder.registerListeners(l);
-            }
+        for (AiServiceListener<?> l :
+                AgentObserveListener.forAgent(name, support.observeBridge())) {
+            builder.registerListeners(l);
         }
 
         // -- escape hatch (runs last, over the assembled builder) ------

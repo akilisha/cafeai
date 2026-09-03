@@ -32,7 +32,8 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 | `app.agent(name, Interface.class, sessionId).method(...)` invokes the `AiService` | Returns the interface's return type |
 | Session memory threads into the agent | Second call in same session has memory of the first ✅ |
 | Guardrail flags a violating agent response | POST_LLM output guardrail tested; PRE_LLM input screening wired (needs a `GuardRail.checkInput` seam) |
-| Observability trace fires on agent invocation | `AiServiceListener` logs started/completed/error; `ObserveBridge` spans are a follow-on |
+| Observability trace fires on agent invocation | `AiServiceListener` logs + `ObserveBridge.beforeAgent`/`afterAgent` → console line / OTel span (name, latency, outcome) |
+| RAG on an agent | `AgentConfig.rag(...)` or app-level `app.rag(...)` → LangChain4j `ContentRetriever` via the `RagPipeline` SPI |
 | Supervisor pattern works — an agent calls another agent as a `@Tool` | `AgentExample` (`OrderDesk` tool → `OrderNarrator` agent); Capstone 4 next |
 | `cafeai-agents` published to Maven Central | Part of the 0.2.x release |
 
@@ -71,9 +72,10 @@ message; a dedicated `GuardRail.checkInput` seam is the clean follow-on.
 `app.agent(name, Interface.class, sessionId)` returns LangChain4j's *own* `AiService` proxy.
 CafeAI's contributions are applied at `AiServices.builder()` time by adapting CafeAI
 abstractions to LangChain4j's build-time hooks — `GuardRail` → `InputGuardrail`/`OutputGuardrail`,
-observability → `AiServiceListener` (whole-invocation started/completed/error),
+observability → `AiServiceListener` + `ObserveBridge.beforeAgent`/`afterAgent`,
 `MemoryStrategy` → `ChatMemoryStore` (session-keyed, wrapped in `MessageWindowChatMemory`),
-tool sources → `.tools(...)`. Wrapping the proxy in a second proxy would be the
+RAG → `ContentRetriever` (via the `RagPipeline` SPI), tool sources → `.tools(...)`.
+Wrapping the proxy in a second proxy would be the
 "wrap, don't bind" mistake this milestone exists to avoid. A thin `java.lang.reflect.Proxy`
 is deferred to if-and-when a capstone proves it necessary.
 

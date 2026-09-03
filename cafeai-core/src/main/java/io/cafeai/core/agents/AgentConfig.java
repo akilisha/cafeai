@@ -38,6 +38,7 @@ public final class AgentConfig<T> {
     private       MemoryStrategy    memoryStrategy;
     private final List<GuardRail>   guardRails  = new ArrayList<>();
     private final List<ToolSource>  tools       = new ArrayList<>();
+    private       Object            ragRetriever;
     private       Consumer<?>       builderConsumer;
 
     public AgentConfig(Class<T> agentInterface) {
@@ -79,6 +80,21 @@ public final class AgentConfig<T> {
      */
     public AgentConfig<T> guard(GuardRail... rails) {
         for (GuardRail r : rails) guardRails.add(r);
+        return this;
+    }
+
+    /**
+     * Gives this agent a RAG content retriever. Pass a {@code io.cafeai.rag.Retriever}
+     * (e.g. {@code Retriever.semantic(3)}); it is adapted to a LangChain4j
+     * {@code ContentRetriever} and wired via {@code AiServices.contentRetriever(...)},
+     * drawing on the vector store and embedding model registered with
+     * {@code app.vectordb(...)} / {@code app.embed(...)}.
+     *
+     * <p>When unset, the agent inherits the application-level retriever from
+     * {@code app.rag(...)} if one is registered. Requires {@code cafeai-rag}.
+     */
+    public AgentConfig<T> rag(Object retriever) {
+        this.ragRetriever = retriever;
         return this;
     }
 
@@ -127,6 +143,7 @@ public final class AgentConfig<T> {
     public MemoryStrategy     memoryStrategy()  { return memoryStrategy; }
     public List<GuardRail>    guardRails()      { return List.copyOf(guardRails); }
     public List<ToolSource>   tools()           { return List.copyOf(tools); }
+    public Object             ragRetriever()    { return ragRetriever; }
 
     @SuppressWarnings("unchecked")
     public Consumer<AiServices<T>> builderConsumer() {

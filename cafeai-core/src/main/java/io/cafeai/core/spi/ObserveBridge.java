@@ -99,6 +99,28 @@ public interface ObserveBridge {
     }
 
     /**
+     * Called immediately before an agent ({@code app.agent(...)}) invocation.
+     * The agent's reasoning loop, tool calls, and chat memory are owned by
+     * LangChain4j; this hook brackets the whole invocation.
+     *
+     * @param agentName the registered agent name
+     * @return an opaque context object passed to {@link #afterAgent}
+     */
+    default Object beforeAgent(String agentName) {
+        return null;
+    }
+
+    /**
+     * Called immediately after an agent invocation completes or throws.
+     *
+     * @param context   the object returned by {@link #beforeAgent}
+     * @param agentName the registered agent name
+     * @param error     the error, or {@code null} if the invocation succeeded
+     */
+    default void afterAgent(Object context, String agentName, Throwable error) {
+    }
+
+    /**
      * Called immediately before a TTS synthesis call.
      *
      * @param request the synthesis request about to be executed

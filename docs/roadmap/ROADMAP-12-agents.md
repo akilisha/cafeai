@@ -246,13 +246,18 @@ app.agent("loan-advisor", LoanAdvisor.class)
 
 ### Phase 4 — `AgentRegistry` — Agent Lifecycle ✅ Complete
 
-Delivered in `33912e5`. `AgentRegistry.resolve()` assembles `AiServices.builder(type)` from
-the config via adapters — no wrapper proxy:
+Delivered in `33912e5`, extended in the capstone-migration work. `AgentRegistry.resolve()`
+assembles `AiServices.builder(type)` from the config via adapters — no wrapper proxy:
 - `GuardrailAdapters` — `GuardRail` → `InputGuardrail` / `OutputGuardrail`, split by `Position`
 - `CafeAiChatMemoryStore` — `MemoryStrategy` → `ChatMemoryStore`, session-keyed, wrapped in a
   `MessageWindowChatMemory` (20-message window)
-- `AgentObserveListener` — whole-invocation `AiServiceListener` logging (started / completed /
-  error); routing through `ObserveBridge` spans is a follow-on (needs `beforeAgent`/`afterAgent`)
+- `CafeAiContentRetriever` — `AgentConfig.rag(retriever)` (or the app-level `app.rag(...)` when
+  unset) → LangChain4j `ContentRetriever` via `.contentRetriever(...)`, dispatching through the
+  same `RagPipeline` SPI `app.prompt()` uses; degrades to no-op without `cafeai-rag`
+- `AgentObserveListener` — whole-invocation `AiServiceListener` logging **plus**
+  `ObserveBridge.beforeAgent`/`afterAgent` (default no-op on the SPI; `cafeai-observability`
+  emits a console line / OTel `cafeai.agent.invoke` span — name, latency, outcome; no token
+  accounting on the agent path)
 - MCP tool sources throw a helpful "needs cafeai-connect McpEndpoint" until that connector lands
 - stateless agents cached by name; stateful cached by `name::sessionId`
 
