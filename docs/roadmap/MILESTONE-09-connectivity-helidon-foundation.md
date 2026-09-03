@@ -5,21 +5,26 @@
 **Started:** —  
 **Target:** —  
 **Completed:** —  
-**Current Status:** 🟡 Partially delivered — `app.ws()`, `res.stream()` (SSE), `app.helidon()` all shipped via MILESTONE-10/11 + streaming. `app.sse()` as a distinct method and `app.grpc()` were not pursued. See ROADMAP-09.
+**Current Status:** 🟢 Complete (scoped) — `app.ws()` (+ `WsSession.streamTokens`),
+`res.stream()` (SSE), and `app.helidon()` as a raw `.server()` / `.routing()`
+escape hatch all shipped. `app.sse()` as a distinct method and `app.grpc()` were
+cut for lack of demand; the rich `app.helidon().health()/.metrics()` configurator
+was cut in favour of using Helidon's own feature builders through `.routing()`.
 
 ---
 
 ## Progress Tracker
 
-| Phase | Description | Status | Completed |
-|---|---|---|---|
-| Phase 1 | `app.ws()` — WebSocket endpoints | 🟢 Complete | March 2026 |
-| Phase 2 | `res.stream()` — SSE token streaming | 🟢 Complete | March 2026 |
-| Phase 3 | `app.grpc()` — gRPC service registration | 🔴 Not Started | — |
-| Phase 4 | `app.helidon()` — Foundation gateway | 🔴 Not Started | — |
-| Phase 5 | Connectivity + foundation documentation | 🔴 Not Started | — |
+| Phase | Description | Status |
+|---|---|---|
+| Phase 1 | `app.ws()` — WebSocket endpoints | 🟢 Complete (`WsHandler` lifecycle + `WsSession.streamTokens` for LLM-over-WS) |
+| Phase 2 | Response-level SSE (`res.stream()`) | 🟢 Complete |
+| Phase 2b | `app.sse()` — connection-level server-push, distinct from `res.stream()` | 🔷 Deferred — `res.stream()` + a persistent WS channel cover the cases; revisit if agent-progress event feeds surface real demand |
+| Phase 3 | `app.grpc()` — gRPC service registration | 🔷 Deferred — no gRPC use case across the capstone series; wire via `app.helidon().routing()` + `helidon-webserver-grpc` if needed |
+| Phase 4 | `app.helidon()` — foundation gateway | 🟢 Complete (scoped): `.server(Consumer<WebServerConfig.Builder>)` + `.routing(Consumer<HttpRouting.Builder>)`. The `.health()/.metrics()/.openApi()/.faultTolerance()/.security()` sugar layer was **not built** — Helidon's own fluent builders are idiomatic and wouldn't stay in sync across releases (DEVELOPER_GUIDE §21) |
+| Phase 5 | Connectivity + foundation documentation | 🟢 DEVELOPER_GUIDE §13.4, §13.5, §21 |
 
-**Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised
+**Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔷 Won't do / Deferred
 
 ---
 

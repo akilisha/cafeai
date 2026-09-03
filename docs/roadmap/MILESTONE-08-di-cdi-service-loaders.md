@@ -5,28 +5,28 @@
 **Started:** —  
 **Target:** —  
 **Completed:** —  
-**Current Status:** 🟡 Partially delivered — the SPI/configurer seams (`CafeAIConfigurer`, `CafeAIModule`, ServiceLoader self-registration) shipped in `cafeai-core`; the optional `cafeai-cdi` module + `@CafeAIRoute` were not pursued (Helidon SE has no injection container). See ROADMAP-08.
+**Current Status:** 🟢 Complete (scoped) — the composition model shipped:
+`CafeAIConfigurer`, `CafeAIModule`, ServiceLoader self-registration, the
+`io.cafeai.core.spi` / `io.cafeai.core.internal` split, and `docs/EXTENDING.md`.
+CDI (`cafeai-cdi`, `@CafeAIRoute`) was cut — Helidon SE has no injection
+container and adding one contradicts the framework's thesis. JPMS
+`module-info.java` was judged not worth the ecosystem friction.
 
 ---
 
 ## Progress Tracker
 
-| Phase | Description | Module | Status | Completed |
-|---|---|---|---|---|
-| Phase 1 | `CafeAIConfigurer` + Service Loader bootstrap | `cafeai-core` | 🟢 Complete | March 2026 |
-| Phase 2 | `CafeAIModule` SPI + module self-registration | `cafeai-core` + all modules | 🟢 Complete | March 2026 |
-| Phase 3 | SPI package structure + JPMS `module-info.java` | `cafeai-core` + all modules | 🔴 Not Started | — |
-| Phase 4 | `cafeai-cdi` — CDI integration module | `cafeai-cdi` | 🔴 Not Started | — |
-| Phase 5 | `@CafeAIRoute` declarative routing | `cafeai-cdi` | 🔴 Not Started | — |
-| Phase 6 | DI guide + extension authoring guide | `docs/` | 🔴 Not Started | — |
+| Phase | Description | Module | Status |
+|---|---|---|---|
+| Phase 1 | `CafeAIConfigurer` + Service Loader bootstrap | `cafeai-core` | 🟢 Complete |
+| Phase 2 | `CafeAIModule` SPI + module self-registration | `cafeai-core` + modules | 🟢 Complete (SPI is the load-bearing path; `CafeAIModule` is an announce hook) |
+| Phase 3 | `io.cafeai.core.spi` / `io.cafeai.core.internal` package split | `cafeai-core` | 🟢 Complete |
+| Phase 3b | JPMS `module-info.java` for all modules | — | 🔷 Won't do — automatic-module friction with LangChain4j/Helidon outweighs the encapsulation gain; most libraries ship without it |
+| Phase 4 | `cafeai-cdi` — CDI integration module | — | 🔷 Won't do — Helidon SE has no CDI container; contradicts the SE thesis |
+| Phase 5 | `@CafeAIRoute` declarative routing | — | 🔷 Won't do — depended on Phase 4 |
+| Phase 6 | Extension authoring guide | `docs/` | 🟢 `docs/EXTENDING.md` + DEVELOPER_GUIDE §3, §22 |
 
-**Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised
-
----
-
-## Completed Items
-
-_Nothing completed yet._
+**Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔷 Won't do / Deferred
 
 ---
 

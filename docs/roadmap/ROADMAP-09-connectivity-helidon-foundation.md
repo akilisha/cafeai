@@ -5,10 +5,13 @@
 **Modules:** `cafeai-core`, `cafeai-streaming` (extended)  
 **ADR Reference:** ADR-008  
 **Depends On:** ROADMAP-01 Phase 1, ROADMAP-04 Phase 7 (`res.stream()`)  
-**Status:** 🟡 Partially delivered — `app.ws()` (WebSocket), `res.stream()` (SSE), and
-`app.helidon()` all shipped (through ROADMAP-10/11 and the streaming work). `app.sse()`
-as a distinct method and `app.grpc()` were not pursued — SSE is covered by
-`res.stream()` and no gRPC use case has appeared. See MILESTONE-10 / MILESTONE-11.
+**Status:** 🟢 Complete (scoped) — see MILESTONE-09. `app.ws()` (+
+`WsSession.streamTokens`), `res.stream()` (SSE), and `app.helidon()` as a raw
+`.server()` / `.routing()` escape hatch all shipped. `app.sse()` as a distinct
+method and `app.grpc()` were **deferred** (no demand); the structured
+`app.helidon().health()/.metrics()` configurator was **cut** in favour of
+Helidon's own feature builders via `.routing()` (DEVELOPER_GUIDE §21). The
+roadmap phase bodies below are the original plan.
 
 ---
 
