@@ -1,5 +1,7 @@
 package io.cafeai.core.routing;
 
+import java.util.concurrent.Flow;
+
 /**
  * A live WebSocket session between the server and a single client.
  *
@@ -58,4 +60,62 @@ public interface WsSession {
      * Returns {@code true} if the connection is currently open.
      */
     boolean isOpen();
+
+    // -- Token streaming ------------------------------------------------------
+
+    /**
+     * Streams LLM tokens over this socket: each token is sent as its own text
+     * frame, then a {@code "[DONE]"} sentinel frame on completion. On a stream
+     * error the sentinel is still sent (the client sees the stream end) — for
+     * error visibility, consume {@code PromptRequest.stream()} directly instead.
+     *
+     * <p>Pipe {@code app.prompt(...).stream()} straight to the client:
+     * <pre>{@code
+     *   app.ws("/chat/:sessionId", new WsHandler() {
+     *       public void onMessage(WsSession s, String msg) {
+     *           s.streamTokens(app.prompt(msg).session(s.id()).stream());
+     *       }
+     *   });
+     * }</pre>
+     *
+     * <p>Backpressure: this requests all tokens up front (the upstream
+     * publisher paces itself against the model). If the client disconnects
+     * mid-stream the subscription is cancelled on the next token.
+     *
+     * @param tokens the token publisher (e.g. from {@code PromptRequest.stream()})
+     */
+    default void streamTokens(Flow.Publisher<String> tokens) {
+        streamTokens(tokens, "[DONE]");
+    }
+
+    /**
+     * {@link #streamTokens(Flow.Publisher)} with a custom completion sentinel.
+     * Pass {@code null} to send no sentinel frame.
+     */
+    default void streamTokens(Flow.Publisher<String> tokens, String doneSentinel) {
+        tokens.subscribe(new Flow.Subscriber<>() {
+            private Flow.Subscription subscription;
+
+            @Override public void onSubscribe(Flow.Subscription s) {
+                this.subscription = s;
+                s.request(Long.MAX_VALUE);
+            }
+
+            @Override public void onNext(String token) {
+                if (isOpen()) {
+                    send(token);
+                } else {
+                    subscription.cancel();
+                }
+            }
+
+            @Override public void onError(Throwable t) {
+                if (doneSentinel != null && isOpen()) send(doneSentinel);
+            }
+
+            @Override public void onComplete() {
+                if (doneSentinel != null && isOpen()) send(doneSentinel);
+            }
+        });
+    }
 }

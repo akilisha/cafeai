@@ -3,7 +3,14 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [0.2.0] — unreleased
+## [Unreleased]
+
+### Added
+- `WsSession.streamTokens(Flow.Publisher<String>)` — pipe `app.prompt(...).stream()`
+  straight to a WebSocket client (one text frame per token, `[DONE]` sentinel on
+  completion; custom/`null` sentinel via the two-arg overload).
+
+## [0.2.0] — 2026-09
 
 The project version is `0.2.0` on `main`; the artifacts publish to Maven Central
 when ROADMAP-17 Phase 12 runs. Consumers on 0.1.3: see `MIGRATION.md`.
