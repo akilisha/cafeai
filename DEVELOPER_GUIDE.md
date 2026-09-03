@@ -90,6 +90,8 @@ without a version — pin them to `0.2.0` (or import a version catalog).
     - [19.5 Guardrail violations](#195-guardrail-violations)
     - [19.6 Composing guardrails](#196-composing-guardrails)
 20. [Observability — Tracing, Metrics, and Eval](#20-observability--tracing-metrics-and-eval)
+21. [The Helidon Foundation — `app.helidon()`](#21-the-helidon-foundation--apphelidon)
+22. [Extending CafeAI — writing a module](#22-extending-cafeai--writing-a-module)
     - [20.1 Why observability matters](#201-why-observability-matters-for-llm-applications)
     - [20.2 Adding cafeai-observability](#202-adding-cafeai-observability)
     - [20.3 Console strategy](#203-console-strategy--development)
@@ -1348,6 +1350,44 @@ app.ws("/ws/chat", new WsHandler() {
 });
 ```
 
+### 13.4 Streaming LLM tokens over the socket
+
+`WsSession.streamTokens(...)` pipes a token publisher — typically
+`app.prompt(...).stream()` — straight to the client: one text frame per token,
+then a `[DONE]` sentinel frame on completion. If the client disconnects
+mid-stream the subscription is cancelled on the next token.
+
+```java
+app.ws("/ws/chat", new WsHandler() {
+    @Override
+    public void onMessage(WsSession session, String message) {
+        // one memory session per connection — session.id() is stable for its lifetime
+        session.streamTokens(
+            app.prompt(message).session(session.id()).stream());
+    }
+});
+```
+
+The two-argument form takes a custom sentinel (or `null` for none):
+
+```java
+session.streamTokens(app.prompt(msg).stream(), "");  // EOT instead of [DONE]
+```
+
+For structured frames (`{"token":"..."}`), consume `PromptRequest.stream()`
+directly and format each token yourself — `streamTokens` sends raw text frames,
+matching the SSE `res.stream()` contract.
+
+### 13.5 `res.stream()` vs holding the connection
+
+`res.stream(app.prompt(...))` streams **one response** over SSE within a normal
+request/response lifecycle — the client POSTs, tokens come back, the request
+ends. A WebSocket handler that keeps `WsSession` and calls `streamTokens` per
+message is a **persistent** channel — many exchanges over one connection, and
+the server can push unprompted (agent progress, live updates). Reach for SSE
+for chat completions; reach for WebSocket when the conversation outlives a
+single request or the server initiates.
+
 ---
 
 ## 14. Tiered Memory
@@ -2281,3 +2321,102 @@ app.listen(8080);
 ```
 
 That is a fully observable, RAG-augmented LLM application. Every call produces an OTel span with token counts, latency, retrieved document count, and quality scores. Zero instrumentation code in the handler.
+
+---
+
+## 21. The Helidon Foundation — `app.helidon()`
+
+CafeAI is a thin binding over Helidon SE. When you need something Helidon offers
+that the Express-style API doesn't cover — TLS, HTTP/2 tuning, connection limits,
+health-check endpoints, Prometheus metrics, OpenAPI, raw routing, gRPC — you
+reach through `app.helidon()` and use Helidon's own builders directly. CafeAI
+does not re-wrap these; the escape hatch *is* the API.
+
+### 21.1 The two hooks
+
+```java
+app.helidon()
+   .server(server -> server
+       .tls(Tls.builder()
+           .privateKey(k -> k.keystore(ks -> ks.keystore(Resource.create("server.p12"))))
+           .build())
+       .connectionOptions(opts -> opts.connectTimeout(Duration.ofSeconds(10))))
+   .routing(routing -> routing
+       .get("/native/ping", (req, res) -> res.send("pong")));
+```
+
+- **`.server(Consumer<WebServerConfig.Builder>)`** — server-level settings, applied
+  before the server is built. TLS, ports, connection/buffer limits, HTTP/2, protocol
+  config. Do not call `.build()`.
+- **`.routing(Consumer<HttpRouting.Builder>)`** — runs alongside CafeAI's own routing.
+  Register raw Helidon handlers, `HttpFeature`s, or `HttpService`s. This is where
+  Helidon *features* (below) get wired.
+
+Both are fluent, applied in registration order, and may be called more than once.
+
+### 21.2 Health, metrics, OpenAPI — via Helidon features
+
+Helidon ships these as `HttpFeature`s. Add the dependency, register the feature
+through `.routing()`, and the endpoint appears next to your CafeAI routes:
+
+```groovy
+// build.gradle
+implementation 'io.helidon.webserver:helidon-webserver-observe-health'
+implementation 'io.helidon.webserver:helidon-webserver-observe-metrics'
+```
+
+```java
+import io.helidon.webserver.observe.ObserveFeature;
+import io.helidon.webserver.observe.health.HealthObserver;
+import io.helidon.health.checks.HealthChecks;
+
+app.helidon().routing(r -> r.addFeature(
+    ObserveFeature.builder()
+        .addObserver(HealthObserver.builder()
+            .addCheck(HealthChecks.heapMemoryCheck())
+            .addCheck(() -> vectorStore.isReachable()
+                ? io.helidon.health.HealthCheckResponse.builder().status(true).build()
+                : io.helidon.health.HealthCheckResponse.builder().status(false).build())
+            .build())
+        .build()));
+// → GET /observe/health/live, /observe/health/ready, /observe/metrics
+```
+
+CafeAI does not add a `app.helidon().health()` sugar layer — Helidon's builders
+are already fluent and idiomatic, and wrapping them would be one more thing to
+keep in sync with every Helidon release. Kubernetes probes point at
+`/observe/health/live` and `/observe/health/ready`; Prometheus scrapes
+`/observe/metrics`.
+
+### 21.3 gRPC
+
+Not wired into the CafeAI API (no demand surfaced across the capstone series). If
+you need it, add `io.helidon.webserver:helidon-webserver-grpc` and register the
+`GrpcRouting` through a Helidon feature in `.routing()`. It runs on the same
+server.
+
+### 21.4 When to use the escape hatch vs. an extension module
+
+`app.helidon()` is for *this application's* infrastructure needs — one-off,
+deployment-specific wiring. If you're adding a **reusable capability** (a new
+vector store, a new guardrail, a new memory tier) that other apps would want,
+write a module instead — see §22.
+
+---
+
+## 22. Extending CafeAI — writing a module
+
+Custom guardrails, providers, and shared configuration jars all plug in through
+plain interfaces and `ServiceLoader` — no annotation scanner, no container. The
+three levels:
+
+1. **Implement an interface, pass the instance** — a custom `GuardRail`,
+   `Middleware`, `AiProvider`, `VectorStore`, `WsHandler`. No registration.
+2. **A provider SPI** (`io.cafeai.core.spi.*`) declared in `META-INF/services/` —
+   makes a factory method light up when your jar is present, exactly like
+   `cafeai-memory` unlocks `MemoryStrategy.redis()`.
+3. **`CafeAIConfigurer`** — a jar that configures the whole `app` on discovery
+   (shared routes, standard filters, an internal platform module).
+
+Full guide with the SPI catalogue, a worked module example, and testing
+patterns: **[docs/EXTENDING.md](docs/EXTENDING.md)**.
