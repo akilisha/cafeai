@@ -9,21 +9,15 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
-import io.cafeai.core.CafeAI;
-import io.cafeai.core.Locals;
-import io.cafeai.core.ResponseFormatter;
-import io.cafeai.core.Setting;
+import io.cafeai.core.*;
 import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.core.routing.Request;
-import io.cafeai.core.routing.Response;
-import io.cafeai.core.routing.Router;
-import io.cafeai.core.spi.CafeAIConfigurer;
-import io.cafeai.core.spi.CafeAIModule;
+import io.cafeai.core.routing.*;
+import io.cafeai.core.spi.*;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.WebServerConfig;
 import io.helidon.webserver.http.*;
@@ -32,10 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -63,19 +58,19 @@ public final class CafeAIApp implements CafeAI {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private final Map<String, Object>   locals        = new ConcurrentHashMap<>();
-    private final List<FilterEntry>     filterEntries = new ArrayList<>();
-    private final List<WsEndpoint>      wsEndpoints   = new ArrayList<>();
-    private final List<RouteEntry>      routes        = new ArrayList<>();
-    private final CafeAIRegistryImpl    registry      = new CafeAIRegistryImpl();
+    private final Map<String, Object> locals = new ConcurrentHashMap<>();
+    private final List<FilterEntry> filterEntries = new ArrayList<>();
+    private final List<WsEndpoint> wsEndpoints = new ArrayList<>();
+    private final List<RouteEntry> routes = new ArrayList<>();
+    private final CafeAIRegistryImpl registry = new CafeAIRegistryImpl();
 
     // AI state
-    private AiProvider      aiProvider;
-    private ModelRouter     modelRouter;
-    private final java.util.Map<String, AiProvider> namedProviders = new java.util.concurrent.ConcurrentHashMap<>();
-    private String          systemPrompt;
-    private MemoryStrategy  memoryStrategy;
-    private final List<GuardRail>         guardRails   = new ArrayList<>();
+    private AiProvider aiProvider;
+    private ModelRouter modelRouter;
+    private final Map<String, AiProvider> namedProviders = new ConcurrentHashMap<>();
+    private String systemPrompt;
+    private MemoryStrategy memoryStrategy;
+    private final List<GuardRail> guardRails = new ArrayList<>();
 
     // RAG pipeline state (ROADMAP-07 Phase 4)
     private Object vectorStore;
@@ -85,13 +80,13 @@ public final class CafeAIApp implements CafeAI {
     // Tool registry bridge (ROADMAP-07 Phase 5) -- loaded via ServiceLoader
 
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
-    private io.cafeai.core.spi.ObserveBridge observeBridge;
+    private ObserveBridge observeBridge;
 
     // Token budget and retry (ROADMAP-14 Phase 10)
     private TokenBudgetTracker budgetTracker;
-    private io.cafeai.core.ai.RetryPolicy        retryPolicy;
+    private RetryPolicy retryPolicy;
     private Object evalHarness;
-    private final Map<String, String>     templates  = new ConcurrentHashMap<>();
+    private final Map<String, String> templates = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
     private final Map<Setting, Object> settings = new ConcurrentHashMap<>();
@@ -100,22 +95,24 @@ public final class CafeAIApp implements CafeAI {
     private final Map<String, ResponseFormatter> engines = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Mount state
-    private final List<String>                                      mountPaths     = new ArrayList<>();
-    private final List<java.util.function.Consumer<CafeAI>>        mountCallbacks = new ArrayList<>();
-    private CafeAI                                                   parent;
+    private final List<String> mountPaths = new ArrayList<>();
+    private final List<Consumer<CafeAI>> mountCallbacks = new ArrayList<>();
+    private CafeAI parent;
 
     // ROADMAP-06: Error-handling middleware
-    private final List<ErrorMiddleware>   errorHandlers  = new ArrayList<>();
+    private final List<ErrorMiddleware> errorHandlers = new ArrayList<>();
 
     // Helidon escape hatch — direct access to WebServer.Builder and HttpRouting.Builder
-    private final List<java.util.function.Consumer<WebServerConfig.Builder>>         helidonServerConsumers  = new ArrayList<>();
-    private final List<java.util.function.Consumer<HttpRouting.Builder>>            helidonRoutingConsumers = new ArrayList<>();
+    private final List<Consumer<WebServerConfig.Builder>> helidonServerConsumers = new ArrayList<>();
+    private final List<Consumer<HttpRouting.Builder>> helidonRoutingConsumers = new ArrayList<>();
 
     private WebServer server;
 
     // -- Factory ---------------------------------------------------------------
 
-    /** Internal -- call {@link CafeAI#create()} instead. */
+    /**
+     * Internal -- call {@link CafeAI#create()} instead.
+     */
     public static CafeAI newInstance() {
         var app = new CafeAIApp();
         app.discoverModules();
@@ -124,8 +121,8 @@ public final class CafeAIApp implements CafeAI {
     }
 
     private CafeAIApp() {
-        // Initialise settings with Express-matching defaults
-        for (Setting s : io.cafeai.core.Setting.values()) {
+        // Initialize settings with Express-matching defaults
+        for (Setting s : Setting.values()) {
             if (s.defaultValue() != null) {
                 settings.put(s, s.defaultValue());
             }
@@ -143,10 +140,10 @@ public final class CafeAIApp implements CafeAI {
 
     private void discoverConfigurers() {
         ServiceLoader.load(CafeAIConfigurer.class)
-            .stream()
-            .map(ServiceLoader.Provider::get)
-            .sorted(Comparator.comparingInt(CafeAIConfigurer::order))
-            .forEach(c -> c.configure(this));
+                .stream()
+                .map(ServiceLoader.Provider::get)
+                .sorted(Comparator.comparingInt(CafeAIConfigurer::order))
+                .forEach(c -> c.configure(this));
     }
 
     // -- CafeAIConfigurer ------------------------------------------------------
@@ -162,8 +159,8 @@ public final class CafeAIApp implements CafeAI {
     public CafeAI configure(CafeAIConfigurer... configurers) {
         assertNotStarted("configure()");
         Arrays.stream(configurers)
-              .sorted(Comparator.comparingInt(CafeAIConfigurer::order))
-              .forEach(c -> c.configure(this));
+                .sorted(Comparator.comparingInt(CafeAIConfigurer::order))
+                .forEach(c -> c.configure(this));
         return this;
     }
 
@@ -217,8 +214,8 @@ public final class CafeAIApp implements CafeAI {
         String body = templates.get(name);
         if (body == null) {
             throw new IllegalArgumentException(
-                "No template registered with name '" + name + "'. " +
-                "Register one at startup: app.template(\"" + name + "\", \"your {{template}} body\")");
+                    "No template registered with name '" + name + "'. " +
+                            "Register one at startup: app.template(\"" + name + "\", \"your {{template}} body\")");
         }
         return new Template(name, body);
     }
@@ -237,19 +234,19 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public io.cafeai.core.ai.VisionRequest vision(String prompt, byte[] content, String mimeType) {
-        return new io.cafeai.core.ai.VisionRequest(prompt, content, mimeType, this::executeVision)
-            .withStreamExecutor(this::executeVisionStream);
+    public VisionRequest vision(String prompt, byte[] content, String mimeType) {
+        return new VisionRequest(prompt, content, mimeType, this::executeVision)
+                .withStreamExecutor(this::executeVisionStream);
     }
 
     @Override
-    public io.cafeai.core.ai.AudioRequest audio(String prompt, byte[] content, String mimeType) {
-        return new io.cafeai.core.ai.AudioRequest(prompt, content, mimeType, this::executeAudio);
+    public AudioRequest audio(String prompt, byte[] content, String mimeType) {
+        return new AudioRequest(prompt, content, mimeType, this::executeAudio);
     }
 
     @Override
-    public io.cafeai.core.ai.SynthesisRequest synthesise(String text) {
-        return new io.cafeai.core.ai.SynthesisRequest(text, this::executeSynthesis);
+    public SynthesisRequest synthesise(String text) {
+        return new SynthesisRequest(text, this::executeSynthesis);
     }
 
     /**
@@ -270,23 +267,23 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 2. Get the Langchain4j ChatModel --------------------------
         ChatModel model =
-            LangchainBridge.INSTANCE.modelFor(provider);
+                LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 2b. Append schema hint for structured output -------------------
         // When returning(Class) / call(Class<T>) is used, a JSON schema hint
         // was injected into PromptRequest. Append it to the message so the
         // LLM knows the expected output format.
         String effectiveMessage = request.schemaHint() != null
-            ? request.message() + request.schemaHint()
-            : request.message();
+                ? request.message() + request.schemaHint()
+                : request.message();
 
         // -- 3. Build message list ---------------------------------------------
         List<ChatMessage> messages = new ArrayList<>();
 
         // System prompt -- override or application default
         String sysPrompt = request.systemOverride() != null
-            ? request.systemOverride()
-            : systemPrompt;
+                ? request.systemOverride()
+                : systemPrompt;
         if (sysPrompt != null && !sysPrompt.isBlank()) {
             messages.add(SystemMessage.from(sysPrompt));
         }
@@ -294,7 +291,7 @@ public final class CafeAIApp implements CafeAI {
         // Conversation history from memory
         if (request.sessionId() != null && memoryStrategy != null) {
             ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
+                    memoryStrategy.retrieve(request.sessionId());
             if (ctx != null) {
                 for (var msg : ctx.messages()) {
                     if ("user".equalsIgnoreCase(msg.role())) {
@@ -310,24 +307,24 @@ public final class CafeAIApp implements CafeAI {
         messages.add(UserMessage.from(effectiveMessage));
 
         // -- 3b. RAG retrieval -- inject context before the LLM call -----------
-        java.util.List<Object> retrievedDocs = java.util.List.of();
+        List<Object> retrievedDocs = List.of();
         if (retriever != null && vectorStore != null && embeddingModel != null) {
             try {
-                var pipeline = java.util.ServiceLoader
-                    .load(io.cafeai.core.spi.RagPipeline.class)
-                    .findFirst()
-                    .orElse(null);
+                var pipeline = ServiceLoader
+                        .load(RagPipeline.class)
+                        .findFirst()
+                        .orElse(null);
 
                 if (pipeline != null) {
                     retrievedDocs = pipeline.retrieve(
-                        request.message(), retriever, vectorStore, embeddingModel);
+                            request.message(), retriever, vectorStore, embeddingModel);
 
                     if (!retrievedDocs.isEmpty()) {
                         // Build a context block from the retrieved documents.
                         // Injected as a UserMessage immediately before the actual question
                         // so the LLM sees: [system] -> [history] -> [context] -> [question]
                         var sb = new StringBuilder(
-                            "Relevant context from the knowledge base:\n\n");
+                                "Relevant context from the knowledge base:\n\n");
                         for (int i = 0; i < retrievedDocs.size(); i++) {
                             sb.append("[").append(i + 1).append("] ");
                             sb.append(retrievedDocs.get(i).toString());
@@ -336,7 +333,7 @@ public final class CafeAIApp implements CafeAI {
                         sb.append("Use the above context to answer the following question:");
                         // Insert context BEFORE the user question (swap last two)
                         messages.add(messages.size() - 1,
-                            UserMessage.from(sb.toString()));
+                                UserMessage.from(sb.toString()));
                     }
                 }
             } catch (Exception e) {
@@ -350,7 +347,7 @@ public final class CafeAIApp implements CafeAI {
         int outputTokens = 0;
 
         Object observeCtx = observeBridge != null
-            ? observeBridge.beforePrompt(request) : null;
+                ? observeBridge.beforePrompt(request) : null;
 
         // -- Token budget: wait if current window is exhausted ----------------
         if (budgetTracker != null) budgetTracker.waitIfNeeded();
@@ -360,59 +357,61 @@ public final class CafeAIApp implements CafeAI {
         Throwable lastRateLimitError = null;
 
         while (attemptsLeft > 0) {
-          attemptsLeft--;
-          lastRateLimitError = null;
-          try {
-            if (false) { // placeholder — remove at next cleanup
-                responseText = "";
-                //
-                // PRE_LLM guardrails already ran on the user's input. Now apply
-                // POST_LLM and BOTH guardrails to the assembled tool-call output.
-                // This ensures adversarial inputs that influence the tool-calling
-                // loop cannot produce harmful final responses undetected.
-                responseText = applyPostLlmGuardrails(responseText);
-            } else {
-                ChatResponse response = model.chat(messages);
-                responseText = response.aiMessage().text();
-                TokenUsage usage = response.tokenUsage();
-                promptTokens  = usage != null ? usage.inputTokenCount()  : 0;
-                outputTokens  = usage != null ? usage.outputTokenCount() : 0;
-            }
-            // -- Token budget: record actual usage after successful call -------
-            if (budgetTracker != null) {
-                budgetTracker.recordUsage(promptTokens + outputTokens);
-            }
-            break; // success — exit retry loop
-          } catch (RuntimeException e) {
-            // Retry on rate limit if policy is configured and attempts remain
-            if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
-                    && isRateLimitException(e) && attemptsLeft > 0) {
-                int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
-                long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
-                log.warn("Rate limit hit — retrying in {}ms (attempt {}/{})",
-                    waitMs, attemptNum, retryPolicy.maxAttempts());
-                lastRateLimitError = e;
-                try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted during rate limit backoff", ie);
+            attemptsLeft--;
+            lastRateLimitError = null;
+            try {
+                if (false) { // placeholder — remove at next cleanup
+                    responseText = "";
+                    //
+                    // PRE_LLM guardrails already ran on the user's input. Now apply
+                    // POST_LLM and BOTH guardrails to the assembled tool-call output.
+                    // This ensures adversarial inputs that influence the tool-calling
+                    // loop cannot produce harmful final responses undetected.
+                    responseText = applyPostLlmGuardrails(responseText);
+                } else {
+                    ChatResponse response = model.chat(messages);
+                    responseText = response.aiMessage().text();
+                    TokenUsage usage = response.tokenUsage();
+                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
+                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
                 }
-            } else {
-                observeError = e;
-                throw e;
+                // -- Token budget: record actual usage after successful call -------
+                if (budgetTracker != null) {
+                    budgetTracker.recordUsage(promptTokens + outputTokens);
+                }
+                break; // success — exit retry loop
+            } catch (RuntimeException e) {
+                // Retry on rate limit if policy is configured and attempts remain
+                if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                        && isRateLimitException(e) && attemptsLeft > 0) {
+                    int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                    long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                    log.warn("Rate limit hit — retrying in {}ms (attempt {}/{})",
+                            waitMs, attemptNum, retryPolicy.maxAttempts());
+                    lastRateLimitError = e;
+                    try {
+                        Thread.sleep(waitMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during rate limit backoff", ie);
+                    }
+                } else {
+                    observeError = e;
+                    throw e;
+                }
             }
-          }
         }
 
         if (lastRateLimitError != null) {
-            throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
-                "Rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                lastRateLimitError);
+            throw new RetryPolicy.RateLimitExceededException(
+                    "Rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                    lastRateLimitError);
         }
 
         // -- Observability: fire afterPrompt with final response ---------------
         if (observeBridge != null) {
             PromptResponse partial = observeError == null
-                ? PromptResponse.builder()
+                    ? PromptResponse.builder()
                     .text(responseText)
                     .promptTokens(promptTokens)
                     .outputTokens(outputTokens)
@@ -420,7 +419,7 @@ public final class CafeAIApp implements CafeAI {
                     .fromCache(false)
                     .ragDocuments(retrievedDocs)
                     .build()
-                : null;
+                    : null;
             observeBridge.afterPrompt(observeCtx, request, partial, observeError);
         }
 
@@ -430,17 +429,17 @@ public final class CafeAIApp implements CafeAI {
         // it after next.run() returns in their handle() method.
         if (request.httpRequest() != null) {
             request.httpRequest().setAttribute(
-                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
+                    Attributes.LLM_RESPONSE_TEXT, responseText);
         }
 
         // -- 5. Persist to memory ----------------------------------------------
         if (request.sessionId() != null && memoryStrategy != null) {
             ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
+                    memoryStrategy.retrieve(request.sessionId());
             if (ctx == null) {
                 ctx = new ConversationContext(request.sessionId());
             }
-            ctx.addMessage("user",      request.message());
+            ctx.addMessage("user", request.message());
             ctx.addMessage("assistant", responseText);
             ctx.addTokens(promptTokens + outputTokens);
             memoryStrategy.store(request.sessionId(), ctx);
@@ -448,13 +447,13 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 6. Return PromptResponse ------------------------------------------
         return PromptResponse.builder()
-            .text(responseText)
-            .promptTokens(promptTokens)
-            .outputTokens(outputTokens)
-            .modelId(provider.modelId())
-            .fromCache(false)
-            .ragDocuments(retrievedDocs)
-            .build();
+                .text(responseText)
+                .promptTokens(promptTokens)
+                .outputTokens(outputTokens)
+                .modelId(provider.modelId())
+                .fromCache(false)
+                .ragDocuments(retrievedDocs)
+                .build();
     }
 
     /**
@@ -463,7 +462,7 @@ public final class CafeAIApp implements CafeAI {
      * <p>Resolves the provider, builds the message list (system prompt +
      * session history + user message), then runs the Langchain4j
      * {@link StreamingChatModel} on a virtual thread. Tokens are pushed to the
-     * returned {@link java.util.concurrent.Flow.Publisher} as they arrive; on
+     * returned {@link concurrent.Flow.Publisher} as they arrive; on
      * completion the assembled response is persisted to session memory, recorded
      * against the token budget, exposed to POST_LLM guardrails, and reported to
      * observability -- mirroring the non-streaming path.
@@ -471,7 +470,7 @@ public final class CafeAIApp implements CafeAI {
      * <p>RAG retrieval and structured-output schema hints are not applied here;
      * use {@link #executePrompt(PromptRequest)} when those are needed.
      */
-    private java.util.concurrent.Flow.Publisher<String> executePromptStream(PromptRequest request) {
+    private Flow.Publisher<String> executePromptStream(PromptRequest request) {
         AiProvider provider = resolveProvider(request);
         StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
 
@@ -479,8 +478,8 @@ public final class CafeAIApp implements CafeAI {
         List<ChatMessage> messages = new ArrayList<>();
 
         String sysPrompt = request.systemOverride() != null
-            ? request.systemOverride()
-            : systemPrompt;
+                ? request.systemOverride()
+                : systemPrompt;
         if (sysPrompt != null && !sysPrompt.isBlank()) {
             messages.add(SystemMessage.from(sysPrompt));
         }
@@ -505,7 +504,7 @@ public final class CafeAIApp implements CafeAI {
         // must not be able to emit — and close the stream — before the SSE
         // sink is listening.
         return subscriber -> {
-            var publisher = new java.util.concurrent.SubmissionPublisher<String>();
+            var publisher = new SubmissionPublisher<String>();
             publisher.subscribe(subscriber);
             StringBuilder assembled = new StringBuilder();
 
@@ -525,7 +524,7 @@ public final class CafeAIApp implements CafeAI {
                         public void onCompleteResponse(ChatResponse response) {
                             String full = assembled.toString();
                             TokenUsage usage = response.tokenUsage();
-                            int promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                            int promptTokens = usage != null ? usage.inputTokenCount() : 0;
                             int outputTokens = usage != null ? usage.outputTokenCount() : 0;
 
                             if (budgetTracker != null) {
@@ -533,24 +532,24 @@ public final class CafeAIApp implements CafeAI {
                             }
                             if (request.httpRequest() != null) {
                                 request.httpRequest().setAttribute(
-                                    io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, full);
+                                        Attributes.LLM_RESPONSE_TEXT, full);
                             }
                             if (request.sessionId() != null && memoryStrategy != null) {
                                 ConversationContext ctx = memoryStrategy.retrieve(request.sessionId());
                                 if (ctx == null) ctx = new ConversationContext(request.sessionId());
-                                ctx.addMessage("user",      request.message());
+                                ctx.addMessage("user", request.message());
                                 ctx.addMessage("assistant", full);
                                 ctx.addTokens(promptTokens + outputTokens);
                                 memoryStrategy.store(request.sessionId(), ctx);
                             }
                             if (observeBridge != null) {
                                 PromptResponse pr = PromptResponse.builder()
-                                    .text(full)
-                                    .promptTokens(promptTokens)
-                                    .outputTokens(outputTokens)
-                                    .modelId(provider.modelId())
-                                    .fromCache(false)
-                                    .build();
+                                        .text(full)
+                                        .promptTokens(promptTokens)
+                                        .outputTokens(outputTokens)
+                                        .modelId(provider.modelId())
+                                        .fromCache(false)
+                                        .build();
                                 observeBridge.afterPrompt(observeCtx, request, pr, null);
                             }
                             publisher.close();
@@ -575,7 +574,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /**
-     * Executes a {@link io.cafeai.core.ai.VisionRequest} against the registered
+     * Executes a {@link VisionRequest} against the registered
      * multimodal LLM provider.
      *
      * <p>Pipeline:
@@ -592,8 +591,8 @@ public final class CafeAIApp implements CafeAI {
      *
      * <p>RAG retrieval is explicitly skipped — binary content cannot be embedded.
      */
-    private io.cafeai.core.ai.VisionResponse executeVision(
-            io.cafeai.core.ai.VisionRequest request) {
+    private VisionResponse executeVision(
+            VisionRequest request) {
 
         // -- 1. Resolve provider and verify vision support --------------------
         AiProvider provider;
@@ -601,8 +600,8 @@ public final class CafeAIApp implements CafeAI {
             provider = namedProviders.get(request.providerName());
             if (provider == null) {
                 throw new IllegalStateException(
-                    "No provider registered with name '" + request.providerName() + "'. " +
-                    "Registered named providers: " + namedProviders.keySet() + ".");
+                        "No provider registered with name '" + request.providerName() + "'. " +
+                                "Registered named providers: " + namedProviders.keySet() + ".");
             }
         } else if (aiProvider != null) {
             provider = aiProvider;
@@ -610,15 +609,15 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
-                "For vision calls, use a vision-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                            "For vision calls, use a vision-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
         }
         if (!provider.supportsVision()) {
-            throw new io.cafeai.core.ai.VisionRequest.VisionNotSupportedException(
-                "The registered provider '" + provider.modelId() + "' does not support " +
-                "vision/multimodal input. Use a vision-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+            throw new VisionRequest.VisionNotSupportedException(
+                    "The registered provider '" + provider.modelId() + "' does not support " +
+                            "vision/multimodal input. Use a vision-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
         }
 
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
@@ -626,17 +625,17 @@ public final class CafeAIApp implements CafeAI {
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
         // checkOutput() delegates to checkInputAsOutput() -> checkInput() in
         // AbstractGuardRail, applying the same pattern matching to the prompt text.
-        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
-            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
-                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
-                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
-                    rail.checkOutput(request.prompt());
+        for (GuardRail rail : guardRails) {
+            if (rail.position() == GuardRail.Position.PRE_LLM
+                    || rail.position() == GuardRail.Position.BOTH) {
+                GuardRail.OutputCheckResult result =
+                        rail.checkOutput(request.prompt());
                 if (result.isViolation()) {
                     log.warn("Vision PRE_LLM guardrail '{}' triggered: {}",
-                        rail.name(), result.reason());
+                            rail.name(), result.reason());
                     throw new RuntimeException(
-                        "Vision prompt blocked by guardrail '" + rail.name() +
-                        "': " + result.reason());
+                            "Vision prompt blocked by guardrail '" + rail.name() +
+                                    "': " + result.reason());
                 }
             }
         }
@@ -644,10 +643,10 @@ public final class CafeAIApp implements CafeAI {
         // -- 3. Build session history (text messages only) --------------------
         List<ChatMessage> history = new ArrayList<>();
         if (request.sessionId() != null && memoryStrategy != null) {
-            io.cafeai.core.memory.ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
+            ConversationContext ctx =
+                    memoryStrategy.retrieve(request.sessionId());
             if (ctx != null) {
-                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
+                for (ConversationContext.Message msg : ctx.messages()) {
                     if ("user".equals(msg.role())) {
                         history.add(UserMessage.from(msg.content()));
                     } else if ("assistant".equals(msg.role())) {
@@ -659,26 +658,26 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 4. Determine system prompt ---------------------------------------
         String systemPrompt = request.systemOverride() != null
-            ? request.systemOverride()
-            : this.systemPrompt;
+                ? request.systemOverride()
+                : this.systemPrompt;
 
         // -- 4b. Append schema hint for structured output --------------------
         String effectivePrompt = request.schemaHint() != null
-            ? request.prompt() + request.schemaHint()
-            : request.prompt();
+                ? request.prompt() + request.schemaHint()
+                : request.prompt();
 
         // -- 5. Build LangChain4j message list via VisionMessageBuilder -------
         List<ChatMessage> messages = VisionMessageBuilder.build(
-            effectivePrompt, request.content(), request.mimeType(),
-            systemPrompt, history);
+                effectivePrompt, request.content(), request.mimeType(),
+                systemPrompt, history);
 
         // -- 6. Call model (with observability + token budget + retry) ---------
-        String responseText  = "";
-        int    promptTokens  = 0;
-        int    outputTokens  = 0;
+        String responseText = "";
+        int promptTokens = 0;
+        int outputTokens = 0;
 
         Object observeCtx = observeBridge != null
-            ? observeBridge.beforeVision(request) : null;
+                ? observeBridge.beforeVision(request) : null;
 
         if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
@@ -692,7 +691,7 @@ public final class CafeAIApp implements CafeAI {
                 ChatResponse response = model.chat(messages);
                 responseText = response.aiMessage().text();
                 TokenUsage usage = response.tokenUsage();
-                promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                promptTokens = usage != null ? usage.inputTokenCount() : 0;
                 outputTokens = usage != null ? usage.outputTokenCount() : 0;
                 if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                 break;
@@ -703,7 +702,9 @@ public final class CafeAIApp implements CafeAI {
                     long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
                     log.warn("Vision rate limit hit — retrying in {}ms", waitMs);
                     lastRateLimitError = e;
-                    try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                    try {
+                        Thread.sleep(waitMs);
+                    } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         throw new RuntimeException("Interrupted during vision retry", ie);
                     }
@@ -714,19 +715,19 @@ public final class CafeAIApp implements CafeAI {
         }
 
         if (lastRateLimitError != null) {
-            throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
-                "Vision rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                lastRateLimitError);
+            throw new RetryPolicy.RateLimitExceededException(
+                    "Vision rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                    lastRateLimitError);
         }
 
         // -- 6b. Observability: afterVision ------------------------------------
         if (observeBridge != null) {
-            io.cafeai.core.ai.VisionResponse partial = io.cafeai.core.ai.VisionResponse.builder()
-                .text(responseText)
-                .promptTokens(promptTokens)
-                .outputTokens(outputTokens)
-                .modelId(provider.modelId())
-                .build();
+            VisionResponse partial = VisionResponse.builder()
+                    .text(responseText)
+                    .promptTokens(promptTokens)
+                    .outputTokens(outputTokens)
+                    .modelId(provider.modelId())
+                    .build();
             observeBridge.afterVision(observeCtx, request, partial, null);
         }
 
@@ -736,31 +737,31 @@ public final class CafeAIApp implements CafeAI {
         // -- 8. Set LLM_RESPONSE_TEXT for HTTP middleware guardrails ----------
         if (request.httpRequest() != null) {
             request.httpRequest().setAttribute(
-                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
+                    Attributes.LLM_RESPONSE_TEXT, responseText);
         }
 
         // -- 9. Persist to session memory (text only — no binary content) -----
         if (request.sessionId() != null && memoryStrategy != null) {
-            io.cafeai.core.memory.ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
-            if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
-            ctx.addMessage("user",      request.prompt());  // store text prompt, not bytes
+            ConversationContext ctx =
+                    memoryStrategy.retrieve(request.sessionId());
+            if (ctx == null) ctx = new ConversationContext(request.sessionId());
+            ctx.addMessage("user", request.prompt());  // store text prompt, not bytes
             ctx.addMessage("assistant", responseText);
             ctx.addTokens(promptTokens + outputTokens);
             memoryStrategy.store(request.sessionId(), ctx);
         }
 
         // -- 10. Return VisionResponse ----------------------------------------
-        return io.cafeai.core.ai.VisionResponse.builder()
-            .text(responseText)
-            .promptTokens(promptTokens)
-            .outputTokens(outputTokens)
-            .modelId(provider.modelId())
-            .build();
+        return VisionResponse.builder()
+                .text(responseText)
+                .promptTokens(promptTokens)
+                .outputTokens(outputTokens)
+                .modelId(provider.modelId())
+                .build();
     }
 
     /**
-     * Streaming counterpart of {@link #executeVision(io.cafeai.core.ai.VisionRequest)}.
+     * Streaming counterpart of {@link #executeVision(VisionRequest)}.
      *
      * <p>Resolves the vision-capable provider, runs PRE_LLM guardrails on the
      * prompt text, builds the multimodal message list via {@link VisionMessageBuilder},
@@ -774,8 +775,8 @@ public final class CafeAIApp implements CafeAI {
      * {@code LLM_RESPONSE_TEXT} attribute, not the stream itself.
      */
     private void executeVisionStream(
-            io.cafeai.core.ai.VisionRequest request,
-            java.util.function.Consumer<String> onChunk) {
+            VisionRequest request,
+            Consumer<String> onChunk) {
 
         // -- Resolve provider + verify vision support -----------------------
         AiProvider provider;
@@ -783,8 +784,8 @@ public final class CafeAIApp implements CafeAI {
             provider = namedProviders.get(request.providerName());
             if (provider == null) {
                 throw new IllegalStateException(
-                    "No provider registered with name '" + request.providerName() + "'. " +
-                    "Registered named providers: " + namedProviders.keySet() + ".");
+                        "No provider registered with name '" + request.providerName() + "'. " +
+                                "Registered named providers: " + namedProviders.keySet() + ".");
             }
         } else if (aiProvider != null) {
             provider = aiProvider;
@@ -792,27 +793,27 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
-                "For vision calls, use a vision-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                            "For vision calls, use a vision-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
         }
         if (!provider.supportsVision()) {
-            throw new io.cafeai.core.ai.VisionRequest.VisionNotSupportedException(
-                "The registered provider '" + provider.modelId() + "' does not support " +
-                "vision/multimodal input. Use a vision-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+            throw new VisionRequest.VisionNotSupportedException(
+                    "The registered provider '" + provider.modelId() + "' does not support " +
+                            "vision/multimodal input. Use a vision-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
         }
 
         // -- PRE_LLM guardrails on the prompt text --------------------------
-        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
-            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
-                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
-                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
-                    rail.checkOutput(request.prompt());
+        for (GuardRail rail : guardRails) {
+            if (rail.position() == GuardRail.Position.PRE_LLM
+                    || rail.position() == GuardRail.Position.BOTH) {
+                GuardRail.OutputCheckResult result =
+                        rail.checkOutput(request.prompt());
                 if (result.isViolation()) {
                     throw new RuntimeException(
-                        "Vision prompt blocked by guardrail '" + rail.name() +
-                        "': " + result.reason());
+                            "Vision prompt blocked by guardrail '" + rail.name() +
+                                    "': " + result.reason());
                 }
             }
         }
@@ -820,20 +821,20 @@ public final class CafeAIApp implements CafeAI {
         // -- Build history + system + multimodal message list --------------
         List<ChatMessage> history = new ArrayList<>();
         if (request.sessionId() != null && memoryStrategy != null) {
-            io.cafeai.core.memory.ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
+            ConversationContext ctx =
+                    memoryStrategy.retrieve(request.sessionId());
             if (ctx != null) {
-                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
-                    if ("user".equals(msg.role()))      history.add(UserMessage.from(msg.content()));
+                for (ConversationContext.Message msg : ctx.messages()) {
+                    if ("user".equals(msg.role())) history.add(UserMessage.from(msg.content()));
                     else if ("assistant".equals(msg.role())) history.add(AiMessage.from(msg.content()));
                 }
             }
         }
         String sysPrompt = request.systemOverride() != null
-            ? request.systemOverride()
-            : this.systemPrompt;
+                ? request.systemOverride()
+                : this.systemPrompt;
         List<ChatMessage> messages = VisionMessageBuilder.build(
-            request.prompt(), request.content(), request.mimeType(), sysPrompt, history);
+                request.prompt(), request.content(), request.mimeType(), sysPrompt, history);
 
         StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
 
@@ -841,7 +842,7 @@ public final class CafeAIApp implements CafeAI {
         Object observeCtx = observeBridge != null ? observeBridge.beforeVision(request) : null;
 
         CountDownLatch done = new CountDownLatch(1);
-        java.util.concurrent.atomic.AtomicReference<Throwable> error = new java.util.concurrent.atomic.AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
         StringBuilder assembled = new StringBuilder();
 
         model.chat(messages, new StreamingChatResponseHandler() {
@@ -854,27 +855,27 @@ public final class CafeAIApp implements CafeAI {
             @Override
             public void onCompleteResponse(ChatResponse response) {
                 TokenUsage usage = response.tokenUsage();
-                int promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                int promptTokens = usage != null ? usage.inputTokenCount() : 0;
                 int outputTokens = usage != null ? usage.outputTokenCount() : 0;
                 if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
 
                 String full = applyPostLlmGuardrails(assembled.toString());
 
                 if (observeBridge != null) {
-                    io.cafeai.core.ai.VisionResponse partial = io.cafeai.core.ai.VisionResponse.builder()
-                        .text(full).promptTokens(promptTokens).outputTokens(outputTokens)
-                        .modelId(provider.modelId()).build();
+                    VisionResponse partial = VisionResponse.builder()
+                            .text(full).promptTokens(promptTokens).outputTokens(outputTokens)
+                            .modelId(provider.modelId()).build();
                     observeBridge.afterVision(observeCtx, request, partial, null);
                 }
                 if (request.httpRequest() != null) {
                     request.httpRequest().setAttribute(
-                        io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, full);
+                            Attributes.LLM_RESPONSE_TEXT, full);
                 }
                 if (request.sessionId() != null && memoryStrategy != null) {
-                    io.cafeai.core.memory.ConversationContext ctx =
-                        memoryStrategy.retrieve(request.sessionId());
-                    if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
-                    ctx.addMessage("user",      request.prompt());
+                    ConversationContext ctx =
+                            memoryStrategy.retrieve(request.sessionId());
+                    if (ctx == null) ctx = new ConversationContext(request.sessionId());
+                    ctx.addMessage("user", request.prompt());
                     ctx.addMessage("assistant", full);
                     ctx.addTokens(promptTokens + outputTokens);
                     memoryStrategy.store(request.sessionId(), ctx);
@@ -903,7 +904,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /**
-     * Executes an {@link io.cafeai.core.ai.AudioRequest} against the registered
+     * Executes an {@link AudioRequest} against the registered
      * audio-capable LLM provider.
      *
      * <p>Pipeline mirrors {@link #executeVision(io.cafeai.core.ai.VisionRequest)}
@@ -916,8 +917,8 @@ public final class CafeAIApp implements CafeAI {
      * transcription endpoint not yet supported by LangChain4j's chat completions
      * path. See {@link AudioMessageBuilder} for details.
      */
-    private io.cafeai.core.ai.AudioResponse executeAudio(
-            io.cafeai.core.ai.AudioRequest request) {
+    private AudioResponse executeAudio(
+            AudioRequest request) {
 
         // -- 1. Resolve provider and verify audio support ---------------------
         AiProvider provider;
@@ -925,8 +926,8 @@ public final class CafeAIApp implements CafeAI {
             provider = namedProviders.get(request.providerName());
             if (provider == null) {
                 throw new IllegalStateException(
-                    "No provider registered with name '" + request.providerName() + "'. " +
-                    "Registered named providers: " + namedProviders.keySet() + ".");
+                        "No provider registered with name '" + request.providerName() + "'. " +
+                                "Registered named providers: " + namedProviders.keySet() + ".");
             }
         } else if (aiProvider != null) {
             provider = aiProvider;
@@ -934,31 +935,31 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
-                "For audio calls, use an audio-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                            "For audio calls, use an audio-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
         }
         if (!provider.supportsAudio()) {
-            throw new io.cafeai.core.ai.AudioRequest.AudioNotSupportedException(
-                "The registered provider '" + provider.modelId() + "' does not support " +
-                "audio input. Use an audio-capable provider: " +
-                "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+            throw new AudioRequest.AudioNotSupportedException(
+                    "The registered provider '" + provider.modelId() + "' does not support " +
+                            "audio input. Use an audio-capable provider: " +
+                            "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
         }
 
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
-        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
-            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.PRE_LLM
-                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
-                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
-                    rail.checkOutput(request.prompt());
+        for (GuardRail rail : guardRails) {
+            if (rail.position() == GuardRail.Position.PRE_LLM
+                    || rail.position() == GuardRail.Position.BOTH) {
+                GuardRail.OutputCheckResult result =
+                        rail.checkOutput(request.prompt());
                 if (result.isViolation()) {
                     log.warn("Audio PRE_LLM guardrail '{}' triggered: {}",
-                        rail.name(), result.reason());
+                            rail.name(), result.reason());
                     throw new RuntimeException(
-                        "Audio prompt blocked by guardrail '" + rail.name() +
-                        "': " + result.reason());
+                            "Audio prompt blocked by guardrail '" + rail.name() +
+                                    "': " + result.reason());
                 }
             }
         }
@@ -966,10 +967,10 @@ public final class CafeAIApp implements CafeAI {
         // -- 3. Build session history (text messages only) --------------------
         List<ChatMessage> history = new ArrayList<>();
         if (request.sessionId() != null && memoryStrategy != null) {
-            io.cafeai.core.memory.ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
+            ConversationContext ctx =
+                    memoryStrategy.retrieve(request.sessionId());
             if (ctx != null) {
-                for (io.cafeai.core.memory.ConversationContext.Message msg : ctx.messages()) {
+                for (ConversationContext.Message msg : ctx.messages()) {
                     if ("user".equals(msg.role())) {
                         history.add(UserMessage.from(msg.content()));
                     } else if ("assistant".equals(msg.role())) {
@@ -981,40 +982,40 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 4. Determine system prompt ---------------------------------------
         String systemPrompt = request.systemOverride() != null
-            ? request.systemOverride()
-            : this.systemPrompt;
+                ? request.systemOverride()
+                : this.systemPrompt;
 
         // -- 4b. Append schema hint for structured output --------------------
         String effectivePrompt = request.schemaHint() != null
-            ? request.prompt() + request.schemaHint()
-            : request.prompt();
+                ? request.prompt() + request.schemaHint()
+                : request.prompt();
 
         // -- 5 & 6. Call model — route by provider type ----------------------
         // OpenAI: AudioContent not supported via chat completions.
         // Route through Whisper /v1/audio/transcriptions directly.
         // Gemini: AudioContent is supported natively via chat completions.
         String responseText = "";
-        int    promptTokens = 0;
-        int    outputTokens = 0;
+        int promptTokens = 0;
+        int outputTokens = 0;
 
         Object observeCtx = observeBridge != null
-            ? observeBridge.beforeAudio(request) : null;
+                ? observeBridge.beforeAudio(request) : null;
 
         if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
         if (AudioMessageBuilder.requiresWhisperEndpoint(provider)) {
             // -- OpenAI path: Whisper transcription endpoint ------------------
             String transcript = AudioMessageBuilder.transcribeViaWhisper(
-                request.content(), request.mimeType(), request.prompt());
+                    request.content(), request.mimeType(), request.prompt());
 
             // If the prompt asks for more than transcription, send transcript
             // back through the text model for reasoning/extraction
             boolean wantsReasoning = request.schemaHint() != null
-                || !request.prompt().toLowerCase().contains("transcribe");
+                    || !request.prompt().toLowerCase().contains("transcribe");
 
             if (wantsReasoning) {
                 String followUp = effectivePrompt +
-                    "\n\nTranscript:\n---\n" + transcript + "\n---";
+                        "\n\nTranscript:\n---\n" + transcript + "\n---";
                 List<ChatMessage> textMessages = new ArrayList<>(history);
                 if (systemPrompt != null && !systemPrompt.isBlank())
                     textMessages.add(0, dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
@@ -1029,7 +1030,7 @@ public final class CafeAIApp implements CafeAI {
                         ChatResponse cr = model.chat(textMessages);
                         responseText = cr.aiMessage().text();
                         TokenUsage usage = cr.tokenUsage();
-                        promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                        promptTokens = usage != null ? usage.inputTokenCount() : 0;
                         outputTokens = usage != null ? usage.outputTokenCount() : 0;
                         if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                         break;
@@ -1040,17 +1041,21 @@ public final class CafeAIApp implements CafeAI {
                             long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
                             log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
                             lastRateLimitError = e;
-                            try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                            try {
+                                Thread.sleep(waitMs);
+                            } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
                                 throw new RuntimeException("Interrupted during audio retry", ie);
                             }
-                        } else { throw e; }
+                        } else {
+                            throw e;
+                        }
                     }
                 }
                 if (lastRateLimitError != null) {
-                    throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
-                        "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                        lastRateLimitError);
+                    throw new RetryPolicy.RateLimitExceededException(
+                            "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                            lastRateLimitError);
                 }
             } else {
                 // Pure transcription — return transcript directly
@@ -1060,8 +1065,8 @@ public final class CafeAIApp implements CafeAI {
         } else {
             // -- Gemini path: AudioContent via chat completions ---------------
             List<ChatMessage> messages = AudioMessageBuilder.buildForGemini(
-                effectivePrompt, request.content(), request.mimeType(),
-                systemPrompt, history);
+                    effectivePrompt, request.content(), request.mimeType(),
+                    systemPrompt, history);
 
             int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
             Throwable lastRateLimitError = null;
@@ -1072,7 +1077,7 @@ public final class CafeAIApp implements CafeAI {
                     ChatResponse response = model.chat(messages);
                     responseText = response.aiMessage().text();
                     TokenUsage usage = response.tokenUsage();
-                    promptTokens = usage != null ? usage.inputTokenCount()  : 0;
+                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
                     outputTokens = usage != null ? usage.outputTokenCount() : 0;
                     if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                     break;
@@ -1083,28 +1088,32 @@ public final class CafeAIApp implements CafeAI {
                         long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
                         log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
                         lastRateLimitError = e;
-                        try { Thread.sleep(waitMs); } catch (InterruptedException ie) {
+                        try {
+                            Thread.sleep(waitMs);
+                        } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
                             throw new RuntimeException("Interrupted during audio retry", ie);
                         }
-                    } else { throw e; }
+                    } else {
+                        throw e;
+                    }
                 }
             }
             if (lastRateLimitError != null) {
-                throw new io.cafeai.core.ai.RetryPolicy.RateLimitExceededException(
-                    "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                    lastRateLimitError);
+                throw new RetryPolicy.RateLimitExceededException(
+                        "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                        lastRateLimitError);
             }
         }
 
         // -- 6b. Observability: afterAudio ------------------------------------
         if (observeBridge != null) {
-            io.cafeai.core.ai.AudioResponse partial = io.cafeai.core.ai.AudioResponse.builder()
-                .text(responseText)
-                .promptTokens(promptTokens)
-                .outputTokens(outputTokens)
-                .modelId(provider.modelId())
-                .build();
+            AudioResponse partial = AudioResponse.builder()
+                    .text(responseText)
+                    .promptTokens(promptTokens)
+                    .outputTokens(outputTokens)
+                    .modelId(provider.modelId())
+                    .build();
             observeBridge.afterAudio(observeCtx, request, partial, null);
         }
 
@@ -1114,27 +1123,27 @@ public final class CafeAIApp implements CafeAI {
         // -- 8. Set LLM_RESPONSE_TEXT for HTTP middleware guardrails ----------
         if (request.httpRequest() != null) {
             request.httpRequest().setAttribute(
-                io.cafeai.core.Attributes.LLM_RESPONSE_TEXT, responseText);
+                    Attributes.LLM_RESPONSE_TEXT, responseText);
         }
 
         // -- 9. Persist to session memory (text only — never audio bytes) -----
         if (request.sessionId() != null && memoryStrategy != null) {
-            io.cafeai.core.memory.ConversationContext ctx =
-                memoryStrategy.retrieve(request.sessionId());
-            if (ctx == null) ctx = new io.cafeai.core.memory.ConversationContext(request.sessionId());
-            ctx.addMessage("user",      request.prompt());   // store text prompt, not audio
+            ConversationContext ctx =
+                    memoryStrategy.retrieve(request.sessionId());
+            if (ctx == null) ctx = new ConversationContext(request.sessionId());
+            ctx.addMessage("user", request.prompt());   // store text prompt, not audio
             ctx.addMessage("assistant", responseText);
             ctx.addTokens(promptTokens + outputTokens);
             memoryStrategy.store(request.sessionId(), ctx);
         }
 
         // -- 10. Return AudioResponse -----------------------------------------
-        return io.cafeai.core.ai.AudioResponse.builder()
-            .text(responseText)
-            .promptTokens(promptTokens)
-            .outputTokens(outputTokens)
-            .modelId(provider.modelId())
-            .build();
+        return AudioResponse.builder()
+                .text(responseText)
+                .promptTokens(promptTokens)
+                .outputTokens(outputTokens)
+                .modelId(provider.modelId())
+                .build();
     }
 
     /**
@@ -1146,8 +1155,8 @@ public final class CafeAIApp implements CafeAI {
      * <p>Observability hooks fire before and after the HTTP call.
      * Token budget is not applied — TTS is billed per character, not per token.
      */
-    private io.cafeai.core.ai.SynthesisResponse executeSynthesis(
-            io.cafeai.core.ai.SynthesisRequest request) {
+    private SynthesisResponse executeSynthesis(
+            SynthesisRequest request) {
 
         // -- 1. Resolve provider --------------------------------------------------
         AiProvider provider;
@@ -1155,22 +1164,22 @@ public final class CafeAIApp implements CafeAI {
             provider = namedProviders.get(request.providerName());
             if (provider == null) {
                 throw new IllegalStateException(
-                    "No provider registered with name '" + request.providerName() + "'. " +
-                    "Registered named providers: " + namedProviders.keySet() + ".");
+                        "No provider registered with name '" + request.providerName() + "'. " +
+                                "Registered named providers: " + namedProviders.keySet() + ".");
             }
         } else if (aiProvider != null) {
             provider = aiProvider;
         } else {
             throw new IllegalStateException(
-                "No TTS provider registered. Call app.ai(OpenAI.tts()) at startup, " +
-                "or use a named provider: app.ai(\"voice\", OpenAI.tts()).");
+                    "No TTS provider registered. Call app.ai(OpenAI.tts()) at startup, " +
+                            "or use a named provider: app.ai(\"voice\", OpenAI.tts()).");
         }
 
         if (!provider.supportsTts()) {
-            throw new io.cafeai.core.ai.SynthesisRequest.TtsNotSupportedException(
-                "The registered provider '" + provider.modelId() + "' does not support " +
-                "text-to-speech synthesis. Use a TTS-capable provider: " +
-                "app.ai(OpenAI.tts()) or app.ai(\"voice\", OpenAI.tts()).");
+            throw new SynthesisRequest.TtsNotSupportedException(
+                    "The registered provider '" + provider.modelId() + "' does not support " +
+                            "text-to-speech synthesis. Use a TTS-capable provider: " +
+                            "app.ai(OpenAI.tts()) or app.ai(\"voice\", OpenAI.tts()).");
         }
 
         // -- 2. Observability: beforeSynthesis ------------------------------------
@@ -1183,38 +1192,38 @@ public final class CafeAIApp implements CafeAI {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set.");
         }
 
-        String voice  = "alloy";
+        String voice = "alloy";
         String format = "mp3";
-        if (provider instanceof io.cafeai.core.ai.OpenAI.OpenAiTtsProvider tts) {
-            voice  = tts.voice();
-            format = tts.format();
+        if (provider instanceof OpenAI.OpenAiTtsProvider(String voice1, String format1)) {
+            voice = voice1;
+            format = format1;
         }
 
         String safeText = request.text()
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r");
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
         String body = "{\"model\":\"tts-1\",\"input\":\"" + safeText +
-            "\",\"voice\":\"" + voice +
-            "\",\"response_format\":\"" + format + "}";
+                "\",\"voice\":\"" + voice +
+                "\",\"response_format\":\"" + format + "}";
 
         byte[] audioBytes;
         try {
             var httpRequest = java.net.http.HttpRequest.newBuilder()
-                .uri(java.net.URI.create("https://api.openai.com/v1/audio/speech"))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                    .uri(java.net.URI.create("https://api.openai.com/v1/audio/speech"))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+                    .build();
 
             var response = java.net.http.HttpClient.newHttpClient()
-                .send(httpRequest, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+                    .send(httpRequest, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
 
             if (response.statusCode() != 200) {
                 throw new RuntimeException(
-                    "OpenAI TTS API error " + response.statusCode() + ": " +
-                    new String(response.body(), java.nio.charset.StandardCharsets.UTF_8));
+                        "OpenAI TTS API error " + response.statusCode() + ": " +
+                                new String(response.body(), java.nio.charset.StandardCharsets.UTF_8));
             }
             audioBytes = response.body();
 
@@ -1226,19 +1235,19 @@ public final class CafeAIApp implements CafeAI {
         long latencyMs = System.currentTimeMillis() - startMs;
 
         // -- 4. Observability: afterSynthesis ------------------------------------
-        io.cafeai.core.ai.SynthesisResponse result =
-            io.cafeai.core.ai.SynthesisResponse.builder()
-                .audioBytes(audioBytes)
-                .format(format)
-                .modelId(provider.modelId())
-                .characters(request.text().length())
-                .latencyMs(latencyMs)
-                .build();
+        SynthesisResponse result =
+                SynthesisResponse.builder()
+                        .audioBytes(audioBytes)
+                        .format(format)
+                        .modelId(provider.modelId())
+                        .characters(request.text().length())
+                        .latencyMs(latencyMs)
+                        .build();
 
         if (observeBridge != null) observeBridge.afterSynthesis(request, result, null);
 
         log.info("[TTS] {} chars synthesised | model={} | format={} | latency={}ms | bytes={}",
-            request.text().length(), provider.modelId(), format, latencyMs, audioBytes.length);
+                request.text().length(), provider.modelId(), format, latencyMs, audioBytes.length);
 
         return result;
     }
@@ -1252,13 +1261,13 @@ public final class CafeAIApp implements CafeAI {
     private static boolean isRateLimitException(Throwable t) {
         if (t == null) return false;
         String className = t.getClass().getSimpleName().toLowerCase();
-        String message   = t.getMessage() != null ? t.getMessage().toLowerCase() : "";
+        String message = t.getMessage() != null ? t.getMessage().toLowerCase() : "";
         return className.contains("ratelimit")
-            || message.contains("rate limit")
-            || message.contains("rate_limit")
-            || message.contains("too many requests")
-            || message.contains("429")
-            || (t.getCause() != null && isRateLimitException(t.getCause()));
+                || message.contains("rate limit")
+                || message.contains("rate_limit")
+                || message.contains("too many requests")
+                || message.contains("429")
+                || (t.getCause() != null && isRateLimitException(t.getCause()));
     }
 
     /**
@@ -1280,14 +1289,14 @@ public final class CafeAIApp implements CafeAI {
         if (guardRails.isEmpty() || responseText == null || responseText.isBlank()) {
             return responseText;
         }
-        for (io.cafeai.core.guardrails.GuardRail rail : guardRails) {
-            if (rail.position() == io.cafeai.core.guardrails.GuardRail.Position.POST_LLM
-                    || rail.position() == io.cafeai.core.guardrails.GuardRail.Position.BOTH) {
-                io.cafeai.core.guardrails.GuardRail.OutputCheckResult result =
-                    rail.checkOutput(responseText);
+        for (GuardRail rail : guardRails) {
+            if (rail.position() == GuardRail.Position.POST_LLM
+                    || rail.position() == GuardRail.Position.BOTH) {
+                GuardRail.OutputCheckResult result =
+                        rail.checkOutput(responseText);
                 if (result != null && result.isViolation()) {
                     log.warn("POST_LLM guardrail '{}' triggered on tool-call response: {}",
-                        rail.name(), result.reason());
+                            rail.name(), result.reason());
                     // Replace with a safe refusal rather than propagating the violating content
                     return "[Response blocked by guardrail: " + rail.name() + "]";
                 }
@@ -1308,28 +1317,28 @@ public final class CafeAIApp implements CafeAI {
             AiProvider named = namedProviders.get(request.providerName());
             if (named == null) {
                 throw new IllegalStateException(
-                    "No provider registered with name '" + request.providerName() + "'. " +
-                    "Registered named providers: " + namedProviders.keySet() + ". " +
-                    "Call app.ai(\"" + request.providerName() + "\", OpenAI.gpt4o()) at startup.");
+                        "No provider registered with name '" + request.providerName() + "'. " +
+                                "Registered named providers: " + namedProviders.keySet() + ". " +
+                                "Call app.ai(\"" + request.providerName() + "\", OpenAI.gpt4o()) at startup.");
             }
             // If the named provider is a ModelRouter, apply its routing logic
-            if (named instanceof io.cafeai.core.ai.ModelRouter router) {
+            if (named instanceof ModelRouter router) {
                 return router.route(request.message().length());
             }
             return named;
         }
         if (aiProvider == null && modelRouter == null && namedProviders.isEmpty()) {
             throw new IllegalStateException(
-                "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup.\n\n" +
-                "For local models (no API key needed):\n" +
-                "  app.ai(Ollama.llama3())");
+                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup.\n\n" +
+                            "For local models (no API key needed):\n" +
+                            "  app.ai(Ollama.llama3())");
         }
         if (modelRouter != null) {
             // Simple heuristic: messages over 500 chars go to the complex model
             boolean isComplex = request.message().length() > 500;
             return isComplex
-                ? modelRouter.complexModel()
-                : modelRouter.simpleModel();
+                    ? modelRouter.complexModel()
+                    : modelRouter.simpleModel();
         }
         return aiProvider;
     }
@@ -1348,12 +1357,12 @@ public final class CafeAIApp implements CafeAI {
         assertNotStarted("observe()");
         Objects.requireNonNull(strategy, "ObserveStrategy must not be null");
         // Load the bridge from the strategy -- strategy carries its own bridge
-        this.observeBridge = java.util.ServiceLoader
-            .load(io.cafeai.core.spi.ObserveBridge.class)
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException(
-                "app.observe() requires cafeai-observability on the classpath. " +
-                "Add: implementation 'com.akilisha.oss:cafeai-observability'"));
+        this.observeBridge = ServiceLoader
+                .load(ObserveBridge.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "app.observe() requires cafeai-observability on the classpath. " +
+                                "Add: implementation 'com.akilisha.oss:cafeai-observability'"));
         this.observeBridge.setStrategy(strategy);
         locals.put(Locals.OBSERVE_STRATEGY, strategy);
         log.info("Observability registered: {}", strategy.getClass().getSimpleName());
@@ -1375,28 +1384,28 @@ public final class CafeAIApp implements CafeAI {
         Objects.requireNonNull(connection, "Connection must not be null");
 
         // Probe the service
-        io.cafeai.core.spi.ConnectBridge bridge = loadConnectBridge();
+        ConnectBridge bridge = loadConnectBridge();
         if (bridge != null) {
             bridge.connect(connection, this);
         } else {
             // No cafeai-connect -- store for later, log clearly
             log.warn("app.connect() called but cafeai-connect is not on the classpath. " +
-                "Add: implementation 'com.akilisha.oss:cafeai-connect'");
+                    "Add: implementation 'com.akilisha.oss:cafeai-connect'");
         }
         return this;
     }
 
-    private io.cafeai.core.spi.ConnectBridge loadConnectBridge() {
-        return java.util.ServiceLoader
-            .load(io.cafeai.core.spi.ConnectBridge.class)
-            .findFirst()
-            .orElse(null);
+    private ConnectBridge loadConnectBridge() {
+        return ServiceLoader
+                .load(ConnectBridge.class)
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
-    public CafeAI ws(String path, io.cafeai.core.routing.WsHandler handler) {
+    public CafeAI ws(String path, WsHandler handler) {
         assertNotStarted("ws()");
-        Objects.requireNonNull(path,    "WebSocket path must not be null");
+        Objects.requireNonNull(path, "WebSocket path must not be null");
         Objects.requireNonNull(handler, "WsHandler must not be null");
         wsEndpoints.add(new WsEndpoint(path, handler));
         return this;
@@ -1419,7 +1428,7 @@ public final class CafeAIApp implements CafeAI {
 
         @Override
         public CafeAI.HelidonConfig server(
-                java.util.function.Consumer<WebServerConfig.Builder> consumer) {
+                Consumer<WebServerConfig.Builder> consumer) {
             Objects.requireNonNull(consumer, "server consumer must not be null");
             helidonServerConsumers.add(consumer);
             return this;
@@ -1427,7 +1436,7 @@ public final class CafeAIApp implements CafeAI {
 
         @Override
         public CafeAI.HelidonConfig routing(
-                java.util.function.Consumer<HttpRouting.Builder> consumer) {
+                Consumer<HttpRouting.Builder> consumer) {
             Objects.requireNonNull(consumer, "routing consumer must not be null");
             helidonRoutingConsumers.add(consumer);
             return this;
@@ -1457,21 +1466,21 @@ public final class CafeAIApp implements CafeAI {
         Objects.requireNonNull(source, "Source must not be null");
         if (vectorStore == null) {
             throw new IllegalStateException(
-                "No vector store registered. Call app.vectordb(VectorStore.inMemory()) first.");
+                    "No vector store registered. Call app.vectordb(VectorStore.inMemory()) first.");
         }
         if (embeddingModel == null) {
             throw new IllegalStateException(
-                "No embedding model registered. Call app.embed(EmbeddingModel.local()) first.");
+                    "No embedding model registered. Call app.embed(EmbeddingModel.local()) first.");
         }
         // Ingestion is executed by cafeai-rag via the RagPipeline SPI.
         // The objects are stored here; actual chunking/embedding/upserting happens
         // in cafeai-rag where all the types are visible.
-        java.util.ServiceLoader.load(io.cafeai.core.spi.RagPipeline.class)
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException(
-                "RAG ingestion requires the cafeai-rag module. " +
-                "Add: implementation 'com.akilisha.oss:cafeai-rag'"))
-            .ingest(source, vectorStore, embeddingModel);
+        ServiceLoader.load(RagPipeline.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "RAG ingestion requires the cafeai-rag module. " +
+                                "Add: implementation 'com.akilisha.oss:cafeai-rag'"))
+                .ingest(source, vectorStore, embeddingModel);
         return this;
     }
 
@@ -1488,7 +1497,8 @@ public final class CafeAIApp implements CafeAI {
     // -- Tools & MCP (ROADMAP-07 Phase 5) -------------------------------------
 
     @Override
-    public CafeAI guard(GuardRail guardRail) {        assertNotStarted("guard()");
+    public CafeAI guard(GuardRail guardRail) {
+        assertNotStarted("guard()");
         Objects.requireNonNull(guardRail, "GuardRail must not be null");
         guardRails.add(guardRail);
         log.info("GuardRail registered: {} ({})", guardRail.name(), guardRail.position());
@@ -1496,7 +1506,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI budget(io.cafeai.core.ai.TokenBudget budget) {
+    public CafeAI budget(TokenBudget budget) {
         assertNotStarted("budget()");
         Objects.requireNonNull(budget, "TokenBudget must not be null");
         this.budgetTracker = new TokenBudgetTracker(budget);
@@ -1505,7 +1515,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI retry(io.cafeai.core.ai.RetryPolicy policy) {
+    public CafeAI retry(RetryPolicy policy) {
         assertNotStarted("retry()");
         Objects.requireNonNull(policy, "RetryPolicy must not be null");
         this.retryPolicy = policy;
@@ -1536,12 +1546,12 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public java.util.Map<String, Object> locals() {
+    public Map<String, Object> locals() {
         // Return unmodifiable snapshot excluding internal CafeAI keys
         return locals.entrySet().stream()
-            .filter(e -> !Locals.isInternal(e.getKey()))
-            .collect(Collectors.toUnmodifiableMap(
-                Map.Entry::getKey, Map.Entry::getValue));
+                .filter(e -> !Locals.isInternal(e.getKey()))
+                .collect(Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey, Map.Entry::getValue));
     }
 
     // -- Application Settings (ROADMAP-02 Phase 7) -----------------------------
@@ -1561,8 +1571,8 @@ public final class CafeAIApp implements CafeAI {
     @SuppressWarnings("unchecked")
     public <T> T setting(Setting setting, Class<T> type) {
         Object value = settings.containsKey(setting)
-            ? settings.get(setting)
-            : setting.defaultValue();
+                ? settings.get(setting)
+                : setting.defaultValue();
         if (value == null) return null;
         return type.cast(value);
     }
@@ -1574,16 +1584,16 @@ public final class CafeAIApp implements CafeAI {
         // containsKey correctly distinguishes "key absent -> use default" from
         // "key present with null value -> return null".
         return settings.containsKey(setting)
-            ? settings.get(setting)
-            : setting.defaultValue();
+                ? settings.get(setting)
+                : setting.defaultValue();
     }
 
     @Override
     public CafeAI enable(Setting setting) {
         if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
-                "Setting." + setting.name() + " does not support enable()/disable(). " +
-                "Use app.set(setting, value) instead.");
+                    "Setting." + setting.name() + " does not support enable()/disable(). " +
+                            "Use app.set(setting, value) instead.");
         }
         settings.put(setting, true);
         return this;
@@ -1593,8 +1603,8 @@ public final class CafeAIApp implements CafeAI {
     public CafeAI disable(Setting setting) {
         if (!isBooleanCapable(setting)) {
             throw new IllegalArgumentException(
-                "Setting." + setting.name() + " does not support enable()/disable(). " +
-                "Use app.set(setting, value) instead.");
+                    "Setting." + setting.name() + " does not support enable()/disable(). " +
+                            "Use app.set(setting, value) instead.");
         }
         settings.put(setting, false);
         return this;
@@ -1609,7 +1619,7 @@ public final class CafeAIApp implements CafeAI {
      */
     private static boolean isBooleanCapable(Setting setting) {
         return setting.isBoolean()
-            || (setting.valueType() == Object.class
+                || (setting.valueType() == Object.class
                 && setting.defaultValue() instanceof Boolean);
     }
 
@@ -1617,7 +1627,7 @@ public final class CafeAIApp implements CafeAI {
     public boolean enabled(Setting setting) {
         Object value = setting(setting);
         if (value instanceof Boolean b) return b;
-        if (value instanceof Number n)  return n.intValue() != 0;
+        if (value instanceof Number n) return n.intValue() != 0;
         return value != null;
     }
 
@@ -1634,12 +1644,12 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public java.util.List<String> mountpaths() {
+    public List<String> mountpaths() {
         return Collections.unmodifiableList(mountPaths);
     }
 
     @Override
-    public CafeAI onMount(java.util.function.Consumer<CafeAI> callback) {
+    public CafeAI onMount(Consumer<CafeAI> callback) {
         Objects.requireNonNull(callback, "Mount callback must not be null");
         mountCallbacks.add(callback);
         return this;
@@ -1651,7 +1661,9 @@ public final class CafeAIApp implements CafeAI {
         return parent.path() + mountpath();
     }
 
-    /** Called by parent app when this sub-app is mounted. */
+    /**
+     * Called by parent app when this sub-app is mounted.
+     */
     public void notifyMount(CafeAI parentApp, String mountPath) {
         this.parent = parentApp;
         this.mountPaths.add(mountPath);
@@ -1664,7 +1676,7 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     public CafeAI engine(String ext, ResponseFormatter formatter) {
-        Objects.requireNonNull(ext,       "Extension must not be null");
+        Objects.requireNonNull(ext, "Extension must not be null");
         Objects.requireNonNull(formatter, "ResponseFormatter must not be null");
         // Normalise: strip leading dot if present
         engines.put(ext.startsWith(".") ? ext.substring(1) : ext, formatter);
@@ -1672,8 +1684,8 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public void render(String view, java.util.Map<String, Object> locals,
-                       java.util.function.BiConsumer<Throwable, String> callback) {
+    public void render(String view, Map<String, Object> locals,
+                       BiConsumer<Throwable, String> callback) {
         try {
             String result = renderView(view, locals);
             callback.accept(null, result);
@@ -1683,8 +1695,8 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public java.util.concurrent.CompletableFuture<String> render(
-            String view, java.util.Map<String, Object> locals) {
+    public CompletableFuture<String> render(
+            String view, Map<String, Object> locals) {
         // Validate configuration eagerly on the calling thread -- before going async.
         // A missing engine or missing VIEW_ENGINE setting is a programming error that
         // should be caught immediately, not buried in an async task that may not
@@ -1696,7 +1708,7 @@ public final class CafeAIApp implements CafeAI {
         }
         // Config is valid -- do the actual file I/O and rendering asynchronously
         return CompletableFuture.supplyAsync(
-            () -> renderView(view, locals));
+                () -> renderView(view, locals));
     }
 
     /**
@@ -1715,23 +1727,23 @@ public final class CafeAIApp implements CafeAI {
             Object engineSetting = setting(Setting.VIEW_ENGINE);
             if (engineSetting == null || engineSetting.toString().isBlank()) {
                 throw new ResponseFormatter.RenderException(
-                    "No view engine configured. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
-                    "or include the extension in the view name (e.g. \"welcome.html\").");
+                        "No view engine configured. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
+                                "or include the extension in the view name (e.g. \"welcome.html\").");
             }
             ext = engineSetting.toString();
         }
         if (!engines.containsKey(ext)) {
             throw new ResponseFormatter.RenderException(
-                "No engine registered for extension \"" + ext + "\". " +
-                "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
-                "after adding com.akilisha.oss:cafeai-views-mustache to your dependencies.");
+                    "No engine registered for extension \"" + ext + "\". " +
+                            "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
+                            "after adding com.akilisha.oss:cafeai-views-mustache to your dependencies.");
         }
     }
 
     /**
      * Core render logic -- resolves view path, selects engine, merges locals, formats.
      */
-    private String renderView(String view, java.util.Map<String, Object> viewLocals) {
+    private String renderView(String view, Map<String, Object> viewLocals) {
         // Determine extension from view name, or fall back to VIEW_ENGINE setting
         String ext;
         int dot = view.lastIndexOf('.');
@@ -1741,8 +1753,8 @@ public final class CafeAIApp implements CafeAI {
             Object engineSetting = setting(Setting.VIEW_ENGINE);
             if (engineSetting == null || engineSetting.toString().isBlank()) {
                 throw new ResponseFormatter.RenderException(
-                    "No view engine set. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
-                    "or include the extension in the view name.");
+                        "No view engine set. Call app.set(Setting.VIEW_ENGINE, \"html\") " +
+                                "or include the extension in the view name.");
             }
             ext = engineSetting.toString();
         }
@@ -1750,18 +1762,18 @@ public final class CafeAIApp implements CafeAI {
         ResponseFormatter formatter = engines.get(ext);
         if (formatter == null) {
             throw new ResponseFormatter.RenderException(
-                "No engine registered for extension \"" + ext + "\". " +
-                "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()).");
+                    "No engine registered for extension \"" + ext + "\". " +
+                            "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()).");
         }
 
         // Resolve template path from VIEWS setting
         String viewsDir = (String) setting(Setting.VIEWS);
         String fileName = dot >= 0 ? view : view + "." + ext;
         String templatePath = java.nio.file.Paths.get(viewsDir, fileName)
-            .toAbsolutePath().normalize().toString();
+                .toAbsolutePath().normalize().toString();
 
         // Merge locals: app.locals() < res/view locals (view locals win on conflict)
-        java.util.Map<String, Object> merged = new java.util.LinkedHashMap<>(locals());
+        Map<String, Object> merged = new LinkedHashMap<>(locals());
         if (viewLocals != null) merged.putAll(viewLocals);
 
         return formatter.format(templatePath, merged);
@@ -1802,7 +1814,7 @@ public final class CafeAIApp implements CafeAI {
             log.error("Unhandled request error", error);
             try {
                 res.status(500).json(Map.of("error", "Internal Server Error",
-                    "message", error.getMessage() != null ? error.getMessage() : ""));
+                        "message", error.getMessage() != null ? error.getMessage() : ""));
             } catch (Exception ignored) {
                 // Response may already be committed -- swallow
             }
@@ -1877,7 +1889,7 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public Router all(String path, Middleware... handlers) {
         Middleware composed = compose(handlers);
-        for (String method : List.of("GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS")) {
+        for (String method : List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")) {
             routes.add(new RouteEntry(method, path, composed));
         }
         return this;
@@ -1896,7 +1908,7 @@ public final class CafeAIApp implements CafeAI {
 
     @Override
     public Router use(String path, Router subRouter) {
-        Objects.requireNonNull(path,      "Path must not be null");
+        Objects.requireNonNull(path, "Path must not be null");
         Objects.requireNonNull(subRouter, "Sub-router must not be null");
         routes.add(new RouteEntry("_SUBROUTER_", path, Middleware.NOOP, subRouter));
         return this;
@@ -1905,7 +1917,7 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public Router param(String name, ParamCallback callback) {
         routes.add(new RouteEntry("_PARAM_", name,
-            (req, res, next) -> callback.handle(req, res, next, req.params(name))));
+                (req, res, next) -> callback.handle(req, res, next, req.params(name))));
         return this;
     }
 
@@ -1925,7 +1937,7 @@ public final class CafeAIApp implements CafeAI {
     public void listen(int port, Runnable onStart) {
         if (!started.compareAndSet(false, true)) {
             throw new IllegalStateException(
-                "CafeAI server is already running. Create a new instance with CafeAI.create().");
+                    "CafeAI server is already running. Create a new instance with CafeAI.create().");
         }
 
         log.info("[coffee] CafeAI starting on port {}...", port);
@@ -1938,8 +1950,8 @@ public final class CafeAIApp implements CafeAI {
         }
 
         var serverBuilder = WebServer.builder()
-            .port(port)
-            .addRouting(routingBuilder);
+                .port(port)
+                .addRouting(routingBuilder);
 
         // Apply any raw Helidon server consumers registered via app.helidon().server()
         for (var consumer : helidonServerConsumers) {
@@ -1974,7 +1986,7 @@ public final class CafeAIApp implements CafeAI {
             log.info("   AI provider:        {} ({})", aiProvider.name(), aiProvider.modelId());
         if (!namedProviders.isEmpty())
             namedProviders.forEach((name, p) ->
-                log.info("   AI provider:        {} ({}) [name: {}]", p.name(), p.modelId(), name));
+                    log.info("   AI provider:        {} ({}) [name: {}]", p.name(), p.modelId(), name));
         if (memoryStrategy != null)
             log.info("   Memory strategy:    {}", memoryStrategy.getClass().getSimpleName());
         if (!guardRails.isEmpty())
@@ -2045,8 +2057,8 @@ public final class CafeAIApp implements CafeAI {
      * Recursively registers routes, expanding sub-routers at their mount prefix.
      */
     private void registerRoutes(HttpRouting.Builder builder,
-                                 List<RouteEntry> routeList,
-                                 String mountPrefix) {
+                                List<RouteEntry> routeList,
+                                String mountPrefix) {
         for (var entry : routeList) {
             if (entry.method().equals("_PARAM_")) continue;
 
@@ -2060,8 +2072,8 @@ public final class CafeAIApp implements CafeAI {
                 }
                 // Expand sub-router routes recursively
                 List<RouteEntry> subRoutes = sub.routes.stream()
-                    .map(r -> new RouteEntry(r.method(), r.path(), r.handler(), r.nestedRouter()))
-                    .toList();
+                        .map(r -> new RouteEntry(r.method(), r.path(), r.handler(), r.nestedRouter()))
+                        .toList();
                 registerRoutes(builder, subRoutes, prefix);
                 continue;
             }
@@ -2072,12 +2084,12 @@ public final class CafeAIApp implements CafeAI {
             Handler handler = toHelidonHandler(entry.handler());
 
             switch (entry.method()) {
-                case "GET"     -> builder.get(fullPath,     handler);
-                case "POST"    -> builder.post(fullPath,    handler);
-                case "PUT"     -> builder.put(fullPath,     handler);
-                case "PATCH"   -> builder.patch(fullPath,   handler);
-                case "DELETE"  -> builder.delete(fullPath,  handler);
-                case "HEAD"    -> builder.head(fullPath,    handler);
+                case "GET" -> builder.get(fullPath, handler);
+                case "POST" -> builder.post(fullPath, handler);
+                case "PUT" -> builder.put(fullPath, handler);
+                case "PATCH" -> builder.patch(fullPath, handler);
+                case "DELETE" -> builder.delete(fullPath, handler);
+                case "HEAD" -> builder.head(fullPath, handler);
                 case "OPTIONS" -> builder.options(fullPath, handler);
             }
         }
@@ -2097,8 +2109,8 @@ public final class CafeAIApp implements CafeAI {
      * <p>Synchronised externally only at creation time; all subsequent reads
      * are key-equal lookups on the same reference, which is safe.
      */
-    private final java.util.WeakHashMap<ServerRequest, RequestContext> requestContexts =
-        new java.util.WeakHashMap<>();
+    private final WeakHashMap<ServerRequest, RequestContext> requestContexts =
+            new WeakHashMap<>();
 
     private RequestContext getOrCreateContext(ServerRequest helidonReq,
                                               ServerResponse helidonRes) {
@@ -2111,7 +2123,8 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    private record RequestContext(HelidonRequest req, HelidonResponse res) {}
+    private record RequestContext(HelidonRequest req, HelidonResponse res) {
+    }
 
     /**
      * Wraps a {@link Middleware} as a Helidon {@link Filter}.
@@ -2125,8 +2138,8 @@ public final class CafeAIApp implements CafeAI {
      */
     private Filter toHelidonFilter(Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
-            var ctx = getOrCreateContext((ServerRequest) routingReq,
-                                        (ServerResponse) routingRes);
+            var ctx = getOrCreateContext(routingReq,
+                    routingRes);
             try {
                 middleware.handle(ctx.req(), ctx.res(), () -> {
                     try {
@@ -2148,8 +2161,8 @@ public final class CafeAIApp implements CafeAI {
     private Filter toPathScopedFilter(String pathPrefix, Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
             if (routingReq.path().path().startsWith(pathPrefix)) {
-                var ctx = getOrCreateContext((ServerRequest) routingReq,
-                                            (ServerResponse) routingRes);
+                var ctx = getOrCreateContext(routingReq,
+                        routingRes);
                 try {
                     middleware.handle(ctx.req(), ctx.res(), () -> {
                         try {
@@ -2178,7 +2191,8 @@ public final class CafeAIApp implements CafeAI {
         return (helidonReq, helidonRes) -> {
             var ctx = getOrCreateContext(helidonReq, helidonRes);
             try {
-                middleware.handle(ctx.req(), ctx.res(), () -> {});
+                middleware.handle(ctx.req(), ctx.res(), () -> {
+                });
             } catch (Exception e) {
                 dispatchError(e, ctx.req(), ctx.res());
             }
@@ -2187,7 +2201,9 @@ public final class CafeAIApp implements CafeAI {
 
     // -- Path Translation ------------------------------------------------------
 
-    /** Delegates to {@link PathUtils#toHelidonPath(String)}. */
+    /**
+     * Delegates to {@link PathUtils#toHelidonPath(String)}.
+     */
     static String toHelidonPath(String expressPath) {
         return PathUtils.toHelidonPath(expressPath);
     }
@@ -2222,35 +2238,43 @@ public final class CafeAIApp implements CafeAI {
     private void assertNotStarted(String method) {
         if (started.get()) {
             throw new IllegalStateException(
-                method + " must be called before app.listen(). " +
-                "Application configuration is locked once the server starts.");
+                    method + " must be called before app.listen(). " +
+                            "Application configuration is locked once the server starts.");
         }
     }
 
     // -- Internal Record Types -------------------------------------------------
 
-    /** A registered filter -- path is null for global scope. */
-    private record FilterEntry(String path, Middleware middleware) {}
+    /**
+     * A registered filter -- path is null for global scope.
+     */
+    private record FilterEntry(String path, Middleware middleware) {
+    }
 
-    /** A registered route. handler is always a pre-composed Middleware. */
+    /**
+     * A registered route. handler is always a pre-composed Middleware.
+     */
     private record RouteEntry(
-        String method,
-        String path,
-        Middleware handler,
-        Router subRouter
+            String method,
+            String path,
+            Middleware handler,
+            Router subRouter
     ) {
         RouteEntry(String method, String path, Middleware handler) {
             this(method, path, handler, null);
         }
     }
 
-    /** A registered WebSocket endpoint. */
-    private record WsEndpoint(String path, io.cafeai.core.routing.WsHandler handler) {}
+    /**
+     * A registered WebSocket endpoint.
+     */
+    private record WsEndpoint(String path, WsHandler handler) {
+    }
 
     // -- WebSocket Adapter -----------------------------------------------------
 
     /**
-     * Adapts a CafeAI {@link io.cafeai.core.routing.WsHandler} to Helidon's
+     * Adapts a CafeAI {@link WsHandler} to Helidon's
      * {@code WsListener} interface.
      *
      * <p>Each {@code WsListener} instance is created once per registered path
@@ -2259,7 +2283,7 @@ public final class CafeAIApp implements CafeAI {
      * holds out of the box).
      */
     private static io.helidon.websocket.WsListener toHelidonWsListener(
-            io.cafeai.core.routing.WsHandler handler) {
+            WsHandler handler) {
         return new io.helidon.websocket.WsListener() {
 
             @Override
@@ -2277,16 +2301,16 @@ public final class CafeAIApp implements CafeAI {
             public void onMessage(io.helidon.websocket.WsSession helidonSession,
                                   io.helidon.common.buffers.BufferData buffer, boolean last) {
                 handler.onBinaryMessage(new HelidonWsSession(helidonSession),
-                    buffer.readBytes());
+                        buffer.readBytes());
             }
 
             @Override
             public void onClose(io.helidon.websocket.WsSession helidonSession,
                                 int status, String reason) {
                 handler.onClose(
-                    new HelidonWsSession(helidonSession),
-                    status,
-                    reason);
+                        new HelidonWsSession(helidonSession),
+                        status,
+                        reason);
             }
 
             @Override
@@ -2298,7 +2322,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     private static final class HelidonWsSession
-            implements io.cafeai.core.routing.WsSession {
+            implements WsSession {
 
         private final io.helidon.websocket.WsSession delegate;
         private final String id;
@@ -2324,9 +2348,13 @@ public final class CafeAIApp implements CafeAI {
         }
 
         @Override
-        public String id() { return id; }
+        public String id() {
+            return id;
+        }
 
         @Override
-        public boolean isOpen() { return true; }
+        public boolean isOpen() {
+            return true;
+        }
     }
 }

@@ -242,6 +242,6 @@ public final class PromptRequest {
      */
     @FunctionalInterface
     public interface PromptStreamExecutor {
-        java.util.concurrent.Flow.Publisher<String> stream(PromptRequest request);
+        Flow.Publisher<String> stream(PromptRequest request);
     }
 }

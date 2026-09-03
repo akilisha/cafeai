@@ -12,6 +12,7 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.ai.AiProvider;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,7 +100,7 @@ public final class LangchainBridge {
             case JLAMA -> {
                 var builder = JlamaStreamingChatModel.builder().modelName(provider.modelId());
                 if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
-                    builder.modelCachePath(java.nio.file.Path.of(jpa.modelCachePath()));
+                    builder.modelCachePath(Path.of(jpa.modelCachePath()));
                 }
                 yield builder.build();
             }
@@ -141,7 +142,7 @@ public final class LangchainBridge {
             case JLAMA -> {
                 var builder = JlamaChatModel.builder().modelName(provider.modelId());
                 if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
-                    builder.modelCachePath(java.nio.file.Path.of(jpa.modelCachePath()));
+                    builder.modelCachePath(Path.of(jpa.modelCachePath()));
                 }
                 yield builder.build();
             }
