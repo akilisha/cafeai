@@ -3,7 +3,10 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [Unreleased] — targeting 0.2.0
+## [0.2.0] — unreleased
+
+The project version is `0.2.0` on `main`; the artifacts publish to Maven Central
+when ROADMAP-17 Phase 12 runs. Consumers on 0.1.3: see `MIGRATION.md`.
 
 ### Added
 - **`cafeai-agents`** — `app.agent(name, Interface.class)` binds a LangChain4j
@@ -21,9 +24,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   fused with a BM25 term-frequency keyword score (re-ranks the dense candidate
   pool; works with every `VectorStore`). The former stub had a broken BM25 and
   fixed weights. (ROADMAP-17 P11)
+- `AgentConfig.rag(retriever)` — per-agent RAG; an agent otherwise inherits the
+  app-level `app.rag(...)`. Adapted to a LangChain4j `ContentRetriever`.
 - Capstone applications live in `capstones/` in the build (`support-desk`,
   `meridian-qualify`, `acme-claims`, `invoice-processor`), consuming the framework
-  as `project(':cafeai-*')`.
+  as `project(':cafeai-*')`. `invoice-processor` was the standalone `atlas-inbox`
+  (package `io.meridian.invoice`).
 
 ### Changed
 - **Tools are agent-only.** `app.tool(...)` and the `cafeai-tools` module were

@@ -32,6 +32,29 @@ Each needs `OPENAI_API_KEY` (or a local Ollama for 1–3). `acme-claims` and the
 Ollama-backed apps ship a `docker-compose.yml`. `invoice-processor` needs Gmail
 OAuth2 credentials placed under its `src/main/resources/credentials/` (gitignored).
 
+## Building one of these outside the repo
+
+In-tree the capstones depend on `project(':cafeai-*')`. To build the same app as
+a standalone project, swap those for the Maven Central coordinates:
+
+```groovy
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-observability:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-security:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-connect:0.2.0'
+    // invoice-processor also: the Gmail API client + jakarta.mail
+}
+```
+
+No `mavenLocal()` / `publishToMavenLocal` step.
+
 ## What the series proves
 
 Read together, the capstones show the framework's composability holding across

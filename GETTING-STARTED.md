@@ -11,8 +11,8 @@ for building or contributing to CafeAI itself.
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.1.3'
-    // add capability modules as needed — cafeai-memory, cafeai-rag,
+    implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+    // add capability modules as needed — cafeai-agents, cafeai-memory, cafeai-rag,
     // cafeai-guardrails, cafeai-observability, cafeai-security,
     // cafeai-streaming, cafeai-connect, cafeai-views-mustache
 }
@@ -23,7 +23,7 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.1.3</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -107,18 +107,18 @@ cafeai/
 ├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
 ├── cafeai-guardrails/      ← PII, jailbreak, bias, hallucination, regulatory
 ├── cafeai-observability/   ← OpenTelemetry, metrics, eval harness
+├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
 ├── cafeai-security/        ← Prompt injection, data leakage, cache poisoning
 ├── cafeai-streaming/       ← SSE / WebSocket token streaming
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector, MCP
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
 ├── cafeai-examples/        ← Runnable examples — always kept working
+├── capstones/              ← Full reference apps (support-desk, meridian-qualify, acme-claims, invoice-processor)
 └── docs/
     ├── SPEC.md             ← Full formal specification
     ├── adr/                ← Architecture Decision Records
     └── roadmap/            ← ROADMAP + MILESTONE documents
 ```
-
-`cafeai-agents` (LangChain4j `AiServices` binding) is planned — see `docs/roadmap/ROADMAP-12`.
 
 ## Building and Testing
 

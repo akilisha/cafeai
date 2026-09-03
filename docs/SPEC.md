@@ -1,6 +1,6 @@
 # CafeAI — Formal Specification
 
-> Version: `0.1.3` | Last updated September 2026
+> Version: `0.2.0` | Last updated September 2026
 
 ---
 
@@ -127,7 +127,7 @@ graph TD
         end
 
         MCP["MCP Server\n(Helidon McpFeature via app.helidon())\nExposes registered tools + agents\nas discoverable nodes"]
-        Agents["Agent Registry (cafeai-agents — planned)\nBinds LangChain4j AiServices\nHTTP identity + session + guardrails"]
+        Agents["Agent Registry (cafeai-agents)\nBinds LangChain4j AiServices\nHTTP identity + session + guardrails + RAG"]
 
         Router --> Auth --> Security --> GuardPre --> Cost --> RAG --> LLM
         LLM --> GuardPost --> Observe --> MemWrite --> Stream
@@ -739,4 +739,4 @@ Each module is a self-contained teachable unit. The project structure **is** the
 
 ---
 
-*CafeAI v0.1.3 — Not an invention of anything new. A re-orientation of everything proven.*
+*CafeAI v0.2.0 — Not an invention of anything new. A re-orientation of everything proven.*

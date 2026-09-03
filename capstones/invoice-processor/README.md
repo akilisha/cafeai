@@ -102,7 +102,7 @@ Use this to verify behaviour before going live.
 ### Live run
 
 ```bash
-./gradlew run
+./gradlew :capstones:invoice-processor:run
 ```
 
 Processes emails and sends replies. Escalations go to the supervisor

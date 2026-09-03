@@ -8,6 +8,12 @@
 > where the entire vision workload bypassed `app.prompt()` entirely
 > because there was no CafeAI-native way to pass binary content to the LLM.
 
+
+> **Doc note (2026-09):** written against names that have since changed —
+> `atlas-inbox` is now `capstones/invoice-processor` (package `io.meridian.invoice`),
+> and `cafeai-tools` / `app.tool()` were removed (tools are agent-only now,
+> `app.agent(...).tool(...)`). The bodies below are the dated record.
+
 ---
 
 ## Context

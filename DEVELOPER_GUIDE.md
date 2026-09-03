@@ -1,6 +1,6 @@
 # CafeAI Developer Guide
 
-**Version:** 0.1.3  
+**Version:** 0.2.0  
 **Java:** 23+  
 **Runtime:** Helidon SE 4.4  
 **Last updated:** September 2026
@@ -16,14 +16,14 @@ CafeAI is on Maven Central under `com.akilisha.oss`. It is modular — pull
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.1.3'
-    // cafeai-memory · cafeai-rag · cafeai-guardrails · cafeai-observability
+    implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+    // cafeai-agents · cafeai-memory · cafeai-rag · cafeai-guardrails · cafeai-observability
     // cafeai-security · cafeai-streaming · cafeai-connect · cafeai-views-mustache
 }
 ```
 
 Requires **Java 23+**. Snippets throughout this guide use `com.akilisha.oss:cafeai-*`
-without a version — pin them to `0.1.3` (or import a version catalog).
+without a version — pin them to `0.2.0` (or import a version catalog).
 
 ---
 

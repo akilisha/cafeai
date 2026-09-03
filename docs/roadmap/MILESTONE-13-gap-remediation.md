@@ -4,6 +4,11 @@
 > criteria checkboxes. Update this file as work completes.
 
 **Current Status:** ✅ Complete
+> **Doc note (2026-09):** the top-line status is authoritative. The per-phase
+> 🔴 markers below were not kept current as work landed — where a phase's
+> capability demonstrably ships (`MemoryStrategy.redis()` / `.mapped()`, the
+> capstones, the guardrail wiring), treat it as done.
+
 
 | Phase | Description | Module | Status | Target |
 |-------|-------------|--------|--------|--------|

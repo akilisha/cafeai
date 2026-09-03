@@ -6,6 +6,12 @@
 > These are not polish items. They are unproven claims and architectural
 > failures that undermine CafeAI's core differentiators.
 
+
+> **Doc note (2026-09):** written against names that have since changed —
+> `atlas-inbox` is now `capstones/invoice-processor` (package `io.meridian.invoice`),
+> and `cafeai-tools` / `app.tool()` were removed (tools are agent-only now,
+> `app.agent(...).tool(...)`). The bodies below are the dated record.
+
 ---
 
 ## Context

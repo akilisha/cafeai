@@ -12,7 +12,7 @@
 | Phase 3 | `CafeAIApp.vision()` implementation | `cafeai-core` | ✅ Complete | — |
 | Phase 4 | LangChain4j message construction | `cafeai-core` | ✅ Complete | — |
 | Phase 5 | Model capability check | `cafeai-core` + `cafeai-connect` | ✅ Complete | — |
-| Phase 6 | Guardrails + observability | `cafeai-core` | 🔴 Not Started | — |
+| Phase 6 | Guardrails + observability | `cafeai-core` | 🟢 Complete | — |
 | Phase 7 | `atlas-inbox` refactor | `atlas-inbox` | ✅ Complete | — |
 | Phase 8 | Tests + build verification | `cafeai-core` | ✅ Complete | — |
 
@@ -20,7 +20,7 @@
 
 ## Phase 1 — `VisionRequest` and `VisionResponse`
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `VisionRequest.java` in `io.cafeai.core.ai` — fluent builder
@@ -52,7 +52,7 @@ int tokens    = r.totalTokens();
 
 ## Phase 2 — `CafeAI.vision()` interface method
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `vision(String prompt, byte[] content, String mimeType)` added to `CafeAI` interface
@@ -68,7 +68,7 @@ int tokens    = r.totalTokens();
 
 ## Phase 3 — `CafeAIApp.vision()` implementation
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `CafeAIApp.vision()` implements the interface method
@@ -97,7 +97,7 @@ data:application/pdf;base64,<base64-encoded-bytes>
 
 ## Phase 4 — LangChain4j message construction
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `VisionMessageBuilder` class written (package-private in `cafeai-core`)
@@ -115,7 +115,7 @@ data:application/pdf;base64,<base64-encoded-bytes>
 
 ## Phase 5 — Model capability check
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `supportsVision()` added to `AiProvider` interface (default `false`)
@@ -141,7 +141,7 @@ not support vision/multimodal input. Use a vision-capable provider:
 
 ## Phase 6 — Guardrails and observability
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] PRE_LLM guardrail fires on `VisionRequest.prompt()` text
@@ -168,7 +168,7 @@ not support vision/multimodal input. Use a vision-capable provider:
 
 ## Phase 7 — `atlas-inbox` refactor
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `MultimodalChatService.java` deleted
@@ -196,7 +196,7 @@ var classification = new AttachmentTypeClassifier(app);   // app.vision() intern
 
 ## Phase 8 — Tests and build verification
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `VisionPipelineTest` written in `cafeai-core`
@@ -246,7 +246,7 @@ VisionResponse extraction = app.vision(
 
 ## Phase 9 — Structured output: `app.prompt().returning(Class)`
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `returning(Class<T>)` added to `PromptRequest`
@@ -278,7 +278,7 @@ SentimentResult result = app.prompt(prompt)
 
 ## Phase 10 — Token budget and rate limit handling
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] `TokenBudget` record in `cafeai-core`
@@ -310,7 +310,7 @@ app.retry(RetryPolicy.onRateLimit().maxAttempts(3).backoff(Duration.ofSeconds(2)
 
 ## Phase 11 — POST_LLM guardrails on tool call output
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Complete
 
 ### Acceptance Criteria
 - [ ] POST_LLM guardrails applied to `toolBridge.executeWithTools()` response
