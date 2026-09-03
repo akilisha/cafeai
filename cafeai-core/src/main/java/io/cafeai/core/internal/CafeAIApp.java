@@ -11,6 +11,7 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.*;
 import io.cafeai.core.ai.*;
+import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -82,6 +83,9 @@ public final class CafeAIApp implements CafeAI {
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private ObserveBridge observeBridge;
 
+    // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-agents
+    private AgentBridge agentBridge;
+
     // Token budget and retry (ROADMAP-14 Phase 10)
     private TokenBudgetTracker budgetTracker;
     private RetryPolicy retryPolicy;
@@ -117,6 +121,7 @@ public final class CafeAIApp implements CafeAI {
         var app = new CafeAIApp();
         app.discoverModules();
         app.discoverConfigurers();
+        app.discoverAgentBridge();
         return app;
     }
 
@@ -144,6 +149,50 @@ public final class CafeAIApp implements CafeAI {
                 .map(ServiceLoader.Provider::get)
                 .sorted(Comparator.comparingInt(CafeAIConfigurer::order))
                 .forEach(c -> c.configure(this));
+    }
+
+    private void discoverAgentBridge() {
+        this.agentBridge = ServiceLoader.load(AgentBridge.class).findFirst().orElse(null);
+        if (agentBridge != null) {
+            agentBridge.init(new AgentSupportImpl());
+        }
+    }
+
+    /** Lends {@code cafeai-agents} the core capabilities it needs at build time. */
+    private final class AgentSupportImpl implements AgentBridge.AgentSupport {
+        @Override
+        public dev.langchain4j.model.chat.ChatModel chatModel(AiProvider provider) {
+            return LangchainBridge.INSTANCE.modelFor(provider);
+        }
+        @Override public AiProvider     defaultProvider() { return aiProvider; }
+        @Override public ObserveBridge  observeBridge()   { return observeBridge; }
+        @Override public MemoryStrategy defaultMemory()   { return memoryStrategy; }
+    }
+
+    // -- Agents (ROADMAP-12) -------------------------------------------------
+
+    @Override
+    public <T> AgentConfig<T> agent(String name, Class<T> agentInterface) {
+        assertNotStarted("agent()");
+        Objects.requireNonNull(name, "Agent name must not be null");
+        Objects.requireNonNull(agentInterface, "Agent interface must not be null");
+        if (agentBridge == null) {
+            throw new IllegalStateException(
+                "app.agent() requires the cafeai-agents module.\n\n"
+                + "  implementation 'com.akilisha.oss:cafeai-agents:0.1.3'");
+        }
+        AgentConfig<T> config = agentBridge.register(name, agentInterface);
+        log.info("Agent registered: {} ({})", name, agentInterface.getSimpleName());
+        return config;
+    }
+
+    @Override
+    public <T> T agent(String name, Class<T> type, String sessionId) {
+        if (agentBridge == null) {
+            throw new IllegalStateException(
+                "app.agent() requires the cafeai-agents module on the classpath.");
+        }
+        return agentBridge.resolve(name, type, sessionId);
     }
 
     // -- CafeAIConfigurer ------------------------------------------------------

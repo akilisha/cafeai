@@ -555,6 +555,55 @@ public interface CafeAI extends Router {
      */
     SynthesisRequest synthesise(String text);
 
+    // ── Agents ───────────────────────────────────────────────────────────────
+
+    /**
+     * Registers a LangChain4j {@code AiService} agent under {@code name} and
+     * returns its fluent configuration. Call at startup, before {@link #listen(int)}.
+     *
+     * <p>CafeAI does not implement the agent loop — LangChain4j {@code AiServices}
+     * owns the reasoning, tool dispatch, and chat memory. This binding gives the
+     * agent an HTTP identity: a name, session threading, guardrail pre-screening,
+     * and an observability context. See {@code docs/roadmap/ROADMAP-12-agents.md}.
+     *
+     * <p>Requires {@code cafeai-agents} on the classpath.
+     *
+     * <pre>{@code
+     *   interface SupportAgent {
+     *       @SystemMessage("You are a support specialist for Acme.")
+     *       String answer(@UserMessage String question);
+     *   }
+     *
+     *   app.agent("support", SupportAgent.class)
+     *      .model("tutor")                       // optional — named/default provider otherwise
+     *      .tool(new OrderLookupTool())
+     *      .memory(MemoryStrategy.inMemory())
+     *      .guard(GuardRail.jailbreak());
+     * }</pre>
+     */
+    <T> io.cafeai.core.agents.AgentConfig<T> agent(String name, Class<T> agentInterface);
+
+    /**
+     * Resolves the agent's {@code AiService} proxy for a conversation session.
+     * Call inside a route handler. The returned object is LangChain4j's proxy —
+     * invoke its interface methods directly.
+     *
+     * <pre>{@code
+     *   app.post("/support", (req, res, next) -> {
+     *       var agent = app.agent("support", SupportAgent.class, req.header("X-Session-Id"));
+     *       res.json(Map.of("answer", agent.answer(req.body("message"))));
+     *   });
+     * }</pre>
+     *
+     * <p>Pass {@code null} for {@code sessionId} to use the agent statelessly.
+     * (Registration is the two-argument {@code agent(name, Class)}; invocation is
+     * always the three-argument form — the erasure would otherwise collide.)
+     *
+     * @param sessionId conversation session id, or {@code null} for stateless;
+     *        threads memory when the agent has {@code .memory(...)}
+     */
+    <T> T agent(String name, Class<T> type, String sessionId);
+
     /**
      * Retrieves a registered prompt template by name.
      *
