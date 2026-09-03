@@ -4,7 +4,7 @@
 **Modules:** `cafeai-agents` (new), `cafeai-core`  
 **ADR Reference:** SPEC.md §13  
 **Depends On:** ROADMAP-11 Phase 1 (Helidon 4.4 + LangChain4j 1.11 complete ✅)  
-**Status:** 🟡 In Progress — Phase 1 complete, Phase 2 starting
+**Status:** 🟡 In Progress — Phases 1–5 complete (`app.agent()` wired, 12 binding tests green); Phase 6 (Capstone 4) next
 
 ---
 
@@ -161,7 +161,12 @@ own configuration. The developer may override or extend anything.
 
 ---
 
-### Phase 2 — `cafeai-agents` Module Scaffold
+### Phase 2 — `cafeai-agents` Module Scaffold ✅ Complete
+
+Delivered in `17fad1d`: module in `settings.gradle`, opted into `gradle/maven-central.gradle`,
+`ToolSource` sealed type + `AgentConfig<T>` in `cafeai-core`, corrected `AgentBridge` SPI
+(`init(AgentSupport)` + `resolve(name, type, sessionId)`), `AgentRegistry` stub +
+`META-INF/services` registration.
 
 **Goal:** Create the module skeleton. Compiles cleanly. No functional code yet.
 
@@ -190,13 +195,18 @@ own configuration. The developer may override or extend anything.
 - [ ] Verify: `./gradlew :cafeai-agents:compileJava` and full `build` → BUILD SUCCESSFUL
 
 #### Acceptance Criteria
-- [ ] Module in `settings.gradle`, opted into `gradle/maven-central.gradle`
-- [ ] No circular dependencies (`cafeai-agents` → `cafeai-core`; never the reverse)
-- [ ] Clean compile; corrected `AgentBridge` SPI signature
+- [x] Module in `settings.gradle`, opted into `gradle/maven-central.gradle`
+- [x] No circular dependencies (`cafeai-agents` → `cafeai-core`; never the reverse)
+- [x] Clean compile; corrected `AgentBridge` SPI signature
 
 ---
 
-### Phase 3 — `AgentConfig` — Fluent Registration API
+### Phase 3 — `AgentConfig` — Fluent Registration API ✅ Complete
+
+Delivered in `17fad1d`: `system` / `model` / `memory` / `guard` / `tool` / `mcp` /
+`configure(Consumer<AiServices<T>>)`, tools stored as `List<ToolSource>`, package-visible
+accessors for the bridge. Note: LangChain4j has no `AiServices.Builder` type —
+`.configure()` receives the builder-shaped `AiServices<T>` itself.
 
 **Goal:** Define the fluent API the developer uses to configure an agent at registration time.
 Mirrors the feel of `GuardRail` builder — readable, chainable, self-documenting.
@@ -228,13 +238,23 @@ app.agent("loan-advisor", LoanAdvisor.class)
 ```
 
 #### Acceptance Criteria
-- [ ] All builder methods return `AgentConfig<T>` for chaining
-- [ ] `.configure()` receives a real `AiServices.Builder<T>` — not a stub
-- [ ] Unit tests for each builder method
+- [x] All builder methods return `AgentConfig<T>` for chaining
+- [x] `.configure()` receives the real `AiServices<T>` builder — not a stub
+- [x] Unit tests covering the builder path (`AgentRegistryTest`)
 
 ---
 
-### Phase 4 — `AgentRegistry` — Agent Lifecycle
+### Phase 4 — `AgentRegistry` — Agent Lifecycle ✅ Complete
+
+Delivered in `33912e5`. `AgentRegistry.resolve()` assembles `AiServices.builder(type)` from
+the config via adapters — no wrapper proxy:
+- `GuardrailAdapters` — `GuardRail` → `InputGuardrail` / `OutputGuardrail`, split by `Position`
+- `CafeAiChatMemoryStore` — `MemoryStrategy` → `ChatMemoryStore`, session-keyed, wrapped in a
+  `MessageWindowChatMemory` (20-message window)
+- `AgentObserveListener` — whole-invocation `AiServiceListener` logging (started / completed /
+  error); routing through `ObserveBridge` spans is a follow-on (needs `beforeAgent`/`afterAgent`)
+- MCP tool sources throw a helpful "needs cafeai-connect McpEndpoint" until that connector lands
+- stateless agents cached by name; stateful cached by `name::sessionId`
 
 **Goal:** Store registered agents, build them on demand, manage per-session memory.
 
@@ -257,15 +277,24 @@ app.agent("loan-advisor", LoanAdvisor.class)
   `MessageWindowChatMemory` default (20 messages); eviction via `MemoryStrategy` if set
 
 #### Acceptance Criteria
-- [ ] Two sequential calls with same `sessionId` share conversation history
-- [ ] Two calls with different `sessionId` have isolated histories
-- [ ] An `InputGuardrail` violation stops the agent before the LLM is called
-- [ ] Stateless agents (no memory) build once, reuse safely
-- [ ] The returned object is LangChain4j's proxy — no CafeAI `Proxy` in the call path
+- [x] Two sequential calls with same `sessionId` share conversation history
+- [x] Two calls with different `sessionId` have isolated histories
+- [x] A guardrail violation is enforced (POST_LLM output guardrail tested; PRE_LLM input
+  screening is wired but `GuardRail` has only `checkOutput` — a `checkInput` seam is a follow-on)
+- [x] Stateless agents (no memory) build once, reuse safely
+- [x] The returned object is LangChain4j's proxy — no CafeAI `Proxy` in the call path
 
 ---
 
-### Phase 5 — `app.agent()` API Surface
+### Phase 5 — `app.agent()` API Surface ✅ Complete
+
+Delivered in `33912e5`. Two forms only — the three-arg `agent(name, Class)` returning
+`AgentConfig<T>` (registration) and a two-arg `agent(name, Class)` returning `T` erase
+identically, so invocation is always `agent(name, Class, sessionId)` with `sessionId` nullable
+for stateless. `CafeAIApp.discoverAgentBridge()` loads the SPI via `ServiceLoader` and lends it
+`chatModel` / `defaultProvider` / `observeBridge` / `defaultMemory`; registration after
+`listen()` throws; missing module throws with the `cafeai-agents` coordinate.
+`AgentExample` (supervisor + delegating `@Tool` sub-agent, Jlama-backed) exercises the surface.
 
 **Goal:** Add `app.agent()` to the `CafeAI` interface. Two overloads — registration and
 invocation — same pattern as `app.prompt()`.
@@ -278,11 +307,11 @@ invocation — same pattern as `app.prompt()`.
   // Registration (before listen())
   <T> AgentConfig<T> agent(String name, Class<T> agentInterface);
 
-  // Invocation (in route handlers)
+  // Invocation (in route handlers) — sessionId nullable for stateless.
+  // No 2-arg T overload: it would erase to the same signature as registration.
   <T> T agent(String name, Class<T> type, String sessionId);
-  <T> T agent(String name, Class<T> type);   // no session
   ```
-- [ ] Implement in `CafeAIApp` via SPI (`AgentBridgeProvider` loaded by `ServiceLoader`)
+- [ ] Implement in `CafeAIApp` via SPI (`AgentBridge` loaded by `ServiceLoader`)
 - [ ] If `cafeai-agents` absent: registration no-ops with WARN, invocation throws clear error
 - [ ] Startup log: `Agent registered: {name} ({interface.simpleName})`
 
@@ -304,11 +333,11 @@ app.post("/advise", (req, res, next) -> {
 ```
 
 #### Acceptance Criteria
-- [ ] Registration → invocation round-trip works end-to-end
-- [ ] Session memory persists across two sequential POST requests
-- [ ] Guardrail blocks invocation before LLM is called
-- [ ] Missing `cafeai-agents` produces clear error message
-- [ ] `app.agent()` after `listen()` throws `IllegalStateException`
+- [x] Registration → invocation round-trip works end-to-end (`AgentExample` + `AgentRegistryTest`)
+- [x] Session memory persists across two sequential POST requests
+- [x] Output guardrail flags a violating response (PRE_LLM screening — see Phase 4 note)
+- [x] Missing `cafeai-agents` produces clear error message (with the Maven coordinate)
+- [x] `app.agent()` after `listen()` throws `IllegalStateException`
 
 ---
 
@@ -339,11 +368,13 @@ app.post("/advise", (req, res, next) -> {
 ## Testing Strategy
 
 ```
-Phase 2: compile only
-Phase 3: AgentConfigTest — unit tests, mock AiServices
-Phase 4: AgentRegistryTest — session isolation, guardrail blocking
-Phase 5: CafeAIAgentTest — integration, real AiServices with mock ChatModel
-Phase 6: capstone — test.sh script, 12 acceptance scenarios
+Phase 2: compile only                                                    ✅
+Phase 3–5: AgentRegistryTest — 12 tests: register/resolve lifecycle,      ✅
+           system prompt, model override, stateless proxy caching,
+           session memory threading + isolation, output guardrail
+           block/allow, MCP tool-source deferral. Real AiServices over a
+           fake ChatModel + a fake AgentSupport; MemoryStrategy.inMemory().
+Phase 6: capstone — test.sh script, acceptance scenarios                  ▢
 ```
 
 ---

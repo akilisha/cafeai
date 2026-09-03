@@ -23,6 +23,9 @@ dependencies {
 
     // AiServices, InputGuardrail/OutputGuardrail, AiServiceListener,
     // ChatMemoryProvider, ToolProvider — all from LangChain4j 1.11.
-    implementation 'dev.langchain4j:langchain4j'
-    implementation 'dev.langchain4j:langchain4j-core'
+    // Exported: using app.agent() means writing LangChain4j-annotated agent
+    // interfaces (@SystemMessage, @UserMessage, @Tool) and receiving its raw
+    // AiService proxy, so consumers need these types on their compile classpath.
+    api 'dev.langchain4j:langchain4j'
+    api 'dev.langchain4j:langchain4j-core'
 }

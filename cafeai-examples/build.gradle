@@ -23,6 +23,7 @@ dependencies {
     implementation project(':cafeai-security')
     implementation project(':cafeai-streaming')
     implementation project(':cafeai-connect')
+    implementation project(':cafeai-agents')
 
     // Concrete SLF4J binding for the runnable app (the library modules ship none)
     runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"

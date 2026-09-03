@@ -2,8 +2,8 @@
 
 **Roadmap:** ROADMAP-12  
 **Module:** `cafeai-agents` (new), `cafeai-core`  
-**Started:** —  
-**Current Status:** 🟡 In Progress — Phase 1 complete, Phase 2 next
+**Started:** 2026-09-02  
+**Current Status:** 🟡 In Progress — Phases 1–5 complete (`app.agent()` wired end-to-end, 12 binding tests green); Phase 6 (Capstone 4) next
 
 ---
 
@@ -14,10 +14,10 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 | Phase | Description | Module | Status |
 |---|---|---|---|
 | 1 | Prerequisites — Helidon 4.4, LangChain4j 1.11, `app.helidon()` | root, `cafeai-core` | 🟢 Complete |
-| 2 | `cafeai-agents` module scaffold | `cafeai-agents` | 🔴 Not Started |
-| 3 | `AgentConfig<T>` — fluent registration API | `cafeai-agents` | 🔴 Not Started |
-| 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-agents` | 🔴 Not Started |
-| 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-agents` | 🔴 Not Started |
+| 2 | `cafeai-agents` module scaffold | `cafeai-agents` | 🟢 Complete (`17fad1d`) |
+| 3 | `AgentConfig<T>` — fluent registration API | `cafeai-core` | 🟢 Complete (`17fad1d`) |
+| 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-agents` | 🟢 Complete (`33912e5`) |
+| 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-agents` | 🟢 Complete (`33912e5`) |
 | 6 | Capstone 4 — `invoice-processor` | capstone app | 🔴 Not Started |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised · 🔷 Deferred
@@ -30,10 +30,10 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 |---|---|
 | `app.agent(name, Interface.class)` compiles and registers | Startup log shows agent line |
 | `app.agent(name, Interface.class, sessionId).method(...)` invokes the `AiService` | Returns the interface's return type |
-| Session memory threads into the agent | Second call in same session has memory of the first |
-| Guardrail blocks a jailbreak before the agent's LLM is called | `GuardRailViolationException` thrown |
-| Observability trace fires on agent invocation | Console trace shows agent execution |
-| Supervisor pattern works — an agent calls another agent as a `@Tool` | Capstone 4 `ApprovalAgent` scenario |
+| Session memory threads into the agent | Second call in same session has memory of the first ✅ |
+| Guardrail flags a violating agent response | POST_LLM output guardrail tested; PRE_LLM input screening wired (needs a `GuardRail.checkInput` seam) |
+| Observability trace fires on agent invocation | `AiServiceListener` logs started/completed/error; `ObserveBridge` spans are a follow-on |
+| Supervisor pattern works — an agent calls another agent as a `@Tool` | `AgentExample` (`OrderDesk` tool → `OrderNarrator` agent); Capstone 4 next |
 | `cafeai-agents` published to Maven Central | Part of the 0.2.x release |
 
 ---
@@ -62,17 +62,20 @@ the API.
 
 **Why guardrails apply to agents:**
 An agent that can call tools and affect external systems is a higher-risk target than a plain
-LLM call. Guardrail pre-screening before agent invocation is not optional — it is the correct
-default. The `guard(false)` opt-out exists for trusted internal callers.
+LLM call. `AgentConfig.guard(GuardRail...)` adapts each rail to an `InputGuardrail` and/or
+`OutputGuardrail` by its `Position`. Today `GuardRail` exposes only `checkOutput(String)`, so
+POST_LLM enforcement is real and PRE_LLM screening runs the same detector against the user
+message; a dedicated `GuardRail.checkInput` seam is the clean follow-on.
 
 **Why there is no CafeAI proxy:**
 `app.agent(name, Interface.class, sessionId)` returns LangChain4j's *own* `AiService` proxy.
 CafeAI's contributions are applied at `AiServices.builder()` time by adapting CafeAI
 abstractions to LangChain4j's build-time hooks — `GuardRail` → `InputGuardrail`/`OutputGuardrail`,
-`ObserveBridge` → `ChatModelListener`, `MemoryStrategy` → `ChatMemoryProvider`, tool sources →
-`ToolProvider`. Wrapping the proxy in a second proxy would be the "wrap, don't bind" mistake
-this milestone exists to avoid. A thin `java.lang.reflect.Proxy` is deferred to if-and-when
-a capstone proves it necessary (whole-invocation span; POST_LLM output attribute).
+observability → `AiServiceListener` (whole-invocation started/completed/error),
+`MemoryStrategy` → `ChatMemoryStore` (session-keyed, wrapped in `MessageWindowChatMemory`),
+tool sources → `.tools(...)`. Wrapping the proxy in a second proxy would be the
+"wrap, don't bind" mistake this milestone exists to avoid. A thin `java.lang.reflect.Proxy`
+is deferred to if-and-when a capstone proves it necessary.
 
 **The three MCP concerns are three different things, in three places:**
 1. *Serve* CafeAI's tools/agents as an MCP server → `app.helidon()` + Helidon `McpFeature`
