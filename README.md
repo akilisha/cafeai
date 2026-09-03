@@ -358,7 +358,18 @@ cd cafeai
 ./gradlew :cafeai-examples:run
 
 # Run a specific example
-./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.RagExample
+./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.JlamaStreamingExample
+```
+
+## Capstones
+
+Full reference applications live in [`capstones/`](capstones/README.md) —
+`support-desk`, `meridian-qualify`, `acme-claims`, `invoice-processor`. They build
+against the framework as `project(':cafeai-*')`, so they break the build if an API
+changes. Not published.
+
+```bash
+./gradlew :capstones:invoice-processor:run -Pdry
 ```
 
 ---

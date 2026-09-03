@@ -3,7 +3,7 @@
 **Roadmap:** ROADMAP-12  
 **Module:** `cafeai-agents` (new), `cafeai-core`  
 **Started:** 2026-09-02  
-**Current Status:** 🟡 In Progress — Phases 1–5 complete (`app.agent()` wired end-to-end, 12 binding tests green); Phase 6 (Capstone 4) next
+**Current Status:** 🟢 Complete — `app.agent()` wired (Phases 1–5), `AgentConfig.rag()` + `ObserveBridge` agent hooks, all four capstones migrated in-tree (`capstones/`). 14 binding tests green.
 
 ---
 
@@ -18,7 +18,7 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 | 3 | `AgentConfig<T>` — fluent registration API | `cafeai-core` | 🟢 Complete (`17fad1d`) |
 | 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-agents` | 🟢 Complete (`33912e5`) |
 | 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-agents` | 🟢 Complete (`33912e5`) |
-| 6 | Capstone 4 — `invoice-processor` | capstone app | 🔴 Not Started |
+| 6 | Capstone 4 — `invoice-processor` + fold all four capstones into `capstones/` | capstone apps | 🟢 Complete (`e300c4c`, `33f6852`) |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised · 🔷 Deferred
 

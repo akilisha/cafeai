@@ -2,6 +2,12 @@
 
 *Post 12 of 12 in the CafeAI series*
 
+> **Note (2026-09).** This post is written in the past tense as narrative. The four
+> apps now live in `capstones/` in the main repo, built against `project(':cafeai-*')`.
+> `atlas-inbox` was renamed `invoice-processor`. The tool-calling shown here as
+> `app.tool()` / `@CafeAITool` is now agent-only — `app.agent(name, Iface).tool(...)`
+> with LangChain4j `@Tool`. See `capstones/README.md`.
+
 ---
 
 A framework is not proven by its documentation. It is proven by the applications built with it — specifically by the applications that hit the framework's limits, expose its gaps, and force the question: is this a framework that grows to meet real demands, or one that works until the problem gets hard?

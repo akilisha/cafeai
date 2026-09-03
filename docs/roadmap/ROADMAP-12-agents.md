@@ -4,7 +4,7 @@
 **Modules:** `cafeai-agents` (new), `cafeai-core`  
 **ADR Reference:** SPEC.md §13  
 **Depends On:** ROADMAP-11 Phase 1 (Helidon 4.4 + LangChain4j 1.11 complete ✅)  
-**Status:** 🟡 In Progress — Phases 1–5 complete (`app.agent()` wired, 12 binding tests green); Phase 6 (Capstone 4) next
+**Status:** 🟢 Complete — `app.agent()` wired (Phases 1–5), `AgentConfig.rag()` + `ObserveBridge` agent hooks added, all four capstones migrated in-tree (Phase 6). 14 binding tests green.
 
 ---
 
@@ -203,9 +203,9 @@ Delivered in `17fad1d`: module in `settings.gradle`, opted into `gradle/maven-ce
 
 ### Phase 3 — `AgentConfig` — Fluent Registration API ✅ Complete
 
-Delivered in `17fad1d`: `system` / `model` / `memory` / `guard` / `tool` / `mcp` /
-`configure(Consumer<AiServices<T>>)`, tools stored as `List<ToolSource>`, package-visible
-accessors for the bridge. Note: LangChain4j has no `AiServices.Builder` type —
+Delivered in `17fad1d` (+ `rag(...)` in the Phase 2 addendum): `system` / `model` / `memory` /
+`guard` / `tool` / `mcp` / `rag` / `configure(Consumer<AiServices<T>>)`, tools stored as
+`List<ToolSource>`, package-visible accessors for the bridge. Note: LangChain4j has no `AiServices.Builder` type —
 `.configure()` receives the builder-shaped `AiServices<T>` itself.
 
 **Goal:** Define the fluent API the developer uses to configure an agent at registration time.
@@ -346,27 +346,21 @@ app.post("/advise", (req, res, next) -> {
 
 ---
 
-### Phase 6 — Capstone 4: `invoice-processor`
+### Phase 6 — Capstone 4: `invoice-processor` ✅ Migrated
 
-**Goal:** Demonstrate the full agent model in a realistic fictional scenario. Shows:
-- Single agent with tools and RAG
-- Supervisor + subagent pattern
-- `app.helidon()` for any capability outside CafeAI's vocabulary
-- Multi-tenant session isolation
+`capstones/invoice-processor` (was the standalone `atlas-inbox`, package
+`io.meridian.invoice`). A batch job: Gmail → sentiment (`app.prompt().returning`)
+→ attachment classification + invoice extraction (`app.vision().returning`) →
+**a `ReconciliationAgent`** (`app.agent("reconciler", ...)` with three `@Tool`
+classes, returning a typed `ReconciliationVerdict`) → vendor reply. `app.budget()`
+/ `app.retry()` for the free-tier rate limit; `GuardRail.jailbreak()` on the endpoint.
 
-**Fictional company:** Meridian Billing Services — accounts payable automation
-
-**Agents:**
-- `InvoiceClassifierAgent` — classifies invoice type, detects anomalies (fast/cheap model)
-- `PolicyLookupAgent` — RAG over AP policy documents
-- `ApprovalAgent` — supervisor: calls classifier + policy lookup as tools, decides approve/reject/escalate
-- `AuditLogAgent` — writes structured audit entries (no memory needed — stateless)
-
-**Demonstrates:**
-- `app.agent()` registration for each
-- `.configure()` escape hatch for `chatMemoryProvider` (per-invoice-batch session)
-- Guardrails on `ApprovalAgent` (regulatory: SOX compliance patterns)
-- Raw Helidon route via `app.helidon()` for a webhook endpoint the AP system calls
+The four capstones (`support-desk`, `meridian-qualify`, `acme-claims`,
+`invoice-processor`) now live in the umbrella build as `project(':cafeai-*')`
+consumers — CI compiles them, so an agent-API change breaks the build. See
+`capstones/README.md`. The richer supervisor/sub-agent + `app.helidon()` webhook
+scenario from the original spec is deferred to a future capstone or to
+`nova-tutor` (`docs/roadmap/CAPSTONE-5-nova-tutor.md`).
 
 ---
 
@@ -379,7 +373,9 @@ Phase 3–5: AgentRegistryTest — 12 tests: register/resolve lifecycle,      �
            session memory threading + isolation, output guardrail
            block/allow, MCP tool-source deferral. Real AiServices over a
            fake ChatModel + a fake AgentSupport; MemoryStrategy.inMemory().
-Phase 6: capstone — test.sh script, acceptance scenarios                  ▢
+Phase 2 add.: AgentRegistryTest — +2 (observe bracketing, RAG degrade)    ✅
+Phase 6: capstones compile against project(':cafeai-*') in CI;            ✅
+         live-LLM harnesses (OpenAI / Gmail) run manually
 ```
 
 ---
