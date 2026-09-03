@@ -43,3 +43,9 @@ application-local.properties
 # Publishing — credentials live in ~/.gradle/gradle.properties, never in the repo
 settings.xml
 
+# Capstone secrets — OAuth clients and stored tokens are placed locally, never committed
+capstones/*/tokens/
+capstones/*/src/main/resources/credentials/
+capstones/**/client_secret*.json
+capstones/**/application-local.*
+

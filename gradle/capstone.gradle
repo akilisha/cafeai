@@ -1,0 +1,27 @@
+// ============================================================
+//  Capstone convention — opt-in for capstones/*
+//
+//  A capstone application adds ONE line to its build.gradle:
+//
+//      apply from: "$rootDir/gradle/capstone.gradle"
+//
+//  Capstones are runnable reference applications that consume the
+//  framework as project() dependencies. They exist to keep the
+//  framework honest — an API change that breaks a capstone breaks
+//  the build. They are NOT published to Maven Central (no
+//  maven-central.gradle opt-in), and their integration harnesses
+//  (live OpenAI / Gmail) run manually, not in CI. CI compiles them.
+// ============================================================
+
+apply plugin: 'application'
+
+dependencies {
+    // Concrete SLF4J binding for the runnable app (the library modules ship none).
+    runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
+}
+
+// Capstones are demonstrations, not gates: a missing live-service test
+// must not fail `./gradlew build`.
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}

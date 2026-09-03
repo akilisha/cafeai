@@ -1,0 +1,59 @@
+// ============================================================
+//  Capstone 4 — invoice-processor
+//  Meridian Home Loans vendor invoice processor.
+//
+//  A batch job (no HTTP server): reads unread vendor emails from
+//  Gmail, classifies attachments and extracts invoice data with
+//  app.vision(), reconciles invoiced vs contracted amounts through
+//  a tool-calling agent (app.agent()), and drafts vendor replies.
+//
+//  Evolved from the atlas-inbox capstone. Was: standalone Gradle
+//  build on io.cafeai:*:0.1.1 + the removed cafeai-tools module.
+// ============================================================
+
+description = 'Capstone: Gmail-driven vendor invoice processor — vision extraction + a reconciliation agent.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-agents')     // app.agent() — the reconciliation tool loop
+    implementation project(':cafeai-guardrails')
+
+    // Gmail API + OAuth2
+    implementation 'com.google.api-client:google-api-client:2.7.0'
+    implementation 'com.google.oauth-client:google-oauth-client-jetty:1.36.0'
+    implementation 'com.google.apis:google-api-services-gmail:v1-rev20240520-2.0.0'
+    implementation 'com.sun.mail:jakarta.mail:2.0.1'
+
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+}
+
+application {
+    mainClass = 'io.meridian.invoice.InvoiceProcessor'
+}
+
+// ./gradlew :capstones:invoice-processor:run -Pdry  → dry run, sends nothing
+tasks.named('run', JavaExec).configure {
+    if (project.hasProperty('dry')) {
+        systemProperty 'invoice.dryRun', 'true'
+    }
+}
+
+// The *Test classes are live-service integration harnesses (real OpenAI + Gmail),
+// wired as explicit run tasks rather than JUnit. CI compiles them; it does not run them.
+['GmailConnectionTest' : 'io.meridian.invoice.GmailConnectionTest',
+ 'GmailFetchTest'      : 'io.meridian.invoice.GmailFetchTest',
+ 'SentimentTest'       : 'io.meridian.invoice.SentimentAnalysisTest',
+ 'ClassificationTest'  : 'io.meridian.invoice.AttachmentClassificationTest',
+ 'ExtractionTest'      : 'io.meridian.invoice.InvoiceExtractionTest',
+ 'BillingToolsTest'    : 'io.meridian.invoice.BillingToolsTest',
+ 'PipelineTest'        : 'io.meridian.invoice.ReconciliationPipelineTest',
+ 'EscalationTest'      : 'io.meridian.invoice.EscalationTest'
+].each { taskName, cls ->
+    tasks.register(taskName, JavaExec) {
+        group = 'capstone harness'
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = cls
+    }
+}
