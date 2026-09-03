@@ -1,6 +1,6 @@
 # MILESTONE-11: Helidon Escape Hatch
 
-**Status:** ✅ Complete  
+**Status:** 🟢 Complete
 **Completed:** April 2026  
 **Tests added:** 7 (6 unit, 1 integration)  
 **Regressions:** 0

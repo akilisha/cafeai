@@ -3,7 +3,7 @@
 > Tracks execution of ROADMAP-14. Each phase has a status and acceptance
 > criteria checkboxes. Update this file as work completes.
 
-**Current Status:** ✅ Complete
+**Current Status:** 🟢 Complete
 
 | Phase | Description | Module | Status | Target |
 |-------|-------------|--------|--------|--------|
@@ -213,7 +213,7 @@ var classification = new AttachmentTypeClassifier(app);   // app.vision() intern
 ## Completion Definition
 
 MILESTONE-14 is **complete** when:
-1. All 8 phases show ✅ Complete
+1. All 8 phases show 🟢 Complete
 2. `app.vision(prompt, bytes, mimeType).call()` works for PDF and images
 3. `atlas-inbox` has no `MultimodalChatService` and no direct LangChain4j
    model instantiation

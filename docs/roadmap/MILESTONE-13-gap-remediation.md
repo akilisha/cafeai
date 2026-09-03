@@ -3,7 +3,7 @@
 > Tracks execution of ROADMAP-13. Each phase has a status and acceptance
 > criteria checkboxes. Update this file as work completes.
 
-**Current Status:** ✅ Complete
+**Current Status:** 🟢 Complete
 > **Doc note (2026-09):** the top-line status is authoritative. The per-phase
 > 🔴 markers below were not kept current as work landed — where a phase's
 > capability demonstrably ships (`MemoryStrategy.redis()` / `.mapped()`, the

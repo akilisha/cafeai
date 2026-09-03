@@ -10,7 +10,7 @@
 **Maps to:** No Express equivalent — this is CafeAI's strategy for raw Helidon access  
 **Modules:** `cafeai-core` (escape hatch implemented), `cafeai-mcp` (abandoned — see below)  
 **ADR Reference:** SPEC.md §11  
-**Status:** ✅ Phase 1 Complete, ✅ Phase 2 Complete (redesigned), ⬜ Phase 3 deferred
+**Status:** 🟢 Complete — Phases 1–2 (Phase 2 redesigned around `app.helidon()` + Helidon `McpFeature`); Phase 3 deferred. See MILESTONE-11.
 
 ---
 

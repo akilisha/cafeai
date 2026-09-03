@@ -1,6 +1,7 @@
 # MILESTONE-16 — Named Providers, TTS, and Technical Debt
 
-**Status: ✅ Complete (8 of 12 phases — 4 dropped or deferred)**
+**Current Status:** 🟢 Complete — 8 of 12 phases; 4 dropped or deferred (streaming
+vision, atlas-inbox streaming classification).
 
 | Phase | Description | Status |
 |-------|-------------|--------|
