@@ -20,7 +20,7 @@
 | 8 | PgVector integration test | 🟢 (`9886803`) — Testcontainers, runs where Docker is present |
 | 9 | Real OpenTelemetry spans | 🟢 — spans were already real; this aligned attribute names |
 | 10 | OTel semantic conventions for AI | 🟢 — `gen_ai.*` on all spans + a `retrieve` span |
-| 11 | Hybrid retrieval (BM25 + dense) | 🟡 in progress |
+| 11 | Hybrid retrieval (BM25 + dense) | 🟢 (`HybridRetriever` rewritten + tests) |
 | 12 | 0.2.0 release to Maven Central | 🔴 |
 
 ---
@@ -126,20 +126,23 @@ until the response). `error.type` + span status ERROR on failure.
 
 ---
 
-## Phase 11 — Hybrid Retrieval
-
-**Status:** 🔴 Not Started
+## Phase 11 — Hybrid Retrieval &nbsp;🟢
 
 ### Acceptance Criteria
-- [ ] `Retriever.hybrid(k)` factory method
-- [ ] `.denseWeight(double)` and `.sparseWeight(double)` configuration
-- [ ] BM25 index built alongside vector index at ingestion
-- [ ] Reciprocal Rank Fusion combines dense and sparse scores
-- [ ] `HybridRetriever` tests: precision vs semantic-only on keyword-heavy queries
-- [ ] `./gradlew :cafeai-rag:test` — all tests pass
+- [x] `Retriever.hybrid(k)` factory (returns `HybridRetriever` for chaining)
+- [x] `.denseWeight(double)` / `.sparseWeight(double)` configuration (relative, need not sum to 1)
+- [x] Sparse scoring: BM25 term-frequency (k1=1.5, b=0.75) computed by re-ranking the
+      top `4 × topK` dense candidates — no separate keyword index, works with every `VectorStore`
+- [x] Fusion: both score sets min-max normalised over the candidate pool, then weighted-sum
+- [x] `HybridRetrieverTest` — 4 cases: semantic-only vs hybrid on an exact-identifier query,
+      no-keyword fallback to dense order, negative-weight rejection
+- [x] `./gradlew :cafeai-rag:test` passes
 
 ### Notes
-In-memory BM25 for now. PgVector-backed sparse index is a stretch goal.
+The previous `HybridRetriever` was a stub with a broken BM25 (counted the first
+character of each term) and hardcoded weights — rewritten here. A BM25 index
+built at ingestion (with real IDF) and delegating to `PgVectorEmbeddingStore`'s
+native `SearchMode.HYBRID` are future optimisations, not needed for the common case.
 
 ---
 

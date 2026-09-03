@@ -61,19 +61,23 @@ public interface Retriever {
     }
 
     /**
-     * Hybrid retrieval: dense semantic + sparse BM25 keyword matching.
+     * Hybrid retrieval: dense semantic similarity fused with sparse (BM25-style
+     * term-frequency) keyword scoring.
      *
-     * <p>Combines the strengths of both approaches. Better recall on
-     * keyword-heavy queries (product names, codes, exact phrases) while
-     * maintaining semantic understanding.
+     * <p>Better on keyword-heavy queries — product codes, policy numbers, exact
+     * identifiers — than dense-only, while keeping semantic recall. The sparse
+     * score is computed by re-ranking the top {@code 4 × topK} dense candidates,
+     * so it works with every {@link VectorStore} without a separate keyword index.
      *
-     * <p>Note: BM25 is computed over the in-memory chunk index for
-     * {@link VectorStore#inMemory()}. For production vector stores,
-     * the hybrid search is delegated to the store's native hybrid search.
+     * <pre>{@code
+     *   app.rag(Retriever.hybrid(5)
+     *       .denseWeight(0.6)
+     *       .sparseWeight(0.4));
+     * }</pre>
      *
      * @param topK number of chunks to retrieve
      */
-    static Retriever hybrid(int topK) {
+    static HybridRetriever hybrid(int topK) {
         return new HybridRetriever(topK);
     }
 
@@ -89,43 +93,100 @@ public interface Retriever {
     }
 
     /**
-     * Hybrid retriever — dense similarity + BM25 keyword scoring.
-     * Results are merged using Reciprocal Rank Fusion (RRF).
+     * Dense similarity fused with a BM25-style term-frequency keyword score.
+     *
+     * <p>Both score sets are min-max normalised to {@code [0, 1]} over the
+     * candidate pool, then combined as
+     * {@code denseWeight·dense + sparseWeight·sparse}. The weights need not sum
+     * to 1 — they are relative.
      */
-    record HybridRetriever(int topK) implements Retriever {
+    final class HybridRetriever implements Retriever {
+
+        private static final int    CANDIDATE_FACTOR = 4;
+        private static final double K1 = 1.5, B = 0.75;
+
+        private final int topK;
+        private double denseWeight  = 0.7;
+        private double sparseWeight = 0.3;
+
+        HybridRetriever(int topK) {
+            if (topK <= 0) throw new IllegalArgumentException("topK must be > 0");
+            this.topK = topK;
+        }
+
+        /** Weight of the dense (semantic) score. Default 0.7. */
+        public HybridRetriever denseWeight(double w) {
+            this.denseWeight = requireNonNegative(w, "denseWeight");
+            return this;
+        }
+
+        /** Weight of the sparse (keyword) score. Default 0.3. */
+        public HybridRetriever sparseWeight(double w) {
+            this.sparseWeight = requireNonNegative(w, "sparseWeight");
+            return this;
+        }
+
+        @Override public int topK() { return topK; }
+
         @Override
         public List<RagDocument> retrieve(String query, EmbeddingModel embeddingModel,
                                           VectorStore vectorStore) {
-            // Get more candidates from dense search, then rerank
-            int candidates = topK * 3;
             float[] queryEmbedding = embeddingModel.embed(query);
-            List<RagDocument> denseDocs = vectorStore.search(queryEmbedding, candidates);
+            List<RagDocument> candidates =
+                vectorStore.search(queryEmbedding, topK * CANDIDATE_FACTOR);
+            if (candidates.isEmpty()) return candidates;
 
-            // BM25 keyword scoring applied over the dense candidates
-            String[] queryTerms = query.toLowerCase().split("\\s+");
-            return denseDocs.stream()
-                .map(doc -> {
-                    double bm25 = bm25Score(doc.content().toLowerCase(), queryTerms);
-                    // RRF: combine dense rank score with BM25
-                    double combined = 0.7 * doc.score() + 0.3 * bm25;
-                    return new RagDocument(doc.content(), doc.sourceId(),
-                                          combined, doc.chunkIndex());
-                })
-                .sorted(java.util.Comparator.comparingDouble(RagDocument::score).reversed())
-                .limit(topK)
-                .toList();
+            String[] terms = tokenize(query);
+            double avgLen = candidates.stream()
+                .mapToInt(d -> tokenize(d.content()).length).average().orElse(1);
+
+            double[] dense  = new double[candidates.size()];
+            double[] sparse = new double[candidates.size()];
+            for (int i = 0; i < candidates.size(); i++) {
+                dense[i]  = candidates.get(i).score();
+                sparse[i] = bm25(tokenize(candidates.get(i).content()), terms, avgLen);
+            }
+            normalise(dense);
+            normalise(sparse);
+
+            List<RagDocument> fused = new java.util.ArrayList<>(candidates.size());
+            for (int i = 0; i < candidates.size(); i++) {
+                RagDocument c = candidates.get(i);
+                double combined = denseWeight * dense[i] + sparseWeight * sparse[i];
+                fused.add(new RagDocument(c.content(), c.sourceId(), combined, c.chunkIndex()));
+            }
+            fused.sort(java.util.Comparator.comparingDouble(RagDocument::score).reversed());
+            return fused.size() > topK ? fused.subList(0, topK) : fused;
         }
 
-        /** Simplified BM25 term frequency score (k1=1.5, b=0.75, avgDl=200). */
-        private static double bm25Score(String content, String[] terms) {
-            final double k1 = 1.5, b = 0.75, avgDl = 200;
-            double dl = content.split("\\s+").length;
+        /** BM25 term-frequency component (no IDF — the candidate pool is small and pre-filtered). */
+        private static double bm25(String[] docTerms, String[] queryTerms, double avgLen) {
+            double dl = docTerms.length;
             double score = 0;
-            for (String term : terms) {
-                long tf = content.chars().filter(c -> c == term.charAt(0)).count();
-                score += (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avgDl));
+            for (String qt : queryTerms) {
+                long tf = 0;
+                for (String dt : docTerms) if (dt.equals(qt)) tf++;
+                if (tf == 0) continue;
+                score += (tf * (K1 + 1)) / (tf + K1 * (1 - B + B * dl / avgLen));
             }
-            return Math.min(1.0, score / terms.length);
+            return score;
+        }
+
+        private static String[] tokenize(String text) {
+            return text.toLowerCase().split("[^\\p{Alnum}\\-]+");
+        }
+
+        private static void normalise(double[] xs) {
+            double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+            for (double x : xs) { min = Math.min(min, x); max = Math.max(max, x); }
+            double range = max - min;
+            if (range <= 1e-9) { java.util.Arrays.fill(xs, 0.0); return; }
+            for (int i = 0; i < xs.length; i++) xs[i] = (xs[i] - min) / range;
+        }
+
+        private static double requireNonNegative(double v, String name) {
+            if (v < 0 || Double.isNaN(v)) throw new IllegalArgumentException(name + " must be >= 0");
+            return v;
         }
     }
 }

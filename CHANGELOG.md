@@ -17,6 +17,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   connection; idempotent upsert; `deleteBySource` via metadata filter. (ROADMAP-17 P7–8)
 - `ObserveBridge` gains `beforeAgent`/`afterAgent` and `beforeRetrieval`/`afterRetrieval`
   hooks; agent invocations and RAG retrieval now produce spans / console lines.
+- **`Retriever.hybrid(k).denseWeight(x).sparseWeight(y)`** — dense semantic score
+  fused with a BM25 term-frequency keyword score (re-ranks the dense candidate
+  pool; works with every `VectorStore`). The former stub had a broken BM25 and
+  fixed weights. (ROADMAP-17 P11)
 - Capstone applications live in `capstones/` in the build (`support-desk`,
   `meridian-qualify`, `acme-claims`, `invoice-processor`), consuming the framework
   as `project(':cafeai-*')`.
