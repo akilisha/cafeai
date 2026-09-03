@@ -10,13 +10,14 @@ import java.util.List;
  *
  * <pre>{@code
  *   // Zero infrastructure — development and testing
+ *   app.vectordb(VectorStore.inMemory());
+ *
+ *   // Chroma — local, lightweight, restart-durable
  *   app.vectordb(VectorStore.chroma("http://localhost:8000", "acme-claims"));
  *
- *   // PgVector — production single-node
- *   app.vectordb(PgVector.connect(PgVectorConfig.of("jdbc:postgresql://localhost/cafeai")));
- *
- *   // Chroma — local lightweight
- *   app.vectordb(Chroma.local());
+ *   // PgVector — production, on Postgres you already run
+ *   app.vectordb(VectorStore.pgVector(
+ *       PgVectorConfig.builder().host("localhost").database("cafeai").dimension(384).build()));
  * }</pre>
  */
 public interface VectorStore {
@@ -116,5 +117,26 @@ public interface VectorStore {
      */
     static VectorStore chroma(String baseUrl, String collectionName) {
         return Chroma.connect(baseUrl, collectionName);
+    }
+
+    /**
+     * PostgreSQL/pgvector vector store — production single-node, on infrastructure
+     * you already run. ACID, SQL-queryable, restart-durable. The chunk table and
+     * an {@code ivfflat} cosine index are created on first connection.
+     *
+     * <pre>{@code
+     *   app.vectordb(VectorStore.pgVector(
+     *       PgVectorConfig.builder()
+     *           .host("localhost").database("cafeai")
+     *           .user("cafeai").password(System.getenv("PGPASSWORD"))
+     *           .dimension(384)        // match the registered EmbeddingModel
+     *           .build()));
+     * }</pre>
+     *
+     * @param config connection + schema settings
+     * @see PgVector
+     */
+    static VectorStore pgVector(PgVectorConfig config) {
+        return PgVector.connect(config);
     }
 }

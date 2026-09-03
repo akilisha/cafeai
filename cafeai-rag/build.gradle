@@ -31,6 +31,8 @@ dependencies {
     // ── Vector Stores ────────────────────────────────────────
     // PgVector - PostgreSQL with vector extension
     implementation 'dev.langchain4j:langchain4j-pgvector'
+    implementation "com.zaxxer:HikariCP:${rootProject.ext.hikariVersion}"
+    implementation "org.postgresql:postgresql:${rootProject.ext.postgresqlVersion}"
 
     // Chroma - lightweight local vector DB
     implementation 'dev.langchain4j:langchain4j-chroma'

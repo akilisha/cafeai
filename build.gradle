@@ -26,6 +26,8 @@ ext {
     flatbuffersVersion      = '24.3.25'
     lettuceVersion          = '6.3.2.RELEASE'
     spymemcachedVersion     = '2.12.3'
+    hikariVersion           = '5.1.0'
+    postgresqlVersion       = '42.7.7'
     junitVersion            = '5.11.2'
     assertjVersion          = '3.26.3'
     mockitoVersion          = '5.13.0'
