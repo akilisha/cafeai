@@ -228,10 +228,10 @@ public class ChromaVectorExample {
 
             CafeAI supports pluggable vector stores for RAG pipelines:
 
-              VectorStore.inMemory()         Development — documents lost on restart
-              VectorStore.chroma(url)        Chroma — local, lightweight, persistent
-              VectorStore.chroma(url, name)  Chroma with specific collection name
-              PgVector.connect(config)       PostgreSQL + pgvector — enterprise
+              VectorStore.inMemory()          Development — documents lost on restart
+              VectorStore.chroma(url)         Chroma — local, lightweight, persistent
+              VectorStore.chroma(url, name)   Chroma with a specific collection name
+              VectorStore.pgVector(config)    PostgreSQL + pgvector — production
 
             The one-line swap: changing from inMemory() to chroma() is the only
             code change required. The ingestion pipeline, embedding model, and

@@ -3,8 +3,8 @@
 > PgVector, OTel GenAI semantic conventions, hybrid retrieval, and the 0.2.0
 > release to Maven Central.
 >
-> **Status (2026-09):** Phases 7–11 complete. Phase 12 (the 0.2.0 release) is the
-> only thing left — see MILESTONE-17. Notes on what the phases turned out to be:
+> **Status (2026-09):** 🟢 Complete. Phases 7–11 shipped and `com.akilisha.oss:*:0.2.0`
+> is on Maven Central (Phase 12). See MILESTONE-17. Notes on what the phases were:
 > - *OTel* — the spans were already real (a `GlobalOpenTelemetry` tracer, started
 >   in `before*` / ended in `after*`). Phases 9–10 were an attribute-name pass to
 >   the OTel GenAI semantic conventions, not a from-scratch implementation.
@@ -86,17 +86,18 @@ app.rag(Retriever.hybrid(5)
 Better than semantic-only for domains with product codes, policy numbers,
 identifiers — anything with exact-match requirements alongside semantic search.
 
-### 0.2.0 on Maven Central
+### 0.2.0 on Maven Central &nbsp;<sub>✅ published 2026-09</sub>
 
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
 // + cafeai-memory, -guardrails, -observability, -security, -streaming,
-//   -connect, -views-mustache (cafeai-agents once ROADMAP-12 lands)
+//   -connect, -views-mustache
 ```
 
-No more `mavenLocal()`. No more `publishToMavenLocal` before every project.
-A versioned, tagged release with stable API guarantees.
+No more `mavenLocal()` / `publishToMavenLocal`. A GitHub `v0.2.0` tag + release
+is the optional follow-up.
 
 ---
 
@@ -110,7 +111,7 @@ A versioned, tagged release with stable API guarantees.
 | 9 | OTel spans → GenAI semconv attribute names | 🟢 |
 | 10 | RAG retrieval + agent spans, semconv keys | 🟢 |
 | 11 | Hybrid retrieval (BM25 + dense) — rewrite the stub | 🟢 |
-| 12 | 0.2.0 release to Maven Central | 🔴 |
+| 12 | 0.2.0 release to Maven Central | 🟢 published |
 
 ---
 

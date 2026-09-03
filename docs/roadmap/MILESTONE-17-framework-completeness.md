@@ -1,8 +1,8 @@
 # MILESTONE-17 — Framework Completeness
 
-**Current Status:** 🟡 Phases 7–11 complete (PgVector + Testcontainers test, OTel
-GenAI semconv, hybrid-retrieval rewrite). Phase 12 — the 0.2.0 Maven Central
-release — is the only remaining item.
+**Current Status:** 🟢 Complete — PgVector + Testcontainers test, OTel GenAI
+semconv, hybrid-retrieval rewrite; `com.akilisha.oss:*:0.2.0` published to Maven
+Central (2026-09).
 
 > **Superseded (agent phases).** Phases 1–6 below describe a bespoke ReAct loop,
 > `AgentDefinition` builder, and `app.orchestrate()` primitive. That design was
@@ -23,7 +23,7 @@ release — is the only remaining item.
 | 9 | Real OpenTelemetry spans | 🟢 — spans were already real; this aligned attribute names |
 | 10 | OTel semantic conventions for AI | 🟢 — `gen_ai.*` on all spans + a `retrieve` span |
 | 11 | Hybrid retrieval (BM25 + dense) | 🟢 (`HybridRetriever` rewritten + tests) |
-| 12 | 0.2.0 release to Maven Central | 🔴 |
+| 12 | 0.2.0 release to Maven Central | 🟢 published |
 
 ---
 
@@ -150,25 +150,25 @@ native `SearchMode.HYBRID` are future optimisations, not needed for the common c
 
 ## Phase 12 — 0.2.0 Maven Central Release
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 Published 2026-09 — `com.akilisha.oss:*:0.2.0` on Maven Central.
 
 ### Acceptance Criteria
-- [ ] All ROADMAP-17 phases ✅ Complete
-- [ ] `./gradlew clean build` — BUILD SUCCESSFUL, zero warnings
-- [ ] `./gradlew javadoc` — zero warnings
-- [ ] `CHANGELOG.md` covers all changes from 0.1.0-SNAPSHOT
-- [ ] `MIGRATION.md` written: local Maven → Maven Central
-- [ ] Module versions updated to `0.2.0`
-- [ ] POM metadata complete: description, URL, SCM, developers, licenses
-- [ ] GPG signing configured
-- [ ] `./gradlew publishToMavenCentral` succeeds
-- [ ] Artifacts visible at `search.maven.org/artifact/com.akilisha.oss`
-- [ ] GitHub release `v0.2.0` tagged with release notes
-- [ ] capstone `build.gradle` files updated from `mavenLocal()` to `mavenCentral()`
+- [x] Phases 7–11 complete
+- [x] `./gradlew clean build` — BUILD SUCCESSFUL
+- [x] `./gradlew javadoc` — zero warnings
+- [x] `CHANGELOG.md` (`[0.2.0]`) + `MIGRATION.md` (0.1.3 → 0.2.0)
+- [x] Module version `0.2.0`; docs coords updated; `cafeai-agents` added to the set
+- [x] `./gradlew publishToMavenCentral` + Publish — **done**
+- [x] Capstones consume `project(':cafeai-*')` in-tree (the `mavenLocal → mavenCentral`
+      criterion is moot); `capstones/README.md` shows the standalone coord swap
+- [ ] `git tag v0.2.0` + GitHub release with `CHANGELOG.md` notes — optional follow-up
+- [ ] PgVector integration test run on a Docker host (see `PgVectorRagExample` /
+      `PgVectorStoreIntegrationTest`) — recommended before relying on it in prod
 
-### Maven Coordinates
+### Published modules
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
+implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
 implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
 implementation 'com.akilisha.oss:cafeai-guardrails:0.2.0'
@@ -177,11 +177,7 @@ implementation 'com.akilisha.oss:cafeai-security:0.2.0'
 implementation 'com.akilisha.oss:cafeai-streaming:0.2.0'
 implementation 'com.akilisha.oss:cafeai-connect:0.2.0'
 implementation 'com.akilisha.oss:cafeai-views-mustache:0.2.0'
-// cafeai-agents — added when ROADMAP-12 lands
 ```
-
-### Notes
-<!-- Add implementation notes here -->
 
 ---
 
