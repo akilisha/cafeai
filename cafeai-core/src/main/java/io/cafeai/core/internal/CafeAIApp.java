@@ -361,6 +361,9 @@ public final class CafeAIApp implements CafeAI {
         // -- 3b. RAG retrieval -- inject context before the LLM call -----------
         List<Object> retrievedDocs = List.of();
         if (retriever != null && vectorStore != null && embeddingModel != null) {
+            Object retrievalCtx = observeBridge != null
+                    ? observeBridge.beforeRetrieval(request.message()) : null;
+            Throwable retrievalError = null;
             try {
                 var pipeline = ServiceLoader
                         .load(RagPipeline.class)
@@ -389,7 +392,13 @@ public final class CafeAIApp implements CafeAI {
                     }
                 }
             } catch (Exception e) {
+                retrievalError = e;
                 log.warn("RAG retrieval failed -- proceeding without context: {}", e.getMessage());
+            } finally {
+                if (observeBridge != null) {
+                    observeBridge.afterRetrieval(retrievalCtx, request.message(),
+                            retrievedDocs.size(), retrievalError);
+                }
             }
         }
 

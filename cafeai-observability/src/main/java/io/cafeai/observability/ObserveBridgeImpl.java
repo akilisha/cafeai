@@ -48,18 +48,63 @@ public final class ObserveBridgeImpl implements ObserveBridge {
      */
     private record ObserveContext(long startMs, Span span, ObserveStrategy strategy) {}
 
+    /**
+     * OpenTelemetry GenAI semantic-convention keys.
+     * @see <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">semconv/gen-ai</a>
+     */
+    private static final class Sem {
+        static final String OP        = "gen_ai.operation.name";
+        static final String SYSTEM    = "gen_ai.system";
+        static final String REQ_MODEL = "gen_ai.request.model";
+        static final String RES_MODEL = "gen_ai.response.model";
+        static final String IN_TOKENS = "gen_ai.usage.input_tokens";
+        static final String OUT_TOKENS = "gen_ai.usage.output_tokens";
+        static final String ERROR_TYPE = "error.type";
+        // CafeAI extensions (no semconv equivalent)
+        static final String LATENCY   = "cafeai.latency_ms";
+        static final String SESSION   = "cafeai.session.id";
+        static final String CACHE_HIT = "cafeai.cache_hit";
+        static final String RAG_DOCS  = "cafeai.rag.documents_retrieved";
+        static final String TOTAL_TOK = "cafeai.usage.total_tokens";
+
+        /** Best-effort provider system from a model id; {@code null} when unrecognised. */
+        static String system(String modelId) {
+            if (modelId == null) return null;
+            String m = modelId.toLowerCase();
+            if (m.contains("gpt") || m.startsWith("o1") || m.contains("text-embedding")
+                    || m.contains("whisper") || m.contains("tts")) return "openai";
+            if (m.contains("claude")) return "anthropic";
+            if (m.contains("llama") || m.contains("qwen") || m.contains("mistral")
+                    || m.contains("gemma") || m.contains("phi")) return "ollama";
+            return null;
+        }
+
+        static void model(Span span, String modelId) {
+            if (modelId == null) return;
+            span.setAttribute(RES_MODEL, modelId);
+            String sys = system(modelId);
+            if (sys != null) span.setAttribute(SYSTEM, sys);
+        }
+
+        static void error(Span span, Throwable error) {
+            span.setStatus(StatusCode.ERROR, error.getMessage());
+            span.setAttribute(ERROR_TYPE, error.getClass().getName());
+        }
+    }
+
     @Override
     public Object beforePrompt(PromptRequest request) {
         long startMs = System.currentTimeMillis();
 
         Span span = null;
         if (strategy instanceof OtelObserveStrategy) {
-            span = TRACER.spanBuilder("cafeai.llm.call")
+            span = TRACER.spanBuilder("chat")
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            span.setAttribute(Sem.OP, "chat");
             if (request.sessionId() != null) {
-                span.setAttribute("cafeai.session_id", request.sessionId());
+                span.setAttribute(Sem.SESSION, request.sessionId());
             }
         }
 
@@ -87,14 +132,16 @@ public final class ObserveBridgeImpl implements ObserveBridge {
 
         Span span = null;
         if (strategy instanceof OtelObserveStrategy) {
-            span = TRACER.spanBuilder("cafeai.llm.vision")
+            span = TRACER.spanBuilder("chat")
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
-            span.setAttribute("cafeai.vision.mime_type",     request.mimeType());
-            span.setAttribute("cafeai.vision.content_bytes", request.content().length);
+            span.setAttribute(Sem.OP, "chat");
+            span.setAttribute("cafeai.input.type",        "vision");
+            span.setAttribute("cafeai.input.mime_type",   request.mimeType());
+            span.setAttribute("cafeai.input.content_bytes", request.content().length);
             if (request.sessionId() != null) {
-                span.setAttribute("cafeai.session_id", request.sessionId());
+                span.setAttribute(Sem.SESSION, request.sessionId());
             }
         }
 
@@ -158,24 +205,23 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                                   PromptResponse response,
                                   Throwable error, long latencyMs) {
         try {
-            span.setAttribute("cafeai.latency_ms", latencyMs);
+            span.setAttribute(Sem.LATENCY, latencyMs);
 
             if (error != null) {
-                span.setStatus(StatusCode.ERROR, error.getMessage());
-                span.setAttribute("cafeai.error", error.getClass().getName());
+                Sem.error(span, error);
                 return;
             }
 
             if (response != null) {
-                span.setAttribute("cafeai.model",             response.modelId());
-                span.setAttribute("cafeai.prompt_tokens",     response.promptTokens());
-                span.setAttribute("cafeai.completion_tokens", response.outputTokens());
-                span.setAttribute("cafeai.total_tokens",      response.totalTokens());
-                span.setAttribute("cafeai.cache_hit",         response.fromCache());
+                Sem.model(span, response.modelId());
+                span.setAttribute(Sem.IN_TOKENS,  response.promptTokens());
+                span.setAttribute(Sem.OUT_TOKENS, response.outputTokens());
+                span.setAttribute(Sem.TOTAL_TOK,  response.totalTokens());
+                span.setAttribute(Sem.CACHE_HIT,  response.fromCache());
 
                 int ragDocs = response.ragDocuments() != null
                     ? response.ragDocuments().size() : 0;
-                span.setAttribute("cafeai.rag_docs_retrieved", ragDocs);
+                span.setAttribute(Sem.RAG_DOCS, ragDocs);
             }
             span.setStatus(StatusCode.OK);
         } finally {
@@ -190,14 +236,15 @@ public final class ObserveBridgeImpl implements ObserveBridge {
 
         Span span = null;
         if (strategy instanceof OtelObserveStrategy) {
-            span = TRACER.spanBuilder("cafeai.llm.audio")
+            span = TRACER.spanBuilder("transcribe")
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
-            span.setAttribute("cafeai.audio.mime_type",     request.mimeType());
-            span.setAttribute("cafeai.audio.content_bytes", request.content().length);
+            span.setAttribute(Sem.OP, "transcribe");
+            span.setAttribute("cafeai.input.mime_type",      request.mimeType());
+            span.setAttribute("cafeai.input.content_bytes",  request.content().length);
             if (request.sessionId() != null) {
-                span.setAttribute("cafeai.session_id", request.sessionId());
+                span.setAttribute(Sem.SESSION, request.sessionId());
             }
         }
 
@@ -228,11 +275,12 @@ public final class ObserveBridgeImpl implements ObserveBridge {
     public Object beforeAgent(String agentName) {
         Span span = null;
         if (strategy instanceof OtelObserveStrategy) {
-            span = TRACER.spanBuilder("cafeai.agent.invoke")
+            span = TRACER.spanBuilder("invoke_agent " + agentName)
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
-            span.setAttribute("cafeai.agent", agentName);
+            span.setAttribute(Sem.OP, "invoke_agent");
+            span.setAttribute("gen_ai.agent.name", agentName);
         }
         return new ObserveContext(System.currentTimeMillis(), span, strategy);
     }
@@ -256,13 +304,54 @@ public final class ObserveBridgeImpl implements ObserveBridge {
             log.info(sb.toString());
         } else if (context.strategy() instanceof OtelObserveStrategy && context.span() != null) {
             try {
-                context.span().setAttribute("cafeai.latency_ms", latencyMs);
+                context.span().setAttribute(Sem.LATENCY, latencyMs);
                 if (error != null) {
-                    context.span().setStatus(StatusCode.ERROR, error.getMessage());
-                    context.span().setAttribute("cafeai.error", error.getClass().getName());
+                    Sem.error(context.span(), error);
                 } else {
                     context.span().setStatus(StatusCode.OK);
                 }
+            } finally {
+                context.span().end();
+            }
+        }
+    }
+
+    // -- RAG retrieval -----------------------------------------------------------
+
+    @Override
+    public Object beforeRetrieval(String query) {
+        Span span = null;
+        if (strategy instanceof OtelObserveStrategy) {
+            span = TRACER.spanBuilder("retrieve")
+                .setSpanKind(SpanKind.CLIENT)
+                .setParent(Context.current())
+                .startSpan();
+            span.setAttribute(Sem.OP, "retrieve");
+            span.setAttribute("db.system", "vector_db");
+            span.setAttribute("cafeai.rag.query_length", query != null ? query.length() : 0);
+        }
+        return new ObserveContext(System.currentTimeMillis(), span, strategy);
+    }
+
+    @Override
+    public void afterRetrieval(Object ctx, String query, int documentCount, Throwable error) {
+        if (!(ctx instanceof ObserveContext context)) return;
+        long latencyMs = System.currentTimeMillis() - context.startMs();
+
+        if (context.strategy() instanceof ConsoleObserveStrategy) {
+            log.info("\n-- RAG Retrieval -----------------------------------\n"
+                + "  query chars: " + (query != null ? query.length() : 0) + "\n"
+                + (error != null
+                    ? "  ERROR:       " + error.getClass().getSimpleName() + ": " + error.getMessage() + "\n"
+                    : "  documents:   " + documentCount + "\n"
+                      + String.format("  latency:     %,dms%n", latencyMs))
+                + "------------------------------------------------------");
+        } else if (context.strategy() instanceof OtelObserveStrategy && context.span() != null) {
+            try {
+                context.span().setAttribute(Sem.LATENCY, latencyMs);
+                context.span().setAttribute(Sem.RAG_DOCS, documentCount);
+                if (error != null) Sem.error(context.span(), error);
+                else context.span().setStatus(StatusCode.OK);
             } finally {
                 context.span().end();
             }
@@ -362,20 +451,19 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                                        AudioResponse response,
                                        Throwable error, long latencyMs) {
         try {
-            span.setAttribute("cafeai.latency_ms",           latencyMs);
-            span.setAttribute("cafeai.audio.mime_type",      request.mimeType());
-            span.setAttribute("cafeai.audio.content_bytes",  request.content().length);
+            span.setAttribute(Sem.LATENCY, latencyMs);
+            span.setAttribute("cafeai.input.mime_type",     request.mimeType());
+            span.setAttribute("cafeai.input.content_bytes", request.content().length);
 
             if (error != null) {
-                span.setStatus(StatusCode.ERROR, error.getMessage());
-                span.setAttribute("cafeai.error", error.getClass().getName());
+                Sem.error(span, error);
                 return;
             }
             if (response != null) {
-                span.setAttribute("cafeai.model",             response.modelId());
-                span.setAttribute("cafeai.prompt_tokens",     response.promptTokens());
-                span.setAttribute("cafeai.completion_tokens", response.outputTokens());
-                span.setAttribute("cafeai.total_tokens",      response.totalTokens());
+                Sem.model(span, response.modelId());
+                span.setAttribute(Sem.IN_TOKENS,  response.promptTokens());
+                span.setAttribute(Sem.OUT_TOKENS, response.outputTokens());
+                span.setAttribute(Sem.TOTAL_TOK,  response.totalTokens());
             }
             span.setStatus(StatusCode.OK);
         } finally {
@@ -389,20 +477,20 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                                         VisionResponse response,
                                         Throwable error, long latencyMs) {
         try {
-            span.setAttribute("cafeai.latency_ms",           latencyMs);
-            span.setAttribute("cafeai.vision.mime_type",     request.mimeType());
-            span.setAttribute("cafeai.vision.content_bytes", request.content().length);
+            span.setAttribute(Sem.LATENCY, latencyMs);
+            span.setAttribute("cafeai.input.type",          "vision");
+            span.setAttribute("cafeai.input.mime_type",     request.mimeType());
+            span.setAttribute("cafeai.input.content_bytes", request.content().length);
 
             if (error != null) {
-                span.setStatus(StatusCode.ERROR, error.getMessage());
-                span.setAttribute("cafeai.error", error.getClass().getName());
+                Sem.error(span, error);
                 return;
             }
             if (response != null) {
-                span.setAttribute("cafeai.model",             response.modelId());
-                span.setAttribute("cafeai.prompt_tokens",     response.promptTokens());
-                span.setAttribute("cafeai.completion_tokens", response.outputTokens());
-                span.setAttribute("cafeai.total_tokens",      response.totalTokens());
+                Sem.model(span, response.modelId());
+                span.setAttribute(Sem.IN_TOKENS,  response.promptTokens());
+                span.setAttribute(Sem.OUT_TOKENS, response.outputTokens());
+                span.setAttribute(Sem.TOTAL_TOK,  response.totalTokens());
             }
             span.setStatus(StatusCode.OK);
         } finally {

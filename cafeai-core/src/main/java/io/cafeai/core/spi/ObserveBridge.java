@@ -99,6 +99,27 @@ public interface ObserveBridge {
     }
 
     /**
+     * Called immediately before RAG retrieval runs for a prompt.
+     *
+     * @param query the query text being embedded and searched
+     * @return an opaque context object passed to {@link #afterRetrieval}
+     */
+    default Object beforeRetrieval(String query) {
+        return null;
+    }
+
+    /**
+     * Called immediately after RAG retrieval completes or throws.
+     *
+     * @param context     the object returned by {@link #beforeRetrieval}
+     * @param query       the query text
+     * @param documentCount number of chunks retrieved (0 on error)
+     * @param error       the error, or {@code null} on success
+     */
+    default void afterRetrieval(Object context, String query, int documentCount, Throwable error) {
+    }
+
+    /**
      * Called immediately before an agent ({@code app.agent(...)}) invocation.
      * The agent's reasoning loop, tool calls, and chat memory are owned by
      * LangChain4j; this hook brackets the whole invocation.

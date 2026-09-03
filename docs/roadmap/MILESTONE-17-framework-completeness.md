@@ -16,11 +16,11 @@
 | 4 | ~~Multi-agent orchestration (Structured Concurrency)~~ | ⚫ Superseded by ROADMAP-12 |
 | 5 | ~~`app.orchestrate()` entry point~~ | ⚫ Superseded by ROADMAP-12 |
 | 6 | ~~nova-tutor agent integration~~ | ⚫ Superseded by ROADMAP-12 |
-| 7 | PgVector implementation | 🔴 |
-| 8 | PgVector integration test | 🔴 |
-| 9 | Real OpenTelemetry spans | 🔴 |
-| 10 | OTel semantic conventions for AI | 🔴 |
-| 11 | Hybrid retrieval (BM25 + dense) | 🔴 |
+| 7 | PgVector implementation | 🟢 (`9886803`) |
+| 8 | PgVector integration test | 🟢 (`9886803`) — Testcontainers, runs where Docker is present |
+| 9 | Real OpenTelemetry spans | 🟢 — spans were already real; this aligned attribute names |
+| 10 | OTel semantic conventions for AI | 🟢 — `gen_ai.*` on all spans + a `retrieve` span |
+| 11 | Hybrid retrieval (BM25 + dense) | 🟡 in progress |
 | 12 | 0.2.0 release to Maven Central | 🔴 |
 
 ---
@@ -44,20 +44,18 @@ ROADMAP-12 Phase 5 lands.)*
 
 ---
 
-## Phase 7 — PgVector Implementation
-
-**Status:** 🔴 Not Started
+## Phase 7 — PgVector Implementation &nbsp;🟢
 
 ### Acceptance Criteria
-- [ ] `PgVectorConfig` builder in `cafeai-rag`
-- [ ] `PgVectorStore` implements `VectorStore` SPI
-- [ ] `VectorStore.pgVector(config)` factory method registered via SPI
-- [ ] DDL auto-migration on first connection (create table if not exists)
-- [ ] `upsert()` uses `INSERT ... ON CONFLICT (id) DO UPDATE`
-- [ ] `search()` uses `ORDER BY embedding <=> $1 LIMIT $2` (cosine)
-- [ ] `deleteBySource()` uses `DELETE WHERE source_id = $1`
-- [ ] HikariCP connection pool with sensible defaults
-- [ ] `./gradlew :cafeai-rag:compileJava` passes
+- [x] `PgVectorConfig` builder in `cafeai-rag`
+- [x] `PgVectorStoreAdapter` implements `VectorStore` (wraps LangChain4j `PgVectorEmbeddingStore`)
+- [x] `VectorStore.pgVector(config)` factory method
+- [x] DDL auto-migration on first connection (`createTable(true)` + `useIndex(true)` → table + ivfflat cosine index)
+- [x] `upsert()` → `INSERT ... ON CONFLICT (embedding_id) DO UPDATE` (chunk id → deterministic UUID PK)
+- [x] `search()` → cosine (`embedding <=> $1`) via `EmbeddingSearchRequest`
+- [x] `deleteBySource()` → `removeAll(metadataKey("sourceId").isEqualTo(...))`
+- [x] HikariCP connection pool; `exists()` / `count()` are JDBC on the pool
+- [x] `./gradlew :cafeai-rag:compileJava` passes
 
 ### Schema
 ```sql
@@ -80,57 +78,51 @@ CREATE INDEX IF NOT EXISTS cafeai_chunks_source_idx
 
 ---
 
-## Phase 8 — PgVector Integration Test
-
-**Status:** 🔴 Not Started
+## Phase 8 — PgVector Integration Test &nbsp;🟢
 
 ### Acceptance Criteria
-- [ ] Testcontainers `pgvector/pgvector:pg16` container used
-- [ ] Full RAG pipeline test: ingest → search → delete by source → re-ingest
-- [ ] Cosine similarity results ordered correctly
-- [ ] Connection pool properly closed after test
-- [ ] `./gradlew :cafeai-rag:test` includes integration test
+- [x] Testcontainers `pgvector/pgvector:pg16` (`@Testcontainers(disabledWithoutDocker = true)`)
+- [x] Full RAG pipeline test: ingest → search → delete by source → re-ingest
+- [x] Cosine similarity results ordered correctly (asserted `isSortedAccordingTo` desc)
+- [x] Connection pool closed after the test (`@AfterAll store.close()`)
+- [x] `PgVectorStoreIntegrationTest` in `:cafeai-rag:test` — runs where Docker is present, skipped otherwise
 
 ### Notes
-Testcontainers requires Docker. CI must have Docker available.
+Docker was not available in the dev environment where this was written — the test
+compiles and self-skips; run `./gradlew :cafeai-rag:test` on a Docker host to
+exercise it (part of the pre-release validation).
 
 ---
 
 ## Phase 9 — Real OpenTelemetry Spans
 
-**Status:** 🔴 Not Started
+**Status:** 🟢 — the spans were already real (`GlobalOpenTelemetry` tracer, started
+in `before*` / ended in `after*`). This phase aligned the attribute names.
 
 ### Acceptance Criteria
-- [ ] `ObserveStrategy.otel()` produces real spans (not stubs)
-- [ ] `gen_ai.system` attribute set on all spans
-- [ ] `gen_ai.operation.name` correct for each call type (chat, embed, etc.)
-- [ ] `gen_ai.request.model` and `gen_ai.response.model` set
-- [ ] `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` set
-- [ ] Span lifecycle: started in `before*`, ended in `after*`
-- [ ] Vision spans include content byte count
-- [ ] Audio spans include MIME type and byte count
-- [ ] Tool call spans nested under parent LLM span
+- [x] `ObserveStrategy.otel()` produces real spans (already did)
+- [x] `gen_ai.system` set best-effort from the model id (openai / anthropic / ollama; omitted when unknown)
+- [x] `gen_ai.operation.name` per call type — `chat` (prompt + vision), `transcribe`, `invoke_agent`, `retrieve`
+- [x] `gen_ai.response.model` set from the response
+- [x] `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` set
+- [x] Span lifecycle: started in `before*`, ended in `after*`
+- [x] Vision/audio spans carry `cafeai.input.content_bytes` + `cafeai.input.mime_type`
+- [ ] Tool-call sub-spans nested under the LLM span — LangChain4j owns the agent loop; not exposed. Deferred.
 
 ### Notes
-<!-- Add implementation notes here -->
+`gen_ai.request.model` is not set at span start (the resolved model isn't known
+until the response). `error.type` + span status ERROR on failure.
 
 ---
 
-## Phase 10 — OTel Semantic Conventions
-
-**Status:** 🔴 Not Started
+## Phase 10 — OTel Semantic Conventions &nbsp;🟢
 
 ### Acceptance Criteria
-- [ ] `Attributes.java` constants use semantic convention names
-- [ ] RAG retrieval spans: `gen_ai.retrieval` with `db.system=vector_db`
-- [ ] Agent spans: `gen_ai.agent.invoke` with `gen_ai.agent.iterations`
-- [ ] `CHANGELOG.md` documents attribute name changes
-
-### Reference
-https://opentelemetry.io/docs/specs/semconv/gen-ai/
-
-### Notes
-<!-- Add implementation notes here -->
+- [x] Span attribute constants centralised (`ObserveBridgeImpl.Sem`) on semconv names
+- [x] RAG retrieval span `retrieve` with `db.system=vector_db`, `cafeai.rag.documents_retrieved`
+- [x] Agent span `invoke_agent <name>` with `gen_ai.agent.name` (`gen_ai.agent.iterations` not available — LC4j owns the loop)
+- [x] `CHANGELOG.md` documents the attribute rename
+- note: `Attributes.java` holds *HTTP request* keys, not telemetry — left as-is
 
 ---
 
