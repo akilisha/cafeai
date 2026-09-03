@@ -16,7 +16,7 @@ import java.util.Map;
  * <p>Handles the PRE_LLM / POST_LLM / BOTH positioning logic so each
  * concrete guardrail only needs to implement:
  * <ul>
- *   <li>{@link #checkInput(String)} -- inspect the user's prompt before LLM</li>
+ *   <li>{@link #screenInput(String)} -- inspect the user's prompt before LLM</li>
  *   <li>{@link #checkInputAsOutput(String)} -- inspect the LLM's response after it</li>
  * </ul>
  *
@@ -48,7 +48,7 @@ public abstract class AbstractGuardRail implements GuardRail {
         if (position() == Position.PRE_LLM || position() == Position.BOTH) {
             String input = extractInput(req);
             if (input != null && !input.isBlank()) {
-                CheckResult result = checkInput(input);
+                CheckResult result = screenInput(input);
                 if (!result.passes()) {
                     onViolation(req, res, result);
                     return;
@@ -78,35 +78,40 @@ public abstract class AbstractGuardRail implements GuardRail {
     }
 
     /**
-     * Inspects text as output (POST_LLM). Delegates to {@link #checkInput(String)}
+     * Inspects text as output (POST_LLM). Delegates to {@link #screenInput(String)}
      * by default since most pattern-based guardrails apply the same logic to both
      * input and output. Override for output-specific behaviour.
      */
     protected CheckResult checkInputAsOutput(String output) {
-        return checkInput(output);
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Bridges the HTTP-middleware {@link CheckResult} type to the
-     * direct-call {@link GuardRail.OutputCheckResult} type so
-     * {@code CafeAIApp.applyPostLlmGuardrails()} can call this without
-     * depending on {@code cafeai-guardrails}.
-     */
-    @Override
-    public final GuardRail.OutputCheckResult checkOutput(String output) {
-        CheckResult result = checkInputAsOutput(output);
-        return result.passes()
-            ? GuardRail.OutputCheckResult.pass()
-            : GuardRail.OutputCheckResult.violation(result.reason());
+        return screenInput(output);
     }
 
     /**
      * Inspects the user's input before it reaches the LLM.
      * Return {@link CheckResult#pass()} to allow, {@link CheckResult#block(String)} to reject.
+     * Default: pass. This is the one hook most concrete guardrails override.
      */
-    protected CheckResult checkInput(String input) { return CheckResult.pass(); }
+    protected CheckResult screenInput(String input) { return CheckResult.pass(); }
+
+    // -- SPI bridges: CheckResult -> GuardRail.OutputCheckResult -------------
+    // So CafeAIApp / cafeai-agents can call checkInput()/checkOutput() without
+    // a compile dependency on cafeai-guardrails' CheckResult type.
+
+    @Override
+    public final GuardRail.OutputCheckResult checkInput(String input) {
+        return toOutputCheckResult(screenInput(input));
+    }
+
+    @Override
+    public final GuardRail.OutputCheckResult checkOutput(String output) {
+        return toOutputCheckResult(checkInputAsOutput(output));
+    }
+
+    private static GuardRail.OutputCheckResult toOutputCheckResult(CheckResult result) {
+        return result.passes()
+            ? GuardRail.OutputCheckResult.pass()
+            : GuardRail.OutputCheckResult.violation(result.reason());
+    }
 
     // -- Private: request/response extraction ---------------------------------
 

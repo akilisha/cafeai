@@ -140,17 +140,34 @@ public interface GuardRail extends Middleware {
     // -- POST_LLM output check -------------------------------------------------
 
     /**
-     * The result of a POST_LLM output check.
+     * The result of a guardrail check.
      *
-     * <p>Returned by {@link #checkOutput(String)} to indicate whether the
-     * LLM's response passes or violates this guardrail.
+     * <p>Returned by {@link #checkInput(String)} (PRE_LLM) and
+     * {@link #checkOutput(String)} (POST_LLM) to indicate whether the text
+     * passes or violates this guardrail.
      *
-     * @param isViolation {@code true} if the output violates this guardrail
+     * @param isViolation {@code true} if the text violates this guardrail
      * @param reason      human-readable reason for the violation, or {@code null} if passing
      */
     record OutputCheckResult(boolean isViolation, String reason) {
         public static OutputCheckResult pass()              { return new OutputCheckResult(false, null);   }
         public static OutputCheckResult violation(String r) { return new OutputCheckResult(true,  r);     }
+    }
+
+    /**
+     * Inspects the user's message before it reaches the LLM.
+     *
+     * <p>Called by {@code CafeAIApp} and the {@code cafeai-agents} input-guardrail
+     * adapter for guardrails with position {@link Position#PRE_LLM} or
+     * {@link Position#BOTH}. The default passes through — override (or extend
+     * {@code AbstractGuardRail}) to screen the prompt.
+     *
+     * @param input the user's message text
+     * @return {@link OutputCheckResult#pass()} to allow, or
+     *         {@link OutputCheckResult#violation(String)} to block
+     */
+    default OutputCheckResult checkInput(String input) {
+        return OutputCheckResult.pass();
     }
 
     /**

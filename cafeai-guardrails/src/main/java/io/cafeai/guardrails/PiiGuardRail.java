@@ -73,7 +73,7 @@ public final class PiiGuardRail extends AbstractGuardRail {
     @Override public Position position() { return Position.BOTH; }
 
     @Override
-    protected CheckResult checkInput(String input) {
+    protected CheckResult screenInput(String input) {
         List<String> found = detect(input);
         if (found.isEmpty()) return CheckResult.pass();
         return CheckResult.block("PII detected in input: " + String.join(", ", found),

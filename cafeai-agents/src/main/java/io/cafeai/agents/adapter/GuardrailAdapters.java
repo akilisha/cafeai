@@ -22,7 +22,7 @@ public final class GuardrailAdapters {
         return new InputGuardrail() {
             @Override
             public InputGuardrailResult validate(UserMessage userMessage) {
-                GuardRail.OutputCheckResult r = rail.checkOutput(userMessage.singleText());
+                GuardRail.OutputCheckResult r = rail.checkInput(userMessage.singleText());
                 return r.isViolation()
                     ? failure("Guardrail '" + rail.name() + "': " + r.reason())
                     : success();

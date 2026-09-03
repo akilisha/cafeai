@@ -258,7 +258,10 @@ assembles `AiServices.builder(type)` from the config via adapters — no wrapper
   `ObserveBridge.beforeAgent`/`afterAgent` (default no-op on the SPI; `cafeai-observability`
   emits a console line / OTel `cafeai.agent.invoke` span — name, latency, outcome; no token
   accounting on the agent path)
-- MCP tool sources throw a helpful "needs cafeai-connect McpEndpoint" until that connector lands
+- MCP tool sources: `AgentConfig.mcp(...)` + the `ToolSource` sealed type were **removed**
+  (2026-09) — a method that only throws is worse than an absent one. `AgentConfig.tools`
+  is a plain `List<Object>` of `@Tool` instances again. Re-introduce `ToolSource` / `.mcp()`
+  when the `cafeai-connect` `McpEndpoint` connector is built; the design stands (below)
 - stateless agents cached by name; stateful cached by `name::sessionId`
 
 **Goal:** Store registered agents, build them on demand, manage per-session memory.

@@ -86,8 +86,11 @@ is deferred to if-and-when a capstone proves it necessary.
    transport, three-state reachability, fallback policy — like Redis/Ollama/pgvector).
 3. *Give* an agent those tools → `cafeai-agents` adapts a named MCP connection to a
    `ToolProvider` at `AiServices.builder()` time.
-`cafeai-agents` v1 does #3 for **Java `@Tool` objects only**; MCP tool sources are additive
-once #2 exists.
+`cafeai-agents` does #3 for **Java `@Tool` objects only**. The `AgentConfig.mcp(...)` stub
+and the `ToolSource` sealed type were removed (2026-09) — `AgentConfig` holds a plain
+`List<Object>` of tool instances. Concerns #2 and the MCP half of #3 are re-added together
+if/when a real need for connecting an agent to an external MCP server appears; until then
+use `.configure(b -> b.toolProvider(McpToolProvider...))` for a one-off.
 
 **On the Temporal direction:**
 Temporal was identified as a production-grade orchestration engine that could give agent
@@ -106,5 +109,6 @@ durable execution is needed in practice (capstone 2 and beyond will surface this
   `ChatMemoryProvider`, `ToolProvider`, `McpToolProvider`) ✅
 - `cafeai-guardrails` and `cafeai-observability` (adapted to the LangChain4j hooks above) ✅
 - `app.helidon()` escape hatch — for exposing an agent *as* an MCP tool ✅
-- `cafeai-connect` `McpEndpoint` connector — for *consuming* an external MCP server's tools
-  (not required for v1; makes MCP a tool source once it lands)
+- `cafeai-connect` `McpEndpoint` connector — for *consuming* an external MCP server's tools.
+  **Not built** — demand-driven; nothing in the framework or capstones needs it. Design is
+  above; re-adds `ToolSource` / `AgentConfig.mcp()` when it lands.

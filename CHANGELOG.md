@@ -9,6 +9,20 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - `WsSession.streamTokens(Flow.Publisher<String>)` — pipe `app.prompt(...).stream()`
   straight to a WebSocket client (one text frame per token, `[DONE]` sentinel on
   completion; custom/`null` sentinel via the two-arg overload).
+- `GuardRail.checkInput(String)` — PRE_LLM screening as a first-class method
+  alongside `checkOutput`. Agents' input guardrails and `CafeAIApp`'s prompt/
+  vision/audio PRE_LLM checks now call it instead of reusing `checkOutput`.
+
+### Removed
+- `AgentConfig.mcp(String)` and the `ToolSource` sealed type — a stub that only
+  threw. `AgentConfig` tools are a `List<Object>` again. MCP-as-tool-source
+  returns with the (unbuilt, demand-driven) `cafeai-connect` `McpEndpoint`
+  connector; for a one-off use `.configure(b -> b.toolProvider(...))`.
+
+### Changed
+- `AbstractGuardRail`'s protected input hook renamed `checkInput` → `screenInput`
+  (frees `checkInput` for the interface method). Concrete guardrails that extend
+  `AbstractGuardRail` override `screenInput`.
 
 ## [0.2.0] — 2026-09
 

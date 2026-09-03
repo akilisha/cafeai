@@ -37,7 +37,7 @@ public final class AgentConfig<T> {
     private       AiProvider        provider;
     private       MemoryStrategy    memoryStrategy;
     private final List<GuardRail>   guardRails  = new ArrayList<>();
-    private final List<ToolSource>  tools       = new ArrayList<>();
+    private final List<Object>      tools       = new ArrayList<>();
     private       Object            ragRetriever;
     private       Consumer<?>       builderConsumer;
 
@@ -100,19 +100,13 @@ public final class AgentConfig<T> {
 
     /**
      * Adds a {@code @Tool}-annotated Java object the agent may call.
+     *
+     * <p>(Tools from an external MCP server are not wired yet — see
+     * {@code docs/roadmap/ROADMAP-12} for the design. Use {@code .configure(...)}
+     * with a LangChain4j {@code McpToolProvider} in the meantime.)
      */
     public AgentConfig<T> tool(Object toolInstance) {
-        tools.add(new ToolSource.JavaTool(toolInstance));
-        return this;
-    }
-
-    /**
-     * Adds the tools of a named MCP server connection (registered via
-     * {@code app.connect(McpEndpoint.at(...))}). Planned — requires the
-     * {@code cafeai-connect} {@code McpEndpoint} connector.
-     */
-    public AgentConfig<T> mcp(String connectionName) {
-        tools.add(new ToolSource.McpTool(connectionName));
+        tools.add(toolInstance);
         return this;
     }
 
@@ -142,7 +136,7 @@ public final class AgentConfig<T> {
     public AiProvider         provider()        { return provider; }
     public MemoryStrategy     memoryStrategy()  { return memoryStrategy; }
     public List<GuardRail>    guardRails()      { return List.copyOf(guardRails); }
-    public List<ToolSource>   tools()           { return List.copyOf(tools); }
+    public List<Object>       tools()           { return List.copyOf(tools); }
     public Object             ragRetriever()    { return ragRetriever; }
 
     @SuppressWarnings("unchecked")

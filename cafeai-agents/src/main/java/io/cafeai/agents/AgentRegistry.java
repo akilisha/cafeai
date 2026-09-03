@@ -11,7 +11,6 @@ import io.cafeai.agents.adapter.CafeAiChatMemoryStore;
 import io.cafeai.agents.adapter.CafeAiContentRetriever;
 import io.cafeai.agents.adapter.GuardrailAdapters;
 import io.cafeai.core.agents.AgentConfig;
-import io.cafeai.core.agents.ToolSource;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -100,18 +99,9 @@ public final class AgentRegistry implements AgentBridge {
         }
 
         // -- tools -----------------------------------------------------------
-        List<Object> javaTools = new ArrayList<>();
-        for (ToolSource ts : config.tools()) {
-            if (ts instanceof ToolSource.JavaTool jt) {
-                javaTools.add(jt.instance());
-            } else if (ts instanceof ToolSource.McpTool mt) {
-                throw new UnsupportedOperationException(
-                    "Agent '" + name + "' references MCP connection '" + mt.connectionName()
-                    + "'. MCP tool sources need the cafeai-connect McpEndpoint connector (planned).");
-            }
-        }
-        if (!javaTools.isEmpty()) {
-            builder.tools(javaTools);
+        List<Object> tools = config.tools();
+        if (!tools.isEmpty()) {
+            builder.tools(new ArrayList<>(tools));
         }
 
         // -- guardrails ----------------------------------------------------

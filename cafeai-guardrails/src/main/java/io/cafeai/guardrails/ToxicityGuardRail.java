@@ -59,7 +59,7 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
     @Override public Position position() { return Position.BOTH; }
 
     @Override
-    protected CheckResult checkInput(String input) {
+    protected CheckResult screenInput(String input) {
         return check(input);
     }
 

@@ -684,13 +684,11 @@ public final class CafeAIApp implements CafeAI {
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
-        // checkOutput() delegates to checkInputAsOutput() -> checkInput() in
-        // AbstractGuardRail, applying the same pattern matching to the prompt text.
         for (GuardRail rail : guardRails) {
             if (rail.position() == GuardRail.Position.PRE_LLM
                     || rail.position() == GuardRail.Position.BOTH) {
                 GuardRail.OutputCheckResult result =
-                        rail.checkOutput(request.prompt());
+                        rail.checkInput(request.prompt());
                 if (result.isViolation()) {
                     log.warn("Vision PRE_LLM guardrail '{}' triggered: {}",
                             rail.name(), result.reason());
@@ -870,7 +868,7 @@ public final class CafeAIApp implements CafeAI {
             if (rail.position() == GuardRail.Position.PRE_LLM
                     || rail.position() == GuardRail.Position.BOTH) {
                 GuardRail.OutputCheckResult result =
-                        rail.checkOutput(request.prompt());
+                        rail.checkInput(request.prompt());
                 if (result.isViolation()) {
                     throw new RuntimeException(
                             "Vision prompt blocked by guardrail '" + rail.name() +
@@ -1014,7 +1012,7 @@ public final class CafeAIApp implements CafeAI {
             if (rail.position() == GuardRail.Position.PRE_LLM
                     || rail.position() == GuardRail.Position.BOTH) {
                 GuardRail.OutputCheckResult result =
-                        rail.checkOutput(request.prompt());
+                        rail.checkInput(request.prompt());
                 if (result.isViolation()) {
                     log.warn("Audio PRE_LLM guardrail '{}' triggered: {}",
                             rail.name(), result.reason());

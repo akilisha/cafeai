@@ -81,7 +81,7 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
     @Override public Position position() { return Position.PRE_LLM; }
 
     @Override
-    protected CheckResult checkInput(String input) {
+    protected CheckResult screenInput(String input) {
         String lower = input.toLowerCase(Locale.ROOT);
         double maxHit = 0.0;
         String topPattern = null;
