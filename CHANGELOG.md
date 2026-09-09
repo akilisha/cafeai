@@ -23,6 +23,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - `AbstractGuardRail`'s protected input hook renamed `checkInput` → `screenInput`
   (frees `checkInput` for the interface method). Concrete guardrails that extend
   `AbstractGuardRail` override `screenInput`.
+- **`cafeai-core` POM**: the dependencies that leak through the public API
+  (`langchain4j-core` → `ChatModel`, `langchain4j` → `AiServices`/`@Tool`,
+  `jackson-annotations` → `@JsonCreator`/`@JsonProperty` on `ConversationContext`)
+  are now `api`, so they land on a consumer's **compile** classpath — previously
+  `implementation`, so they published as `runtime`-scoped and a project compiling
+  against those types had to declare them itself. Helidon, the provider modules,
+  and `jackson-databind`/`-jsr310` remain `implementation` (not exposed). The
+  `langchain4j-bom` is now imported on `api` so the versionless `api` deps
+  resolve for consumers.
 
 ## [0.2.0] — 2026-09
 

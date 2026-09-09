@@ -27,8 +27,13 @@ dependencies {
     implementation 'io.helidon.config:helidon-config-yaml'
 
     // ── Langchain4j Core ─────────────────────────────────────
-    implementation 'dev.langchain4j:langchain4j-core'
-    implementation 'dev.langchain4j:langchain4j'
+    // `api`: these leak through the public API, so consumers need them at
+    // compile time. langchain4j-core → dev.langchain4j.model.chat.ChatModel
+    // (spi/AgentBridge, ai/OpenAI.toChatModel); langchain4j →
+    // dev.langchain4j.service.AiServices (agents/AgentConfig) and the @Tool
+    // annotation used to author agent tools.
+    api 'dev.langchain4j:langchain4j-core'
+    api 'dev.langchain4j:langchain4j'
 
     // ── LLM Providers ────────────────────────────────────────
     // OpenAI
@@ -41,6 +46,10 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-jlama'
 
     // ── Serialization ────────────────────────────────────────
+    // `api`: @JsonCreator/@JsonProperty annotate the public constructor and
+    // accessors of memory/ConversationContext. databind + jsr310 are used only
+    // in method bodies (ai/ResponseDeserializer) — they stay `implementation`.
+    api            "com.fasterxml.jackson.core:jackson-annotations:${rootProject.ext.jacksonVersion}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
 
