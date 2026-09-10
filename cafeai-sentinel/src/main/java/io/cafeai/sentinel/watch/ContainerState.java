@@ -41,4 +41,19 @@ public record ContainerState(
                 || "terminated".equals(state)
                 || (exitCode != null && exitCode != 0);
     }
+
+    /** One-line human summary, e.g. {@code "CrashLoopBackOff last=OOMKilled exit=137 restarts=3"}. */
+    public String summary() {
+        StringBuilder sb = new StringBuilder(reason != null ? reason : state);
+        if (lastTerminationReason != null) {
+            sb.append(" last=").append(lastTerminationReason);
+        }
+        if (exitCode != null) {
+            sb.append(" exit=").append(exitCode);
+        }
+        if (restartCount > 0) {
+            sb.append(" restarts=").append(restartCount);
+        }
+        return sb.toString();
+    }
 }

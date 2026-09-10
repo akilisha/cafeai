@@ -2,23 +2,28 @@ package io.cafeai.sentinel.cluster;
 
 import io.cafeai.sentinel.ClusterConnection;
 import io.cafeai.sentinel.ClusterWatch;
+import io.cafeai.sentinel.IncidentTracker;
 import io.cafeai.sentinel.SentinelConfig;
+import io.cafeai.sentinel.incident.Incident;
+import io.cafeai.sentinel.incident.IncidentEvent;
 import io.cafeai.sentinel.watch.ContainerState;
-import io.cafeai.sentinel.watch.PodEvent;
 import io.cafeai.sentinel.watch.PodState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.stream.Collectors;
 
 /**
  * Capstone entry point — a runnable {@link io.cafeai.sentinel} pipeline pointed
  * at a Kubernetes / OpenShift cluster.
  *
- * <p><strong>Phase 1 (ROADMAP-18):</strong> no AI. It starts a {@link ClusterWatch}
- * on one namespace and logs the correlated pod state on every change — the
- * walking skeleton that proves the watch and the owner-resolution / event
- * correlation work against a real cluster (minikube).
+ * <p><strong>Phase 2 (ROADMAP-18):</strong> still no AI. {@link ClusterWatch}
+ * feeds correlated pod snapshots to an {@link IncidentTracker}, which triages
+ * them with rules and coalesces failures into incidents keyed on the owning
+ * workload — one incident per broken Deployment, not one per event. Incidents
+ * are logged; the agentic investigation lands in Phase 3. The raw per-pod
+ * snapshot is still logged at {@code DEBUG}.
  *
  * <p>Namespace comes from {@code $SENTINEL_NAMESPACE}, then the first CLI arg,
  * then {@code default}.
@@ -43,12 +48,23 @@ public final class ClusterSentinelApp {
         SentinelConfig config = SentinelConfig.create()
                 .namespace(namespace)
                 .connection(connectionFromEnv());
-        ClusterWatch watch = new ClusterWatch(config).onPodState(ClusterSentinelApp::logPodState);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(watch::close, "sentinel-shutdown"));
+        IncidentTracker tracker = new IncidentTracker(config)
+                .onIncident(ClusterSentinelApp::logIncident)
+                .start();
+
+        ClusterWatch watch = new ClusterWatch(config).onPodState(state -> {
+            logPodState(state);
+            tracker.accept(state);
+        });
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            watch.close();
+            tracker.close();
+        }, "sentinel-shutdown"));
 
         watch.start();
-        log.info("cluster-sentinel Phase 1 — watching '{}'. Ctrl-C to stop.", namespace);
+        log.info("cluster-sentinel Phase 2 — triaging '{}'. Ctrl-C to stop.", namespace);
 
         try {
             Thread.currentThread().join();
@@ -75,45 +91,41 @@ public final class ClusterSentinelApp {
         return conn;
     }
 
-    private static void logPodState(PodState state) {
-        String workload = state.workload().toString();
+    private static void logIncident(IncidentEvent event) {
+        Incident i = event.incident();
+        String reasons = String.join(", ", i.reasons());
+        String pods = String.join(", ", i.affectedPods());
 
-        if (state.deleted()) {
-            log.info("{} :: pod {} deleted", workload, state.name());
-            return;
+        switch (event.type()) {
+            case OPENED -> log.warn("● OPENED   {} [{}] {} — {} (pods: {})",
+                    i.id(), i.severity(), i.workload(), reasons, pods);
+            case UPDATED -> log.info("● updated  {} [{}] {} — {} signals; reasons: {}; pods: {}",
+                    i.id(), i.severity(), i.workload(), i.signalCount(), reasons, pods);
+            case RESOLVED -> log.info("○ RESOLVED {} {} — was [{}], {} signals over {}",
+                    i.id(), i.workload(), i.severity(), i.signalCount(),
+                    Duration.between(i.firstSeen(), i.lastSeen()));
         }
-
-        String trouble = state.containers().stream()
-                .filter(ContainerState::troubled)
-                .map(ClusterSentinelApp::describe)
-                .collect(Collectors.joining(", "));
-
-        if (trouble.isEmpty()) {
-            log.debug("{} :: pod {} phase={} — healthy", workload, state.name(), state.phase());
-            return;
-        }
-
-        log.warn("{}{} :: pod {} phase={} :: {}",
-                state.preExisting() ? "[pre-existing] " : "",
-                workload, state.name(), state.phase(), trouble);
-
-        for (PodEvent event : state.recentEvents()) {
-            if (event.warning()) {
-                log.warn("    {} {} x{} — {}", event.type(), event.reason(), event.count(), event.message());
-            }
+        if (event.type() != IncidentEvent.Type.RESOLVED && !i.evidence().isEmpty()) {
+            log.info("             {}", i.evidence().get(i.evidence().size() - 1));
         }
     }
 
-    private static String describe(ContainerState c) {
-        StringBuilder sb = new StringBuilder(c.name()).append('(');
-        sb.append(c.reason() != null ? c.reason() : c.state());
-        if (c.lastTerminationReason() != null) {
-            sb.append(" last=").append(c.lastTerminationReason());
+    private static void logPodState(PodState state) {
+        if (!log.isDebugEnabled()) {
+            return;
         }
-        if (c.exitCode() != null) {
-            sb.append(" exit=").append(c.exitCode());
+        String workload = state.workload().toString();
+        if (state.deleted()) {
+            log.debug("{} :: pod {} deleted", workload, state.name());
+            return;
         }
-        sb.append(" restarts=").append(c.restartCount()).append(')');
-        return sb.toString();
+        String trouble = state.containers().stream()
+                .filter(ContainerState::troubled)
+                .map(c -> c.name() + "(" + c.summary() + ")")
+                .collect(Collectors.joining(", "));
+        log.debug("{}{} :: pod {} phase={} :: {}",
+                state.preExisting() ? "[pre-existing] " : "",
+                workload, state.name(), state.phase(),
+                trouble.isEmpty() ? "healthy" : trouble);
     }
 }

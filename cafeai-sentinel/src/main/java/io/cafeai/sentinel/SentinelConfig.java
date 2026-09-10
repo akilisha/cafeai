@@ -1,13 +1,14 @@
 package io.cafeai.sentinel;
 
+import java.time.Duration;
 import java.util.Objects;
 
 /**
  * Configuration for a sentinel pipeline.
  *
- * <p>Phase 1 exposes only what {@link ClusterWatch} needs — how to reach the
- * cluster, the namespace to watch, and whether to act on failures that already
- * exist at startup. Later phases add {@code .system(...)},
+ * <p>Phases 1–2 expose how to reach the cluster, the namespace to watch, whether
+ * to act on failures that already exist at startup, and how long an incident
+ * stays open after its last error. Later phases add {@code .system(...)},
  * {@code .investigationPrompt(...)}, {@code .investigationModel(...)},
  * {@code .triageModel(...)}, {@code .guard(...)}, {@code .debounce(...)} and
  * {@code .sink(...)}.
@@ -25,6 +26,7 @@ public final class SentinelConfig {
     private ClusterConnection connection = ClusterConnection.ambient();
     private String namespace = "default";
     private boolean investigateOnStartup = false;
+    private Duration resolveAfter = Duration.ofMinutes(2);
 
     private SentinelConfig() {
     }
@@ -64,8 +66,24 @@ public final class SentinelConfig {
         return this;
     }
 
+    /**
+     * How long an incident stays open after its most recent {@code ERROR} signal
+     * once all its affected pods have recovered or been deleted. The
+     * {@link IncidentTracker} sweeper resolves the incident after this elapses.
+     * Defaults to two minutes — long enough to ride out a crash-loop back-off
+     * without flapping. Requires {@link IncidentTracker#start()}.
+     */
+    public SentinelConfig resolveAfter(Duration resolveAfter) {
+        this.resolveAfter = Objects.requireNonNull(resolveAfter, "resolveAfter");
+        return this;
+    }
+
     public ClusterConnection connection() {
         return connection;
+    }
+
+    public Duration resolveAfter() {
+        return resolveAfter;
     }
 
     public String namespace() {

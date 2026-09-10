@@ -3,13 +3,15 @@
 Runnable companion to **`cafeai-sentinel`** — an AI cluster incident pipeline for
 Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18-sentinel.md` for the design.
 
-## Status — ROADMAP-18 Phase 1 (walking skeleton, no AI)
+## Status — ROADMAP-18 Phase 2 (triage, no AI)
 
-Starts a `ClusterWatch` on one namespace and logs the correlated pod state
-(container states + owner workload + recent Warning events) on every change.
-This proves the watch, owner resolution (`Pod → ReplicaSet → Deployment`), and
-event correlation work against a real cluster. Triage, investigation, and the
-incident sink land in Phases 2–5.
+`ClusterWatch` feeds correlated pod snapshots to an `IncidentTracker`, which
+triages each one with rules (`TriageRules` — no model) and coalesces failures
+into incidents keyed on the owning workload: **one incident per broken
+Deployment, not one per event per replica**. Incidents open, accumulate reasons
+and evidence, and resolve on a cooldown once their pods recover. The raw per-pod
+snapshot is still available at `DEBUG`. Investigation (agentic, per incident) and
+the pluggable sink land in Phases 3–5.
 
 ## Run it against minikube
 
@@ -38,9 +40,15 @@ kubectl -n demo apply -f capstones/cluster-sentinel/demo/oom.yaml
 Expected output shape:
 
 ```
-17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp - Deployment/crashloop :: pod crashloop-7d9f-xr2k phase=Running :: app(CrashLoopBackOff exit=1 restarts=4)
-17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp -     Warning BackOff x5 — Back-off restarting failed container app in pod crashloop-7d9f-xr2k_demo
+17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/crashloop — CrashLoopBackOff, Error (pods: crashloop-7d9f-xr2k)
+17:12:04 INFO  i.c.s.cluster.ClusterSentinelApp -              crashloop-7d9f-xr2k: app(CrashLoopBackOff last=Error exit=1 restarts=4) [BackOff x5]
+17:12:19 INFO  i.c.s.cluster.ClusterSentinelApp - ● updated  inc-3f2a9c1d [ERROR] Deployment/crashloop — 3 signals; reasons: CrashLoopBackOff, Error; pods: crashloop-7d9f-xr2k, crashloop-7d9f-9p4m
+17:15:41 INFO  i.c.s.cluster.ClusterSentinelApp - ○ RESOLVED inc-3f2a9c1d Deployment/crashloop — was [ERROR], 5 signals over PT3M22S
 ```
+
+Two replicas of one broken Deployment → **one** `inc-…`. Run with
+`-Dorg.slf4j.simpleLogger.defaultLogLevel=debug` (or edit `logback.xml`) to also
+see every raw pod snapshot.
 
 Clean up: `kubectl delete namespace demo`.
 

@@ -5,9 +5,10 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09):** 🟡 Draft — discovery. Nothing has crystallized. This doc
-> is the thinking artifact; the module/capstone boundary and the pipeline shape
-> are expected to shift as the walking skeleton (Phase 1) meets a real cluster.
+> **Status (2026-09):** 🟢 Phases 0–2 built and unit-tested on `main` (unpushed,
+> unpublished). `ClusterWatch` + `ClusterConnection` + `IncidentTracker` /
+> `TriageRules`. No AI yet — that is Phase 3. A live minikube run is still
+> outstanding and may shift the triage rules and the resolution heuristic.
 
 ---
 
@@ -36,6 +37,8 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | `IncidentSink` SPI + built-in sinks (log, SSE, webhook) | ✅ | |
 | `SentinelConfig` fluent surface (`.connection` / `.namespace` / `.system` / `.investigationPrompt` / `.guard` / `.investigationModel` / `.triageModel` / `.debounce` / `.sink`) | ✅ | |
 | `ClusterConnection` — ambient / named context / token+URL / basic-auth, with CA + TLS knobs | ✅ | |
+| `TriageRules` / `Verdict` / `TriageResult` — rules-only classifier | ✅ | |
+| `IncidentTracker` + `Incident` / `IncidentEvent` — coalesce by workload, best-effort resolve | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -89,12 +92,20 @@ Event — it lives only in `pod.status.containerStatuses[].lastState.terminated`
 watch. ("Pod events only" in the scope decision means we don't yet watch
 StatefulSet / DaemonSet / Job *objects* — it does not mean Events-only.)
 
-**Triage is rules-first.** The Kubernetes Event `reason` / `type` fields carry
-most of the signal — `BackOff`, `Failed`, `Unhealthy`, `OOMKilling`,
-`FailedScheduling`, `FailedMount` → `error`; `Killing` / `ScalingReplicaSet` to
-zero → `notable`; `Pulled`, `Created`, `Started`, `Scheduled` → `benign`. A
-lookup table gets ~90% of triage with no model call. An LLM classifier is a
-later fallback for the ambiguous remainder, not a Phase-2 dependency.
+**Triage is rules-first.** Container state first (it holds `OOMKilled` / exit
+codes that never appear as Events), then pod phase, then Events. `CrashLoopBackOff`
+/ `ImagePullBackOff` / `CreateContainerConfigError` waiting reasons, `OOMKilled` /
+`Error` terminations, a non-zero non-SIGTERM exit, a `Failed` phase, and Warning
+events `BackOff` / `Failed` / `FailedScheduling` / `FailedMount` / `Evicted` (plus
+`Unhealthy` once its count ≥ 3) → `error`. `Preempted` / `NodeNotReady` /
+`TaintManagerEviction` → `notable`. Everything else → `benign`. A lookup table
+gets ~90% of triage with no model call; an LLM classifier for the ambiguous
+remainder is a later fallback, not a Phase-2 dependency.
+
+`Killing` and a graceful SIGTERM (exit 143) are **not** signals — a routine
+rollout or `kubectl delete` must produce nothing. Detecting an *intentional*
+scale-to-zero as `notable` (service has no endpoints) needs an Endpoints watch
+and lands with a later phase; Phase 2 simply does not cry wolf on it.
 
 ### Incident schema (draft)
 
@@ -163,9 +174,9 @@ change` and let config decide which get investigated vs merely published.
 
 | # | Phase | Gate |
 |---|---|---|
-| 0 | Skeleton — modules in the build, this doc | compiles |
-| 1 | Walking skeleton — fabric8 informer watch on minikube → pod-state model → log sink. **No AI.** | prints correlated pod state on a live minikube |
-| 2 | Triage tier — **rules** on Event `reason`/`type`; resolve ownerRef chain; coalesce into `Incident` keyed on the top controller | one incident per broken deploy, not per event |
+| 0 | ✅ Skeleton — modules in the build, this doc | compiles |
+| 1 | ✅ Walking skeleton — fabric8 informer watch → pod-state model → log sink. **No AI.** | correlated pod state (live minikube run still pending) |
+| 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | one incident per broken deploy, not per event *(unit-verified; live run pending)* |
 | 3 | Investigation tier — `KubeTools` read-only bundle + agentic investigation → structured incident | all 4 scenarios produce a coherent incident on minikube |
 | 4 | Guardrails + budget — PII redaction on log excerpts, `TokenBudget` | secrets in logs never reach the prompt or the incident |
 | 5 | Sinks — `IncidentSink` SPI, SSE + webhook sinks; capstone HTTP routes | a browser `EventSource` receives incidents |
@@ -204,8 +215,16 @@ change` and let config decide which get investigated vs merely published.
   "no data leaves your infra" option with a larger local model. `SentinelConfig`
   does not reuse `ModelRouter`'s length heuristic — sentinel knows which task is
   which and picks explicitly.
+- **Incident resolution — best-effort, cooldown-gated (Phase 2).** An incident
+  resolves when every affected pod has recovered (a `BENIGN` snapshot) or been
+  deleted **and** `SentinelConfig.resolveAfter(Duration)` (default 2 min) has
+  elapsed since the last `ERROR`. A background sweeper in `IncidentTracker`
+  (`.start()`) does this; without it incidents only ever open/update. A timer is
+  the honest tool here — with `NO_RESYNC` there is no steady event stream to
+  hang resolution off. `NOTABLE`-only incidents skip the cooldown.
 - **Investigation trigger — first error of a kind.** First `(incident key, error
   reason)` pair triggers an investigation; repeats update counters.
+  `Incident.introducesNewReason(...)` is the hook (Phase 3).
 - **Re-investigation — update, don't re-run, unless a new error reason appears.**
   New evidence on an open incident bumps `lastSeen` / `eventCount` and appends to
   `evidence[]`. A genuinely *new* error reason on the same incident (was
