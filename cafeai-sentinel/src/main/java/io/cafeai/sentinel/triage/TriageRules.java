@@ -5,6 +5,7 @@ import io.cafeai.sentinel.watch.PodEvent;
 import io.cafeai.sentinel.watch.PodState;
 
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -53,6 +54,40 @@ public final class TriageRules {
 
     /** {@code Unhealthy} fires every probe period; wait for a few before calling it. */
     private static final int PROBE_FAIL_THRESHOLD = 3;
+
+    /**
+     * Groups reasons that describe the <em>same</em> underlying failure into one
+     * canonical family. A crash-looping container churns through {@code Error} →
+     * {@code BackOff} → {@code CrashLoopBackOff} → {@code PodFailed} as it
+     * progresses; those are one story, and an incident should investigate them
+     * once, not four times. {@code OOMKilled}, {@code ImagePullBackOff}, a config
+     * error and so on stay distinct — different causes.
+     */
+    private static final Map<String, String> FAMILY = Map.ofEntries(
+            Map.entry("Error", "CrashLoop"),
+            Map.entry("CrashLoopBackOff", "CrashLoop"),
+            Map.entry("BackOff", "CrashLoop"),
+            Map.entry("PodFailed", "CrashLoop"),
+            Map.entry("RunContainerError", "CrashLoop"),
+            Map.entry("StartError", "CrashLoop"),
+            Map.entry("ContainerCannotRun", "CrashLoop"),
+            Map.entry("OOMKilled", "OOM"),
+            Map.entry("OOMKilling", "OOM"),
+            Map.entry("ImagePullBackOff", "ImagePull"),
+            Map.entry("ErrImagePull", "ImagePull"),
+            Map.entry("ErrImageNeverPull", "ImagePull"),
+            Map.entry("InvalidImageName", "ImagePull"),
+            Map.entry("ImageInspectError", "ImagePull"),
+            Map.entry("RegistryUnavailable", "ImagePull"),
+            Map.entry("CreateContainerConfigError", "Config"),
+            Map.entry("CreateContainerError", "Config"),
+            Map.entry("FailedMount", "Storage"),
+            Map.entry("FailedAttachVolume", "Storage"));
+
+    /** The failure family a triage reason belongs to — the reason itself if it stands alone. */
+    public static String family(String reason) {
+        return FAMILY.getOrDefault(reason, reason);
+    }
 
     public TriageResult assess(PodState pod) {
         Set<String> reasons = new LinkedHashSet<>();

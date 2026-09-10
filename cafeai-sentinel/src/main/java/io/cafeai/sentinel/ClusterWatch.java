@@ -206,10 +206,15 @@ public final class ClusterWatch implements AutoCloseable {
         }
         try {
             var meta = pod.getMetadata();
+            // Resolve from the cache FIRST — on a delete the pod's ReplicaSet /
+            // Deployment may already be gone, and a fresh lookup would then
+            // mis-resolve a Deployment-owned pod to its bare ReplicaSet, so the
+            // "pod gone" signal would never reach the incident keyed on the
+            // Deployment. Evict only after we've resolved.
+            WorkloadRef workload = owners.resolve(pod);
             if (deleted) {
                 owners.evict(meta.getUid());
             }
-            WorkloadRef workload = owners.resolve(pod);
             PodStatus status = pod.getStatus();
 
             List<PodEvent> events;

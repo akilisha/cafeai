@@ -44,12 +44,17 @@ import java.util.stream.Collectors;
  *
  * <p>Triage carries severity, reasons and evidence lines. When an
  * {@link Investigator} is registered with {@link #investigator(Investigator)},
- * the tracker runs it off the informer thread on incident open (and again when a
- * new error reason appears) and folds the structured {@link Investigation} back
- * in. Evidence lines and investigation results pass through a
+ * the tracker runs it off the informer thread on incident open and again when a
+ * new failure <em>family</em> appears (see {@link TriageRules#family} — a crash
+ * loop churning {@code Error} → {@code CrashLoopBackOff} → {@code PodFailed} is
+ * one investigation, not three), and folds the structured {@link Investigation}
+ * back in. Investigation gives up on an incident after
+ * {@link #MAX_INVESTIGATION_FAILURES} consecutive failures until a new family
+ * appears. Evidence lines and investigation results pass through a
  * {@link Redactor} (on unless {@link SentinelConfig#redact(boolean)} is off);
  * investigations are gated by {@link SentinelConfig#tokenBudget(TokenBudget)}
- * and a deferred one is retried on the next sweep.
+ * and a deferred one is retried on the next sweep. {@code UPDATED} events are
+ * rate-limited by {@link SentinelConfig#updateDebounce(Duration)}.
  *
  * <p>Lifecycle events go to the handler registered with {@link #onIncident}:
  * {@code OPENED} on the first actionable signal for a workload, {@code UPDATED}
@@ -80,9 +85,13 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     static final long ESTIMATED_TOKENS_PER_INVESTIGATION = 20_000L;
     private static final long TOKEN_WINDOW_MILLIS = 60_000L;
 
+    /** Consecutive failures after which an incident's auto-investigation gives up (until a new failure family). */
+    static final int MAX_INVESTIGATION_FAILURES = 3;
+
     private final TriageRules triage;
     private final boolean investigateOnStartup;
     private final Duration resolveAfter;
+    private final Duration updateDebounce;
     private final Redactor redactor;
     private final TokenBudget tokenBudget;
     private final Clock clock;
@@ -91,6 +100,12 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     private final Map<WorkloadRef, Incident> incidents = new HashMap<>();
     /** incident ids with an investigation in flight. Guarded by {@code this}. */
     private final Set<String> investigating = new HashSet<>();
+    /** incident id -> consecutive investigation failures. Guarded by {@code this}. */
+    private final Map<String, Integer> investigationFailures = new HashMap<>();
+    /** incident id -> clock millis of its last emitted event, for the UPDATED debounce. Guarded by {@code this}. */
+    private final Map<String, Long> lastEmitMillis = new HashMap<>();
+    /** incident ids whose latest folded state has not yet been emitted. Guarded by {@code this}. */
+    private final Set<String> pendingUpdate = new HashSet<>();
 
     /** Rolling token-budget window. Guarded by {@code this}. */
     private long windowTokens;
@@ -111,6 +126,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         this.clock = Objects.requireNonNull(clock, "clock");
         this.investigateOnStartup = config.isInvestigateOnStartup();
         this.resolveAfter = config.resolveAfter();
+        this.updateDebounce = config.updateDebounce();
         this.redactor = Redactor.of(config.isRedact());
         this.tokenBudget = config.tokenBudget();
         this.windowStartMillis = clock.millis();
@@ -140,6 +156,11 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         sweeper = Executors.newSingleThreadScheduledExecutor(daemonFactory("sentinel-incident-sweeper"));
         long period = SWEEP_INTERVAL.toSeconds();
         sweeper.scheduleAtFixedRate(this::sweep, period, period, TimeUnit.SECONDS);
+
+        if (!updateDebounce.isZero()) {
+            long flushMs = Math.max(500L, updateDebounce.toMillis());
+            sweeper.scheduleAtFixedRate(this::flushPendingUpdatesLocked, flushMs, flushMs, TimeUnit.MILLISECONDS);
+        }
 
         if (investigator != null) {
             investigations = Executors.newFixedThreadPool(
@@ -177,9 +198,12 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             incidents.put(key, opened);
             emit(IncidentEvent.Type.OPENED, opened);
         } else {
+            if (current.introducesNewReason(result)) {
+                investigationFailures.remove(current.id()); // a new failure family — worth another attempt
+            }
             Incident updated = current.fold(now, result, pod.name(), evidence, MAX_EVIDENCE);
             incidents.put(key, updated);
-            emit(IncidentEvent.Type.UPDATED, updated);
+            emitUpdate(updated);
         }
         maybeInvestigate(key);
     }
@@ -219,6 +243,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         if (incident == null
                 || incident.status() != IncidentStatus.OPEN
                 || investigating.contains(incident.id())
+                || investigationFailures.getOrDefault(incident.id(), 0) >= MAX_INVESTIGATION_FAILURES
                 || !incident.needsInvestigation()) {
             return;
         }
@@ -256,14 +281,22 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         try {
             result = investigator.investigate(snapshot);
         } catch (RuntimeException ex) {
-            log.warn("investigation {} for {} failed: {}", id, key, ex.toString());
             synchronized (this) {
                 investigating.remove(id);
+                int failures = investigationFailures.merge(id, 1, Integer::sum);
+                if (failures >= MAX_INVESTIGATION_FAILURES) {
+                    log.warn("giving up investigating {} for {} after {} failures — last: {}",
+                            id, key, failures, ex.toString());
+                } else {
+                    log.warn("investigation {} for {} failed ({}/{}): {}",
+                            id, key, failures, MAX_INVESTIGATION_FAILURES, ex.toString());
+                }
             }
             return;
         }
         synchronized (this) {
             investigating.remove(id);
+            investigationFailures.remove(id);
             Incident current = incidents.get(key);
             if (result == null || current == null || !current.id().equals(id)) {
                 return;
@@ -282,10 +315,14 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
                     || Duration.between(incident.lastErrorAt(), now).compareTo(resolveAfter) >= 0;
             if (incident.affectedPods().isEmpty() && quiet) {
                 emit(IncidentEvent.Type.RESOLVED, incident.resolved(now));
+                investigating.remove(incident.id());
+                investigationFailures.remove(incident.id());
+                lastEmitMillis.remove(incident.id());
                 return true;
             }
             return false;
         });
+        flushPendingUpdates();
         // pick up any investigations that were deferred by the token budget
         for (WorkloadRef key : new ArrayList<>(incidents.keySet())) {
             maybeInvestigate(key);
@@ -293,10 +330,44 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     }
 
     private void emit(IncidentEvent.Type type, Incident incident) {
+        lastEmitMillis.put(incident.id(), clock.millis());
+        pendingUpdate.remove(incident.id());
         try {
             onIncident.accept(new IncidentEvent(type, incident));
         } catch (RuntimeException ex) {
             log.warn("incident handler threw for {} {}", type, incident.id(), ex);
+        }
+    }
+
+    /** Emit an UPDATED now if the debounce window has elapsed, else mark it pending for the next flush. */
+    private void emitUpdate(Incident incident) {
+        Long last = lastEmitMillis.get(incident.id());
+        if (last == null || clock.millis() - last >= updateDebounce.toMillis()) {
+            emit(IncidentEvent.Type.UPDATED, incident);
+        } else {
+            pendingUpdate.add(incident.id());
+        }
+    }
+
+    synchronized void flushPendingUpdatesLocked() {
+        flushPendingUpdates();
+    }
+
+    /** Emit the current state of any incident whose folded updates are still pending past the debounce window. */
+    private void flushPendingUpdates() {
+        if (pendingUpdate.isEmpty()) {
+            return;
+        }
+        long now = clock.millis();
+        for (String id : new ArrayList<>(pendingUpdate)) {
+            Incident incident = incidents.values().stream()
+                    .filter(i -> i.id().equals(id)).findFirst().orElse(null);
+            Long last = lastEmitMillis.get(id);
+            if (incident == null) {
+                pendingUpdate.remove(id);
+            } else if (last == null || now - last >= updateDebounce.toMillis()) {
+                emit(IncidentEvent.Type.UPDATED, incident);
+            }
         }
     }
 

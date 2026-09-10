@@ -18,8 +18,10 @@ the incident. Incidents fan out to the log, an optional webhook, and a live
 Server-Sent-Events stream.
 
 Needs an LLM key: `ANTHROPIC_API_KEY` (Claude) or `OPENAI_API_KEY` (GPT-4o).
-Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`, cap
-spend with `SENTINEL_TOKEN_BUDGET_PER_MIN=<n>`, and POST incidents elsewhere with
+The Anthropic default currently resolves to a **retired** model id, so with
+`ANTHROPIC_API_KEY` set you must also pass a live one:
+`SENTINEL_INVESTIGATION_MODEL=claude-sonnet-4-5-20250929` (or newer). Cap spend
+with `SENTINEL_TOKEN_BUDGET_PER_MIN=<n>` and POST incidents elsewhere with
 `SENTINEL_WEBHOOK_URL=<url>`.
 
 ### HTTP (`$SENTINEL_PORT`, default 8080)
@@ -58,6 +60,9 @@ kubectl -n demo apply -f capstones/cluster-sentinel/demo/bad-image.yaml
 
 # OOM under load — 16Mi limit, allocates more
 kubectl -n demo apply -f capstones/cluster-sentinel/demo/oom.yaml
+
+# container references a ConfigMap that doesn't exist — CreateContainerConfigError
+kubectl -n demo apply -f capstones/cluster-sentinel/demo/missing-config.yaml
 ```
 
 Expected output shape:

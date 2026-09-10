@@ -1,0 +1,25 @@
+# A container that references a ConfigMap that does not exist — the kubelet
+# cannot create the container and the pod sticks in CreateContainerConfigError.
+# The missing object's name is in the pod's events, so this exercises the
+# event-correlation path.
+#   kubectl -n demo apply -f missing-config.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: missing-config
+  labels: { app: missing-config }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: missing-config }
+  template:
+    metadata:
+      labels: { app: missing-config }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["/bin/sh", "-c", "sleep 3600"]
+          envFrom:
+            - configMapRef:
+                name: config-that-does-not-exist

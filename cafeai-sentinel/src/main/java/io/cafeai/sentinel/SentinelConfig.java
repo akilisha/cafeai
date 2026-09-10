@@ -30,6 +30,7 @@ public final class SentinelConfig {
     private String namespace = "default";
     private boolean investigateOnStartup = false;
     private Duration resolveAfter = Duration.ofMinutes(2);
+    private Duration updateDebounce = Duration.ofSeconds(3);
     private boolean redact = true;
     private TokenBudget tokenBudget = TokenBudget.unlimited();
 
@@ -84,6 +85,18 @@ public final class SentinelConfig {
     }
 
     /**
+     * Rate-limit {@code UPDATED} incident events to at most one per this window
+     * per incident — a flapping crash loop can otherwise produce an update every
+     * second. {@code OPENED} / {@code INVESTIGATED} / {@code RESOLVED} are always
+     * immediate; a trailing {@code UPDATED} with the final state is flushed on the
+     * next sweep. {@link Duration#ZERO} disables it. Defaults to 3 seconds.
+     */
+    public SentinelConfig updateDebounce(Duration updateDebounce) {
+        this.updateDebounce = Objects.requireNonNull(updateDebounce, "updateDebounce");
+        return this;
+    }
+
+    /**
      * Redact credentials and PII from cluster text (container logs, pod env
      * values, event messages) before it reaches the LLM prompt, the incident, or
      * a log line. On by default — turning it off is only sensible for a private
@@ -112,6 +125,10 @@ public final class SentinelConfig {
 
     public Duration resolveAfter() {
         return resolveAfter;
+    }
+
+    public Duration updateDebounce() {
+        return updateDebounce;
     }
 
     public boolean isRedact() {

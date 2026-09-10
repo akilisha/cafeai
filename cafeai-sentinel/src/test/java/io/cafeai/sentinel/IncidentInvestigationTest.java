@@ -146,8 +146,38 @@ class IncidentInvestigationTest {
         assertThat(tracker.openIncidents().get(0).investigation()).isNull();
 
         fake.toThrow = null;
-        tracker.accept(configError("web-1")); // a new reason retries
+        tracker.accept(configError("web-1")); // a new family retries
         awaitTrue(() -> countOf(IncidentEvent.Type.INVESTIGATED) == 1);
+    }
+
+    @Test
+    void investigationGivesUpAfterRepeatedFailures() {
+        fake.toThrow = new IllegalStateException("model down");
+
+        tracker.accept(crashing("web-1"));
+        awaitTrue(() -> fake.calls.get() == 1);
+        tracker.accept(crashing("web-2"));
+        awaitTrue(() -> fake.calls.get() == 2);
+        tracker.accept(crashing("web-3"));
+        awaitTrue(() -> fake.calls.get() == IncidentTracker.MAX_INVESTIGATION_FAILURES);
+
+        // cap reached — further signals of the same family do not retry
+        tracker.accept(crashing("web-4"));
+        assertStays(() -> fake.calls.get() == IncidentTracker.MAX_INVESTIGATION_FAILURES);
+    }
+
+    @Test
+    void relatedCrashReasonsAreOneInvestigation() {
+        // plain "Error" first (family CrashLoop)
+        ContainerState err = new ContainerState("app", false, 0, "terminated", "Error", null, 1, null);
+        tracker.accept(new PodState("demo", "web-1", "uid-web-1", WEB, "Failed",
+                false, false, List.of(err), List.of(), Instant.now()));
+        awaitTrue(() -> countOf(IncidentEvent.Type.INVESTIGATED) == 1);
+
+        // then CrashLoopBackOff — same family, must not re-investigate
+        tracker.accept(crashing("web-1"));
+        assertStays(() -> countOf(IncidentEvent.Type.INVESTIGATED) == 1);
+        assertThat(fake.calls).hasValue(1);
     }
 
     // ── fake ─────────────────────────────────────────────────────────────────

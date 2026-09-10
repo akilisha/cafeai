@@ -27,7 +27,8 @@ class IncidentTrackerTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-09T12:00:00Z"));
     private final List<IncidentEvent> events = new ArrayList<>();
     private final IncidentTracker tracker =
-            new IncidentTracker(SentinelConfig.create(), new TriageRules(), clock)
+            new IncidentTracker(SentinelConfig.create().updateDebounce(Duration.ZERO),
+                    new TriageRules(), clock)
                     .onIncident(events::add);
 
     // ── fixtures ─────────────────────────────────────────────────────────────
@@ -139,6 +140,27 @@ class IncidentTrackerTest {
         tracker.accept(healthy("web-1"));
         assertThat(events).isEmpty();
         assertThat(tracker.openIncidents()).isEmpty();
+    }
+
+    @Test
+    void updatedEventsAreDebounced() {
+        var seen = new ArrayList<IncidentEvent>();
+        var debounced = new IncidentTracker(
+                SentinelConfig.create().updateDebounce(Duration.ofSeconds(5)), new TriageRules(), clock)
+                .onIncident(seen::add);
+
+        debounced.accept(crashing("web-1", false)); // OPENED — immediate
+        debounced.accept(crashing("web-2", false)); // UPDATED within window — deferred
+        debounced.accept(crashing("web-1", false)); // still deferred
+
+        assertThat(seen).extracting(IncidentEvent::type).containsExactly(IncidentEvent.Type.OPENED);
+
+        clock.advance(Duration.ofSeconds(6));
+        debounced.sweep(); // flushes the pending update
+
+        assertThat(seen).extracting(IncidentEvent::type)
+                .containsExactly(IncidentEvent.Type.OPENED, IncidentEvent.Type.UPDATED);
+        assertThat(seen.get(1).incident().affectedPods()).containsExactlyInAnyOrder("web-1", "web-2");
     }
 
     // ── helper ───────────────────────────────────────────────────────────────

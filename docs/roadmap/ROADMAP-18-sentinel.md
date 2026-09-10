@@ -5,14 +5,12 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09):** 🟢 Phases 0–5 built and unit-tested on `main` (unpushed,
-> unpublished). `ClusterWatch` + `ClusterConnection`; `IncidentTracker` /
-> `TriageRules`; `KubeTools` + `ClusterInvestigator` + async orchestration;
-> `Redactor` + `TokenBudget`; `IncidentSink` (log / webhook / SSE) + the capstone
-> HTTP routes + a live dashboard — SSE verified end-to-end with `curl -N`. The
-> LLM path is still exercised only by fakes — a live minikube run (all 4
-> scenarios) is the outstanding gate and may shift the triage rules, the
-> KubeTools output shapes, and the resolution heuristic.
+> **Status (2026-09-10):** 🟢 Phases 0–5 built, unit-tested, and **run
+> end-to-end against live minikube** with Claude Sonnet 4.5 — 3 of the 4 demo
+> scenarios (bad-image, oom, crashloop) produced correct structured incidents;
+> the run surfaced and fixed 3 bugs (see "Fixes from the 2026-09-10 minikube
+> run"). On `main`, unpushed, unpublished. Remaining: run `missing-config`,
+> Phase 6 (OpenShift), Phase 7 (publish at 0.3.0).
 
 ---
 
@@ -183,13 +181,44 @@ change` and let config decide which get investigated vs merely published.
 | # | Phase | Gate |
 |---|---|---|
 | 0 | ✅ Skeleton — modules in the build, this doc | compiles |
-| 1 | ✅ Walking skeleton — fabric8 informer watch → pod-state model → log sink. **No AI.** | correlated pod state (live minikube run still pending) |
-| 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | one incident per broken deploy, not per event *(unit-verified; live run pending)* |
-| 3 | ✅ Investigation tier — `KubeTools` read-only bundle + `ClusterInvestigator` agent, run async on open / new reason → structured `Investigation` folded into the incident | *code done; `IncidentBrief` + orchestration fake-tested. `KubeTools` and the LLM path are verified in the live minikube run — the "all 4 scenarios" gate is open (fabric8 mock-server hangs on the JDK http backend, so no unit layer there).* |
+| 1 | ✅ Walking skeleton — fabric8 informer watch → pod-state model → log sink. **No AI.** | ✅ correlated pod state on live minikube |
+| 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | ✅ one incident per broken deploy on live minikube (crashloop 2 replicas → 1) |
+| 3 | ✅ Investigation tier — `KubeTools` read-only bundle + `ClusterInvestigator` agent, run async on open / new failure family → structured `Investigation` folded into the incident | ✅ **live minikube run 2026-09-10, Claude Sonnet 4.5** — bad-image → `[IMAGE/HIGH]`, oom → `[RESOURCES/HIGH]`, crashloop → `[APPLICATION/HIGH]` (read the previous container's logs), each with correct `relatedObjects` and actionable fixes. `missing-config` manifest added; not yet run. |
 | 4 | ✅ Guardrails + budget — `Redactor` on every KubeTools output / evidence line / investigation result; `SentinelConfig.redact()` + `.tokenBudget()`; deferred investigations retried on sweep | *secret shapes + PII scrub unit-tested; `redact` on by default* |
-| 5 | ✅ Sinks — `IncidentSink` + `LogSink` / `WebhookSink` / `SsePublisher` + `IncidentJson`; capstone HTTP routes (`/`, `/health`, `/incidents`, `/incidents/stream`) + a live dashboard | *SSE verified end-to-end with `curl -N`; sinks unit-tested* |
+| 5 | ✅ Sinks — `IncidentSink` + `LogSink` / `WebhookSink` / `SsePublisher` + `IncidentJson`; capstone HTTP routes (`/`, `/health`, `/incidents`, `/incidents/stream`) + a live dashboard | ✅ SSE + `/incidents` served real incidents from live minikube |
+| 5b | ✅ Live-run fixes — see "Fixes from the 2026-09-10 minikube run" below | ✅ all three validated live |
 | 6 | OpenShift validation — same 4 scenarios on a real dev/staging cluster | identical structured incidents |
 | 7 | Publish `cafeai-sentinel` at 0.3.0 | on Maven Central |
+
+---
+
+## Fixes from the 2026-09-10 minikube run
+
+The first live run surfaced three problems, all now fixed and unit-tested:
+
+1. **Incidents never resolved after their pods vanished.** `ClusterWatch.emit`
+   evicted the owner-resolution cache *before* resolving a deleted pod — but the
+   pod's ReplicaSet is also gone by then, so a Deployment-owned pod mis-resolved
+   to its bare `ReplicaSet/…`, and the "pod gone" signal never reached the
+   incident keyed on `Deployment/…`. The incident stayed OPEN forever and the
+   sweeper retried a doomed investigation every 30s. Fix: resolve from cache
+   first, evict after.
+2. **Investigation retried forever on a permanent failure.** A bad API key / dead
+   model looped every sweep. Fix: `IncidentTracker.MAX_INVESTIGATION_FAILURES`
+   (3) consecutive failures → give up until a new failure family appears.
+3. **Reason churn re-triggered investigation.** A crash loop walks `Error` →
+   `BackOff` → `CrashLoopBackOff` → `PodFailed`; each counted as a new reason and
+   re-ran the agent. Fix: `TriageRules.family` groups related reasons; the
+   re-investigation trigger and `Incident.introducesNewReason` compare by family.
+   (`OOMKilled` then `CrashLoopBackOff` are still two families — arguably right.)
+4. **`UPDATED` was far too chatty** (~1/sec on a flapping pod). Fix:
+   `SentinelConfig.updateDebounce` (default 3s) rate-limits `UPDATED` emits;
+   `OPENED` / `INVESTIGATED` / `RESOLVED` stay immediate, a trailing `UPDATED`
+   flushes on the debounce timer.
+
+Out of scope but noted: `cafeai-core`'s `Anthropic.claude35Sonnet()` returns a
+retired model id (`claude-3-5-sonnet-20241022` → `ModelNotFoundException`); the
+capstone works around it with `$SENTINEL_INVESTIGATION_MODEL`.
 
 ---
 
@@ -230,12 +259,14 @@ change` and let config decide which get investigated vs merely published.
   (`.start()`) does this; without it incidents only ever open/update. A timer is
   the honest tool here — with `NO_RESYNC` there is no steady event stream to
   hang resolution off. `NOTABLE`-only incidents skip the cooldown.
-- **Investigation trigger — first error of a kind.** `IncidentTracker` runs the
+- **Investigation trigger — first error of a family.** `IncidentTracker` runs the
   `Investigator` off the informer thread (a 2-worker pool) when an incident opens
-  and again whenever `Incident.needsInvestigation()` — a reason not covered by the
-  last run — is true. One investigation per incident id in flight at a time; a
-  failure is logged and isolated (incident stays OPEN, retried on the next new
-  reason). The result folds in as an `INVESTIGATED` event.
+  and again whenever `Incident.needsInvestigation()` — a failure *family*
+  (`TriageRules.family`) not covered by the last run — is true. One investigation
+  per incident id in flight at a time; a failure is logged and isolated (incident
+  stays OPEN), and after `MAX_INVESTIGATION_FAILURES` (3) consecutive failures the
+  incident is left alone until a new family appears. The result folds in as an
+  `INVESTIGATED` event.
 - **Investigation wiring — capstone owns the model + prompt.** The module ships
   the `ClusterInvestigator` interface (with a default `@SystemMessage`), the
   `KubeTools` bundle, and the `Investigation` schema. The capstone binds it as a

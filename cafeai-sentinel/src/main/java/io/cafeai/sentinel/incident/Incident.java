@@ -2,6 +2,7 @@ package io.cafeai.sentinel.incident;
 
 import io.cafeai.sentinel.investigate.Investigation;
 import io.cafeai.sentinel.triage.TriageResult;
+import io.cafeai.sentinel.triage.TriageRules;
 import io.cafeai.sentinel.triage.Verdict;
 import io.cafeai.sentinel.watch.WorkloadRef;
 
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * One coalesced cluster incident — keyed on a {@link WorkloadRef}, so the N
@@ -105,16 +107,24 @@ public record Incident(
                 investigation, investigatedReasons);
     }
 
-    /** True when {@code triage} carries a reason this incident has not seen before. */
+    /** True when {@code triage} carries a failure <em>family</em> this incident has not seen before. */
     public boolean introducesNewReason(TriageResult triage) {
-        return !reasons.containsAll(triage.reasons());
+        return !families(reasons).containsAll(families(triage.reasons()));
     }
 
-    /** True when the incident has no investigation, or one that predates a current reason. */
+    /**
+     * True when the incident has no investigation, or one that predates a current
+     * failure family — compared by {@link TriageRules#family}, so a crash loop
+     * churning {@code Error} → {@code CrashLoopBackOff} → {@code PodFailed} is
+     * investigated once, not once per reason.
+     */
     public boolean needsInvestigation() {
-        return investigatedReasons.isEmpty()
-                ? !reasons.isEmpty()
-                : !investigatedReasons.containsAll(reasons);
+        Set<String> want = families(reasons);
+        return !want.isEmpty() && !families(investigatedReasons).containsAll(want);
+    }
+
+    private static Set<String> families(Set<String> reasons) {
+        return reasons.stream().map(TriageRules::family).collect(Collectors.toUnmodifiableSet());
     }
 
     /** Attaches an investigation result, recording which reasons it covered. */
