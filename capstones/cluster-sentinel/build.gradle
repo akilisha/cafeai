@@ -1,0 +1,26 @@
+// ============================================================
+//  Capstone — cluster-sentinel
+//  Runnable AI cluster incident pipeline. Points cafeai-sentinel
+//  at a Kubernetes / OpenShift cluster, wires the prompts and the
+//  sinks, serves the incident stream over SSE, and ships the
+//  read-only RBAC manifests + the broken-manifest demo scenarios.
+//
+//  See docs/roadmap/ROADMAP-18-sentinel.md.
+// ============================================================
+
+description = 'Capstone: cluster-sentinel — cafeai-sentinel pointed at a live cluster, ' +
+    'incidents over SSE, with demo scenarios for minikube and OpenShift.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-sentinel')
+    implementation project(':cafeai-agents')
+    implementation project(':cafeai-guardrails')
+    implementation project(':cafeai-observability')
+}
+
+application {
+    mainClass = 'io.cafeai.sentinel.cluster.ClusterSentinelApp'
+}

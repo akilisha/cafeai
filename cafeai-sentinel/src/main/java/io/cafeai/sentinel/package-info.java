@@ -1,0 +1,16 @@
+/**
+ * cafeai-sentinel — AI cluster incident pipeline.
+ *
+ * <p>Watches a Kubernetes / OpenShift cluster, triages pod events (cheap, per
+ * event), runs an agentic investigation against the live cluster on confirmed
+ * failures (read-only tools, per <em>incident</em>), and emits a structured
+ * incident to a pluggable {@code IncidentSink}.
+ *
+ * <p>A pipeline, not a product: it ends at "incident published" — no dashboard,
+ * no incident store, no remediation. The runnable companion is the
+ * {@code cluster-sentinel} capstone.
+ *
+ * <p><strong>Status:</strong> ROADMAP-18 skeleton (Phase 0). The pipeline lands
+ * in Phase 1+. See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
+ */
+package io.cafeai.sentinel;

@@ -1,0 +1,32 @@
+// ============================================================
+//  cafeai-sentinel
+//  AI cluster incident pipeline.
+//
+//  Watches a Kubernetes / OpenShift cluster via fabric8 informers,
+//  triages pod events, runs an agentic investigation against the
+//  live cluster on confirmed failures (read-only tools), and emits
+//  a structured incident to a pluggable IncidentSink.
+//
+//  A pipeline, not a product — it ends at "incident published".
+//  Runnable companion: capstones/cluster-sentinel.
+//
+//  See docs/roadmap/ROADMAP-18-sentinel.md.
+// ============================================================
+
+description = 'AI cluster incident pipeline — watch a Kubernetes/OpenShift cluster, ' +
+    'triage and investigate pod failures with the cafeai AI primitives, emit a structured incident.'
+
+// NOT published yet — Maven Central opt-in lands at ROADMAP-18 Phase 7 (0.3.0),
+// gated on the OpenShift portability validation (Phase 6). Until then the module
+// is reactor-only: it keeps the framework honest without shipping an empty shell.
+// apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+
+    api project(':cafeai-core')
+    api project(':cafeai-agents')
+
+    // ROADMAP-18 P1+ — fabric8 KubernetesClient is expected to leak through
+    // ClusterWatch / KubeTools, so these will be `api`. Pinned when P1 lands.
+    // api "io.fabric8:openshift-client:${rootProject.ext.fabric8Version}"
+}

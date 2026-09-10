@@ -11,6 +11,7 @@ include(
     'cafeai-views-mustache',
     'cafeai-connect',
     'cafeai-agents',
+    'cafeai-sentinel',
     'cafeai-examples'
 )
 
@@ -21,5 +22,6 @@ include(
     'capstones:invoice-processor',
     'capstones:support-desk',
     'capstones:meridian-qualify',
-    'capstones:acme-claims'
+    'capstones:acme-claims',
+    'capstones:cluster-sentinel'
 )

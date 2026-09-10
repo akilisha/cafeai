@@ -28,6 +28,7 @@ ext {
     spymemcachedVersion     = '2.12.3'
     hikariVersion           = '5.1.0'
     postgresqlVersion       = '42.7.7'
+    fabric8Version          = '6.13.4'   // ROADMAP-18 cafeai-sentinel; pin verified when P1 lands
     junitVersion            = '5.11.2'
     assertjVersion          = '3.26.3'
     mockitoVersion          = '5.13.0'
