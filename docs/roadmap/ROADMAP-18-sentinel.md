@@ -34,7 +34,7 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | Incident model + coalescing by owner reference | ✅ | |
 | Two-tier triage → investigation orchestration | ✅ | |
 | `IncidentSink` SPI + built-in sinks (log, SSE, webhook) | ✅ | |
-| `SentinelConfig` fluent surface (`.system` / `.investigationPrompt` / `.guard` / `.model` / `.debounce` / `.sink`) | ✅ | |
+| `SentinelConfig` fluent surface (`.namespace` / `.system` / `.investigationPrompt` / `.guard` / `.investigationModel` / `.triageModel` / `.debounce` / `.sink`) | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -80,6 +80,13 @@ Triage is a stateless classifier; investigation is stateful (accumulate → debo
 → run an agent when a threshold trips). Keeping them separate controls cost — one
 bad deploy fans out dozens of `CrashLoopBackOff` events across replicas and must
 produce **one** investigation.
+
+**Triage is rules-first.** The Kubernetes Event `reason` / `type` fields carry
+most of the signal — `BackOff`, `Failed`, `Unhealthy`, `OOMKilling`,
+`FailedScheduling`, `FailedMount` → `error`; `Killing` / `ScalingReplicaSet` to
+zero → `notable`; `Pulled`, `Created`, `Started`, `Scheduled` → `benign`. A
+lookup table gets ~90% of triage with no model call. An LLM classifier is a
+later fallback for the ambiguous remainder, not a Phase-2 dependency.
 
 ### Incident schema (draft)
 
@@ -150,7 +157,7 @@ change` and let config decide which get investigated vs merely published.
 |---|---|---|
 | 0 | Skeleton — modules in the build, this doc | compiles |
 | 1 | Walking skeleton — fabric8 informer watch on minikube → pod-state model → log sink. **No AI.** | prints correlated pod state on a live minikube |
-| 2 | Triage tier — classify event/state-change; coalesce by ownerRef into `Incident` | one incident per broken deploy, not per event |
+| 2 | Triage tier — **rules** on Event `reason`/`type`; resolve ownerRef chain; coalesce into `Incident` keyed on the top controller | one incident per broken deploy, not per event |
 | 3 | Investigation tier — `KubeTools` read-only bundle + agentic investigation → structured incident | all 4 scenarios produce a coherent incident on minikube |
 | 4 | Guardrails + budget — PII redaction on log excerpts, `TokenBudget` | secrets in logs never reach the prompt or the incident |
 | 5 | Sinks — `IncidentSink` SPI, SSE + webhook sinks; capstone HTTP routes | a browser `EventSource` receives incidents |
@@ -159,25 +166,51 @@ change` and let config decide which get investigated vs merely published.
 
 ---
 
-## Open questions
+## Decisions (2026-09)
 
-- **Startup history** — on first connect, resync lists every currently-failing
-  pod. Report pre-existing failures, or only transitions after start?
-- **Incident identity** — key on the top controller in the ownerRef chain
-  (Pod → ReplicaSet → Deployment)? What about bare pods, Jobs, StatefulSets,
-  DaemonSets?
-- **Triage model** — rules-only, or a small LLM? Does cafeai-core expose a
-  "cheap model" slot distinct from the main provider?
-- **Investigation trigger** — first error of a kind, or a threshold (N events in
-  M minutes)?
-- **Re-investigation** — when new evidence arrives on an open incident, update it
-  or run a fresh investigation?
-- **Sink delivery** — fire-and-forget SSE, or buffered / at-least-once for
-  webhooks?
-- **Scope** — single namespace, a namespace list, or whole-cluster? Drives the
-  RBAC surface.
-- **Relationship to `cafeai-observability`** — sentinel produces spans; should it
-  also *consume* cluster telemetry as investigation evidence?
+- **Scope — single namespace.** `SentinelConfig.namespace(String)`. Intentional
+  blast-radius limit; RBAC is a namespaced `Role`, never a `ClusterRole`.
+- **Event source — Pod events only, for now.** Every object kind emits Events;
+  the mechanics (watch → triage → coalesce → investigate) don't change, only the
+  event shape does. StatefulSets / DaemonSets / Jobs / bare pods come on a
+  need basis, not up front.
+- **Incident identity — resolved top controller.** Walk the ownerRef chain
+  (Pod → ReplicaSet → Deployment), cache it, key the incident on the top
+  controller so N crashing replicas coalesce into one incident. Bare pod (no
+  ownerRef) → key on the pod itself.
+- **Triage model — none in v1.** Rules on the Event `reason` / `type` (see
+  Architecture). `SentinelConfig.triageModel(AiProvider)` is a later escape hatch;
+  default would be `Jlama` (a 1–3B local model is fine for *classification* — it
+  is not asked to reason about the cluster).
+- **Investigation model — the app's registered provider; frontier for the demo.**
+  Multi-step tool-use reasoning about a live cluster needs a capable model —
+  Claude / GPT-4o for the demo. `Jlama` / `Ollama` stay documented as the
+  "no data leaves your infra" option with a larger local model. `SentinelConfig`
+  does not reuse `ModelRouter`'s length heuristic — sentinel knows which task is
+  which and picks explicitly.
+- **Investigation trigger — first error of a kind.** First `(incident key, error
+  reason)` pair triggers an investigation; repeats update counters.
+- **Re-investigation — update, don't re-run, unless a new error reason appears.**
+  New evidence on an open incident bumps `lastSeen` / `eventCount` and appends to
+  `evidence[]`. A genuinely *new* error reason on the same incident (was
+  `CrashLoopBackOff`, now also `FailedScheduling`) re-runs the investigation.
+  Incident auto-resolves after a healthy cooldown → emits a `resolved` update.
+- **Sink delivery — fire-and-forget.** SSE is best-effort, no replay, no
+  persistence; a dashboard that connects late misses earlier incidents. The
+  webhook sink retries a couple of times, no queue. It's a pipeline, not
+  open-heart surgery.
+- **cafeai-observability — produce spans, do not consume telemetry.** Sentinel
+  traces its own investigation as a span. Ingesting cluster metrics/traces as
+  investigation evidence is an overreach — out of scope through Phase 7. Evidence
+  sources stay: pod spec/status, container logs, Events, owner objects.
+
+### Still open
+
+- **Startup history** — on first connect the informer LISTs every
+  currently-failing pod. **Proposed default:** log them as "pre-existing — not
+  investigated" and only act on transitions *after* start, with a
+  `.investigateOnStartup()` opt-in. Keeps demos clean (start sentinel, *then*
+  break something). Needs confirmation.
 
 ---
 
