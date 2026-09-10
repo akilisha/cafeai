@@ -3,7 +3,7 @@
 Runnable companion to **`cafeai-sentinel`** — an AI cluster incident pipeline for
 Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18-sentinel.md` for the design.
 
-## Status — ROADMAP-18 Phase 4 (triage + investigation + redaction/budget)
+## Status — ROADMAP-18 Phase 5 (full pipeline: triage → investigate → sinks)
 
 `ClusterWatch` feeds correlated pod snapshots to an `IncidentTracker`, which
 triages each one with rules (`TriageRules` — no model) and coalesces failures
@@ -14,12 +14,27 @@ read-only `KubeTools` bundle — investigates the live cluster and attaches a
 structured `Investigation` (cause category, likely cause, suggested actions,
 related objects). All cluster text (logs, env values, event messages) is
 scrubbed of credentials and PII by `Redactor` before it reaches the prompt or
-the incident. The pluggable SSE/webhook sink lands in Phase 5.
+the incident. Incidents fan out to the log, an optional webhook, and a live
+Server-Sent-Events stream.
 
 Needs an LLM key: `ANTHROPIC_API_KEY` (Claude) or `OPENAI_API_KEY` (GPT-4o).
-Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`, and
-cap spend with `SENTINEL_TOKEN_BUDGET_PER_MIN=<n>` (deferred investigations
-retry on the next sweep).
+Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`, cap
+spend with `SENTINEL_TOKEN_BUDGET_PER_MIN=<n>`, and POST incidents elsewhere with
+`SENTINEL_WEBHOOK_URL=<url>`.
+
+### HTTP (`$SENTINEL_PORT`, default 8080)
+
+| Route | |
+|---|---|
+| `GET /` | a minimal live dashboard (`EventSource` + `/incidents`) |
+| `GET /health` | `{status, namespace, openIncidents, sseClients}` |
+| `GET /incidents` | the currently open incidents as JSON |
+| `GET /incidents/stream` | Server-Sent Events, one `data:` frame per lifecycle change |
+
+```bash
+curl -N localhost:8080/incidents/stream        # tail incidents live
+open  http://localhost:8080/                    # or watch the dashboard
+```
 
 ## Run it against minikube
 
@@ -48,12 +63,12 @@ kubectl -n demo apply -f capstones/cluster-sentinel/demo/oom.yaml
 Expected output shape:
 
 ```
-17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/oom-demo — OOMKilled, CrashLoopBackOff (pods: oom-demo-7d9f-xr2k)
-17:12:04 INFO  i.c.s.cluster.ClusterSentinelApp -              oom-demo-7d9f-xr2k: worker(CrashLoopBackOff last=OOMKilled exit=137 restarts=3)
-17:12:31 WARN  i.c.s.cluster.ClusterSentinelApp - ✔ INVESTIGATED inc-3f2a9c1d Deployment/oom-demo — [RESOURCES/HIGH] worker is OOMKilled: the 16Mi memory limit is far below what it allocates under load
-17:12:31 INFO  i.c.s.cluster.ClusterSentinelApp -              cause: spec.template.spec.containers[0].resources.limits.memory = 16Mi; the process RSS reaches ~90Mi before the kill
-17:12:31 INFO  i.c.s.cluster.ClusterSentinelApp -              → raise limits.memory to at least 128Mi, or roll back to the previous image if the footprint regressed
-17:15:41 INFO  i.c.s.cluster.ClusterSentinelApp - ○ RESOLVED inc-3f2a9c1d Deployment/oom-demo — was [ERROR], 6 signals over PT3M37S
+17:12:04 WARN  i.c.sentinel.sink.LogSink - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/oom-demo — OOMKilled, CrashLoopBackOff (pods: oom-demo-7d9f-xr2k)
+17:12:04 INFO  i.c.sentinel.sink.LogSink -              oom-demo-7d9f-xr2k: worker(CrashLoopBackOff last=OOMKilled exit=137 restarts=3)
+17:12:31 WARN  i.c.sentinel.sink.LogSink - ✔ INVESTIGATED inc-3f2a9c1d Deployment/oom-demo — [RESOURCES/HIGH] worker is OOMKilled: the 16Mi memory limit is far below what it allocates under load
+17:12:31 INFO  i.c.sentinel.sink.LogSink -              cause: spec.template.spec.containers[0].resources.limits.memory = 16Mi; the process RSS reaches ~90Mi before the kill
+17:12:31 INFO  i.c.sentinel.sink.LogSink -              → raise limits.memory to at least 128Mi, or roll back to the previous image if the footprint regressed
+17:15:41 INFO  i.c.sentinel.sink.LogSink - ○ RESOLVED inc-3f2a9c1d Deployment/oom-demo — was [ERROR], 6 signals over PT3M37S
 ```
 
 Two replicas of one broken Deployment → **one** `inc-…`. Run with

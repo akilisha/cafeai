@@ -5,13 +5,14 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09):** 🟢 Phases 0–4 built and unit-tested on `main` (unpushed,
+> **Status (2026-09):** 🟢 Phases 0–5 built and unit-tested on `main` (unpushed,
 > unpublished). `ClusterWatch` + `ClusterConnection`; `IncidentTracker` /
 > `TriageRules`; `KubeTools` + `ClusterInvestigator` + async orchestration;
-> `Redactor` (secrets/PII out of cluster text) + `TokenBudget` gating. The LLM
-> path is exercised only by fakes so far — a live minikube run (all 4 scenarios)
-> is the outstanding gate and may shift the triage rules, the KubeTools output
-> shapes, and the resolution heuristic.
+> `Redactor` + `TokenBudget`; `IncidentSink` (log / webhook / SSE) + the capstone
+> HTTP routes + a live dashboard — SSE verified end-to-end with `curl -N`. The
+> LLM path is still exercised only by fakes — a live minikube run (all 4
+> scenarios) is the outstanding gate and may shift the triage rules, the
+> KubeTools output shapes, and the resolution heuristic.
 
 ---
 
@@ -45,6 +46,7 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | `KubeTools` — read-only `@Tool` bundle (getPod, getPodLogs, listEvents, describeDeployment, getReplicaSetHistory, getNodeConditions, getResourceQuota) | ✅ | |
 | `ClusterInvestigator` (agent interface) + `Investigation` / `CauseCategory` / `Confidence` + `IncidentBrief` + `Investigator` SAM | ✅ | |
 | `Redactor` — secrets/PII scrub (bearer/basic, URL creds, `key=value` secrets, AWS keys, JWTs, PEM, + `cafeai-guardrails` PII) on every KubeTools output, evidence line and investigation result | ✅ | |
+| `IncidentSink` SPI + `LogSink` / `WebhookSink` / `SsePublisher` + `IncidentJson` (stable wire shape) | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -185,7 +187,7 @@ change` and let config decide which get investigated vs merely published.
 | 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | one incident per broken deploy, not per event *(unit-verified; live run pending)* |
 | 3 | ✅ Investigation tier — `KubeTools` read-only bundle + `ClusterInvestigator` agent, run async on open / new reason → structured `Investigation` folded into the incident | *code done; `IncidentBrief` + orchestration fake-tested. `KubeTools` and the LLM path are verified in the live minikube run — the "all 4 scenarios" gate is open (fabric8 mock-server hangs on the JDK http backend, so no unit layer there).* |
 | 4 | ✅ Guardrails + budget — `Redactor` on every KubeTools output / evidence line / investigation result; `SentinelConfig.redact()` + `.tokenBudget()`; deferred investigations retried on sweep | *secret shapes + PII scrub unit-tested; `redact` on by default* |
-| 5 | Sinks — `IncidentSink` SPI, SSE + webhook sinks; capstone HTTP routes | a browser `EventSource` receives incidents |
+| 5 | ✅ Sinks — `IncidentSink` + `LogSink` / `WebhookSink` / `SsePublisher` + `IncidentJson`; capstone HTTP routes (`/`, `/health`, `/incidents`, `/incidents/stream`) + a live dashboard | *SSE verified end-to-end with `curl -N`; sinks unit-tested* |
 | 6 | OpenShift validation — same 4 scenarios on a real dev/staging cluster | identical structured incidents |
 | 7 | Publish `cafeai-sentinel` at 0.3.0 | on Maven Central |
 
@@ -265,10 +267,14 @@ change` and let config decide which get investigated vs merely published.
   `evidence[]`. A genuinely *new* error reason on the same incident (was
   `CrashLoopBackOff`, now also `FailedScheduling`) re-runs the investigation.
   Incident auto-resolves after a healthy cooldown → emits a `resolved` update.
-- **Sink delivery — fire-and-forget.** SSE is best-effort, no replay, no
-  persistence; a dashboard that connects late misses earlier incidents. The
-  webhook sink retries a couple of times, no queue. It's a pipeline, not
-  open-heart surgery.
+- **Sink delivery — fire-and-forget (built, Phase 5).** `IncidentSink` is a
+  `Consumer<IncidentEvent>`; `IncidentSink.of(...)` fans out with per-sink
+  try/catch. `publish` must not block (it runs on the emit path) — `WebhookSink`
+  hands off to its own thread (2 attempts, no queue), `SsePublisher` `offer`s
+  without blocking and drops for a slow client. `SsePublisher.stream()` goes
+  straight to CafeAI `res.stream(...)`; no replay, a late client misses history.
+  `IncidentJson` is a hand-built map, not reflection, so the wire shape is stable
+  (`workload` as `Kind/name`, ISO timestamps, tracker internals omitted).
 - **cafeai-observability — produce spans, do not consume telemetry.** Sentinel
   traces its own investigation as a span. Ingesting cluster metrics/traces as
   investigation evidence is an overreach — out of scope through Phase 7. Evidence

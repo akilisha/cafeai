@@ -10,7 +10,7 @@
  * no incident store, no remediation. The runnable companion is the
  * {@code cluster-sentinel} capstone.
  *
- * <p><strong>Status:</strong> ROADMAP-18 Phase 4. {@link io.cafeai.sentinel.ClusterWatch}
+ * <p><strong>Status:</strong> ROADMAP-18 Phase 5. {@link io.cafeai.sentinel.ClusterWatch}
  * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState};
  * {@link io.cafeai.sentinel.IncidentTracker} triages each snapshot with
  * {@link io.cafeai.sentinel.triage.TriageRules} (rules only) and coalesces
@@ -22,7 +22,11 @@
  * into the incident. Cluster text is scrubbed of secrets and PII by
  * {@link io.cafeai.sentinel.investigate.Redactor} before it reaches the prompt
  * or the incident, and investigations are gated by a
- * {@link io.cafeai.core.ai.TokenBudget}. The pluggable {@code IncidentSink} is
- * Phase 5. See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
+ * {@link io.cafeai.core.ai.TokenBudget}. Incident lifecycle events fan out to
+ * one or more {@link io.cafeai.sentinel.sink.IncidentSink}s — a
+ * {@link io.cafeai.sentinel.sink.LogSink}, a
+ * {@link io.cafeai.sentinel.sink.WebhookSink}, an
+ * {@link io.cafeai.sentinel.sink.SsePublisher} served over HTTP, or your own.
+ * See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
  */
 package io.cafeai.sentinel;

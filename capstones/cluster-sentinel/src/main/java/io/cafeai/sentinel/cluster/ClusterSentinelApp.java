@@ -10,43 +10,52 @@ import io.cafeai.sentinel.ClusterWatch;
 import io.cafeai.sentinel.IncidentTracker;
 import io.cafeai.sentinel.Investigator;
 import io.cafeai.sentinel.SentinelConfig;
-import io.cafeai.sentinel.incident.Incident;
-import io.cafeai.sentinel.incident.IncidentEvent;
 import io.cafeai.sentinel.investigate.ClusterInvestigator;
 import io.cafeai.sentinel.investigate.IncidentBrief;
 import io.cafeai.sentinel.investigate.Investigation;
 import io.cafeai.sentinel.investigate.KubeTools;
 import io.cafeai.sentinel.investigate.Redactor;
+import io.cafeai.sentinel.sink.IncidentJson;
+import io.cafeai.sentinel.sink.IncidentSink;
+import io.cafeai.sentinel.sink.LogSink;
+import io.cafeai.sentinel.sink.SsePublisher;
+import io.cafeai.sentinel.sink.WebhookSink;
 import io.cafeai.sentinel.watch.ContainerState;
 import io.cafeai.sentinel.watch.PodState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * Capstone entry point — a runnable {@link io.cafeai.sentinel} pipeline pointed
  * at a Kubernetes / OpenShift cluster.
  *
- * <p><strong>Phase 3 (ROADMAP-18):</strong> the AI is in. {@link ClusterWatch}
- * feeds correlated pod snapshots to an {@link IncidentTracker} that triages and
- * coalesces them into incidents keyed on the owning workload; on each new
- * incident (and each new error reason) a {@link ClusterInvestigator} agent —
- * a CafeAI {@code app.agent(...)} with the read-only {@link KubeTools} bundle —
- * investigates the live cluster and attaches a structured {@link Investigation}.
+ * <p><strong>Phase 5 (ROADMAP-18):</strong> {@link ClusterWatch} feeds correlated
+ * pod snapshots to an {@link IncidentTracker} that triages and coalesces them
+ * into incidents keyed on the owning workload; a {@link ClusterInvestigator}
+ * agent (a CafeAI {@code app.agent(...)} with the read-only {@link KubeTools}
+ * bundle) investigates each new incident and attaches a structured
+ * {@link Investigation}; secrets are redacted at the boundary. Incidents fan out
+ * to a {@link LogSink}, an optional {@link WebhookSink}, and an
+ * {@link SsePublisher} served over HTTP.
  *
- * <p>Namespace comes from {@code $SENTINEL_NAMESPACE}, then the first CLI arg,
- * then {@code default}.
+ * <p>Routes ({@code $SENTINEL_PORT}, default 8080):
+ * <ul>
+ *   <li>{@code GET /}                  — a minimal live dashboard</li>
+ *   <li>{@code GET /health}            — status JSON</li>
+ *   <li>{@code GET /incidents}         — the currently open incidents as JSON</li>
+ *   <li>{@code GET /incidents/stream}  — Server-Sent Events, one frame per lifecycle change</li>
+ * </ul>
  *
- * <p>Cluster connection is the ambient kubeconfig (or in-cluster config) unless
- * {@code $SENTINEL_API_SERVER} + {@code $SENTINEL_TOKEN} are set for a bearer-token
- * connection ({@code $SENTINEL_CA_CERT_FILE} for the CA, {@code $SENTINEL_INSECURE=true}
- * to skip TLS verification on dev clusters).
- *
- * <p>The investigation model is {@code $SENTINEL_INVESTIGATION_MODEL} (an
- * Anthropic model id), else Claude if {@code $ANTHROPIC_API_KEY} is set, else
- * GPT-4o if {@code $OPENAI_API_KEY} is set.
+ * <p>Environment: {@code $SENTINEL_NAMESPACE}; {@code $SENTINEL_API_SERVER} +
+ * {@code $SENTINEL_TOKEN} (+ {@code $SENTINEL_CA_CERT_FILE} /
+ * {@code $SENTINEL_INSECURE}) for a remote cluster; {@code $SENTINEL_INVESTIGATION_MODEL}
+ * / {@code $ANTHROPIC_API_KEY} / {@code $OPENAI_API_KEY} for the model;
+ * {@code $SENTINEL_TOKEN_BUDGET_PER_MIN}; {@code $SENTINEL_WEBHOOK_URL}.
  */
 public final class ClusterSentinelApp {
 
@@ -58,6 +67,7 @@ public final class ClusterSentinelApp {
     public static void main(String[] args) {
         String namespace = System.getenv().getOrDefault("SENTINEL_NAMESPACE",
                 args.length > 0 ? args[0] : "default");
+        int port = port();
 
         SentinelConfig config = SentinelConfig.create()
                 .namespace(namespace)
@@ -75,28 +85,55 @@ public final class ClusterSentinelApp {
                 app.agent("cluster-investigator", ClusterInvestigator.class, null)
                         .investigate(IncidentBrief.of(incident));
 
+        SsePublisher sse = new SsePublisher();
+        List<AutoCloseable> closeables = new ArrayList<>(List.of(watch, sse));
+
+        List<IncidentSink> sinks = new ArrayList<>(List.of(new LogSink(), sse));
+        String webhookUrl = System.getenv("SENTINEL_WEBHOOK_URL");
+        if (webhookUrl != null && !webhookUrl.isBlank()) {
+            WebhookSink webhook = new WebhookSink(webhookUrl.trim());
+            sinks.add(webhook);
+            closeables.add(webhook);
+            log.info("incidents will POST to {}", webhookUrl);
+        }
+
         IncidentTracker tracker = new IncidentTracker(config)
-                .onIncident(ClusterSentinelApp::logIncident)
+                .onIncident(IncidentSink.of(sinks.toArray(IncidentSink[]::new)))
                 .investigator(investigator)
                 .start();
+        closeables.add(tracker);
 
         watch.onPodState(state -> {
             logPodState(state);
             tracker.accept(state);
         });
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            watch.close();
-            tracker.close();
-        }, "sentinel-shutdown"));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> close(closeables), "sentinel-shutdown"));
 
         watch.start();
-        log.info("cluster-sentinel Phase 3 — triaging + investigating '{}'. Ctrl-C to stop.", namespace);
 
+        app.get("/", (req, res, next) -> res.type("text/html").send(DASHBOARD));
+        app.get("/health", (req, res, next) -> res.json(Map.of(
+                "status", "ok",
+                "namespace", namespace,
+                "openIncidents", tracker.openIncidents().size(),
+                "sseClients", sse.clientCount())));
+        app.get("/incidents", (req, res, next) ->
+                res.type("application/json").send(IncidentJson.incidents(tracker.openIncidents())));
+        app.get("/incidents/stream", (req, res, next) -> res.stream(sse.stream()));
+
+        log.info("cluster-sentinel Phase 5 — watching '{}', dashboard on http://localhost:{}", namespace, port);
+        app.listen(port);
+    }
+
+    // ── environment ──────────────────────────────────────────────────────────
+
+    private static int port() {
+        String p = System.getenv("SENTINEL_PORT");
         try {
-            Thread.currentThread().join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            return p == null || p.isBlank() ? 8080 : Integer.parseInt(p.trim());
+        } catch (NumberFormatException e) {
+            return 8080;
         }
     }
 
@@ -146,35 +183,15 @@ public final class ClusterSentinelApp {
         return Anthropic.claude35Sonnet();
     }
 
-    private static void logIncident(IncidentEvent event) {
-        Incident i = event.incident();
-        String reasons = String.join(", ", i.reasons());
-        String pods = String.join(", ", i.affectedPods());
+    // ── misc ─────────────────────────────────────────────────────────────────
 
-        switch (event.type()) {
-            case OPENED -> log.warn("● OPENED   {} [{}] {} — {} (pods: {})",
-                    i.id(), i.severity(), i.workload(), reasons, pods);
-            case UPDATED -> log.info("● updated  {} [{}] {} — {} signals; reasons: {}; pods: {}",
-                    i.id(), i.severity(), i.workload(), i.signalCount(), reasons, pods);
-            case INVESTIGATED -> {
-                Investigation inv = i.investigation();
-                log.warn("✔ INVESTIGATED {} {} — [{}/{}] {}",
-                        i.id(), i.workload(), inv.category(), inv.confidence(), inv.summary());
-                log.info("             cause: {}", inv.likelyCause());
-                for (String action : inv.suggestedActions()) {
-                    log.info("             → {}", action);
-                }
-                if (!inv.relatedObjects().isEmpty()) {
-                    log.info("             objects: {}", String.join(", ", inv.relatedObjects()));
-                }
+    private static void close(List<AutoCloseable> closeables) {
+        for (AutoCloseable c : closeables) {
+            try {
+                c.close();
+            } catch (Exception e) {
+                log.debug("close {} failed: {}", c.getClass().getSimpleName(), e.toString());
             }
-            case RESOLVED -> log.info("○ RESOLVED {} {} — was [{}], {} signals over {}",
-                    i.id(), i.workload(), i.severity(), i.signalCount(),
-                    Duration.between(i.firstSeen(), i.lastSeen()));
-        }
-        if ((event.type() == IncidentEvent.Type.OPENED || event.type() == IncidentEvent.Type.UPDATED)
-                && !i.evidence().isEmpty()) {
-            log.info("             {}", i.evidence().get(i.evidence().size() - 1));
         }
     }
 
@@ -196,4 +213,37 @@ public final class ClusterSentinelApp {
                 workload, state.name(), state.phase(),
                 trouble.isEmpty() ? "healthy" : trouble);
     }
+
+    private static final String DASHBOARD = """
+            <!doctype html><meta charset=utf-8><title>cluster-sentinel</title>
+            <style>
+              body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:60rem}
+              h1{font-size:1.1rem}
+              .i{border:1px solid #ccc;border-left-width:4px;border-radius:4px;padding:.6rem .8rem;margin:.5rem 0}
+              .ERROR{border-left-color:#c0392b} .NOTABLE{border-left-color:#e67e22}
+              .RESOLVED{opacity:.55}
+              .m{color:#666;font-size:.85rem} pre{white-space:pre-wrap;margin:.3rem 0 0}
+            </style>
+            <h1>cluster-sentinel — live incidents</h1>
+            <div id=list></div>
+            <script>
+            const list = document.getElementById('list');
+            const cards = new Map();
+            function render(inc){
+              let el = cards.get(inc.id);
+              if(!el){ el = document.createElement('div'); cards.set(inc.id, el); list.prepend(el); }
+              el.className = 'i ' + inc.severity + (inc.status === 'RESOLVED' ? ' RESOLVED' : '');
+              let h = `<b>${inc.id}</b> [${inc.severity}] ${inc.workload} — ${inc.status}`;
+              h += `<div class=m>${inc.reasons.join(', ')} · ${inc.signalCount} signals · pods: ${inc.affectedPods.join(', ')||'—'}</div>`;
+              if(inc.investigation){
+                const v = inc.investigation;
+                h += `<pre><b>${v.category}/${v.confidence}</b> ${v.summary}\\ncause: ${v.likelyCause}\\n`
+                   + v.suggestedActions.map(a=>' → '+a).join('\\n') + `</pre>`;
+              }
+              el.innerHTML = h;
+            }
+            fetch('/incidents').then(r=>r.json()).then(a=>a.forEach(render));
+            new EventSource('/incidents/stream').onmessage = e => render(JSON.parse(e.data).incident);
+            </script>
+            """;
 }
