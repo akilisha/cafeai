@@ -5,6 +5,8 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09
+
 ### Added
 - `WsSession.streamTokens(Flow.Publisher<String>)` — pipe `app.prompt(...).stream()`
   straight to a WebSocket client (one text frame per token, `[DONE]` sentinel on
