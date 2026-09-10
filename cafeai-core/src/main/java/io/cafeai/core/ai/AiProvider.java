@@ -7,9 +7,9 @@ package io.cafeai.core.ai;
  * via {@code app.ai(provider)} and swap it without changing application logic.
  *
  * <pre>{@code
- *   app.ai(OpenAI.gpt4o());
- *   app.ai(Anthropic.claude35Sonnet());
- *   app.ai(Ollama.llama3());   // local -- no data leaves your infra
+ *   app.ai(OpenAI.of("gpt-4o"));
+ *   app.ai(Anthropic.of("claude-sonnet-4-5"));
+ *   app.ai(Ollama.of("llama3.3"));   // local -- no data leaves your infra
  * }</pre>
  */
 public interface AiProvider {
@@ -24,10 +24,14 @@ public interface AiProvider {
     ProviderType type();
 
     /**
-     * Returns {@code true} if this provider supports multimodal (vision) input.
+     * Returns {@code true} if this provider may accept multimodal (vision) input.
      *
-     * <p>Providers that support vision: {@code OpenAI.gpt4o()}, {@code Ollama.llava()}.
-     * Providers that do not: {@code OpenAI.gpt4oMini()}, {@code Ollama.llama3()}.
+     * <p>CafeAI does not track per-model capabilities (model ids change), so this
+     * is a coarse hint: the {@code OpenAI.of(...)} and {@code Anthropic.of(...)}
+     * providers return {@code true} — their current chat models are broadly
+     * multimodal — and the provider's API rejects the rare exception.
+     * {@code Ollama.vision(...)} opts in explicitly; {@code Ollama.of(...)} /
+     * {@code Jlama.of(...)} return {@code false}.
      *
      * <p>Defaults to {@code false}. Override in vision-capable provider implementations.
      */
@@ -35,9 +39,8 @@ public interface AiProvider {
 
     /**
      * Returns {@code true} if this provider supports audio input via
-     * {@code app.audio()}. Providers that do: {@code OpenAI.gpt4o()},
-     * {@code OpenAI.whisper()}. Providers that do not: {@code OpenAI.gpt4oMini()},
-     * {@code Anthropic.claude35Sonnet()}, {@code Ollama.llama3()}.
+     * {@code app.audio()}. Only {@code OpenAI.whisper()} declares it; everything
+     * else returns {@code false} (audio input needs a dedicated endpoint/model).
      *
      * <p>Defaults to {@code false}. Override in audio-capable provider implementations.
      */
@@ -45,7 +48,7 @@ public interface AiProvider {
 
     /**
      * Returns {@code true} if this provider supports text-to-speech synthesis
-     * via {@code app.synthesise()}. Providers that do: {@code OpenAI.tts()}.
+     * via {@code app.synthesise()}. Only {@code OpenAI.tts()} declares it.
      *
      * <p>Defaults to {@code false}. Override in TTS-capable provider implementations.
      */

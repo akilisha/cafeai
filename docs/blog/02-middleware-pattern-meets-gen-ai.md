@@ -197,10 +197,10 @@ Suppose you need to swap providers from OpenAI to Anthropic:
 
 ```java
 // Before
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 
 // After
-app.ai(Anthropic.claude35Sonnet());
+app.ai(Anthropic.of("claude-sonnet-4-5"));
 ```
 
 One line. The routes, the guardrails, the memory strategy, the RAG pipeline — unchanged.

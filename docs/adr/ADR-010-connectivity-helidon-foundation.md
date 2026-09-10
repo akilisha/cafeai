@@ -382,7 +382,7 @@ app.helidon()
    .config().source(ConfigSources.environmentVariables());
 
 // ── CafeAI AI Layer ─────────────────────────────────────────
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 app.memory(MemoryStrategy.mapped());
 app.vectordb(PgVector.connect(config));
 app.embed(EmbeddingModel.local());

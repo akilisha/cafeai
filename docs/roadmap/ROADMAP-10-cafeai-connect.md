@@ -47,7 +47,7 @@ public interface Connection {
 ```java
 Fallback.warnAndContinue()         // default — log, keep going
 Fallback.failFast()                // abort startup if unreachable
-Fallback.use(OpenAI.gpt4o())       // activate an alternative capability
+Fallback.use(OpenAI.of("gpt-4o"))       // activate an alternative capability
 Fallback.connectInstead(other)     // try a different Connection
 Fallback.ignore()                  // silently skip
 ```
@@ -88,7 +88,7 @@ Three states — not two:
 ```java
 app.connect(Redis.at("redis:6379"));
 app.connect(Ollama.at("http://ollama:11434").model("llama3")
-    .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+    .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
 app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
     .onUnavailable(Fallback.failFast()));
 app.connect(McpEndpoint.at("http://mcp-server:3000")

@@ -171,7 +171,7 @@ app.observe(ObserveStrategy.console());  // development
 ```java
 app.connect(
     Ollama.at("http://localhost:11434").model("qwen2.5")
-          .onUnavailable(Fallback.use(OpenAI.gpt4oMini())));
+          .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
 ```
 
 ---

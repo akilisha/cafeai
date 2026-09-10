@@ -50,10 +50,10 @@ without documentation.
 
 #### Output
 ```java
-app.ai(OpenAI.gpt4o())                    // single provider
+app.ai(OpenAI.of("gpt-4o"))                    // single provider
 app.ai(ModelRouter.smart()                // cost-aware routing
-    .simple(OpenAI.gpt4oMini())
-    .complex(OpenAI.gpt4o()))
+    .simple(OpenAI.of("gpt-4o-mini"))
+    .complex(OpenAI.of("gpt-4o")))
 app.ai(Ollama.at("http://gpu-box:11434").model("llama3"))  // local
 ```
 

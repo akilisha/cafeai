@@ -166,8 +166,8 @@ public final class LangchainBridge {
                 "Set the " + envVar + " environment variable:\n\n" +
                 "  export " + envVar + "=your-key-here\n\n" +
                 "Or use a local model with no API key:\n" +
-                "  app.ai(Ollama.llama3())  // via a local Ollama server\n" +
-                "  app.ai(Jlama.tinyLlama()) // pure-Java, in-process, no server");
+                "  app.ai(Ollama.of(llama3.3))  // via a local Ollama server\n" +
+                "  app.ai(Jlama.of(tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4)) // pure-Java, in-process, no server");
         }
         return key;
     }

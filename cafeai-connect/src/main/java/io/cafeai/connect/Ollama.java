@@ -21,7 +21,7 @@ import java.time.Duration;
  *
  *   // Fall back to OpenAI if local Ollama isn't running
  *   app.connect(Ollama.at("http://localhost:11434").model("llama3")
- *       .onUnavailable(Fallback.use(io.cafeai.core.ai.OpenAI.gpt4oMini())));
+ *       .onUnavailable(Fallback.use(io.cafeai.core.ai.OpenAI.of("gpt-4o-mini"))));
  * }</pre>
  */
 public final class Ollama implements Connection {

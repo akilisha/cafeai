@@ -72,7 +72,7 @@ public class PgVectorRagExample {
     public static void main(String[] args) {
         var app = CafeAI.create();
 
-        app.ai(OpenAI.gpt4oMini());
+        app.ai(OpenAI.of("gpt-4o-mini"));
         app.system("""
             You are a helpful assistant with access to the CafeAI knowledge base.
             Answer from the provided context. Be concise. If the context does not

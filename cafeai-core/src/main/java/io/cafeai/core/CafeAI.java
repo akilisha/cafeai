@@ -30,7 +30,7 @@ import java.util.Map;
  * <pre>{@code
  *   var app = CafeAI.create();
  *
- *   app.ai(OpenAI.gpt4o());
+ *   app.ai(OpenAI.of("gpt-4o"));
  *   app.memory(MemoryStrategy.mapped());
  *   app.system("You are a helpful assistant...");
  *
@@ -48,7 +48,7 @@ import java.util.Map;
  *       @Inject UserService userService;
  *
  *       public void configure(CafeAI app) {
- *           app.ai(OpenAI.gpt4o());
+ *           app.ai(OpenAI.of("gpt-4o"));
  *           app.get("/users/:id", (req, res, next) ->
  *               res.json(userService.find(req.params("id"))));
  *           app.listen(8080);
@@ -345,9 +345,9 @@ public interface CafeAI extends Router {
      * Registers the default LLM provider. Declares: "this application is AI-powered."
      *
      * <pre>{@code
-     *   app.ai(OpenAI.gpt4o());
-     *   app.ai(Anthropic.claude35Sonnet());
-     *   app.ai(Ollama.llama3());
+     *   app.ai(OpenAI.of("gpt-4o"));
+     *   app.ai(Anthropic.of("claude-sonnet-4-5"));
+     *   app.ai(Ollama.of("llama3.3"));
      * }</pre>
      */
     CafeAI ai(AiProvider provider);
@@ -362,7 +362,7 @@ public interface CafeAI extends Router {
      * another for transcription, and a third for speech synthesis.
      *
      * <pre>{@code
-     *   app.ai("tutor",         OpenAI.gpt4o());
+     *   app.ai("tutor",         OpenAI.of("gpt-4o"));
      *   app.ai("transcription", OpenAI.whisper());
      *   app.ai("voice",         OpenAI.tts());
      *
@@ -383,8 +383,8 @@ public interface CafeAI extends Router {
      *
      * <pre>{@code
      *   app.ai(ModelRouter.smart()
-     *       .simple(OpenAI.gpt4oMini())
-     *       .complex(OpenAI.gpt4o()));
+     *       .simple(OpenAI.of("gpt-4o-mini"))
+     *       .complex(OpenAI.of("gpt-4o")));
      * }</pre>
      */
     CafeAI ai(ModelRouter router);
@@ -969,7 +969,7 @@ public interface CafeAI extends Router {
      * <pre>{@code
      *   app.connect(Redis.at("redis:6379"));
      *   app.connect(Ollama.at("http://ollama:11434").model("llama3")
-     *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+     *       .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
      *   app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
      *       .onUnavailable(Fallback.failFast()));
      *

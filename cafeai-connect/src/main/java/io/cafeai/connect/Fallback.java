@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  *
  *   // Use a different provider if Ollama isn't running locally
  *   app.connect(Ollama.at("http://ollama:11434")
- *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+ *       .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
  *
  *   // Register a fallback connection -- try Chroma if pgvector is down
  *   app.connect(PgVector.at("jdbc:...")
@@ -80,7 +80,7 @@ public interface Fallback {
      *
      * <pre>{@code
      *   app.connect(Ollama.at("http://ollama:11434").model("llama3")
-     *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+     *       .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
      *   // Ollama locally in dev, OpenAI in prod if Ollama isn't available
      * }</pre>
      *

@@ -100,8 +100,8 @@ CallSummary summary = app.audio(
 ### Acceptance Criteria
 - [ ] `supportsAudio()` default method added to `AiProvider` (returns `false`)
 - [ ] `OpenAI.whisper()` factory method added
-- [ ] `OpenAI.gpt4o()` returns `true` for `supportsAudio()`
-- [ ] `OpenAI.gpt4oMini()` returns `false` for `supportsAudio()`
+- [ ] `OpenAI.of("gpt-4o")` returns `true` for `supportsAudio()`
+- [ ] `OpenAI.of("gpt-4o-mini")` returns `false` for `supportsAudio()`
 - [ ] `CafeAIApp.executeAudio()` checks `supportsAudio()` before proceeding
 - [ ] `AudioNotSupportedException` message lists known audio-capable providers
 - [ ] New tests covering audio provider capability checks
@@ -111,7 +111,7 @@ CallSummary summary = app.audio(
 AudioNotSupportedException: The registered provider 'gpt-4o-mini' does
 not support audio input. Use an audio-capable provider:
   app.ai(OpenAI.whisper())   -- dedicated transcription model
-  app.ai(OpenAI.gpt4o())     -- multimodal (text + vision + audio)
+  app.ai(OpenAI.of("gpt-4o"))     -- multimodal (text + vision + audio)
 ```
 
 ### Notes

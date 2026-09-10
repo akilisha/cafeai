@@ -76,7 +76,7 @@ Or from the terminal:
 ### 4. Test the endpoints
 
 `HelloCafeAI` needs an LLM provider — set `OPENAI_API_KEY`, or edit the source to
-use `Ollama.llama3()` / `Jlama.qwen2()` (no key).
+use `Ollama.of("llama3.3")` / `Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4")` (no key).
 
 ```bash
 # Health check

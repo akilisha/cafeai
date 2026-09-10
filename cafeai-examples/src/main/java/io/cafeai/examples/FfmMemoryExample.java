@@ -90,7 +90,7 @@ public class FfmMemoryExample {
         var app = CafeAI.create();
 
         // ── AI Provider ───────────────────────────────────────────────────────
-        app.ai(OpenAI.gpt4oMini());
+        app.ai(OpenAI.of("gpt-4o-mini"));
 
         // ── System Prompt ─────────────────────────────────────────────────────
         app.system("""

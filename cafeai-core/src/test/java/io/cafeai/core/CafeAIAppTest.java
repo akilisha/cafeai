@@ -66,26 +66,26 @@ class CafeAIAppTest {
     // ── AI Provider Registration ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("app.ai(OpenAI.gpt4o()) registers provider — returns app for chaining")
+    @DisplayName("app.ai(OpenAI.of(gpt-4o)) registers provider — returns app for chaining")
     void ai_openAi_returnsApp() {
         var app = CafeAI.create();
-        var result = app.ai(OpenAI.gpt4o());
+        var result = app.ai(OpenAI.of("gpt-4o"));
         assertThat(result).isSameAs(app);
     }
 
     @Test
-    @DisplayName("app.ai(Anthropic.claude35Sonnet()) registers provider")
+    @DisplayName("app.ai(Anthropic.of(claude-sonnet-4-5)) registers provider")
     void ai_anthropic_registers() {
         var app = CafeAI.create();
-        assertThatCode(() -> app.ai(Anthropic.claude35Sonnet()))
+        assertThatCode(() -> app.ai(Anthropic.of("claude-sonnet-4-5")))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("app.ai(Ollama.llama3()) registers local provider")
+    @DisplayName("app.ai(Ollama.of(llama3.3)) registers local provider")
     void ai_ollama_registers() {
         var app = CafeAI.create();
-        assertThatCode(() -> app.ai(Ollama.llama3()))
+        assertThatCode(() -> app.ai(Ollama.of("llama3.3")))
                 .doesNotThrowAnyException();
     }
 
@@ -94,8 +94,8 @@ class CafeAIAppTest {
     void ai_modelRouter_registers() {
         var app = CafeAI.create();
         var router = ModelRouter.smart()
-                .simple(OpenAI.gpt4oMini())
-                .complex(OpenAI.gpt4o());
+                .simple(OpenAI.of("gpt-4o-mini"))
+                .complex(OpenAI.of("gpt-4o"));
         assertThatCode(() -> app.ai(router))
                 .doesNotThrowAnyException();
     }
@@ -111,29 +111,29 @@ class CafeAIAppTest {
     // ── Provider Factory Correctness ──────────────────────────────────────────
 
     @Test
-    @DisplayName("OpenAI.gpt4o() has correct name and modelId")
+    @DisplayName("OpenAI.of(gpt-4o) has correct name and modelId")
     void openAi_gpt4o_hasCorrectMetadata() {
-        var provider = OpenAI.gpt4o();
+        var provider = OpenAI.of("gpt-4o");
         assertThat(provider.name()).isEqualTo("openai");
         assertThat(provider.modelId()).isEqualTo("gpt-4o");
         assertThat(provider.type()).isEqualTo(AiProvider.ProviderType.OPENAI);
     }
 
     @Test
-    @DisplayName("Anthropic.claude35Sonnet() has correct name and modelId")
+    @DisplayName("Anthropic.of(claude-sonnet-4-5) has correct name and modelId")
     void anthropic_claude35_hasCorrectMetadata() {
-        var provider = Anthropic.claude35Sonnet();
+        var provider = Anthropic.of("claude-sonnet-4-5");
         assertThat(provider.name()).isEqualTo("anthropic");
-        assertThat(provider.modelId()).isEqualTo("claude-3-5-sonnet-20241022");
+        assertThat(provider.modelId()).isEqualTo("claude-sonnet-4-5");
         assertThat(provider.type()).isEqualTo(AiProvider.ProviderType.ANTHROPIC);
     }
 
     @Test
-    @DisplayName("Ollama.llama3() has correct name and type")
+    @DisplayName("Ollama.of(llama3.3) has correct name and type")
     void ollama_llama3_hasCorrectMetadata() {
-        var provider = Ollama.llama3();
+        var provider = Ollama.of("llama3.3");
         assertThat(provider.name()).isEqualTo("ollama");
-        assertThat(provider.modelId()).isEqualTo("llama3");
+        assertThat(provider.modelId()).isEqualTo("llama3.3");
         assertThat(provider.type()).isEqualTo(AiProvider.ProviderType.OLLAMA);
     }
 

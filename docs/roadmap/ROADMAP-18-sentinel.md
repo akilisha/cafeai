@@ -216,7 +216,7 @@ The first live run surfaced three problems, all now fixed and unit-tested:
    `OPENED` / `INVESTIGATED` / `RESOLVED` stay immediate, a trailing `UPDATED`
    flushes on the debounce timer.
 
-Out of scope but noted: `cafeai-core`'s `Anthropic.claude35Sonnet()` returns a
+Out of scope but noted: `cafeai-core`'s `Anthropic.of("claude-sonnet-4-5")` returns a
 retired model id (`claude-3-5-sonnet-20241022` → `ModelNotFoundException`); the
 capstone works around it with `$SENTINEL_INVESTIGATION_MODEL`.
 

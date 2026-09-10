@@ -129,7 +129,7 @@ public class InvoiceProcessor {
         var approver = new InvoiceApprover();
 
         var app = CafeAI.create();
-        app.ai(OpenAI.gpt4o());
+        app.ai(OpenAI.of("gpt-4o"));
         app.system(SYSTEM_PROMPT);
         app.guard(GuardRail.jailbreak());
         app.budget(TokenBudget.perMinute(30_000));   // OpenAI free tier

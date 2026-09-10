@@ -5,6 +5,42 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09
+
+### Changed — BREAKING
+
+- **AI provider factories take a model id; the named model constants are gone.**
+  `Anthropic.claude35Sonnet()` / `claude3Opus()` / `claude3Haiku()`,
+  `OpenAI.gpt4o()` / `gpt4oMini()` / `o1()` / `o1Mini()`,
+  `Ollama.llama3()` / `mistral()` / `phi3()` / `gemma2()` / `llava()`, and
+  `Jlama.llama3()` / `tinyLlama()` / `mistral()` / `gemma2()` / `qwen2()` are
+  removed. Model ids are provider data — they get retired — and a framework that
+  hardcodes `claude-3-5-sonnet-20241022` ships a runtime landmine. Use
+  `Anthropic.of("claude-sonnet-4-5")`, `OpenAI.of("gpt-4o")`,
+  `Ollama.of("llama3.3")`, `Jlama.of("tjake/…")`; the provider's API is the
+  source of truth for what's valid.
+  - `Ollama.llava()` → `Ollama.vision("llava")` (or `Ollama.at(url).visionModel(id)`).
+  - `OpenAI.tts()` / `OpenAI.tts(voice, format)` / `OpenAI.whisper()` stay — they
+    are dedicated non-chat endpoints with fixed models, not a model choice.
+- **`AiProvider.supportsVision()` is now a coarse hint, not per-model.**
+  `OpenAI.of(...)` and `Anthropic.of(...)` return `true` (modern chat models are
+  multimodal; the API rejects the exception). `OpenAI`'s internal `VISION_MODELS`
+  / `AUDIO_MODELS` id sets are gone. `Ollama.vision(...)` opts in; `Ollama.of(...)`
+  / `Jlama.of(...)` return `false`.
+
+### Added
+
+- **`cafeai-sentinel`** (ROADMAP-18, reactor-only — not published until it clears
+  OpenShift validation): an AI Kubernetes/OpenShift incident pipeline —
+  `ClusterWatch` (dual fabric8 informer), `ClusterConnection` (ambient / context
+  / token / basic-auth), rules-only `TriageRules`, `IncidentTracker` (coalesce by
+  workload, best-effort resolve, token-budgeted async investigation with a
+  failure cap and reason-family grouping, debounced `UPDATED`), `KubeTools`
+  (read-only `@Tool` bundle), `ClusterInvestigator` agent → structured
+  `Investigation`, `Redactor` (secrets/PII scrub), and `IncidentSink` /
+  `LogSink` / `WebhookSink` / `SsePublisher` / `IncidentJson`. Run end-to-end
+  against live minikube. Companion capstone: `capstones/cluster-sentinel`.
+
 ## [0.2.1] — 2026-09
 
 ### Added

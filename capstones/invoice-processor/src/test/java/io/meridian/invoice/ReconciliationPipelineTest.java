@@ -40,7 +40,7 @@ public class ReconciliationPipelineTest {
         var approver = new InvoiceApprover();
 
         var app = CafeAI.create();
-        app.ai(OpenAI.gpt4o());
+        app.ai(OpenAI.of("gpt-4o"));
         app.system(InvoiceProcessor.SYSTEM_PROMPT);
         app.agent("reconciler",
                 io.meridian.invoice.reconciliation.ReconciliationAgent.class)

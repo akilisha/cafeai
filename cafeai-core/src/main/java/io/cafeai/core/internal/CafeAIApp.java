@@ -670,15 +670,15 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                    "No AI provider registered. Call app.ai(OpenAI.of(gpt-4o)) at startup. " +
                             "For vision calls, use a vision-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(Ollama.vision(llava))");
         }
         if (!provider.supportsVision()) {
             throw new VisionRequest.VisionNotSupportedException(
                     "The registered provider '" + provider.modelId() + "' does not support " +
                             "vision/multimodal input. Use a vision-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(Ollama.vision(llava))");
         }
 
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
@@ -852,15 +852,15 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                    "No AI provider registered. Call app.ai(OpenAI.of(gpt-4o)) at startup. " +
                             "For vision calls, use a vision-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(Ollama.vision(llava))");
         }
         if (!provider.supportsVision()) {
             throw new VisionRequest.VisionNotSupportedException(
                     "The registered provider '" + provider.modelId() + "' does not support " +
                             "vision/multimodal input. Use a vision-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(Ollama.llava())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(Ollama.vision(llava))");
         }
 
         // -- PRE_LLM guardrails on the prompt text --------------------------
@@ -994,15 +994,15 @@ public final class CafeAIApp implements CafeAI {
             provider = modelRouter.complexModel();
         } else {
             throw new IllegalStateException(
-                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup. " +
+                    "No AI provider registered. Call app.ai(OpenAI.of(gpt-4o)) at startup. " +
                             "For audio calls, use an audio-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(OpenAI.whisper())");
         }
         if (!provider.supportsAudio()) {
             throw new AudioRequest.AudioNotSupportedException(
                     "The registered provider '" + provider.modelId() + "' does not support " +
                             "audio input. Use an audio-capable provider: " +
-                            "app.ai(OpenAI.gpt4o()) or app.ai(OpenAI.whisper())");
+                            "app.ai(OpenAI.of(gpt-4o)) or app.ai(OpenAI.whisper())");
         }
 
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
@@ -1378,7 +1378,7 @@ public final class CafeAIApp implements CafeAI {
                 throw new IllegalStateException(
                         "No provider registered with name '" + request.providerName() + "'. " +
                                 "Registered named providers: " + namedProviders.keySet() + ". " +
-                                "Call app.ai(\"" + request.providerName() + "\", OpenAI.gpt4o()) at startup.");
+                                "Call app.ai(\"" + request.providerName() + "\", OpenAI.of(gpt-4o)) at startup.");
             }
             // If the named provider is a ModelRouter, apply its routing logic
             if (named instanceof ModelRouter router) {
@@ -1388,9 +1388,9 @@ public final class CafeAIApp implements CafeAI {
         }
         if (aiProvider == null && modelRouter == null && namedProviders.isEmpty()) {
             throw new IllegalStateException(
-                    "No AI provider registered. Call app.ai(OpenAI.gpt4o()) at startup.\n\n" +
+                    "No AI provider registered. Call app.ai(OpenAI.of(gpt-4o)) at startup.\n\n" +
                             "For local models (no API key needed):\n" +
-                            "  app.ai(Ollama.llama3())");
+                            "  app.ai(Ollama.of(llama3.3))");
         }
         if (modelRouter != null) {
             // Simple heuristic: messages over 500 chars go to the complex model

@@ -158,7 +158,7 @@ the named provider registry (ROADMAP-16 Gap 1). Build after the blog series
 is drafted.
 
 **ROADMAP-16.** Three gaps surfaced by nova-tutor:
-1. Named provider registry (`app.ai("tutor", OpenAI.gpt4o())`)
+1. Named provider registry (`app.ai("tutor", OpenAI.of("gpt-4o"))`)
 2. Audio output / TTS (`AudioResponse.audioBytes()`)
 3. Streaming text to voice pipeline coordination
 

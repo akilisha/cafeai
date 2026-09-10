@@ -300,7 +300,7 @@ registered provider does not support multimodal input.
 
 **Module:** `cafeai-core` + `cafeai-connect`
 
-**The problem:** A developer registers `OpenAI.gpt4oMini()` which does
+**The problem:** A developer registers `OpenAI.of("gpt-4o-mini")` which does
 not support vision, then calls `app.vision()`. Currently this would
 produce a cryptic LangChain4j error. CafeAI should catch this early
 and explain clearly.
@@ -312,9 +312,9 @@ and explain clearly.
 boolean supportsVision();  // default: false
 
 // Override in vision-capable providers
-OpenAI.gpt4o()     → supportsVision() = true
-OpenAI.gpt4oMini() → supportsVision() = false  (no vision)
-Ollama.llama3()    → supportsVision() = false  (model-dependent)
+OpenAI.of("gpt-4o")     → supportsVision() = true
+OpenAI.of("gpt-4o-mini") → supportsVision() = false  (no vision)
+Ollama.of("llama3.3")    → supportsVision() = false  (model-dependent)
 ```
 
 If `app.vision()` is called and `provider.supportsVision()` is false,
@@ -323,21 +323,21 @@ throw `VisionNotSupportedException` with:
 ```
 VisionNotSupportedException: The registered provider 'gpt-4o-mini' does
 not support vision/multimodal input. Use a vision-capable provider:
-  app.ai(OpenAI.gpt4o())       -- OpenAI vision
+  app.ai(OpenAI.of("gpt-4o"))       -- OpenAI vision
   app.connect(Ollama.at(...).model("llava"))  -- local vision model
 ```
 
 **Tasks:**
 - [ ] Add `supportsVision()` to `AiProvider` interface (default `false`)
-- [ ] Override to `true` in `OpenAI.gpt4o()`, `OpenAI.of()` (caller's responsibility)
-- [ ] Add `Ollama.llava()` factory method as the canonical local vision model
+- [ ] Override to `true` in `OpenAI.of("gpt-4o")`, `OpenAI.of()` (caller's responsibility)
+- [ ] Add `Ollama.vision("llava")` factory method as the canonical local vision model
 - [ ] `CafeAIApp.vision()` checks `supportsVision()` before building messages
 - [ ] `VisionNotSupportedException` message lists known vision-capable providers
 
 **Acceptance criteria:**
 - [ ] Calling `app.vision()` with `gpt-4o-mini` throws with a helpful message
 - [ ] Calling `app.vision()` with `gpt-4o` proceeds correctly
-- [ ] `Ollama.llava()` is documented as the local vision option
+- [ ] `Ollama.vision("llava")` is documented as the local vision option
 
 ---
 

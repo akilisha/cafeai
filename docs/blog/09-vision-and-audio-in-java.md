@@ -132,12 +132,12 @@ Not every provider supports vision. CafeAI checks at call time:
 
 ```java
 // supportsVision() = true
-app.ai(OpenAI.gpt4o());        // gpt-4o supports vision
-app.ai(Ollama.llava());        // LLaVA is a vision model
+app.ai(OpenAI.of("gpt-4o"));        // gpt-4o supports vision
+app.ai(Ollama.vision("llava"));        // LLaVA is a vision model
 
 // supportsVision() = false — throws VisionNotSupportedException
-app.ai(OpenAI.gpt4oMini());   // gpt-4o-mini does not support vision
-app.ai(Ollama.llama3());       // llama3 is text-only
+app.ai(OpenAI.of("gpt-4o-mini"));   // gpt-4o-mini does not support vision
+app.ai(Ollama.of("llama3.3"));       // llama3 is text-only
 ```
 
 `VisionNotSupportedException` on the wrong provider is better than a cryptic 400 error from the OpenAI API. The error message names the registered provider and suggests vision-capable alternatives.
@@ -167,7 +167,7 @@ The routing is documented honestly in the code — the comment in `AudioMessageB
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4o());  // supportsAudio() = true
+app.ai(OpenAI.of("gpt-4o"));  // supportsAudio() = true
 app.guard(GuardRail.pii());  // scrubs PII from transcripts
 
 // Plain transcription

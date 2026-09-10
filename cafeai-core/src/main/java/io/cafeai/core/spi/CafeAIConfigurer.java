@@ -30,7 +30,7 @@ import io.cafeai.core.CafeAI;
  *
  *       @Override
  *       public void configure(CafeAI app) {
- *           app.ai(OpenAI.gpt4o());
+ *           app.ai(OpenAI.of("gpt-4o"));
  *           app.get("/users/:id", (req, res, next) ->
  *               res.json(userService.find(req.params("id"))));
  *       }
@@ -50,7 +50,7 @@ import io.cafeai.core.CafeAI;
  *
  *       @Override
  *       public void configure(CafeAI app) {
- *           app.ai(OpenAI.gpt4o());
+ *           app.ai(OpenAI.of("gpt-4o"));
  *           app.get("/users/:id", (req, res, next) ->
  *               res.json(userService.find(req.params("id"))));
  *       }

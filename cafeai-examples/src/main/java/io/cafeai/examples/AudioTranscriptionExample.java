@@ -48,7 +48,7 @@ import java.util.List;
  *   export OPENAI_API_KEY=sk-...
  * </pre>
  * {@code gpt-4o} is required — it is the audio-capable model routed to by
- * {@code app.audio()} when using {@code OpenAI.gpt4o()}.
+ * {@code app.audio()} when using {@code OpenAI.of("gpt-4o")}.
  *
  * <h2>Running</h2>
  * <pre>
@@ -70,7 +70,7 @@ import java.util.List;
  *
  * <h2>Whisper vs gpt-4o</h2>
  * {@code OpenAI.whisper()} is the purpose-built transcription model.
- * {@code OpenAI.gpt4o()} handles audio natively via the chat completions API.
+ * {@code OpenAI.of("gpt-4o")} handles audio natively via the chat completions API.
  * The example uses {@code gpt-4o} because it supports both transcription
  * <em>and</em> structured reasoning in a single call — no two-step pipeline needed.
  * {@code whisper()} is the right choice when you want maximum transcription
@@ -111,7 +111,7 @@ public class AudioTranscriptionExample {
 
         // gpt-4o supports audio input natively — supportsAudio() = true.
         // OpenAI.whisper() is the alternative for pure transcription workloads.
-        app.ai(OpenAI.gpt4o());
+        app.ai(OpenAI.of("gpt-4o"));
 
         app.system("""
             You are a professional transcription and analysis assistant.

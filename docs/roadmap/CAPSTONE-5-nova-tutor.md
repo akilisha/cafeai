@@ -8,7 +8,7 @@ itself (tldraw, WebSocket session loop) plus verifying the audio path end to end
 **Target module:** `capstones/nova-tutor` (umbrella build, `project(':cafeai-*')`, not published)
 
 > **2026-09 reconciliation.** This spec predates several framework releases.
-> - **Gap 1 — named provider registry:** closed. `app.ai("tutor", OpenAI.gpt4o())`,
+> - **Gap 1 — named provider registry:** closed. `app.ai("tutor", OpenAI.of("gpt-4o"))`,
 >   `app.ai("transcription", OpenAI.whisper())`, `app.ai("voice", OpenAI.tts())` and
 >   `app.prompt(...).provider("tutor")` all exist (ROADMAP-16 ✅). The three-instance
 >   workaround below is obsolete — use one app with named providers.
@@ -98,7 +98,7 @@ The agent runs a continuous loop:
 ### Framework gaps this capstone surfaces
 
 **Named provider registry.** CafeAI currently supports one registered provider
-at a time. `app.ai(OpenAI.gpt4o())` replaces whatever was registered before.
+at a time. `app.ai(OpenAI.of("gpt-4o"))` replaces whatever was registered before.
 `nova-tutor` needs three providers simultaneously — transcription, reasoning,
 and synthesis. The capstone will expose this gap cleanly, exactly as
 `atlas-inbox` exposed the multimodal gap. The fix belongs in the framework
@@ -236,7 +236,7 @@ var transcriptionApp = CafeAI.create();
 transcriptionApp.ai(OpenAI.whisper());
 
 var tutorApp = CafeAI.create();
-tutorApp.ai(OpenAI.gpt4o());
+tutorApp.ai(OpenAI.of("gpt-4o"));
 tutorApp.system(TUTOR_SYSTEM_PROMPT);
 tutorApp.memory(MemoryStrategy.redis(redisConfig));  // per-student session
 tutorApp.guard(GuardRail.topicBoundary().allow(curriculumTopics));
@@ -479,12 +479,12 @@ Uses pre-recorded WAV files as student input. Verifies:
 
 ```java
 // What nova-tutor needs
-app.ai("tutor",         OpenAI.gpt4o());
+app.ai("tutor",         OpenAI.of("gpt-4o"));
 app.ai("transcription", OpenAI.whisper());
 app.ai("voice",         OpenAI.tts());
 
 // What CafeAI currently supports
-app.ai(OpenAI.gpt4o());  // one provider, replaces previous
+app.ai(OpenAI.of("gpt-4o"));  // one provider, replaces previous
 ```
 
 The named registry is ROADMAP-16's first item. The three-instance workaround

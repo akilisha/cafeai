@@ -119,9 +119,9 @@ data:application/pdf;base64,<base64-encoded-bytes>
 
 ### Acceptance Criteria
 - [ ] `supportsVision()` added to `AiProvider` interface (default `false`)
-- [ ] `OpenAI.gpt4o()` returns `true` for `supportsVision()`
-- [ ] `OpenAI.gpt4oMini()` returns `false` for `supportsVision()`
-- [ ] `Ollama.llava()` factory method added, returns `true` for `supportsVision()`
+- [ ] `OpenAI.of("gpt-4o")` returns `true` for `supportsVision()`
+- [ ] `OpenAI.of("gpt-4o-mini")` returns `false` for `supportsVision()`
+- [ ] `Ollama.vision("llava")` factory method added, returns `true` for `supportsVision()`
 - [ ] Calling `app.vision()` with non-vision provider throws
       `VisionNotSupportedException` with helpful message
 - [ ] Exception message lists known vision-capable providers
@@ -130,7 +130,7 @@ data:application/pdf;base64,<base64-encoded-bytes>
 ```
 VisionNotSupportedException: The registered provider 'gpt-4o-mini' does
 not support vision/multimodal input. Use a vision-capable provider:
-  app.ai(OpenAI.gpt4o())
+  app.ai(OpenAI.of("gpt-4o"))
   app.connect(Ollama.at("http://localhost:11434").model("llava"))
 ```
 
@@ -228,7 +228,7 @@ MILESTONE-14 is **complete** when:
 // Everything through app.vision().
 
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4o());    // vision-capable provider
+app.ai(OpenAI.of("gpt-4o"));    // vision-capable provider
 app.guard(GuardRail.jailbreak());
 app.tool(new VendorContractLookup());
 

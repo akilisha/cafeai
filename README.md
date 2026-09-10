@@ -50,18 +50,18 @@ On Maven Central under `com.akilisha.oss`. CafeAI is modular — start with
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.2.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.3.0'
 
     // add only what you use:
-    implementation 'com.akilisha.oss:cafeai-agents:0.2.1'         // app.agent() — LangChain4j AiServices
-    implementation 'com.akilisha.oss:cafeai-memory:0.2.1'         // tiered context memory
-    implementation 'com.akilisha.oss:cafeai-rag:0.2.1'            // retrieval-augmented generation
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.2.1'     // PII, jailbreak, bias, …
-    implementation 'com.akilisha.oss:cafeai-observability:0.2.1'  // OpenTelemetry, evals
-    implementation 'com.akilisha.oss:cafeai-security:0.2.1'       // prompt injection, data leakage
-    implementation 'com.akilisha.oss:cafeai-streaming:0.2.1'      // SSE / WebSocket streaming
-    implementation 'com.akilisha.oss:cafeai-connect:0.2.1'        // Redis, Ollama, pgvector, MCP
-    implementation 'com.akilisha.oss:cafeai-views-mustache:0.2.1' // Mustache view engine
+    implementation 'com.akilisha.oss:cafeai-agents:0.3.0'         // app.agent() — LangChain4j AiServices
+    implementation 'com.akilisha.oss:cafeai-memory:0.3.0'         // tiered context memory
+    implementation 'com.akilisha.oss:cafeai-rag:0.3.0'            // retrieval-augmented generation
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.0'     // PII, jailbreak, bias, …
+    implementation 'com.akilisha.oss:cafeai-observability:0.3.0'  // OpenTelemetry, evals
+    implementation 'com.akilisha.oss:cafeai-security:0.3.0'       // prompt injection, data leakage
+    implementation 'com.akilisha.oss:cafeai-streaming:0.3.0'      // SSE / WebSocket streaming
+    implementation 'com.akilisha.oss:cafeai-connect:0.3.0'        // Redis, Ollama, pgvector, MCP
+    implementation 'com.akilisha.oss:cafeai-views-mustache:0.3.0' // Mustache view engine
 }
 ```
 
@@ -70,7 +70,7 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.2.1</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -85,7 +85,7 @@ Requires **Java 23+**. For a local `Jlama` model, also add
 var app = CafeAI.create();
 
 // Infrastructure
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 app.memory(MemoryStrategy.mapped());      // SSD-backed via Java FFM — no Redis needed
 app.observe(ObserveStrategy.otel());
 
@@ -187,15 +187,15 @@ app.listen(port)             // start the server
 
 ### AI Infrastructure
 ```java
-app.ai(OpenAI.gpt4o())                    // register LLM provider
-app.ai(Anthropic.claude35Sonnet())        // swap providers freely
-app.ai(Ollama.llama3())                   // local model via Ollama, no data leaves your infra
-app.ai(Jlama.qwen2())                     // pure-Java local model — in-process, no server
+app.ai(OpenAI.of("gpt-4o"))                    // register LLM provider
+app.ai(Anthropic.of("claude-sonnet-4-5"))        // swap providers freely
+app.ai(Ollama.of("llama3.3"))                   // local model via Ollama, no data leaves your infra
+app.ai(Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4"))                     // pure-Java local model — in-process, no server
                                           //   run with: --add-modules jdk.incubator.vector
                                           //             --enable-native-access=ALL-UNNAMED
 app.ai(ModelRouter.smart()                // smart routing — cheap vs expensive
-        .simple(OpenAI.gpt4oMini())
-        .complex(OpenAI.gpt4o()))
+        .simple(OpenAI.of("gpt-4o-mini"))
+        .complex(OpenAI.of("gpt-4o")))
 app.system("You are...")                  // system prompt — the AI's persona
 app.template("name", "{{variable}}")     // named prompt templates
 ```

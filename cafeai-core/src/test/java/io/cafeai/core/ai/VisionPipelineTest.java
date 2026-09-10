@@ -26,33 +26,34 @@ class VisionPipelineTest {
     class SupportsVision {
 
         @Test
-        @DisplayName("OpenAI.gpt4o() supports vision")
-        void gpt4o_supportsVision() {
-            assertThat(OpenAI.gpt4o().supportsVision()).isTrue();
+        @DisplayName("OpenAI providers claim vision (the API rejects the exceptions)")
+        void openai_claimsVision() {
+            assertThat(OpenAI.of("gpt-4o").supportsVision()).isTrue();
+            assertThat(OpenAI.of("gpt-4o-mini").supportsVision()).isTrue();
         }
 
         @Test
-        @DisplayName("OpenAI.gpt4oMini() does not support vision")
-        void gpt4oMini_doesNotSupportVision() {
-            assertThat(OpenAI.gpt4oMini().supportsVision()).isFalse();
+        @DisplayName("Anthropic providers claim vision")
+        void anthropic_claimsVision() {
+            assertThat(Anthropic.of("claude-sonnet-4-5").supportsVision()).isTrue();
         }
 
         @Test
-        @DisplayName("OpenAI.o1() does not support vision")
-        void o1_doesNotSupportVision() {
-            assertThat(OpenAI.o1().supportsVision()).isFalse();
+        @DisplayName("OpenAI.whisper() does not claim vision")
+        void whisper_doesNotSupportVision() {
+            assertThat(OpenAI.whisper().supportsVision()).isFalse();
         }
 
         @Test
-        @DisplayName("Ollama.llava() supports vision")
+        @DisplayName("Ollama.vision(llava) supports vision")
         void llava_supportsVision() {
-            assertThat(Ollama.llava().supportsVision()).isTrue();
+            assertThat(Ollama.vision("llava").supportsVision()).isTrue();
         }
 
         @Test
-        @DisplayName("Ollama.llama3() does not support vision")
+        @DisplayName("Ollama.of(llama3.3) does not support vision")
         void llama3_doesNotSupportVision() {
-            assertThat(Ollama.llama3().supportsVision()).isFalse();
+            assertThat(Ollama.of("llama3.3").supportsVision()).isFalse();
         }
 
         @Test
@@ -198,12 +199,12 @@ class VisionPipelineTest {
         @DisplayName("app.vision() with non-vision provider throws VisionNotSupportedException")
         void nonVisionProvider_throwsVisionNotSupportedException() {
             var app = CafeAI.create();
-            app.ai(OpenAI.gpt4oMini());  // does not support vision
+            app.ai(Ollama.of("llama3.3"));  // a text-only local model — does not claim vision
 
             assertThatThrownBy(() ->
                 app.vision("classify", new byte[]{1}, "application/pdf").call())
                 .isInstanceOf(VisionRequest.VisionNotSupportedException.class)
-                .hasMessageContaining("gpt-4o-mini")
+                .hasMessageContaining("llama3.3")
                 .hasMessageContaining("vision");
         }
 
@@ -453,7 +454,7 @@ class VisionPipelineTest {
         @DisplayName("rejects a provider that does not support vision")
         void rejectsNonVisionProvider() {
             var app = CafeAI.create();
-            app.ai(Ollama.llama3());   // no vision
+            app.ai(Ollama.of("llama3.3"));   // no vision
 
             assertThatThrownBy(() ->
                 app.vision("x", new byte[]{1}, "image/png").stream(t -> {}))

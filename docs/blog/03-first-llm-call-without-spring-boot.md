@@ -63,7 +63,7 @@ cd cafeai && ./gradlew publishToMavenLocal
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4oMini());
+app.ai(OpenAI.of("gpt-4o-mini"));
 
 var response = app.prompt("What is the capital of France?").call();
 System.out.println(response.text());  // Paris
@@ -80,7 +80,7 @@ This is the entire LLM call surface. No configuration files. No beans. No `@Auto
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4oMini());
+app.ai(OpenAI.of("gpt-4o-mini"));
 app.filter(CafeAI.json());  // parse JSON request bodies
 
 app.post("/chat", (req, res, next) -> {
@@ -236,7 +236,7 @@ The support agent uses Ollama locally — no data leaves the machine, no API cos
 ```java
 app.connect(
     Ollama.at("http://localhost:11434").model("qwen2.5")
-          .onUnavailable(Fallback.use(OpenAI.gpt4oMini())));
+          .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
 ```
 
 The developer writes the application once. It runs against a local model in development and falls back to cloud in environments where Ollama is not available. No environment-specific code, no feature flags.
@@ -253,7 +253,7 @@ public class SupportAgent {
         // Provider with local fallback
         app.connect(
             Ollama.at("http://localhost:11434").model("qwen2.5")
-                  .onUnavailable(Fallback.use(OpenAI.gpt4oMini())));
+                  .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
 
         // Persona
         app.system(SYSTEM_PROMPT);

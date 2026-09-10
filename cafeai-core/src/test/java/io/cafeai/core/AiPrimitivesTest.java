@@ -23,18 +23,18 @@ class AiPrimitivesTest {
     // ── Phase 1: Provider Registration ───────────────────────────────────────
 
     @Test
-    @DisplayName("OpenAI.gpt4o() has correct metadata")
+    @DisplayName("OpenAI.of(gpt-4o) has correct metadata")
     void openAi_gpt4o_metadata() {
-        var p = OpenAI.gpt4o();
+        var p = OpenAI.of("gpt-4o");
         assertThat(p.name()).isEqualTo("openai");
         assertThat(p.modelId()).isEqualTo("gpt-4o");
         assertThat(p.type()).isEqualTo(AiProvider.ProviderType.OPENAI);
     }
 
     @Test
-    @DisplayName("OpenAI.gpt4oMini() has correct metadata")
+    @DisplayName("OpenAI.of(gpt-4o-mini) has correct metadata")
     void openAi_gpt4oMini_metadata() {
-        var p = OpenAI.gpt4oMini();
+        var p = OpenAI.of("gpt-4o-mini");
         assertThat(p.modelId()).isEqualTo("gpt-4o-mini");
         assertThat(p.type()).isEqualTo(AiProvider.ProviderType.OPENAI);
     }
@@ -48,20 +48,20 @@ class AiPrimitivesTest {
     }
 
     @Test
-    @DisplayName("Anthropic.claude35Sonnet() has correct metadata")
+    @DisplayName("Anthropic.of(claude-sonnet-4-5) has correct metadata")
     void anthropic_claude35Sonnet_metadata() {
-        var p = Anthropic.claude35Sonnet();
+        var p = Anthropic.of("claude-sonnet-4-5");
         assertThat(p.name()).isEqualTo("anthropic");
-        assertThat(p.modelId()).isEqualTo("claude-3-5-sonnet-20241022");
+        assertThat(p.modelId()).isEqualTo("claude-sonnet-4-5");
         assertThat(p.type()).isEqualTo(AiProvider.ProviderType.ANTHROPIC);
     }
 
     @Test
-    @DisplayName("Ollama.llama3() uses localhost:11434 by default")
+    @DisplayName("Ollama.of(llama3.3) uses localhost:11434 by default")
     void ollama_llama3_defaultUrl() {
-        var p = Ollama.llama3();
+        var p = Ollama.of("llama3.3");
         assertThat(p.name()).isEqualTo("ollama");
-        assertThat(p.modelId()).isEqualTo("llama3");
+        assertThat(p.modelId()).isEqualTo("llama3.3");
         assertThat(p.type()).isEqualTo(AiProvider.ProviderType.OLLAMA);
     }
 
@@ -74,9 +74,9 @@ class AiPrimitivesTest {
     }
 
     @Test
-    @DisplayName("Jlama.llama3() has correct metadata")
+    @DisplayName("Jlama.of(tjake/Llama-3.2-1B-Instruct-JQ4) has correct metadata")
     void jlama_llama3_metadata() {
-        var p = Jlama.llama3();
+        var p = Jlama.of("tjake/Llama-3.2-1B-Instruct-JQ4");
         assertThat(p.name()).isEqualTo("jlama");
         assertThat(p.modelId()).isEqualTo("tjake/Llama-3.2-1B-Instruct-JQ4");
         assertThat(p.type()).isEqualTo(AiProvider.ProviderType.JLAMA);
@@ -103,8 +103,8 @@ class AiPrimitivesTest {
     @DisplayName("ModelRouter.smart() stores simple and complex providers")
     void modelRouter_storesProviders() {
         var router = ModelRouter.smart()
-            .simple(OpenAI.gpt4oMini())
-            .complex(OpenAI.gpt4o());
+            .simple(OpenAI.of("gpt-4o-mini"))
+            .complex(OpenAI.of("gpt-4o"));
         assertThat(router.simpleModel().modelId()).isEqualTo("gpt-4o-mini");
         assertThat(router.complexModel().modelId()).isEqualTo("gpt-4o");
     }

@@ -81,7 +81,7 @@ public class SentimentAnalysisTest {
 
     public static void main(String[] args) throws Exception {
         var app = CafeAI.create();
-        app.ai(OpenAI.gpt4o());
+        app.ai(OpenAI.of("gpt-4o"));
         app.system(InvoiceProcessor.SYSTEM_PROMPT);
 
         var analyzer = new EmailSentimentAnalyzer(app);

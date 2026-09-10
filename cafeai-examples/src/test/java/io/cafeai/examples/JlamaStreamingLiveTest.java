@@ -29,7 +29,7 @@ class JlamaStreamingLiveTest {
     @Disabled("pulls a ~400 MB model; run manually")
     void streamsTokensFromRealJlamaModel() throws Exception {
         var app = CafeAI.create();
-        app.ai(Jlama.qwen2());   // ~0.5B params
+        app.ai(Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4"));   // ~0.5B params
 
         var assembled = new StringBuilder();
         var error     = new AtomicReference<Throwable>();

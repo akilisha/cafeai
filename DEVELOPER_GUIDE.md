@@ -1,6 +1,6 @@
 # CafeAI Developer Guide
 
-**Version:** 0.2.1  
+**Version:** 0.3.0  
 **Java:** 23+  
 **Runtime:** Helidon SE 4.4  
 **Last updated:** September 2026
@@ -16,14 +16,14 @@ CafeAI is on Maven Central under `com.akilisha.oss`. It is modular — pull
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.2.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.3.0'
     // cafeai-agents · cafeai-memory · cafeai-rag · cafeai-guardrails · cafeai-observability
     // cafeai-security · cafeai-streaming · cafeai-connect · cafeai-views-mustache
 }
 ```
 
 Requires **Java 23+**. Snippets throughout this guide use `com.akilisha.oss:cafeai-*`
-without a version — pin them to `0.2.1` (or import a version catalog).
+without a version — pin them to `0.3.0` (or import a version catalog).
 
 ---
 
@@ -662,24 +662,32 @@ The first thing you do in any AI-powered CafeAI application:
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 ```
 
 That's it. One line. You've declared "this application speaks to GPT-4o." All subsequent
 `app.prompt()` calls in any handler, anywhere in your application, will use this provider.
+
+**You pass the model id — CafeAI ships no named model constants.** Provider model ids
+change and get retired; a framework that hardcoded `Anthropic.claude35Sonnet()` would be
+shipping a landmine that fails at runtime the day that snapshot is pulled. Instead you name
+a current id (`OpenAI.of("gpt-4o")`, `Anthropic.of("claude-sonnet-4-5")`), and the
+provider's API is the source of truth — a wrong id comes back as a clean "model not found"
+from the provider. The exceptions are the dedicated non-chat endpoints, which stay named:
+`OpenAI.tts()`, `OpenAI.whisper()`.
 
 **Switching providers requires zero application code changes.** You change one line at startup
 and every prompt in your app automatically uses the new model:
 
 ```java
 // Development — local, free, no data leaves your machine
-app.ai(Ollama.llama3());
+app.ai(Ollama.of("llama3.3"));
 
 // Production — OpenAI
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 
 // Production — Anthropic
-app.ai(Anthropic.claude35Sonnet());
+app.ai(Anthropic.of("claude-sonnet-4-5"));
 ```
 
 **Cost-aware routing** with `ModelRouter` lets you automatically send simple queries to a
@@ -687,8 +695,8 @@ cheaper model and complex queries to a more capable one:
 
 ```java
 app.ai(ModelRouter.smart()
-    .simple(OpenAI.gpt4oMini())    // fast + cheap — classification, short answers
-    .complex(OpenAI.gpt4o()));     // powerful — reasoning, long context, tool use
+    .simple(OpenAI.of("gpt-4o-mini"))    // fast + cheap — classification, short answers
+    .complex(OpenAI.of("gpt-4o")));     // powerful — reasoning, long context, tool use
 ```
 
 The router currently uses message length as a heuristic. A message under 500 characters goes
@@ -955,8 +963,8 @@ var app = CafeAI.create();
 
 // ── Provider — cost-aware routing ────────────────────────────────────────────
 app.ai(ModelRouter.smart()
-    .simple(OpenAI.gpt4oMini())    // classification, simple queries
-    .complex(OpenAI.gpt4o()));     // chat, reasoning, complex analysis
+    .simple(OpenAI.of("gpt-4o-mini"))    // classification, simple queries
+    .complex(OpenAI.of("gpt-4o")));     // chat, reasoning, complex analysis
 
 // ── System Prompt — the AI's persona ─────────────────────────────────────────
 app.system("""
@@ -1681,7 +1689,7 @@ app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai")
 
 // Use OpenAI if local Ollama isn't running
 app.connect(Ollama.at("http://localhost:11434").model("llama3")
-    .onUnavailable(Fallback.use(OpenAI.gpt4oMini())));
+    .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
 
 // Try another Redis instance if primary is down
 app.connect(Redis.at("redis-primary:6379")
@@ -2301,7 +2309,7 @@ When `app.observe(ObserveStrategy.otel())` is also active, eval scores are attac
 var app = CafeAI.create();
 
 // AI infrastructure
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 app.vectordb(VectorStore.inMemory());
 app.embed(EmbeddingModel.local());
 app.rag(Retriever.semantic(5));

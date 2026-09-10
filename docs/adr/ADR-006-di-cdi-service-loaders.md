@@ -117,7 +117,7 @@ public static void main(String[] args) {
     var orderService = new OrderService(new JdbcOrderRepo(dataSource));
 
     var app = CafeAI.create();
-    app.ai(OpenAI.gpt4o());
+    app.ai(OpenAI.of("gpt-4o"));
     app.post("/chat", (req, res) -> res.stream(app.prompt(req.body("message"))));
     app.listen(8080);
 }
@@ -140,7 +140,7 @@ public class AppConfig implements CafeAIConfigurer {
 
     @Override
     public void configure(CafeAI app) {
-        app.ai(OpenAI.gpt4o());
+        app.ai(OpenAI.of("gpt-4o"));
         app.memory(MemoryStrategy.mapped());
         app.guard(GuardRail.pii());
 

@@ -280,7 +280,7 @@ default boolean supportsAudio() { return false; }
 
 // OpenAI — whisper-1 supports audio
 // gpt-4o also supports audio input (as of late 2024)
-OpenAI.gpt4o()     → supportsAudio() = true
+OpenAI.of("gpt-4o")     → supportsAudio() = true
 OpenAI.whisper()   → new factory method, purpose-built for transcription
 
 // Anthropic — no audio support yet
@@ -312,19 +312,19 @@ public static AiProvider whisper() {
 AudioNotSupportedException: The registered provider 'claude-3-5-sonnet'
 does not support audio input. Use an audio-capable provider:
   app.ai(OpenAI.whisper())      -- dedicated transcription
-  app.ai(OpenAI.gpt4o())        -- multimodal (text + vision + audio)
+  app.ai(OpenAI.of("gpt-4o"))        -- multimodal (text + vision + audio)
 ```
 
 **Tasks:**
 - [ ] Add `supportsAudio()` default to `AiProvider` (returns `false`)
 - [ ] Add `OpenAI.whisper()` factory with `OpenAiAudioProvider` record
-- [ ] `OpenAI.gpt4o()` overrides `supportsAudio()` to return `true`
+- [ ] `OpenAI.of("gpt-4o")` overrides `supportsAudio()` to return `true`
 - [ ] `CafeAIApp.executeAudio()` checks `supportsAudio()` before proceeding
 - [ ] Error message lists known audio-capable providers
 
 **Acceptance criteria:**
 - [ ] `OpenAI.whisper().supportsAudio()` returns `true`
-- [ ] `OpenAI.gpt4oMini().supportsAudio()` returns `false`
+- [ ] `OpenAI.of("gpt-4o-mini").supportsAudio()` returns `false`
 - [ ] Calling `app.audio()` with an unsupported provider throws
       `AudioNotSupportedException` with a helpful message
 - [ ] New tests in `VisionPipelineTest` (or new `AudioPipelineTest`):
@@ -344,7 +344,7 @@ real-world audio use case.
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.whisper());             // or OpenAI.gpt4o() for multimodal
+app.ai(OpenAI.whisper());             // or OpenAI.of("gpt-4o") for multimodal
 app.system("You are a transcription assistant...");
 app.guard(GuardRail.pii());           // scrub PII from transcripts
 app.observe(ObserveStrategy.console());

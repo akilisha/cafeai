@@ -284,9 +284,9 @@ class NamedProviderTest {
         }
 
         @Test
-        @DisplayName("OpenAI.gpt4o() supportsTts() returns false")
+        @DisplayName("OpenAI.of(gpt-4o) supportsTts() returns false")
         void gpt4o_doesNotSupportTts() {
-            assertThat(OpenAI.gpt4o().supportsTts()).isFalse();
+            assertThat(OpenAI.of("gpt-4o").supportsTts()).isFalse();
         }
 
         @Test

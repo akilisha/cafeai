@@ -184,12 +184,12 @@ app.listen(port, onStart)       // start with startup callback
 ### 3.2 AI Infrastructure Primitives
 
 ```java
-app.ai(OpenAI.gpt4o())                     // register LLM provider
-app.ai(Anthropic.claude35Sonnet())         // swap providers freely — zero app changes
-app.ai(Ollama.llama3())                    // local model — no data leaves your infra
+app.ai(OpenAI.of("gpt-4o"))                     // register LLM provider
+app.ai(Anthropic.of("claude-sonnet-4-5"))         // swap providers freely — zero app changes
+app.ai(Ollama.of("llama3.3"))                    // local model — no data leaves your infra
 app.ai(ModelRouter.smart()                 // smart routing: cheap vs expensive
-        .simple(OpenAI.gpt4oMini())
-        .complex(OpenAI.gpt4o()))
+        .simple(OpenAI.of("gpt-4o-mini"))
+        .complex(OpenAI.of("gpt-4o")))
 
 app.system("You are...")                   // system prompt — AI persona and rules
 app.template("name", "Hello {{user}}")    // named, reusable prompt templates
@@ -274,7 +274,7 @@ app.post("/support", (req, res, next) -> {
 
 ```java
 app.connect(Ollama.at("http://localhost:11434").model("qwen2.5")
-              .onUnavailable(Fallback.use(OpenAI.gpt4oMini())))
+              .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))))
 app.connect(Redis.at("localhost:6379"))
 app.connect(PgVector.at(jdbcUrl))
 app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — external MCP server;

@@ -168,19 +168,32 @@ public final class ClusterSentinelApp {
         }
     }
 
+    /**
+     * The investigation model, from {@code $SENTINEL_INVESTIGATION_MODEL} — a
+     * provider-specific model id (e.g. {@code claude-sonnet-4-5-20250929} or
+     * {@code gpt-4o}). The provider is chosen from whichever key is set:
+     * {@code $ANTHROPIC_API_KEY} → Anthropic, else {@code $OPENAI_API_KEY} → OpenAI.
+     * There is no default model — ids change and get retired, so you name one.
+     */
     private static AiProvider investigationProvider() {
         String model = System.getenv("SENTINEL_INVESTIGATION_MODEL");
-        if (model != null && !model.isBlank()) {
+        boolean anthropic = System.getenv("ANTHROPIC_API_KEY") != null;
+        boolean openai = System.getenv("OPENAI_API_KEY") != null;
+
+        if (model == null || model.isBlank()) {
+            throw new IllegalStateException(
+                    "Set $SENTINEL_INVESTIGATION_MODEL to a current model id "
+                            + "(e.g. 'claude-sonnet-4-5-20250929' with $ANTHROPIC_API_KEY, "
+                            + "or 'gpt-4o' with $OPENAI_API_KEY).");
+        }
+        if (anthropic) {
             return Anthropic.of(model.trim());
         }
-        if (System.getenv("ANTHROPIC_API_KEY") != null) {
-            return Anthropic.claude35Sonnet();
+        if (openai) {
+            return OpenAI.of(model.trim());
         }
-        if (System.getenv("OPENAI_API_KEY") != null) {
-            return OpenAI.gpt4o();
-        }
-        log.warn("no ANTHROPIC_API_KEY or OPENAI_API_KEY set — investigations will fail until one is");
-        return Anthropic.claude35Sonnet();
+        throw new IllegalStateException(
+                "Set $ANTHROPIC_API_KEY or $OPENAI_API_KEY for the investigation model.");
     }
 
     // ── misc ─────────────────────────────────────────────────────────────────

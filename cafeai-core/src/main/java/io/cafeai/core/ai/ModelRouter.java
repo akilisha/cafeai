@@ -8,8 +8,8 @@ package io.cafeai.core.ai;
  *
  * <pre>{@code
  *   app.ai(ModelRouter.smart()
- *       .simple(OpenAI.gpt4oMini())
- *       .complex(OpenAI.gpt4o()));
+ *       .simple(OpenAI.of("gpt-4o-mini"))
+ *       .complex(OpenAI.of("gpt-4o")));
  * }</pre>
  */
 public final class ModelRouter implements AiProvider {

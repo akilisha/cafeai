@@ -38,7 +38,7 @@ vision, atlas-inbox streaming classification).
 
 ### Named provider registry
 ```java
-app.ai("tutor",         OpenAI.gpt4o());
+app.ai("tutor",         OpenAI.of("gpt-4o"));
 app.ai("transcription", OpenAI.whisper());
 app.ai("voice",         OpenAI.tts());
 
@@ -83,8 +83,8 @@ if (r.hasSpeech()) {
 ### ModelRouter as named provider
 ```java
 app.ai("router", ModelRouter.smart()
-    .simple(OpenAI.gpt4oMini())
-    .complex(OpenAI.gpt4o()));
+    .simple(OpenAI.of("gpt-4o-mini"))
+    .complex(OpenAI.of("gpt-4o")));
 
 app.prompt(msg).provider("router").call(); // routes by complexity
 ```

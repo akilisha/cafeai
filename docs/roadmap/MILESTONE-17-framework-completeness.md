@@ -197,7 +197,7 @@ MILESTONE-17 is **complete** when:
 var app = CafeAI.create();
 
 // Three named providers
-app.ai("tutor",         OpenAI.gpt4o());
+app.ai("tutor",         OpenAI.of("gpt-4o"));
 app.ai("transcription", OpenAI.whisper());
 app.ai("voice",         OpenAI.tts());
 

@@ -5,14 +5,14 @@ import io.cafeai.core.internal.LangchainBridge;
 /**
  * Factory for Ollama local model providers.
  *
- * <p>Ollama runs models entirely on-prem. No data leaves your infrastructure.
- * Critical for enterprise Java shops with data sovereignty requirements.
+ * <p>Ollama runs models entirely on-prem — no data leaves your infrastructure.
+ * Model names are whatever you have {@code ollama pull}ed, so CafeAI takes them
+ * as strings rather than shipping named constants.
  *
  * <pre>{@code
- *   app.ai(Ollama.llama3());
- *   app.ai(Ollama.mistral());
- *   app.ai(Ollama.of("my-fine-tuned-model"));
- *   app.ai(Ollama.at("http://gpu-server:11434").model("llama3"));
+ *   app.ai(Ollama.of("llama3.3"));
+ *   app.ai(Ollama.vision("llava"));                          // a multimodal model
+ *   app.ai(Ollama.at("http://gpu-server:11434").model("mistral"));
  * }</pre>
  */
 public final class Ollama {
@@ -21,30 +21,21 @@ public final class Ollama {
 
     private Ollama() {}
 
-    public static AiProvider llama3()   { return of("llama3"); }
-
-    /**
-     * LLaVA — the canonical local vision model.
-     * Supports image input. Pull with: {@code ollama pull llava}
-     *
-     * <pre>{@code
-     *   app.ai(Ollama.llava());
-     *   VisionResponse r = app.vision("Describe this image.", bytes, "image/jpeg").call();
-     * }</pre>
-     */
-    public static AiProvider llava() {
-        return new OllamaVisionProvider("llava", DEFAULT_BASE_URL);
-    }
-    public static AiProvider mistral()  { return of("mistral"); }
-    public static AiProvider phi3()     { return of("phi3"); }
-    public static AiProvider gemma2()   { return of("gemma2"); }
-
-    /** Any Ollama model by its model name. Uses localhost:11434. */
+    /** An Ollama provider for {@code modelId} on {@code localhost:11434}. */
     public static AiProvider of(String modelId) {
         return new OllamaProvider(modelId, DEFAULT_BASE_URL);
     }
 
-    /** Creates a builder targeting a remote Ollama instance. */
+    /**
+     * A multimodal Ollama provider on {@code localhost:11434} — declares vision
+     * support so {@code app.vision(...)} accepts it. Use for {@code llava} and
+     * other image-capable models.
+     */
+    public static AiProvider vision(String modelId) {
+        return new OllamaVisionProvider(modelId, DEFAULT_BASE_URL);
+    }
+
+    /** A builder targeting a remote Ollama instance. */
     public static OllamaBuilder at(String baseUrl) {
         return new OllamaBuilder(baseUrl);
     }
@@ -52,6 +43,11 @@ public final class Ollama {
     public record OllamaBuilder(String baseUrl) {
         public AiProvider model(String modelId) {
             return new OllamaProvider(modelId, baseUrl);
+        }
+
+        /** A multimodal model on this remote instance. */
+        public AiProvider visionModel(String modelId) {
+            return new OllamaVisionProvider(modelId, baseUrl);
         }
     }
 

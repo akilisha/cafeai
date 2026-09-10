@@ -3,27 +3,30 @@ package io.cafeai.core.ai;
 /**
  * Factory for Anthropic Claude LLM providers.
  *
+ * <p>Model ids are provider data — they change and get retired — so CafeAI does
+ * not ship named constants for them. Pass the id you want; Anthropic's API is the
+ * source of truth for what is valid, and a wrong id surfaces as a clean
+ * "model not found" from the provider rather than a stale default that fails in
+ * production.
+ *
  * <pre>{@code
- *   app.ai(Anthropic.claude35Sonnet());
- *   app.ai(Anthropic.claude3Haiku());  // fast, cost-efficient
- *   app.ai(Anthropic.claude3Opus());   // most capable
+ *   app.ai(Anthropic.of("claude-sonnet-4-5"));
+ *   app.ai(Anthropic.of("claude-opus-4-1"));   // whatever your account has access to
  * }</pre>
  */
 public final class Anthropic {
 
     private Anthropic() {}
 
-    public static AiProvider claude35Sonnet() { return of("claude-3-5-sonnet-20241022"); }
-    public static AiProvider claude3Opus()    { return of("claude-3-opus-20240229"); }
-    public static AiProvider claude3Haiku()   { return of("claude-3-haiku-20240307"); }
-
-    /** Any Anthropic model by its model ID string. */
+    /** An Anthropic provider for the given model id (e.g. {@code "claude-sonnet-4-5"}). */
     public static AiProvider of(String modelId) {
         return new AnthropicProvider(modelId);
     }
 
     private record AnthropicProvider(String modelId) implements AiProvider {
-        @Override public String name()       { return "anthropic"; }
-        @Override public ProviderType type() { return ProviderType.ANTHROPIC; }
+        @Override public String       name()          { return "anthropic"; }
+        @Override public ProviderType type()          { return ProviderType.ANTHROPIC; }
+        // Every Claude 3 model and later is multimodal; let the API reject the rare exception.
+        @Override public boolean      supportsVision() { return true; }
     }
 }

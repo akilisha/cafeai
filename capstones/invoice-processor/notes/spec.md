@@ -200,7 +200,7 @@ thing and is testable in isolation before the AI layer touches it.
 ---
 
 ### Phase 4 — OpenAI Provider + System Prompt
-Wire up `app.ai(OpenAI.gpt4o())` using the `OPENAI_API_KEY` environment variable.
+Wire up `app.ai(OpenAI.of("gpt-4o"))` using the `OPENAI_API_KEY` environment variable.
 Write the AP system prompt — Meridian's identity, professional tone, what the
 assistant is and is not authorised to decide.
 Confirm the model responds in the correct persona with a simple test call.

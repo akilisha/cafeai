@@ -29,7 +29,7 @@ import io.cafeai.core.CafeAI;
  *
  *   // With fallback policy
  *   app.connect(Ollama.at("http://ollama:11434")
- *       .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+ *       .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
  *
  *   // Environment-driven -- reads CAFEAI_* variables
  *   app.connect(Connect.fromEnv());

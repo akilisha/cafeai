@@ -31,7 +31,7 @@ The combination is not accidental. It produces a framework that three different 
 ```java
 var app = CafeAI.create();
 
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 app.memory(MemoryStrategy.mapped());
 app.guard(GuardRail.pii());
 app.system("You are a helpful customer service agent for Acme Corp.");
@@ -183,7 +183,7 @@ And the smallest possible CafeAI application:
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 
 var response = app.prompt("What is the capital of France?").call();
 System.out.println(response.text());  // Paris

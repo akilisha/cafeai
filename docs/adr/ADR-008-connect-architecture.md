@@ -76,7 +76,7 @@ A `Connection` carries its own degradation policy:
 ```java
 Fallback.warnAndContinue()         // log warning, start anyway (default)
 Fallback.failFast()                // abort startup if unreachable
-Fallback.use(OpenAI.gpt4o())       // register an alternative capability
+Fallback.use(OpenAI.of("gpt-4o"))       // register an alternative capability
 Fallback.connectInstead(other)     // try a different Connection
 Fallback.ignore()                  // silently skip
 ```
@@ -95,7 +95,7 @@ app.connect(PgVector.at("jdbc:postgresql://pgvector/cafeai"));
 
 // With explicit fallback policy
 app.connect(Ollama.at("http://ollama:11434").model("llama3")
-    .onUnavailable(Fallback.use(OpenAI.gpt4o())));
+    .onUnavailable(Fallback.use(OpenAI.of("gpt-4o"))));
 
 // Environment-driven
 Connect.fromEnv().forEach(app::connect);

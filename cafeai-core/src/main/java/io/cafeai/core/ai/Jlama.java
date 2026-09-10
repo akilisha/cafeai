@@ -12,9 +12,8 @@ import io.cafeai.core.internal.LangchainBridge;
  * (default: {@code ~/.jlama/models}).
  *
  * <pre>{@code
- *   app.ai(Jlama.llama3());                        // tjake/Llama-3.2-1B-Instruct-JQ4
- *   app.ai(Jlama.tinyLlama());                     // ~1B params — fast, good for tests
- *   app.ai(Jlama.of("tjake/Mistral-7B-Instruct-v0.3-JQ4"));
+ *   app.ai(Jlama.of("tjake/Llama-3.2-1B-Instruct-JQ4"));
+ *   app.ai(Jlama.of("tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4"));   // ~1B — fast, good for tests
  *   app.ai(Jlama.cachedIn("/opt/models").model("tjake/Llama-3.2-3B-Instruct-JQ4"));
  * }</pre>
  *
@@ -33,30 +32,15 @@ public final class Jlama {
 
     private Jlama() {}
 
-    /** Llama 3.2 1B Instruct — the small, quick default. */
-    public static AiProvider llama3()    { return of("tjake/Llama-3.2-1B-Instruct-JQ4"); }
-
-    /** TinyLlama 1.1B Chat — the lightest option; handy for tests and CI. */
-    public static AiProvider tinyLlama() { return of("tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4"); }
-
-    /** Mistral 7B Instruct v0.3. */
-    public static AiProvider mistral()   { return of("tjake/Mistral-7B-Instruct-v0.3-JQ4"); }
-
-    /** Gemma 2 2B Instruct. */
-    public static AiProvider gemma2()    { return of("tjake/gemma-2-2b-it-JQ4"); }
-
-    /** Qwen 2.5 0.5B Instruct — smallest chat model here. */
-    public static AiProvider qwen2()     { return of("tjake/Qwen2.5-0.5B-Instruct-JQ4"); }
-
     /**
-     * Any Hugging Face model id ({@code owner/name}). Models are cached in
-     * Jlama's default directory ({@code ~/.jlama/models}).
+     * A Jlama provider for the given Hugging Face model id ({@code owner/name}).
+     * Models are cached in Jlama's default directory ({@code ~/.jlama/models}).
      */
     public static AiProvider of(String modelId) {
         return new JlamaProvider(modelId, null);
     }
 
-    /** Creates a builder that caches downloaded models in the given directory. */
+    /** A builder that caches downloaded models in the given directory. */
     public static JlamaBuilder cachedIn(String modelCachePath) {
         return new JlamaBuilder(modelCachePath);
     }

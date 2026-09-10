@@ -36,7 +36,7 @@ public class JlamaStreamingExample {
         var app = CafeAI.create();
 
         // Pure-Java local model — ~1B params, downloads once (~700 MB).
-        app.ai(Jlama.tinyLlama());
+        app.ai(Jlama.of("tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4"));
         app.memory(MemoryStrategy.inMemory());
         app.system("You are a concise assistant. Answer in at most three sentences.");
 

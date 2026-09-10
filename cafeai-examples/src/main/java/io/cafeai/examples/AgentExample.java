@@ -39,7 +39,7 @@ import java.util.Map;
  * </pre>
  *
  * <p>Tool-calling reliability scales with model size. Qwen2.5-0.5B is enough to
- * show the wiring; for dependable dispatch use {@code Jlama.mistral()} or an
+ * show the wiring; for dependable dispatch use {@code Jlama.of("tjake/Mistral-7B-Instruct-v0.3-JQ4")} or an
  * {@code OpenAI} / {@code Anthropic} provider. Jlama needs the run args
  * {@code --add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED},
  * set by the {@code cafeai-examples} build.
@@ -90,7 +90,7 @@ public class AgentExample {
     public static void main(String[] args) {
         var app = CafeAI.create();
 
-        app.ai(Jlama.qwen2());
+        app.ai(Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4"));
         app.memory(MemoryStrategy.inMemory());
 
         // Specialist sub-agent — register, then resolve a stateless handle for the tool.

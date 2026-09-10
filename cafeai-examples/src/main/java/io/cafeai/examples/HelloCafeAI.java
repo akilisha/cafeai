@@ -49,11 +49,11 @@ public class HelloCafeAI {
 
         // ── AI Provider ───────────────────────────────────────────────────────
         if (USE_OLLAMA) {
-            app.ai(Ollama.llama3());                   // local — no API key needed
+            app.ai(Ollama.of("llama3.3"));                   // local — no API key needed
         } else {
             app.ai(ModelRouter.smart()                 // cost-aware routing
-                .simple(OpenAI.gpt4oMini())            // fast + cheap for simple queries
-                .complex(OpenAI.gpt4o()));              // powerful for complex queries
+                .simple(OpenAI.of("gpt-4o-mini"))            // fast + cheap for simple queries
+                .complex(OpenAI.of("gpt-4o")));              // powerful for complex queries
         }
 
         // ── System Prompt — the AI's persona ─────────────────────────────────

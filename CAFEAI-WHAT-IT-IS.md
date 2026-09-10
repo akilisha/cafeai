@@ -22,7 +22,7 @@ The core operation. Text in, text out, with the full production stack behind it.
 
 ```java
 var app = CafeAI.create();
-app.ai(OpenAI.gpt4o());
+app.ai(OpenAI.of("gpt-4o"));
 app.guard(GuardRail.jailbreak());
 app.observe(ObserveStrategy.console());
 app.budget(TokenBudget.perMinute(60_000));
@@ -75,7 +75,7 @@ Files.write(Path.of("welcome.mp3"), speech);
 Multiple providers in one application, each with a role.
 
 ```java
-app.ai("tutor",         OpenAI.gpt4o());
+app.ai("tutor",         OpenAI.of("gpt-4o"));
 app.ai("transcription", OpenAI.whisper());
 app.ai("voice",         OpenAI.tts());
 
@@ -150,13 +150,13 @@ Route to cheap vs expensive models by complexity — automatically.
 
 ```java
 app.ai(ModelRouter.smart()
-    .simple(OpenAI.gpt4oMini())   // classification, short answers
-    .complex(OpenAI.gpt4o()));    // reasoning, tool use, long context
+    .simple(OpenAI.of("gpt-4o-mini"))   // classification, short answers
+    .complex(OpenAI.of("gpt-4o")));    // reasoning, tool use, long context
 
 // Or as a named provider
 app.ai("router", ModelRouter.smart()
-    .simple(OpenAI.gpt4oMini())
-    .complex(OpenAI.gpt4o()));
+    .simple(OpenAI.of("gpt-4o-mini"))
+    .complex(OpenAI.of("gpt-4o")));
 ```
 
 ### HTTP server
