@@ -5,12 +5,13 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09):** 🟢 Phases 0–3 built and unit-tested on `main` (unpushed,
+> **Status (2026-09):** 🟢 Phases 0–4 built and unit-tested on `main` (unpushed,
 > unpublished). `ClusterWatch` + `ClusterConnection`; `IncidentTracker` /
-> `TriageRules`; `KubeTools` + `ClusterInvestigator` + the async investigation
-> orchestration. The LLM path is exercised only by fakes so far — a live minikube
-> run (all 4 scenarios) is the outstanding gate and may shift the triage rules,
-> the KubeTools output shapes, and the resolution heuristic.
+> `TriageRules`; `KubeTools` + `ClusterInvestigator` + async orchestration;
+> `Redactor` (secrets/PII out of cluster text) + `TokenBudget` gating. The LLM
+> path is exercised only by fakes so far — a live minikube run (all 4 scenarios)
+> is the outstanding gate and may shift the triage rules, the KubeTools output
+> shapes, and the resolution heuristic.
 
 ---
 
@@ -43,6 +44,7 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | `IncidentTracker` + `Incident` / `IncidentEvent` — coalesce by workload, best-effort resolve, async investigation orchestration | ✅ | |
 | `KubeTools` — read-only `@Tool` bundle (getPod, getPodLogs, listEvents, describeDeployment, getReplicaSetHistory, getNodeConditions, getResourceQuota) | ✅ | |
 | `ClusterInvestigator` (agent interface) + `Investigation` / `CauseCategory` / `Confidence` + `IncidentBrief` + `Investigator` SAM | ✅ | |
+| `Redactor` — secrets/PII scrub (bearer/basic, URL creds, `key=value` secrets, AWS keys, JWTs, PEM, + `cafeai-guardrails` PII) on every KubeTools output, evidence line and investigation result | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -182,7 +184,7 @@ change` and let config decide which get investigated vs merely published.
 | 1 | ✅ Walking skeleton — fabric8 informer watch → pod-state model → log sink. **No AI.** | correlated pod state (live minikube run still pending) |
 | 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | one incident per broken deploy, not per event *(unit-verified; live run pending)* |
 | 3 | ✅ Investigation tier — `KubeTools` read-only bundle + `ClusterInvestigator` agent, run async on open / new reason → structured `Investigation` folded into the incident | *code done; `IncidentBrief` + orchestration fake-tested. `KubeTools` and the LLM path are verified in the live minikube run — the "all 4 scenarios" gate is open (fabric8 mock-server hangs on the JDK http backend, so no unit layer there).* |
-| 4 | Guardrails + budget — PII redaction on log excerpts, `TokenBudget` | secrets in logs never reach the prompt or the incident |
+| 4 | ✅ Guardrails + budget — `Redactor` on every KubeTools output / evidence line / investigation result; `SentinelConfig.redact()` + `.tokenBudget()`; deferred investigations retried on sweep | *secret shapes + PII scrub unit-tested; `redact` on by default* |
 | 5 | Sinks — `IncidentSink` SPI, SSE + webhook sinks; capstone HTTP routes | a browser `EventSource` receives incidents |
 | 6 | OpenShift validation — same 4 scenarios on a real dev/staging cluster | identical structured incidents |
 | 7 | Publish `cafeai-sentinel` at 0.3.0 | on Maven Central |
@@ -243,6 +245,21 @@ change` and let config decide which get investigated vs merely published.
   the agent loop. It shares `ClusterWatch.client()` — no second connection. Node
   reads are the one cluster-scoped call (capstone RBAC needs a `ClusterRole` for
   `nodes`).
+- **Redaction — at the boundary, on by default (Phase 4).** `Redactor` scrubs
+  bearer/basic auth, `scheme://user:pass@` URL creds, `key=value` secrets (key
+  contains password/token/secret/api-key/…), AWS keys, JWTs / SA tokens, PEM
+  private keys, then `cafeai-guardrails` `PiiGuardRail.scrub` for email / phone /
+  SSN / card / IPv4. Applied to every `KubeTools` return, every incident evidence
+  line, and every free-text field of an `Investigation` before it is folded in —
+  so a secret in a pod's logs never reaches the prompt, the incident, or a log.
+  IPv4 redaction catches internal pod/node IPs too; accepted for the compliance
+  guarantee. `SentinelConfig.redact(false)` opts out.
+- **Token budget — estimate-based, deferring (Phase 4).** `SentinelConfig
+  .tokenBudget(TokenBudget)` (default unlimited). Each investigation is charged a
+  flat `ESTIMATED_TOKENS_PER_INVESTIGATION` (20k) against a rolling one-minute
+  window before it runs; over budget, it is deferred and the sweep retries it.
+  Not per-token-exact — `app.agent(...)` does not surface aggregate usage — but
+  it bounds runaway spend, which is the point.
 - **Re-investigation — update, don't re-run, unless a new error reason appears.**
   New evidence on an open incident bumps `lastSeen` / `eventCount` and appends to
   `evidence[]`. A genuinely *new* error reason on the same incident (was

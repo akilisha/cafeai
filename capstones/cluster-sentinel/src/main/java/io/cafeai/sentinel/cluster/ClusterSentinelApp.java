@@ -4,6 +4,7 @@ import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Anthropic;
 import io.cafeai.core.ai.OpenAI;
+import io.cafeai.core.ai.TokenBudget;
 import io.cafeai.sentinel.ClusterConnection;
 import io.cafeai.sentinel.ClusterWatch;
 import io.cafeai.sentinel.IncidentTracker;
@@ -15,6 +16,7 @@ import io.cafeai.sentinel.investigate.ClusterInvestigator;
 import io.cafeai.sentinel.investigate.IncidentBrief;
 import io.cafeai.sentinel.investigate.Investigation;
 import io.cafeai.sentinel.investigate.KubeTools;
+import io.cafeai.sentinel.investigate.Redactor;
 import io.cafeai.sentinel.watch.ContainerState;
 import io.cafeai.sentinel.watch.PodState;
 import org.slf4j.Logger;
@@ -59,14 +61,15 @@ public final class ClusterSentinelApp {
 
         SentinelConfig config = SentinelConfig.create()
                 .namespace(namespace)
-                .connection(connectionFromEnv());
+                .connection(connectionFromEnv())
+                .tokenBudget(tokenBudgetFromEnv());
 
         ClusterWatch watch = new ClusterWatch(config);
 
         CafeAI app = CafeAI.create();
         app.agent("cluster-investigator", ClusterInvestigator.class)
                 .model(investigationProvider())
-                .tool(new KubeTools(watch.client(), namespace));
+                .tool(new KubeTools(watch.client(), namespace, Redactor.of(config.isRedact())));
 
         Investigator investigator = incident ->
                 app.agent("cluster-investigator", ClusterInvestigator.class, null)
@@ -113,6 +116,19 @@ public final class ClusterSentinelApp {
         }
         log.info("connecting by token to {}", apiServer);
         return conn;
+    }
+
+    private static TokenBudget tokenBudgetFromEnv() {
+        String perMin = System.getenv("SENTINEL_TOKEN_BUDGET_PER_MIN");
+        if (perMin == null || perMin.isBlank()) {
+            return TokenBudget.unlimited();
+        }
+        try {
+            return TokenBudget.perMinute(Long.parseLong(perMin.trim()));
+        } catch (IllegalArgumentException e) {
+            log.warn("ignoring SENTINEL_TOKEN_BUDGET_PER_MIN='{}': {}", perMin, e.getMessage());
+            return TokenBudget.unlimited();
+        }
     }
 
     private static AiProvider investigationProvider() {

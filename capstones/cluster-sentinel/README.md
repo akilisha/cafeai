@@ -3,7 +3,7 @@
 Runnable companion to **`cafeai-sentinel`** — an AI cluster incident pipeline for
 Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18-sentinel.md` for the design.
 
-## Status — ROADMAP-18 Phase 3 (triage + agentic investigation)
+## Status — ROADMAP-18 Phase 4 (triage + investigation + redaction/budget)
 
 `ClusterWatch` feeds correlated pod snapshots to an `IncidentTracker`, which
 triages each one with rules (`TriageRules` — no model) and coalesces failures
@@ -12,10 +12,14 @@ Deployment, not one per event per replica**. On each new incident (and each new
 error reason) a `ClusterInvestigator` agent — a CafeAI `app.agent(...)` with the
 read-only `KubeTools` bundle — investigates the live cluster and attaches a
 structured `Investigation` (cause category, likely cause, suggested actions,
-related objects). The pluggable SSE/webhook sink lands in Phase 5.
+related objects). All cluster text (logs, env values, event messages) is
+scrubbed of credentials and PII by `Redactor` before it reaches the prompt or
+the incident. The pluggable SSE/webhook sink lands in Phase 5.
 
 Needs an LLM key: `ANTHROPIC_API_KEY` (Claude) or `OPENAI_API_KEY` (GPT-4o).
-Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`.
+Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`, and
+cap spend with `SENTINEL_TOKEN_BUDGET_PER_MIN=<n>` (deferred investigations
+retry on the next sweep).
 
 ## Run it against minikube
 

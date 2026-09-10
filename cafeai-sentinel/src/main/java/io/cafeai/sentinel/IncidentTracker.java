@@ -1,8 +1,11 @@
 package io.cafeai.sentinel;
 
+import io.cafeai.core.ai.TokenBudget;
 import io.cafeai.sentinel.incident.Incident;
 import io.cafeai.sentinel.incident.IncidentEvent;
+import io.cafeai.sentinel.incident.IncidentStatus;
 import io.cafeai.sentinel.investigate.Investigation;
+import io.cafeai.sentinel.investigate.Redactor;
 import io.cafeai.sentinel.triage.TriageResult;
 import io.cafeai.sentinel.triage.TriageRules;
 import io.cafeai.sentinel.triage.Verdict;
@@ -16,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,7 +46,10 @@ import java.util.stream.Collectors;
  * {@link Investigator} is registered with {@link #investigator(Investigator)},
  * the tracker runs it off the informer thread on incident open (and again when a
  * new error reason appears) and folds the structured {@link Investigation} back
- * in.
+ * in. Evidence lines and investigation results pass through a
+ * {@link Redactor} (on unless {@link SentinelConfig#redact(boolean)} is off);
+ * investigations are gated by {@link SentinelConfig#tokenBudget(TokenBudget)}
+ * and a deferred one is retried on the next sweep.
  *
  * <p>Lifecycle events go to the handler registered with {@link #onIncident}:
  * {@code OPENED} on the first actionable signal for a workload, {@code UPDATED}
@@ -69,15 +76,25 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     private static final int INVESTIGATION_WORKERS = 2;
     private static final Duration SWEEP_INTERVAL = Duration.ofSeconds(30);
 
+    /** Rough cost of one agentic investigation (system + brief + tool round-trips + output). */
+    static final long ESTIMATED_TOKENS_PER_INVESTIGATION = 20_000L;
+    private static final long TOKEN_WINDOW_MILLIS = 60_000L;
+
     private final TriageRules triage;
     private final boolean investigateOnStartup;
     private final Duration resolveAfter;
+    private final Redactor redactor;
+    private final TokenBudget tokenBudget;
     private final Clock clock;
 
     /** workload key -> current incident. Guarded by {@code this}. */
     private final Map<WorkloadRef, Incident> incidents = new HashMap<>();
     /** incident ids with an investigation in flight. Guarded by {@code this}. */
     private final Set<String> investigating = new HashSet<>();
+
+    /** Rolling token-budget window. Guarded by {@code this}. */
+    private long windowTokens;
+    private long windowStartMillis;
 
     private Consumer<IncidentEvent> onIncident = event -> { };
     private Investigator investigator;
@@ -94,6 +111,9 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         this.clock = Objects.requireNonNull(clock, "clock");
         this.investigateOnStartup = config.isInvestigateOnStartup();
         this.resolveAfter = config.resolveAfter();
+        this.redactor = Redactor.of(config.isRedact());
+        this.tokenBudget = config.tokenBudget();
+        this.windowStartMillis = clock.millis();
     }
 
     /** Registers the incident lifecycle handler. Not thread-safe with a running watch. */
@@ -149,7 +169,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         }
 
         Instant now = clock.instant();
-        String evidence = evidenceLine(pod, result);
+        String evidence = redactor.redact(evidenceLine(pod, result));
         Incident current = incidents.get(key);
 
         if (current == null) {
@@ -197,9 +217,14 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         }
         Incident incident = incidents.get(key);
         if (incident == null
-                || incident.status() != io.cafeai.sentinel.incident.IncidentStatus.OPEN
+                || incident.status() != IncidentStatus.OPEN
                 || investigating.contains(incident.id())
                 || !incident.needsInvestigation()) {
+            return;
+        }
+        if (!claimTokenBudget()) {
+            log.info("token budget reached — deferring investigation of {} ({})",
+                    incident.id(), incident.workload());
             return;
         }
         String id = incident.id();
@@ -207,6 +232,23 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         Incident snapshot = incident;
         investigating.add(id);
         investigations.execute(() -> runInvestigation(key, id, covered, snapshot));
+    }
+
+    /** Reserves one investigation's estimated tokens against the rolling window, or refuses. Call under {@code this}. */
+    private boolean claimTokenBudget() {
+        if (tokenBudget.isUnlimited()) {
+            return true;
+        }
+        long now = clock.millis();
+        if (now - windowStartMillis >= TOKEN_WINDOW_MILLIS) {
+            windowStartMillis = now;
+            windowTokens = 0;
+        }
+        if (windowTokens + ESTIMATED_TOKENS_PER_INVESTIGATION > tokenBudget.tokensPerMinute()) {
+            return false;
+        }
+        windowTokens += ESTIMATED_TOKENS_PER_INVESTIGATION;
+        return true;
     }
 
     private void runInvestigation(WorkloadRef key, String id, Set<String> covered, Incident snapshot) {
@@ -226,7 +268,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             if (result == null || current == null || !current.id().equals(id)) {
                 return;
             }
-            Incident enriched = current.withInvestigation(result, covered);
+            Incident enriched = current.withInvestigation(redactor.redact(result), covered);
             incidents.put(key, enriched);
             emit(IncidentEvent.Type.INVESTIGATED, enriched);
             maybeInvestigate(key);
@@ -244,6 +286,10 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             }
             return false;
         });
+        // pick up any investigations that were deferred by the token budget
+        for (WorkloadRef key : new ArrayList<>(incidents.keySet())) {
+            maybeInvestigate(key);
+        }
     }
 
     private void emit(IncidentEvent.Type type, Incident incident) {

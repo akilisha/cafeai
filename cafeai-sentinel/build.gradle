@@ -26,6 +26,10 @@ dependencies {
     api project(':cafeai-core')
     api project(':cafeai-agents')
 
+    // PiiGuardRail.scrub — redact secrets/PII from cluster text before it reaches
+    // the prompt or the incident (ROADMAP-18 Phase 4). Not exposed in the API.
+    implementation project(':cafeai-guardrails')
+
     // fabric8 KubernetesClient leaks through ClusterWatch / (later) KubeTools.
     // openshift-client is a superset of kubernetes-client — OpenShiftClient
     // extends KubernetesClient, so the OpenShift target costs nothing extra.

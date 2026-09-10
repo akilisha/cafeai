@@ -29,9 +29,12 @@ import java.util.Objects;
  * node queries are cluster-scoped (the one place the capstone RBAC needs a
  * ClusterRole for {@code nodes}).
  *
- * <p>Tool outputs are compact plain text, sized for a prompt. Every method
- * catches its own failures and returns a readable message rather than throwing —
- * a dead tool call should inform the agent, not abort the investigation.
+ * <p>Every tool output passes through a {@link Redactor} before it is returned,
+ * so a secret in a pod's logs or an env value never reaches the LLM prompt or
+ * the incident. Outputs are compact plain text, sized for a prompt, and each
+ * method catches its own failure and returns a readable message rather than
+ * throwing — a dead tool call should inform the agent, not abort the
+ * investigation.
  */
 public final class KubeTools {
 
@@ -41,10 +44,16 @@ public final class KubeTools {
 
     private final KubernetesClient client;
     private final String namespace;
+    private final Redactor redactor;
 
     public KubeTools(KubernetesClient client, String namespace) {
+        this(client, namespace, Redactor.enabled());
+    }
+
+    public KubeTools(KubernetesClient client, String namespace, Redactor redactor) {
         this.client = Objects.requireNonNull(client, "client");
         this.namespace = Objects.requireNonNull(namespace, "namespace");
+        this.redactor = Objects.requireNonNull(redactor, "redactor");
     }
 
     @Tool("""
@@ -54,6 +63,71 @@ public final class KubeTools {
             Use this first for any pod-level failure.
             """)
     public String getPod(@P("the pod name") String name) {
+        return redactor.redact(getPodRaw(name));
+    }
+
+    @Tool("""
+            Get the tail of a container's logs. Set previous=true to read the logs of
+            the PRIOR, crashed instance of the container — for a CrashLoopBackOff that
+            is where the fatal error is; the current instance usually has none.
+            containerName may be empty to use the pod's first container.
+            """)
+    public String getPodLogs(@P("the pod name") String podName,
+                             @P("the container name, or empty for the first container") String containerName,
+                             @P("true for the previous (crashed) instance's logs") boolean previous) {
+        return redactor.redact(getPodLogsRaw(podName, containerName, previous));
+    }
+
+    @Tool("""
+            List recent events in the namespace, newest first. Pass an involved object
+            name (a pod, deployment, replicaset, ...) to filter to just that object,
+            or empty for all. Events name missing ConfigMaps/Secrets, scheduling
+            failures, probe failures, image pull errors.
+            """)
+    public String listEvents(@P("an involved object name to filter by, or empty for all") String involvedObjectName) {
+        return redactor.redact(listEventsRaw(involvedObjectName));
+    }
+
+    @Tool("""
+            Describe a Deployment: desired/ready/updated/available replicas, rollout
+            strategy, status conditions (Available, Progressing — including
+            ProgressDeadlineExceeded), and per-container images and resource
+            requests/limits.
+            """)
+    public String describeDeployment(@P("the deployment name") String name) {
+        return redactor.redact(describeDeploymentRaw(name));
+    }
+
+    @Tool("""
+            The ReplicaSet history of a Deployment, newest revision first: revision
+            number, container images, and desired/ready replica counts. Use this to
+            see whether a recent rollout introduced the failure.
+            """)
+    public String getReplicaSetHistory(@P("the deployment name") String deploymentName) {
+        return redactor.redact(getReplicaSetHistoryRaw(deploymentName));
+    }
+
+    @Tool("""
+            Node conditions for all nodes, or one node by name (empty for all):
+            Ready, plus MemoryPressure / DiskPressure / PIDPressure when set. Use this
+            when a pod is Pending (FailedScheduling) or was Evicted.
+            """)
+    public String getNodeConditions(@P("a node name, or empty for all nodes") String nodeName) {
+        return redactor.redact(getNodeConditionsRaw(nodeName));
+    }
+
+    @Tool("""
+            The ResourceQuota usage and LimitRange defaults in the namespace — the
+            ceilings a pod is scheduled and OOM-checked against. Use this for
+            FailedScheduling (exceeded quota) or OOMKilled (default/max memory).
+            """)
+    public String getResourceQuota() {
+        return redactor.redact(getResourceQuotaRaw());
+    }
+
+    // ── raw lookups ──────────────────────────────────────────────────────────
+
+    private String getPodRaw(String name) {
         try {
             Pod pod = client.pods().inNamespace(namespace).withName(name).get();
             if (pod == null) {
@@ -69,15 +143,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            Get the tail of a container's logs. Set previous=true to read the logs of
-            the PRIOR, crashed instance of the container — for a CrashLoopBackOff that
-            is where the fatal error is; the current instance usually has none.
-            containerName may be empty to use the pod's first container.
-            """)
-    public String getPodLogs(@P("the pod name") String podName,
-                             @P("the container name, or empty for the first container") String containerName,
-                             @P("true for the previous (crashed) instance's logs") boolean previous) {
+    private String getPodLogsRaw(String podName, String containerName, boolean previous) {
         try {
             String container = resolveContainer(podName, containerName);
             if (container == null) {
@@ -97,13 +163,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            List recent events in the namespace, newest first. Pass an involved object
-            name (a pod, deployment, replicaset, ...) to filter to just that object,
-            or empty for all. Events name missing ConfigMaps/Secrets, scheduling
-            failures, probe failures, image pull errors.
-            """)
-    public String listEvents(@P("an involved object name to filter by, or empty for all") String involvedObjectName) {
+    private String listEventsRaw(String involvedObjectName) {
         try {
             List<Event> events = new ArrayList<>(
                     client.v1().events().inNamespace(namespace).list().getItems());
@@ -112,7 +172,8 @@ public final class KubeTools {
                 events.removeIf(e -> e.getInvolvedObject() == null
                         || !want.equals(e.getInvolvedObject().getName()));
             }
-            events.sort(Comparator.comparing(KubeTools::eventTime, Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
+            events.sort(Comparator.comparing(KubeTools::eventTime,
+                    Comparator.nullsFirst(Comparator.naturalOrder())).reversed());
             if (events.isEmpty()) {
                 return "(no events)";
             }
@@ -131,13 +192,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            Describe a Deployment: desired/ready/updated/available replicas, rollout
-            strategy, status conditions (Available, Progressing — including
-            ProgressDeadlineExceeded), and per-container images and resource
-            requests/limits.
-            """)
-    public String describeDeployment(@P("the deployment name") String name) {
+    private String describeDeploymentRaw(String name) {
         try {
             Deployment d = client.apps().deployments().inNamespace(namespace).withName(name).get();
             if (d == null) {
@@ -171,12 +226,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            The ReplicaSet history of a Deployment, newest revision first: revision
-            number, container images, and desired/ready replica counts. Use this to
-            see whether a recent rollout introduced the failure.
-            """)
-    public String getReplicaSetHistory(@P("the deployment name") String deploymentName) {
+    private String getReplicaSetHistoryRaw(String deploymentName) {
         try {
             List<ReplicaSet> owned = new ArrayList<>();
             for (ReplicaSet rs : client.apps().replicaSets().inNamespace(namespace).list().getItems()) {
@@ -189,12 +239,14 @@ public final class KubeTools {
                 return "No ReplicaSets found for Deployment/" + deploymentName + ".";
             }
             owned.sort(Comparator.comparing(KubeTools::revision).reversed());
-            StringBuilder sb = new StringBuilder("ReplicaSet history for Deployment/").append(deploymentName).append('\n');
+            StringBuilder sb = new StringBuilder("ReplicaSet history for Deployment/")
+                    .append(deploymentName).append('\n');
             for (ReplicaSet rs : owned.subList(0, Math.min(owned.size(), MAX_REPLICASETS))) {
                 String images = "?";
                 if (rs.getSpec() != null && rs.getSpec().getTemplate() != null
                         && rs.getSpec().getTemplate().getSpec() != null) {
-                    images = String.join(", ", containerImages(rs.getSpec().getTemplate().getSpec().getContainers()));
+                    images = String.join(", ",
+                            containerImages(rs.getSpec().getTemplate().getSpec().getContainers()));
                 }
                 int ready = rs.getStatus() == null || rs.getStatus().getReadyReplicas() == null
                         ? 0 : rs.getStatus().getReadyReplicas();
@@ -210,12 +262,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            Node conditions for all nodes, or one node by name (empty for all):
-            Ready, plus MemoryPressure / DiskPressure / PIDPressure when set. Use this
-            when a pod is Pending (FailedScheduling) or was Evicted.
-            """)
-    public String getNodeConditions(@P("a node name, or empty for all nodes") String nodeName) {
+    private String getNodeConditionsRaw(String nodeName) {
         try {
             List<Node> nodes = new ArrayList<>();
             if (nodeName != null && !nodeName.isBlank()) {
@@ -251,12 +298,7 @@ public final class KubeTools {
         }
     }
 
-    @Tool("""
-            The ResourceQuota usage and LimitRange defaults in the namespace — the
-            ceilings a pod is scheduled and OOM-checked against. Use this for
-            FailedScheduling (exceeded quota) or OOMKilled (default/max memory).
-            """)
-    public String getResourceQuota() {
+    private String getResourceQuotaRaw() {
         try {
             StringBuilder sb = new StringBuilder();
             List<ResourceQuota> quotas = client.resourceQuotas().inNamespace(namespace).list().getItems();
@@ -278,8 +320,7 @@ public final class KubeTools {
                     }
                 }
             }
-            List<LimitRange> limits = client.limitRanges().inNamespace(namespace).list().getItems();
-            for (LimitRange lr : limits) {
+            for (LimitRange lr : client.limitRanges().inNamespace(namespace).list().getItems()) {
                 sb.append("LimitRange/").append(lr.getMetadata().getName()).append('\n');
                 if (lr.getSpec() != null && lr.getSpec().getLimits() != null) {
                     lr.getSpec().getLimits().forEach(item ->

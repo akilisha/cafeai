@@ -1,14 +1,17 @@
 package io.cafeai.sentinel;
 
+import io.cafeai.core.ai.TokenBudget;
+
 import java.time.Duration;
 import java.util.Objects;
 
 /**
  * Configuration for a sentinel pipeline.
  *
- * <p>Phases 1–2 expose how to reach the cluster, the namespace to watch, whether
- * to act on failures that already exist at startup, and how long an incident
- * stays open after its last error. Later phases add {@code .system(...)},
+ * <p>Phases 1–4 expose how to reach the cluster, the namespace to watch, whether
+ * to act on failures that already exist at startup, how long an incident stays
+ * open after its last error, whether to redact secrets from cluster text, and a
+ * token budget for investigations. Later phases add {@code .system(...)},
  * {@code .investigationPrompt(...)}, {@code .investigationModel(...)},
  * {@code .triageModel(...)}, {@code .guard(...)}, {@code .debounce(...)} and
  * {@code .sink(...)}.
@@ -27,6 +30,8 @@ public final class SentinelConfig {
     private String namespace = "default";
     private boolean investigateOnStartup = false;
     private Duration resolveAfter = Duration.ofMinutes(2);
+    private boolean redact = true;
+    private TokenBudget tokenBudget = TokenBudget.unlimited();
 
     private SentinelConfig() {
     }
@@ -78,12 +83,43 @@ public final class SentinelConfig {
         return this;
     }
 
+    /**
+     * Redact credentials and PII from cluster text (container logs, pod env
+     * values, event messages) before it reaches the LLM prompt, the incident, or
+     * a log line. On by default — turning it off is only sensible for a private
+     * cluster with no sensitive workloads. See
+     * {@link io.cafeai.sentinel.investigate.Redactor}.
+     */
+    public SentinelConfig redact(boolean redact) {
+        this.redact = redact;
+        return this;
+    }
+
+    /**
+     * A ceiling on tokens spent investigating, as a rolling one-minute budget.
+     * When the estimated cost of the next investigation would exceed it, the
+     * {@link IncidentTracker} defers that investigation and retries it on the
+     * next sweep. Defaults to {@link TokenBudget#unlimited()}.
+     */
+    public SentinelConfig tokenBudget(TokenBudget tokenBudget) {
+        this.tokenBudget = Objects.requireNonNull(tokenBudget, "tokenBudget");
+        return this;
+    }
+
     public ClusterConnection connection() {
         return connection;
     }
 
     public Duration resolveAfter() {
         return resolveAfter;
+    }
+
+    public boolean isRedact() {
+        return redact;
+    }
+
+    public TokenBudget tokenBudget() {
+        return tokenBudget;
     }
 
     public String namespace() {
