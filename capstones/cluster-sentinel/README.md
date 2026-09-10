@@ -3,15 +3,19 @@
 Runnable companion to **`cafeai-sentinel`** — an AI cluster incident pipeline for
 Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18-sentinel.md` for the design.
 
-## Status — ROADMAP-18 Phase 2 (triage, no AI)
+## Status — ROADMAP-18 Phase 3 (triage + agentic investigation)
 
 `ClusterWatch` feeds correlated pod snapshots to an `IncidentTracker`, which
 triages each one with rules (`TriageRules` — no model) and coalesces failures
 into incidents keyed on the owning workload: **one incident per broken
-Deployment, not one per event per replica**. Incidents open, accumulate reasons
-and evidence, and resolve on a cooldown once their pods recover. The raw per-pod
-snapshot is still available at `DEBUG`. Investigation (agentic, per incident) and
-the pluggable sink land in Phases 3–5.
+Deployment, not one per event per replica**. On each new incident (and each new
+error reason) a `ClusterInvestigator` agent — a CafeAI `app.agent(...)` with the
+read-only `KubeTools` bundle — investigates the live cluster and attaches a
+structured `Investigation` (cause category, likely cause, suggested actions,
+related objects). The pluggable SSE/webhook sink lands in Phase 5.
+
+Needs an LLM key: `ANTHROPIC_API_KEY` (Claude) or `OPENAI_API_KEY` (GPT-4o).
+Override the model with `SENTINEL_INVESTIGATION_MODEL=<anthropic-model-id>`.
 
 ## Run it against minikube
 
@@ -40,10 +44,12 @@ kubectl -n demo apply -f capstones/cluster-sentinel/demo/oom.yaml
 Expected output shape:
 
 ```
-17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/crashloop — CrashLoopBackOff, Error (pods: crashloop-7d9f-xr2k)
-17:12:04 INFO  i.c.s.cluster.ClusterSentinelApp -              crashloop-7d9f-xr2k: app(CrashLoopBackOff last=Error exit=1 restarts=4) [BackOff x5]
-17:12:19 INFO  i.c.s.cluster.ClusterSentinelApp - ● updated  inc-3f2a9c1d [ERROR] Deployment/crashloop — 3 signals; reasons: CrashLoopBackOff, Error; pods: crashloop-7d9f-xr2k, crashloop-7d9f-9p4m
-17:15:41 INFO  i.c.s.cluster.ClusterSentinelApp - ○ RESOLVED inc-3f2a9c1d Deployment/crashloop — was [ERROR], 5 signals over PT3M22S
+17:12:04 WARN  i.c.s.cluster.ClusterSentinelApp - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/oom-demo — OOMKilled, CrashLoopBackOff (pods: oom-demo-7d9f-xr2k)
+17:12:04 INFO  i.c.s.cluster.ClusterSentinelApp -              oom-demo-7d9f-xr2k: worker(CrashLoopBackOff last=OOMKilled exit=137 restarts=3)
+17:12:31 WARN  i.c.s.cluster.ClusterSentinelApp - ✔ INVESTIGATED inc-3f2a9c1d Deployment/oom-demo — [RESOURCES/HIGH] worker is OOMKilled: the 16Mi memory limit is far below what it allocates under load
+17:12:31 INFO  i.c.s.cluster.ClusterSentinelApp -              cause: spec.template.spec.containers[0].resources.limits.memory = 16Mi; the process RSS reaches ~90Mi before the kill
+17:12:31 INFO  i.c.s.cluster.ClusterSentinelApp -              → raise limits.memory to at least 128Mi, or roll back to the previous image if the footprint regressed
+17:15:41 INFO  i.c.s.cluster.ClusterSentinelApp - ○ RESOLVED inc-3f2a9c1d Deployment/oom-demo — was [ERROR], 6 signals over PT3M37S
 ```
 
 Two replicas of one broken Deployment → **one** `inc-…`. Run with

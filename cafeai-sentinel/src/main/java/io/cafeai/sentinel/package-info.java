@@ -10,12 +10,16 @@
  * no incident store, no remediation. The runnable companion is the
  * {@code cluster-sentinel} capstone.
  *
- * <p><strong>Status:</strong> ROADMAP-18 Phase 2. {@link io.cafeai.sentinel.ClusterWatch}
- * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState}
- * on every pod change; {@link io.cafeai.sentinel.IncidentTracker} triages each
- * snapshot with {@link io.cafeai.sentinel.triage.TriageRules} (rules only, no
- * model) and coalesces actionable signals into
- * {@link io.cafeai.sentinel.incident.Incident}s keyed on the top controller. The
- * agentic investigation is Phase 3. See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
+ * <p><strong>Status:</strong> ROADMAP-18 Phase 3. {@link io.cafeai.sentinel.ClusterWatch}
+ * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState};
+ * {@link io.cafeai.sentinel.IncidentTracker} triages each snapshot with
+ * {@link io.cafeai.sentinel.triage.TriageRules} (rules only) and coalesces
+ * signals into {@link io.cafeai.sentinel.incident.Incident}s keyed on the top
+ * controller; when an {@link io.cafeai.sentinel.Investigator} is registered it
+ * runs {@link io.cafeai.sentinel.investigate.ClusterInvestigator} against the
+ * live cluster via the read-only {@link io.cafeai.sentinel.investigate.KubeTools}
+ * and folds a structured {@link io.cafeai.sentinel.investigate.Investigation}
+ * into the incident. The pluggable {@code IncidentSink} is Phase 5. See
+ * {@code docs/roadmap/ROADMAP-18-sentinel.md}.
  */
 package io.cafeai.sentinel;

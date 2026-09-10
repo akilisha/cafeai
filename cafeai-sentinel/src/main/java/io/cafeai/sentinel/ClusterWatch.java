@@ -94,6 +94,15 @@ public final class ClusterWatch implements AutoCloseable {
         return this;
     }
 
+    /**
+     * The live Kubernetes client this watch is using — share it with
+     * {@link io.cafeai.sentinel.investigate.KubeTools} rather than opening a
+     * second connection.
+     */
+    public KubernetesClient client() {
+        return client;
+    }
+
     /** Starts both informers and blocks until their initial list has synced. */
     public void start() {
         String ns = config.namespace();

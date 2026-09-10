@@ -1,5 +1,6 @@
 package io.cafeai.sentinel.incident;
 
+import io.cafeai.sentinel.investigate.Investigation;
 import io.cafeai.sentinel.triage.TriageResult;
 import io.cafeai.sentinel.triage.Verdict;
 import io.cafeai.sentinel.watch.WorkloadRef;
@@ -18,25 +19,29 @@ import java.util.Set;
  * value per workload and replaces it as signals fold in; every
  * {@link IncidentEvent} carries a snapshot safe to hand to a sink.
  *
- * <p>Phase 2 fills the structural fields only. The investigation-era fields —
- * {@code summary}, {@code likelyCause}, {@code suggestedActions} — arrive with
- * ROADMAP-18 Phase 3.
+ * <p>Triage (Phase 2) fills the structural fields. {@link #investigation()} is
+ * populated by the agentic investigation (Phase 3) once it completes, and is
+ * {@code null} until then.
  *
- * @param id            stable id for the life of the incident ({@code inc-<hex>})
- * @param status        {@link IncidentStatus#OPEN} until resolved
- * @param severity      the most severe {@link Verdict} observed
- * @param namespace     the workload's namespace
- * @param workload      the resolved top controller this incident is keyed on
- * @param firstSeen     first actionable signal
- * @param lastSeen      most recent signal of any kind
- * @param lastErrorAt   most recent {@link Verdict#ERROR} signal, or {@code null}
- *                      if only {@code NOTABLE} signals have been seen
- * @param signalCount   how many pod snapshots have folded in
- * @param reasons       distinct triage reasons accumulated
- * @param affectedPods  pods currently contributing; drains as they recover or
- *                      are deleted, and an empty set past the cooldown resolves
- *                      the incident
- * @param evidence      bounded, newest-last human lines for logs / the sink
+ * @param id                 stable id for the life of the incident ({@code inc-<hex>})
+ * @param status             {@link IncidentStatus#OPEN} until resolved
+ * @param severity           the most severe {@link Verdict} observed
+ * @param namespace          the workload's namespace
+ * @param workload           the resolved top controller this incident is keyed on
+ * @param firstSeen          first actionable signal
+ * @param lastSeen           most recent signal of any kind
+ * @param lastErrorAt        most recent {@link Verdict#ERROR} signal, or {@code null}
+ *                           if only {@code NOTABLE} signals have been seen
+ * @param signalCount        how many pod snapshots have folded in
+ * @param reasons            distinct triage reasons accumulated
+ * @param affectedPods       pods currently contributing; drains as they recover or
+ *                           are deleted, and an empty set past the cooldown resolves
+ *                           the incident
+ * @param evidence           bounded, newest-last human lines for logs / the sink
+ * @param investigation      the agentic investigation result, or {@code null} if
+ *                           none has completed yet
+ * @param investigatedReasons the reason set covered by {@code investigation} — a
+ *                           reason outside it means the investigation is stale
  */
 public record Incident(
         String id,
@@ -50,12 +55,15 @@ public record Incident(
         int signalCount,
         Set<String> reasons,
         Set<String> affectedPods,
-        List<String> evidence) {
+        List<String> evidence,
+        Investigation investigation,
+        Set<String> investigatedReasons) {
 
     public Incident {
         reasons = Set.copyOf(reasons);
         affectedPods = Set.copyOf(affectedPods);
         evidence = List.copyOf(evidence);
+        investigatedReasons = Set.copyOf(investigatedReasons);
     }
 
     /** Opens a fresh incident from the first actionable signal for a workload. */
@@ -66,7 +74,8 @@ public record Incident(
                 now, now, errorAt, 1,
                 new LinkedHashSet<>(triage.reasons()),
                 podName == null ? Set.of() : Set.of(podName),
-                evidenceLine == null ? List.of() : List.of(evidenceLine));
+                evidenceLine == null ? List.of() : List.of(evidenceLine),
+                null, Set.of());
     }
 
     /** Folds another actionable signal into this incident. */
@@ -92,12 +101,27 @@ public record Incident(
         Instant errorAt = triage.verdict() == Verdict.ERROR ? now : lastErrorAt;
 
         return new Incident(id, status, mergedSeverity, namespace, workload,
-                firstSeen, now, errorAt, signalCount + 1, mergedReasons, pods, lines);
+                firstSeen, now, errorAt, signalCount + 1, mergedReasons, pods, lines,
+                investigation, investigatedReasons);
     }
 
     /** True when {@code triage} carries a reason this incident has not seen before. */
     public boolean introducesNewReason(TriageResult triage) {
         return !reasons.containsAll(triage.reasons());
+    }
+
+    /** True when the incident has no investigation, or one that predates a current reason. */
+    public boolean needsInvestigation() {
+        return investigatedReasons.isEmpty()
+                ? !reasons.isEmpty()
+                : !investigatedReasons.containsAll(reasons);
+    }
+
+    /** Attaches an investigation result, recording which reasons it covered. */
+    public Incident withInvestigation(Investigation result, Set<String> coveredReasons) {
+        return new Incident(id, status, severity, namespace, workload,
+                firstSeen, lastSeen, lastErrorAt, signalCount, reasons, affectedPods, evidence,
+                result, Set.copyOf(coveredReasons));
     }
 
     /** Drops a pod that has recovered or been deleted from the affected set. */
@@ -108,12 +132,14 @@ public record Incident(
         Set<String> pods = new LinkedHashSet<>(affectedPods);
         pods.remove(podName);
         return new Incident(id, status, severity, namespace, workload,
-                firstSeen, lastSeen, lastErrorAt, signalCount, reasons, pods, evidence);
+                firstSeen, lastSeen, lastErrorAt, signalCount, reasons, pods, evidence,
+                investigation, investigatedReasons);
     }
 
     /** Marks the incident resolved at {@code now}. */
     public Incident resolved(Instant now) {
         return new Incident(id, IncidentStatus.RESOLVED, severity, namespace, workload,
-                firstSeen, now, lastErrorAt, signalCount, reasons, affectedPods, evidence);
+                firstSeen, now, lastErrorAt, signalCount, reasons, affectedPods, evidence,
+                investigation, investigatedReasons);
     }
 }

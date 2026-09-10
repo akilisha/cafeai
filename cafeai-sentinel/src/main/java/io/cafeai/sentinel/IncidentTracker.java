@@ -2,6 +2,7 @@ package io.cafeai.sentinel;
 
 import io.cafeai.sentinel.incident.Incident;
 import io.cafeai.sentinel.incident.IncidentEvent;
+import io.cafeai.sentinel.investigate.Investigation;
 import io.cafeai.sentinel.triage.TriageResult;
 import io.cafeai.sentinel.triage.TriageRules;
 import io.cafeai.sentinel.triage.Verdict;
@@ -16,12 +17,16 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -33,15 +38,19 @@ import java.util.stream.Collectors;
  * controller — so one broken Deployment is one incident, not one per replica per
  * event.
  *
- * <p>Phase 2: no AI. An incident carries triage output only (severity, reasons,
- * evidence lines). The agentic investigation that fills in cause and suggested
- * actions is ROADMAP-18 Phase 3.
+ * <p>Triage carries severity, reasons and evidence lines. When an
+ * {@link Investigator} is registered with {@link #investigator(Investigator)},
+ * the tracker runs it off the informer thread on incident open (and again when a
+ * new error reason appears) and folds the structured {@link Investigation} back
+ * in.
  *
  * <p>Lifecycle events go to the handler registered with {@link #onIncident}:
  * {@code OPENED} on the first actionable signal for a workload, {@code UPDATED}
- * as more fold in, {@code RESOLVED} once every affected pod has recovered or been
- * deleted and {@link SentinelConfig#resolveAfter()} has elapsed since the last
- * error. Resolution needs the background sweeper — call {@link #start()}.
+ * as more fold in, {@code INVESTIGATED} when an investigation completes,
+ * {@code RESOLVED} once every affected pod has recovered or been deleted and
+ * {@link SentinelConfig#resolveAfter()} has elapsed since the last error.
+ * Resolution and investigation both need the background workers — call
+ * {@link #start()}.
  *
  * <pre>{@code
  *   var config = SentinelConfig.create().namespace("payments");
@@ -57,6 +66,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     private static final Logger log = LoggerFactory.getLogger(IncidentTracker.class);
 
     private static final int MAX_EVIDENCE = 20;
+    private static final int INVESTIGATION_WORKERS = 2;
     private static final Duration SWEEP_INTERVAL = Duration.ofSeconds(30);
 
     private final TriageRules triage;
@@ -66,9 +76,13 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
 
     /** workload key -> current incident. Guarded by {@code this}. */
     private final Map<WorkloadRef, Incident> incidents = new HashMap<>();
+    /** incident ids with an investigation in flight. Guarded by {@code this}. */
+    private final Set<String> investigating = new HashSet<>();
 
     private Consumer<IncidentEvent> onIncident = event -> { };
+    private Investigator investigator;
     private ScheduledExecutorService sweeper;
+    private ExecutorService investigations;
 
     public IncidentTracker(SentinelConfig config) {
         this(config, new TriageRules(), Clock.systemUTC());
@@ -88,18 +102,29 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         return this;
     }
 
-    /** Starts the background sweeper that resolves quiet, pod-free incidents. */
+    /**
+     * Registers the agentic investigation. When set, {@link #start()} spins up a
+     * small worker pool that runs it on incident open and on a new error reason.
+     * Unset (the default) leaves the tracker triage-only.
+     */
+    public IncidentTracker investigator(Investigator investigator) {
+        this.investigator = investigator;
+        return this;
+    }
+
+    /** Starts the background sweeper and, if an investigator is set, the investigation workers. */
     public IncidentTracker start() {
         if (sweeper != null) {
             return this;
         }
-        sweeper = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "sentinel-incident-sweeper");
-            t.setDaemon(true);
-            return t;
-        });
+        sweeper = Executors.newSingleThreadScheduledExecutor(daemonFactory("sentinel-incident-sweeper"));
         long period = SWEEP_INTERVAL.toSeconds();
         sweeper.scheduleAtFixedRate(this::sweep, period, period, TimeUnit.SECONDS);
+
+        if (investigator != null) {
+            investigations = Executors.newFixedThreadPool(
+                    INVESTIGATION_WORKERS, daemonFactory("sentinel-investigator"));
+        }
         return this;
     }
 
@@ -136,6 +161,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             incidents.put(key, updated);
             emit(IncidentEvent.Type.UPDATED, updated);
         }
+        maybeInvestigate(key);
     }
 
     /** Current open incidents — a snapshot, newest state. */
@@ -149,6 +175,10 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             sweeper.shutdownNow();
             sweeper = null;
         }
+        if (investigations != null) {
+            investigations.shutdownNow();
+            investigations = null;
+        }
     }
 
     // ── internals ────────────────────────────────────────────────────────────
@@ -157,6 +187,49 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         Incident current = incidents.get(key);
         if (current != null) {
             incidents.put(key, current.withoutPod(podName));
+        }
+    }
+
+    /** Submits an investigation for {@code key}'s incident if one is warranted. Call under {@code this}. */
+    private void maybeInvestigate(WorkloadRef key) {
+        if (investigator == null || investigations == null) {
+            return;
+        }
+        Incident incident = incidents.get(key);
+        if (incident == null
+                || incident.status() != io.cafeai.sentinel.incident.IncidentStatus.OPEN
+                || investigating.contains(incident.id())
+                || !incident.needsInvestigation()) {
+            return;
+        }
+        String id = incident.id();
+        Set<String> covered = Set.copyOf(incident.reasons());
+        Incident snapshot = incident;
+        investigating.add(id);
+        investigations.execute(() -> runInvestigation(key, id, covered, snapshot));
+    }
+
+    private void runInvestigation(WorkloadRef key, String id, Set<String> covered, Incident snapshot) {
+        Investigation result;
+        try {
+            result = investigator.investigate(snapshot);
+        } catch (RuntimeException ex) {
+            log.warn("investigation {} for {} failed: {}", id, key, ex.toString());
+            synchronized (this) {
+                investigating.remove(id);
+            }
+            return;
+        }
+        synchronized (this) {
+            investigating.remove(id);
+            Incident current = incidents.get(key);
+            if (result == null || current == null || !current.id().equals(id)) {
+                return;
+            }
+            Incident enriched = current.withInvestigation(result, covered);
+            incidents.put(key, enriched);
+            emit(IncidentEvent.Type.INVESTIGATED, enriched);
+            maybeInvestigate(key);
         }
     }
 
@@ -183,6 +256,14 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
 
     private static String newId() {
         return "inc-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private static ThreadFactory daemonFactory(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            return t;
+        };
     }
 
     private static String evidenceLine(PodState pod, TriageResult result) {

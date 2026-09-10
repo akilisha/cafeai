@@ -14,6 +14,8 @@ public record IncidentEvent(Type type, Incident incident) {
         OPENED,
         /** An open incident accumulated another signal. */
         UPDATED,
+        /** An agentic investigation completed and its result was attached. */
+        INVESTIGATED,
         /** An open incident's pods all recovered and the cooldown elapsed. */
         RESOLVED
     }

@@ -5,10 +5,12 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09):** 🟢 Phases 0–2 built and unit-tested on `main` (unpushed,
-> unpublished). `ClusterWatch` + `ClusterConnection` + `IncidentTracker` /
-> `TriageRules`. No AI yet — that is Phase 3. A live minikube run is still
-> outstanding and may shift the triage rules and the resolution heuristic.
+> **Status (2026-09):** 🟢 Phases 0–3 built and unit-tested on `main` (unpushed,
+> unpublished). `ClusterWatch` + `ClusterConnection`; `IncidentTracker` /
+> `TriageRules`; `KubeTools` + `ClusterInvestigator` + the async investigation
+> orchestration. The LLM path is exercised only by fakes so far — a live minikube
+> run (all 4 scenarios) is the outstanding gate and may shift the triage rules,
+> the KubeTools output shapes, and the resolution heuristic.
 
 ---
 
@@ -38,7 +40,9 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | `SentinelConfig` fluent surface (`.connection` / `.namespace` / `.system` / `.investigationPrompt` / `.guard` / `.investigationModel` / `.triageModel` / `.debounce` / `.sink`) | ✅ | |
 | `ClusterConnection` — ambient / named context / token+URL / basic-auth, with CA + TLS knobs | ✅ | |
 | `TriageRules` / `Verdict` / `TriageResult` — rules-only classifier | ✅ | |
-| `IncidentTracker` + `Incident` / `IncidentEvent` — coalesce by workload, best-effort resolve | ✅ | |
+| `IncidentTracker` + `Incident` / `IncidentEvent` — coalesce by workload, best-effort resolve, async investigation orchestration | ✅ | |
+| `KubeTools` — read-only `@Tool` bundle (getPod, getPodLogs, listEvents, describeDeployment, getReplicaSetHistory, getNodeConditions, getResourceQuota) | ✅ | |
+| `ClusterInvestigator` (agent interface) + `Investigation` / `CauseCategory` / `Confidence` + `IncidentBrief` + `Investigator` SAM | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -177,7 +181,7 @@ change` and let config decide which get investigated vs merely published.
 | 0 | ✅ Skeleton — modules in the build, this doc | compiles |
 | 1 | ✅ Walking skeleton — fabric8 informer watch → pod-state model → log sink. **No AI.** | correlated pod state (live minikube run still pending) |
 | 2 | ✅ Triage tier — **rules** on container state / phase / Events; coalesce into `Incident` keyed on the resolved top controller; best-effort resolve after a cooldown | one incident per broken deploy, not per event *(unit-verified; live run pending)* |
-| 3 | Investigation tier — `KubeTools` read-only bundle + agentic investigation → structured incident | all 4 scenarios produce a coherent incident on minikube |
+| 3 | ✅ Investigation tier — `KubeTools` read-only bundle + `ClusterInvestigator` agent, run async on open / new reason → structured `Investigation` folded into the incident | *code done; `IncidentBrief` + orchestration fake-tested. `KubeTools` and the LLM path are verified in the live minikube run — the "all 4 scenarios" gate is open (fabric8 mock-server hangs on the JDK http backend, so no unit layer there).* |
 | 4 | Guardrails + budget — PII redaction on log excerpts, `TokenBudget` | secrets in logs never reach the prompt or the incident |
 | 5 | Sinks — `IncidentSink` SPI, SSE + webhook sinks; capstone HTTP routes | a browser `EventSource` receives incidents |
 | 6 | OpenShift validation — same 4 scenarios on a real dev/staging cluster | identical structured incidents |
@@ -222,9 +226,23 @@ change` and let config decide which get investigated vs merely published.
   (`.start()`) does this; without it incidents only ever open/update. A timer is
   the honest tool here — with `NO_RESYNC` there is no steady event stream to
   hang resolution off. `NOTABLE`-only incidents skip the cooldown.
-- **Investigation trigger — first error of a kind.** First `(incident key, error
-  reason)` pair triggers an investigation; repeats update counters.
-  `Incident.introducesNewReason(...)` is the hook (Phase 3).
+- **Investigation trigger — first error of a kind.** `IncidentTracker` runs the
+  `Investigator` off the informer thread (a 2-worker pool) when an incident opens
+  and again whenever `Incident.needsInvestigation()` — a reason not covered by the
+  last run — is true. One investigation per incident id in flight at a time; a
+  failure is logged and isolated (incident stays OPEN, retried on the next new
+  reason). The result folds in as an `INVESTIGATED` event.
+- **Investigation wiring — capstone owns the model + prompt.** The module ships
+  the `ClusterInvestigator` interface (with a default `@SystemMessage`), the
+  `KubeTools` bundle, and the `Investigation` schema. The capstone binds it as a
+  CafeAI `app.agent("cluster-investigator", …).tool(kubeTools).model(…)` and hands
+  the tracker `inc -> agent.investigate(IncidentBrief.of(inc))`. A non-CafeAI
+  caller uses `Investigator.using(chatModel, kubeTools)`.
+- **KubeTools — strictly read-only, single client.** Every method is a GET/LIST;
+  each catches its own failure and returns a readable string rather than aborting
+  the agent loop. It shares `ClusterWatch.client()` — no second connection. Node
+  reads are the one cluster-scoped call (capstone RBAC needs a `ClusterRole` for
+  `nodes`).
 - **Re-investigation — update, don't re-run, unless a new error reason appears.**
   New evidence on an open incident bumps `lastSeen` / `eventCount` and appends to
   `evidence[]`. A genuinely *new* error reason on the same incident (was
