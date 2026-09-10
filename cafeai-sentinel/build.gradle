@@ -26,7 +26,14 @@ dependencies {
     api project(':cafeai-core')
     api project(':cafeai-agents')
 
-    // ROADMAP-18 P1+ — fabric8 KubernetesClient is expected to leak through
-    // ClusterWatch / KubeTools, so these will be `api`. Pinned when P1 lands.
-    // api "io.fabric8:openshift-client:${rootProject.ext.fabric8Version}"
+    // fabric8 KubernetesClient leaks through ClusterWatch / (later) KubeTools.
+    // openshift-client is a superset of kubernetes-client — OpenShiftClient
+    // extends KubernetesClient, so the OpenShift target costs nothing extra.
+    //
+    // Swap the default okhttp 3.12 backend for the JDK HttpClient one — we are
+    // on Java 23 and have no reason to carry a 2018-era okhttp.
+    api("io.fabric8:openshift-client:${rootProject.ext.fabric8Version}") {
+        exclude group: 'io.fabric8', module: 'kubernetes-httpclient-okhttp'
+    }
+    runtimeOnly "io.fabric8:kubernetes-httpclient-jdk:${rootProject.ext.fabric8Version}"
 }

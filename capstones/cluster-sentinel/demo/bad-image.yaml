@@ -1,0 +1,20 @@
+# An image tag that does not exist — the pod sticks in ImagePullBackOff and the
+# workload never progresses.
+#   kubectl -n demo apply -f bad-image.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-image
+  labels: { app: bad-image }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: bad-image }
+  template:
+    metadata:
+      labels: { app: bad-image }
+    spec:
+      containers:
+        - name: app
+          image: busybox:this-tag-does-not-exist
+          command: ["/bin/sh", "-c", "sleep 3600"]

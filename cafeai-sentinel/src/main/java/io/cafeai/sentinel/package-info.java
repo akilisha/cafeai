@@ -10,7 +10,9 @@
  * no incident store, no remediation. The runnable companion is the
  * {@code cluster-sentinel} capstone.
  *
- * <p><strong>Status:</strong> ROADMAP-18 skeleton (Phase 0). The pipeline lands
- * in Phase 1+. See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
+ * <p><strong>Status:</strong> ROADMAP-18 Phase 1 — {@link io.cafeai.sentinel.ClusterWatch}
+ * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState}
+ * on every pod change. No triage, no AI yet. See
+ * {@code docs/roadmap/ROADMAP-18-sentinel.md}.
  */
 package io.cafeai.sentinel;

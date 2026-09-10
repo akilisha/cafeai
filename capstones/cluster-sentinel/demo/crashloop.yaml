@@ -1,0 +1,20 @@
+# A container that exits 1 a few seconds after start — Kubernetes restarts it
+# into CrashLoopBackOff. Apply into the watched namespace:
+#   kubectl -n demo apply -f crashloop.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crashloop
+  labels: { app: crashloop }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: crashloop }
+  template:
+    metadata:
+      labels: { app: crashloop }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["/bin/sh", "-c", "echo starting; sleep 5; echo bye; exit 1"]

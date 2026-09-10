@@ -34,7 +34,8 @@ No dashboard, no incident store, no remediation, no alert-rule engine.
 | Incident model + coalescing by owner reference | ✅ | |
 | Two-tier triage → investigation orchestration | ✅ | |
 | `IncidentSink` SPI + built-in sinks (log, SSE, webhook) | ✅ | |
-| `SentinelConfig` fluent surface (`.namespace` / `.system` / `.investigationPrompt` / `.guard` / `.investigationModel` / `.triageModel` / `.debounce` / `.sink`) | ✅ | |
+| `SentinelConfig` fluent surface (`.connection` / `.namespace` / `.system` / `.investigationPrompt` / `.guard` / `.investigationModel` / `.triageModel` / `.debounce` / `.sink`) | ✅ | |
+| `ClusterConnection` — ambient / named context / token+URL / basic-auth, with CA + TLS knobs | ✅ | |
 | `main()`, wiring, the actual prompts | | ✅ |
 | RBAC manifests (read-only Role + binding) | | ✅ |
 | Demo scenarios (broken manifests under `demo/`) | | ✅ |
@@ -177,6 +178,14 @@ change` and let config decide which get investigated vs merely published.
 
 - **Scope — single namespace.** `SentinelConfig.namespace(String)`. Intentional
   blast-radius limit; RBAC is a namespaced `Role`, never a `ClusterRole`.
+- **Connection — ambient by default, explicit token for the real case.**
+  `SentinelConfig.connection(ClusterConnection)`. `ambient()` (kubeconfig
+  current-context / in-cluster SA token) is right for a laptop or an in-cluster
+  pod, but the enterprise deployment is a sentinel *outside* the cluster it
+  watches, so `token(apiServerUrl, oauthToken)` is a first-class mode — no
+  kubeconfig consulted, with `caCertFile` / `caCertData` / `trustCerts` for TLS.
+  `context(name)` and `basicAuth(...)` round it out; basic-auth is kept only for
+  legacy / proxied endpoints (Kubernetes ≥ 1.19 rejects static passwords).
 - **Event source — Pod events only, for now.** Every object kind emits Events;
   the mechanics (watch → triage → coalesce → investigate) don't change, only the
   event shape does. StatefulSets / DaemonSets / Jobs / bare pods come on a

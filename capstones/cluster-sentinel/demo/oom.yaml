@@ -1,0 +1,26 @@
+# A 16Mi memory limit against a process that allocates ~64MB — the kernel OOM-kills
+# the container (exit 137). The reason lives in pod.status ...lastState.terminated,
+# never in an Event, so this exercises the Pod-object watch path.
+#   kubectl -n demo apply -f oom.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oom
+  labels: { app: oom }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: oom }
+  template:
+    metadata:
+      labels: { app: oom }
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-alpine
+          command: ["python", "-c", "a = bytearray(64 * 1024 * 1024); import time; time.sleep(3600)"]
+          resources:
+            limits:
+              memory: "16Mi"
+            requests:
+              memory: "16Mi"
