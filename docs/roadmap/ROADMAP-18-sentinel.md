@@ -81,6 +81,13 @@ Triage is a stateless classifier; investigation is stateful (accumulate → debo
 bad deploy fans out dozens of `CrashLoopBackOff` events across replicas and must
 produce **one** investigation.
 
+**Two watch streams, correlated — not Events alone.** The informer watches Pod
+*objects* (status transitions) *and* Events. This matters: `OOMKilled` is never an
+Event — it lives only in `pod.status.containerStatuses[].lastState.terminated`
+(exit 137). The "memory too small" scenario is invisible without the Pod-object
+watch. ("Pod events only" in the scope decision means we don't yet watch
+StatefulSet / DaemonSet / Job *objects* — it does not mean Events-only.)
+
 **Triage is rules-first.** The Kubernetes Event `reason` / `type` fields carry
 most of the signal — `BackOff`, `Failed`, `Unhealthy`, `OOMKilling`,
 `FailedScheduling`, `FailedMount` → `error`; `Killing` / `ScalingReplicaSet` to
@@ -203,14 +210,11 @@ change` and let config decide which get investigated vs merely published.
   traces its own investigation as a span. Ingesting cluster metrics/traces as
   investigation evidence is an overreach — out of scope through Phase 7. Evidence
   sources stay: pod spec/status, container logs, Events, owner objects.
-
-### Still open
-
-- **Startup history** — on first connect the informer LISTs every
-  currently-failing pod. **Proposed default:** log them as "pre-existing — not
-  investigated" and only act on transitions *after* start, with a
-  `.investigateOnStartup()` opt-in. Keeps demos clean (start sentinel, *then*
-  break something). Needs confirmation.
+- **Startup history — skip pre-existing failures.** On first connect the informer
+  LISTs every currently-failing pod; log those as "pre-existing — not
+  investigated" and only act on transitions *after* start. `.investigateOnStartup()`
+  opt-in for the "tell me what's already on fire" case. Keeps demos clean — start
+  sentinel, *then* break something.
 
 ---
 
