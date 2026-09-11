@@ -1,0 +1,53 @@
+name: Release capstone downloads
+
+# Attaches each capstones/* reference app as a downloadable zip on the
+# GitHub Release for a version tag — the "download instead of cloning"
+# alternative to the framework's Maven Central artifacts, which capstones
+# deliberately are not part of (see gradle/capstone.gradle).
+#
+# Trigger: push a tag matching v* (the same `git tag -a vX.Y.Z ... &&
+# git push origin vX.Y.Z` you already use). GitHub Actions runs the
+# workflow file as it exists AT THAT TAG'S COMMIT, so a tag only picks
+# this up once this file has been merged to the branch you tag from.
+#
+# softprops/action-gh-release creates the Release for the tag if one
+# doesn't exist yet (title = tag name, a generated body) and uploads the
+# listed files as its assets; if you already created the Release by hand
+# on GitHub first, it just adds these files to it.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # create the Release / upload assets to it
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # One invocation builds every capstone's distZip — Gradle's task
+      # selector runs `distZip` in every subproject that defines it, i.e.
+      # every capstones/* (each applies capstone.gradle -> the
+      # `application` plugin). Nothing else in the reactor has that task.
+      - name: Assemble capstone distributions
+        run: ./gradlew distZip --console=plain --no-daemon
+
+      - name: Attach zips to the ${{ github.ref_name }} release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: capstones/*/build/distributions/*.zip
+          fail_on_unmatched_files: true
