@@ -8,13 +8,19 @@ import java.util.Objects;
 /**
  * Configuration for a sentinel pipeline.
  *
- * <p>Phases 1–4 expose how to reach the cluster, the namespace to watch, whether
- * to act on failures that already exist at startup, how long an incident stays
- * open after its last error, whether to redact secrets from cluster text, and a
- * token budget for investigations. Later phases add {@code .system(...)},
- * {@code .investigationPrompt(...)}, {@code .investigationModel(...)},
- * {@code .triageModel(...)}, {@code .guard(...)}, {@code .debounce(...)} and
- * {@code .sink(...)}.
+ * <p>Covers how to reach the cluster, the namespace to watch, whether to act on
+ * failures that already exist at startup, how long an incident stays open after
+ * its last error, the {@code UPDATED}-event debounce, whether to redact secrets
+ * from cluster text, and a token budget for investigations.
+ *
+ * <p>Deliberately <em>not</em> here: the investigation model/prompt and the
+ * incident sink. Both already have their own fluent surface elsewhere —
+ * {@code app.agent("cluster-investigator", }{@link io.cafeai.sentinel.investigate.ClusterInvestigator}
+ * {@code .class).model(...).system(...)} for the model and prompt, and
+ * {@link IncidentTracker#onIncident(java.util.function.Consumer) IncidentTracker.onIncident(...)}
+ * for the sink — so this config does not duplicate them. A triage model is
+ * likewise intentionally absent: triage is rules-only
+ * ({@link io.cafeai.sentinel.triage.TriageRules}) by design, not a stopgap.
  *
  * <pre>{@code
  *   var config = SentinelConfig.create().namespace("payments");

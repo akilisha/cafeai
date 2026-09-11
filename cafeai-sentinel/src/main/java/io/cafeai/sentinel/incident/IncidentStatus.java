@@ -6,6 +6,6 @@ public enum IncidentStatus {
     /** Actively accumulating signals. */
     OPEN,
 
-    /** No affected pods remain and the cooldown has elapsed. Terminal for Phase 2. */
+    /** No affected pods remain and the cooldown has elapsed. Terminal — an incident does not reopen. */
     RESOLVED
 }

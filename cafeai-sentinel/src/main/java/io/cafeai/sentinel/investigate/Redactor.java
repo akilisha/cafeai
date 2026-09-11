@@ -8,8 +8,8 @@ import java.util.regex.Pattern;
 /**
  * Scrubs credentials and PII out of cluster text — container logs, pod YAML
  * (env values), event messages — <em>before</em> it reaches the LLM prompt, the
- * {@link io.cafeai.sentinel.incident.Incident}, or a log line. ROADMAP-18
- * Phase 4: a secret in a pod's logs must never leave the process in the clear.
+ * {@link io.cafeai.sentinel.incident.Incident}, or a log line. The invariant:
+ * a secret in a pod's logs must never leave this process in the clear.
  *
  * <p>Two layers: sentinel-specific secret shapes (bearer / basic auth headers,
  * URL credentials, {@code password=} / {@code token=} style assignments, AWS keys,

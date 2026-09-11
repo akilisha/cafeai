@@ -10,20 +10,23 @@ import java.util.Set;
 
 /**
  * Rules-only triage — classify a correlated {@link PodState} from its container
- * states, pod phase and recent pod Events. No model call: the Kubernetes
- * {@code reason} fields carry most of the signal, and a lookup table gets the
- * common failures right. An LLM classifier for the ambiguous remainder is a
- * later fallback (ROADMAP-18 Phase 3+), not a dependency here.
+ * states, pod phase and recent pod Events. No model call, by design: the
+ * Kubernetes {@code reason} fields carry most of the signal, and a lookup table
+ * gets the common failures right. An LLM classifier for the ambiguous remainder
+ * would be a reasonable future addition but is not currently planned or needed —
+ * the agentic investigation ({@link io.cafeai.sentinel.investigate.ClusterInvestigator})
+ * already handles the cases these rules can't classify with confidence.
  *
  * <p>Precedence is container state → pod phase → Events. Container state comes
  * first because it holds {@code OOMKilled} / exit codes that never surface as
  * Events. The verdict is the most severe signal found; every matched reason is
  * returned so the incident accumulates the full picture.
  *
- * <p><strong>Not detected in Phase 2:</strong> scale-to-zero / endpoint loss — a
+ * <p><strong>Known gap: scale-to-zero / endpoint loss is not detected.</strong> A
  * graceful scale-down terminates pods with SIGTERM (exit 143) and emits no
- * failure signal, by design. Surfacing "service has no endpoints" needs an
- * Endpoints watch, which lands with a later phase.
+ * failure signal, by design — that's what keeps a routine {@code kubectl scale}
+ * from crying wolf. Surfacing "service has no endpoints" as its own signal would
+ * need a separate Endpoints watch; nothing on the roadmap adds one.
  */
 public final class TriageRules {
 

@@ -2,7 +2,8 @@ package io.cafeai.sentinel.incident;
 
 /**
  * Emitted by {@link io.cafeai.sentinel.IncidentTracker} on every incident
- * lifecycle transition. In Phase 5 this is what an {@code IncidentSink} receives.
+ * lifecycle transition. This is what an
+ * {@link io.cafeai.sentinel.sink.IncidentSink} receives.
  *
  * @param type     what just happened
  * @param incident the incident snapshot after the transition

@@ -8,8 +8,9 @@ import java.util.List;
  * its container states, and the recent pod-scoped Events — assembled by
  * {@link io.cafeai.sentinel.ClusterWatch} on every pod add / update / delete.
  *
- * <p>This is the Phase-1 output. Later phases classify a stream of these into
- * incidents; nothing here decides severity.
+ * <p>This record decides nothing — it's the input, not the verdict.
+ * {@link io.cafeai.sentinel.triage.TriageRules} classifies a stream of these,
+ * and {@link io.cafeai.sentinel.IncidentTracker} coalesces them into incidents.
  *
  * @param namespace    the pod's namespace
  * @param name         the pod name

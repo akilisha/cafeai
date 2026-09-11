@@ -38,8 +38,10 @@ import java.util.function.Consumer;
  * {@code Unhealthy}, {@code FailedScheduling}). Recent pod-scoped events are
  * attached to each snapshot.
  *
- * <p>Phase 1: no triage, no AI. It hands every snapshot to the callback given to
- * {@link #onPodState(Consumer)}; the caller decides what to do with it.
+ * <p>This class does no triage and no AI by itself — it hands every snapshot to
+ * the callback given to {@link #onPodState(Consumer)} and lets the caller decide
+ * what to do with it. {@link IncidentTracker} is the callback that does the
+ * classifying.
  *
  * <pre>{@code
  *   var config = SentinelConfig.create().namespace("payments");
@@ -53,7 +55,7 @@ public final class ClusterWatch implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterWatch.class);
 
-    /** No periodic resync — Phase 1 keeps the callback stream to real changes. */
+    /** No periodic resync — the callback stream is real changes only, never a re-send of unchanged state. */
     private static final long NO_RESYNC = 0L;
     private static final int MAX_EVENTS_PER_POD = 12;
     private static final long SYNC_TIMEOUT_MILLIS = 30_000L;
@@ -66,7 +68,7 @@ public final class ClusterWatch implements AutoCloseable {
     /** podName -> recent pod-scoped events, oldest first, bounded. */
     private final Map<String, Deque<PodEvent>> eventsByPod = new ConcurrentHashMap<>();
 
-    private Consumer<PodState> onPodState = state -> { };
+    private Consumer<PodState> onPodState = _ -> { };
     private SharedIndexInformer<Pod> podInformer;
     private SharedIndexInformer<Event> eventInformer;
     private volatile boolean initialSyncComplete = false;

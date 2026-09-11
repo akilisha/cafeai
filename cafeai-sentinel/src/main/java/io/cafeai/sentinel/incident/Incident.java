@@ -21,9 +21,10 @@ import java.util.stream.Collectors;
  * value per workload and replaces it as signals fold in; every
  * {@link IncidentEvent} carries a snapshot safe to hand to a sink.
  *
- * <p>Triage (Phase 2) fills the structural fields. {@link #investigation()} is
- * populated by the agentic investigation (Phase 3) once it completes, and is
- * {@code null} until then.
+ * <p>Triage fills the structural fields as signals arrive. {@link #investigation()}
+ * is populated by the agentic investigation once it completes, and stays
+ * {@code null} until then — an {@link io.cafeai.sentinel.IncidentTracker} with no
+ * registered {@link io.cafeai.sentinel.Investigator} never sets one.
  *
  * @param id                 stable id for the life of the incident ({@code inc-<hex>})
  * @param status             {@link IncidentStatus#OPEN} until resolved

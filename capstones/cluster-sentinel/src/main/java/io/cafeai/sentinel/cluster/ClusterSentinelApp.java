@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
  * Capstone entry point — a runnable {@link io.cafeai.sentinel} pipeline pointed
  * at a Kubernetes / OpenShift cluster.
  *
- * <p><strong>Phase 5 (ROADMAP-18):</strong> {@link ClusterWatch} feeds correlated
- * pod snapshots to an {@link IncidentTracker} that triages and coalesces them
- * into incidents keyed on the owning workload; a {@link ClusterInvestigator}
+ * <p>{@link ClusterWatch} feeds correlated pod snapshots to an
+ * {@link IncidentTracker} that triages and coalesces them into incidents keyed
+ * on the owning workload; a {@link ClusterInvestigator}
  * agent (a CafeAI {@code app.agent(...)} with the read-only {@link KubeTools}
  * bundle) investigates each new incident and attaches a structured
  * {@link Investigation}; secrets are redacted at the boundary. Incidents fan out
@@ -122,7 +122,7 @@ public final class ClusterSentinelApp {
                 res.type("application/json").send(IncidentJson.incidents(tracker.openIncidents())));
         app.get("/incidents/stream", (req, res, next) -> res.stream(sse.stream()));
 
-        log.info("cluster-sentinel Phase 5 — watching '{}', dashboard on http://localhost:{}", namespace, port);
+        log.info("cluster-sentinel — watching '{}', dashboard on http://localhost:{}", namespace, port);
         app.listen(port);
     }
 
