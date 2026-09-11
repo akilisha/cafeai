@@ -5,6 +5,18 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09
+
+### Added
+- `.github/workflows/release-capstones.yml` — the repo's first CI. On a
+  `v*` tag push, builds every `capstones/*` reference app's distribution
+  (`./gradlew distZip`) and attaches each one as a zip asset on that
+  tag's GitHub Release — a download-and-run alternative to cloning the
+  repo, for the capstones only (they are not, and will not be, published
+  to Maven Central).
+
+No library code changed. No published module's content differs from 0.3.0.
+
 ## [0.3.0] — 2026-09
 
 ### Changed — BREAKING
