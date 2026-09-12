@@ -688,6 +688,9 @@ app.ai(OpenAI.of("gpt-4o"));
 
 // Production — Anthropic
 app.ai(Anthropic.of("claude-sonnet-4-5"));
+
+// Production — Gemini (see "Beyond the four built-in providers" below)
+app.ai(Gemini.of("gemini-2.5-flash"));
 ```
 
 **Cost-aware routing** with `ModelRouter` lets you automatically send simple queries to a
@@ -713,6 +716,40 @@ export ANTHROPIC_API_KEY=sk-ant-...
 If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
 with an exact message telling you which variable to set — including a suggestion to use
 Ollama locally if you don't have a key.
+
+**Beyond the four built-in providers.** `LangchainBridge` — the internal class that turns an
+`AiProvider` into a real LangChain4j `ChatModel` — only knows how to build one for
+`OpenAI`/`Anthropic`/`Ollama`/`Jlama`. Everything else routes through one public escape hatch
+it checks first:
+
+```java
+public interface ChatModelAccess {
+    ChatModel toChatModel();
+}
+```
+
+Any `AiProvider` that also implements `LangchainBridge.ChatModelAccess` supplies its own
+`ChatModel` directly — the bridge's built-in switch never runs for it. `io.cafeai.core.ai.Gemini`
+is a real, first-class provider built entirely this way:
+
+```java
+private record GeminiProvider(String modelId)
+        implements AiProvider, LangchainBridge.ChatModelAccess {
+    public String name() { return "gemini"; }
+    public ProviderType type() { return ProviderType.CUSTOM; }   // never reaches the bridge's switch
+    public ChatModel toChatModel() {
+        return GoogleAiGeminiChatModel.builder()
+                .apiKey(System.getenv("GEMINI_API_KEY"))
+                .modelName(modelId)
+                .build();
+    }
+}
+```
+
+`app.ai(Gemini.of("gemini-2.5-flash"))` works exactly like any built-in provider — nothing in
+`AiProvider`, `LangchainBridge`'s switch, or any existing provider changed to add it. This is
+the pattern for wiring in anything LangChain4j has (or can be given) a `ChatModel` for — Azure
+OpenAI, Vertex AI, a custom gateway, a model you've wrapped yourself.
 
 ---
 

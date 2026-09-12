@@ -100,6 +100,25 @@ class AiPrimitivesTest {
     }
 
     @Test
+    @DisplayName("Gemini.of(modelId) has correct metadata")
+    void gemini_of_metadata() {
+        var p = Gemini.of("gemini-2.5-flash");
+        assertThat(p.name()).isEqualTo("gemini");
+        assertThat(p.modelId()).isEqualTo("gemini-2.5-flash");
+        // Not one of LangchainBridge's four built-in ProviderType branches —
+        // Gemini reaches a ChatModel entirely through the ChatModelAccess escape
+        // hatch below, so the type it reports is CUSTOM by design.
+        assertThat(p.type()).isEqualTo(AiProvider.ProviderType.CUSTOM);
+    }
+
+    @Test
+    @DisplayName("Gemini.of(...) implements the ChatModelAccess escape hatch, not a built-in bridge branch")
+    void gemini_usesChatModelAccessEscapeHatch() {
+        var p = Gemini.of("gemini-2.5-flash");
+        assertThat(p).isInstanceOf(io.cafeai.core.internal.LangchainBridge.ChatModelAccess.class);
+    }
+
+    @Test
     @DisplayName("ModelRouter.smart() stores simple and complex providers")
     void modelRouter_storesProviders() {
         var router = ModelRouter.smart()

@@ -39,6 +39,12 @@ class VisionPipelineTest {
         }
 
         @Test
+        @DisplayName("Gemini providers claim vision")
+        void gemini_claimsVision() {
+            assertThat(Gemini.of("gemini-2.5-flash").supportsVision()).isTrue();
+        }
+
+        @Test
         @DisplayName("OpenAI.whisper() does not claim vision")
         void whisper_doesNotSupportVision() {
             assertThat(OpenAI.whisper().supportsVision()).isFalse();

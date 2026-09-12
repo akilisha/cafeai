@@ -90,6 +90,14 @@ class CafeAIAppTest {
     }
 
     @Test
+    @DisplayName("app.ai(Gemini.of(gemini-2.5-flash)) registers provider — no API key needed until first use")
+    void ai_gemini_registers() {
+        var app = CafeAI.create();
+        assertThatCode(() -> app.ai(Gemini.of("gemini-2.5-flash")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("app.ai(ModelRouter) registers smart router")
     void ai_modelRouter_registers() {
         var app = CafeAI.create();
@@ -135,6 +143,15 @@ class CafeAIAppTest {
         assertThat(provider.name()).isEqualTo("ollama");
         assertThat(provider.modelId()).isEqualTo("llama3.3");
         assertThat(provider.type()).isEqualTo(AiProvider.ProviderType.OLLAMA);
+    }
+
+    @Test
+    @DisplayName("Gemini.of(gemini-2.5-flash) has correct name and modelId")
+    void gemini_hasCorrectMetadata() {
+        var provider = Gemini.of("gemini-2.5-flash");
+        assertThat(provider.name()).isEqualTo("gemini");
+        assertThat(provider.modelId()).isEqualTo("gemini-2.5-flash");
+        assertThat(provider.type()).isEqualTo(AiProvider.ProviderType.CUSTOM);
     }
 
     @Test

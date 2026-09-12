@@ -44,6 +44,11 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-ollama'
     // Jlama (pure-Java in-process inference — no server, no native code)
     implementation 'dev.langchain4j:langchain4j-jlama'
+    // Google Gemini — NOT one of the four ProviderType values LangchainBridge's
+    // switch wires up. ai/Gemini.java reaches it entirely through the public
+    // LangchainBridge.ChatModelAccess escape hatch; this dependency line is the
+    // only change anything in this module needed to gain a fifth provider.
+    implementation 'dev.langchain4j:langchain4j-google-ai-gemini'
 
     // ── Serialization ────────────────────────────────────────
     // `api`: @JsonCreator/@JsonProperty annotate the public constructor and
