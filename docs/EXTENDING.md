@@ -70,8 +70,8 @@ implement `io.cafeai.rag.VectorStore` and hand the instance to `app.vectordb(...
 // cafeai-pgvector-lite/build.gradle
 plugins { id 'java-library' }
 dependencies {
-    api 'com.akilisha.oss:cafeai-core:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-rag:0.3.1'
+    api 'com.akilisha.oss:cafeai-core:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-rag:0.3.2'
     implementation 'org.postgresql:postgresql:42.7.7'
 }
 ```
@@ -147,7 +147,7 @@ is a plain framework, not a container.
 
 `CafeAIModule` (`name()` / `version()` / `register(CafeAIRegistry)`) is a
 lightweight "I'm here" hook: on startup CafeAI logs each module it finds
-(`CafeAI module loaded: cafeai-rag v0.3.1`). The capability wiring itself goes
+(`CafeAI module loaded: cafeai-rag v0.3.2`). The capability wiring itself goes
 through the provider SPIs above — `CafeAIModule` is informational, not
 load-bearing. Implement it in a `cafeai-*` module so its presence is visible in
 the startup log; it is not required for a Level-1 or Level-2 extension.

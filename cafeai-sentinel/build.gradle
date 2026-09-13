@@ -16,10 +16,7 @@
 description = 'AI cluster incident pipeline — watch a Kubernetes/OpenShift cluster, ' +
     'triage and investigate pod failures with the cafeai AI primitives, emit a structured incident.'
 
-// NOT published yet — Maven Central opt-in lands at ROADMAP-18 Phase 7 (0.3.0),
-// gated on the OpenShift portability validation (Phase 6). Until then the module
-// is reactor-only: it keeps the framework honest without shipping an empty shell.
-// apply from: "$rootDir/gradle/maven-central.gradle"
+apply from: "$rootDir/gradle/maven-central.gradle"
 
 dependencies {
 

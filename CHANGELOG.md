@@ -5,6 +5,23 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-09
+
+### Added
+
+- **`cafeai-sentinel` is now published to Maven Central** (ROADMAP-18 Phase 7)
+  — the AI Kubernetes/OpenShift incident pipeline introduced reactor-only in
+  0.3.0 clears its publish gate: all 4 demo scenarios (crashloop, bad-image,
+  oom, missing-config) validated end-to-end on a real OpenShift cluster, not
+  just minikube, confirming the "runs identically on Kubernetes and
+  OpenShift" claim. Ships with `deploy/rbac.yaml` — a least-privilege
+  `cluster-sentinel` ServiceAccount (namespaced `Role` for pods/logs/events/
+  quota/deployments/replicasets, `ClusterRole` for nodes only) for running
+  sentinel outside the cluster it watches via `ClusterConnection.token(...)`,
+  instead of a personal user's OAuth token.
+- **Gemini provider** — `io.cafeai.core.ai.Gemini`, wired entirely through
+  `ChatModelAccess` alongside `Anthropic`/`OpenAI`/`Ollama`/`Jlama`.
+
 ## [0.3.1] — 2026-09
 
 ### Added

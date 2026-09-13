@@ -5,12 +5,14 @@
 > the live cluster, and emits a **structured incident** to a pluggable sink.
 > Its runnable companion is the capstone **cluster-sentinel**.
 >
-> **Status (2026-09-10):** 🟢 Phases 0–5 built, unit-tested, and **run
-> end-to-end against live minikube** with Claude Sonnet 4.5 — 3 of the 4 demo
-> scenarios (bad-image, oom, crashloop) produced correct structured incidents;
-> the run surfaced and fixed 3 bugs (see "Fixes from the 2026-09-10 minikube
-> run"). On `main`, unpushed, unpublished. Remaining: run `missing-config`,
-> Phase 6 (OpenShift), Phase 7 (publish at 0.3.0).
+> **Status (2026-09-13):** 🟢 **Done.** Phases 0–5 built and unit-tested;
+> validated end-to-end against live minikube (3 of 4 demo scenarios) and then
+> against a real OpenShift cluster (Phase 6, all 4 of 4 scenarios — crashloop,
+> bad-image, oom, missing-config — including `deploy/rbac.yaml`, a
+> least-privilege ServiceAccount for running sentinel outside the cluster it
+> watches), confirming the "runs identically on Kubernetes and OpenShift"
+> reusability claim this module is gated on. Phase 7 (publish) shipped in
+> **0.3.2**.
 
 ---
 

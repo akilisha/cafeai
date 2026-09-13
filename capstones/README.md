@@ -41,14 +41,14 @@ a standalone project, swap those for the Maven Central coordinates:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-agents:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-rag:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-memory:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-observability:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-security:0.3.1'
-    implementation 'com.akilisha.oss:cafeai-connect:0.3.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-agents:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-rag:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-memory:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-observability:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-security:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-connect:0.3.2'
     // invoice-processor also: the Gmail API client + jakarta.mail
 }
 ```
