@@ -113,6 +113,23 @@ rejects static-password auth).
 
 ## RBAC (Phase 5+)
 
-Runs today with your kubeconfig user, or the token from
-`SENTINEL_TOKEN`. The read-only `Role` + `RoleBinding` for running sentinel *as a
-ServiceAccount in the cluster* ships with Phase 5 under `deploy/`.
+Runs today with your kubeconfig user, or the token from `SENTINEL_TOKEN` — but a
+personal user account (`oc whoami -t`) is the wrong long-term credential for an
+unattended pipeline, and typically won't have `list`/`watch` on `events` anyway.
+`deploy/rbac.yaml` defines a dedicated `cluster-sentinel` ServiceAccount scoped to
+exactly what `KubeTools`/`ClusterWatch` read: pods, pod logs, events, deployments,
+replicasets, quota (namespaced `Role`) and nodes (`ClusterRole`, the one
+cluster-scoped lookup). Apply it and mint a token for `SENTINEL_TOKEN`:
+
+```bash
+oc apply -f deploy/rbac.yaml -n demo
+export SENTINEL_TOKEN=$(oc create token cluster-sentinel -n demo --duration=24h)
+export SENTINEL_API_SERVER=$(oc whoami --show-server)
+export SENTINEL_INSECURE=true   # self-signed dev cluster; use SENTINEL_CA_CERT_FILE otherwise
+export SENTINEL_NAMESPACE=demo
+
+./gradlew :capstones:cluster-sentinel:run
+```
+
+`oc create token` requires OpenShift/Kubernetes 1.24+; on older clusters, use a
+long-lived ServiceAccount token Secret instead.

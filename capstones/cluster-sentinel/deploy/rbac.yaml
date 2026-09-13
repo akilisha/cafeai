@@ -1,0 +1,69 @@
+# Least-privilege identity for cluster-sentinel: read-only access to exactly
+# what KubeTools calls, nothing else. Works whether sentinel runs as this
+# ServiceAccount inside the cluster, or outside it with a minted token
+# (SENTINEL_TOKEN) — see README "Connect to a remote cluster".
+#
+#   oc apply -f deploy/rbac.yaml -n <namespace>
+#   oc create token cluster-sentinel -n <namespace> --duration=24h
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-sentinel
+
+---
+# Namespaced: pods/events/deployments/replicasets/quota — everything KubeTools
+# and ClusterWatch read within the single watched namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-sentinel-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events", "resourcequotas", "limitranges"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-sentinel-reader
+subjects:
+  - kind: ServiceAccount
+    name: cluster-sentinel
+roleRef:
+  kind: Role
+  name: cluster-sentinel-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Cluster-scoped: getNodeConditions is the one KubeTools call that isn't
+# namespaced. Read-only on nodes only — nothing else cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-sentinel-node-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-sentinel-node-reader
+subjects:
+  - kind: ServiceAccount
+    name: cluster-sentinel
+    namespace: demo   # must match wherever the ServiceAccount above is created
+roleRef:
+  kind: ClusterRole
+  name: cluster-sentinel-node-reader
+  apiGroup: rbac.authorization.k8s.io
