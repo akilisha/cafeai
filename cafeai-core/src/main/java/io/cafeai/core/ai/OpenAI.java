@@ -1,5 +1,9 @@
 package io.cafeai.core.ai;
 
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import io.cafeai.core.internal.LangchainBridge;
+
 /**
  * Factory for OpenAI LLM providers.
  *
@@ -73,18 +77,18 @@ public final class OpenAI {
      * Dedicated audio provider record for Whisper and future audio-specific models.
      */
     private record OpenAiAudioProvider(String modelId) implements AiProvider,
-            io.cafeai.core.internal.LangchainBridge.ChatModelAccess {
+            LangchainBridge.ChatModelAccess {
         @Override public String       name()          { return "openai"; }
         @Override public ProviderType type()          { return ProviderType.OPENAI; }
         @Override public boolean      supportsAudio() { return true; }
         @Override public boolean      supportsVision() { return false; }
 
         @Override
-        public dev.langchain4j.model.chat.ChatModel toChatModel() {
+        public ChatModel toChatModel() {
             String resolvedModel = (modelId() == null || modelId().equals("whisper-1"))
                 ? "gpt-4o-audio-preview"
                 : modelId();
-            return dev.langchain4j.model.openai.OpenAiChatModel.builder()
+            return OpenAiChatModel.builder()
                 .apiKey(System.getenv("OPENAI_API_KEY"))
                 .modelName(resolvedModel)
                 .build();

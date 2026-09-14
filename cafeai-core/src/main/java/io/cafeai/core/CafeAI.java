@@ -1,16 +1,24 @@
 package io.cafeai.core;
 
+import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.internal.CafeAIApp;
 import io.cafeai.core.internal.SubRouter;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Router;
+import io.cafeai.core.routing.WsHandler;
 import io.cafeai.core.spi.CafeAIConfigurer;
+import io.helidon.webserver.WebServerConfig;
+import io.helidon.webserver.http.HttpRouting;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * CafeAI — The main application interface.
@@ -267,7 +275,7 @@ public interface CafeAI extends Router {
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI onError(io.cafeai.core.middleware.ErrorMiddleware handler);
+    CafeAI onError(ErrorMiddleware handler);
 
     // ── Filter Registration (Cross-Cutting Pre-Processing) ────────────────────
 
@@ -581,7 +589,7 @@ public interface CafeAI extends Router {
      *      .guard(GuardRail.jailbreak());
      * }</pre>
      */
-    <T> io.cafeai.core.agents.AgentConfig<T> agent(String name, Class<T> agentInterface);
+    <T> AgentConfig<T> agent(String name, Class<T> agentInterface);
 
     /**
      * Resolves the agent's {@code AiService} proxy for a conversation session.
@@ -870,7 +878,7 @@ public interface CafeAI extends Router {
      *   app.use("/admin", admin);
      * }</pre>
      */
-    CafeAI onMount(java.util.function.Consumer<CafeAI> callback);
+    CafeAI onMount(Consumer<CafeAI> callback);
 
     /**
      * Returns the canonical path of this application — the full path including
@@ -888,7 +896,7 @@ public interface CafeAI extends Router {
     // ── Template Engine (ROADMAP-02 Phase 8) ──────────────────────────────────
 
     /**
-     * Registers a {@link ResponseFormatter} for the given file extension.
+     * Registers a {@link io.cafeai.core.ResponseFormatter} for the given file extension.
      * Mirrors Express: {@code app.engine(ext, callback)}
      *
      * <pre>{@code
@@ -909,14 +917,14 @@ public interface CafeAI extends Router {
      * }</pre>
      */
     void render(String view, java.util.Map<String, Object> locals,
-                java.util.function.BiConsumer<Throwable, String> callback);
+                BiConsumer<Throwable, String> callback);
 
     /**
      * Renders a named view and returns the result as a {@link java.util.concurrent.CompletableFuture}.
      * Mirrors Express: {@code app.render(view, locals)} — Java async idiom.
      */
-    java.util.concurrent.CompletableFuture<String> render(String view,
-                                                          java.util.Map<String, Object> locals);
+    CompletableFuture<String> render(String view,
+                                     java.util.Map<String, Object> locals);
 
     // ── Observability (ROADMAP-07 Phase 9) ───────────────────────────────────
 
@@ -1015,7 +1023,7 @@ public interface CafeAI extends Router {
      * @param handler the lifecycle event handler
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI ws(String path, io.cafeai.core.routing.WsHandler handler);
+    CafeAI ws(String path, WsHandler handler);
 
     // ── Helidon Escape Hatch ──────────────────────────────────────────────────
 
@@ -1073,7 +1081,7 @@ public interface CafeAI extends Router {
          * @return this, for chaining
          */
         HelidonConfig server(
-            java.util.function.Consumer<io.helidon.webserver.WebServerConfig.Builder> consumer);
+            Consumer<WebServerConfig.Builder> consumer);
 
         /**
          * Registers a consumer that receives the Helidon
@@ -1085,7 +1093,7 @@ public interface CafeAI extends Router {
          * @return this, for chaining
          */
         HelidonConfig routing(
-            java.util.function.Consumer<io.helidon.webserver.http.HttpRouting.Builder> consumer);
+            Consumer<HttpRouting.Builder> consumer);
     }
 
     // ── Server Lifecycle ──────────────────────────────────────────────────────
