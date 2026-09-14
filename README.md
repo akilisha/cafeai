@@ -75,8 +75,9 @@ dependencies {
 </dependency>
 ```
 
-Requires **Java 23+**. For a local `Jlama` model, also add
-`--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` to your run args.
+Requires **Java 23+** (**Java 25**, the current LTS, is recommended). For a local
+`Jlama` model, also add `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED`
+to your run args.
 
 ---
 

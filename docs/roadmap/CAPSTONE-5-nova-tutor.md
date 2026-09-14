@@ -524,7 +524,7 @@ Real-time voice tutoring requires this coordination. Deferred to ROADMAP-16.
 
 ## Prerequisites
 
-- Java 21+, Gradle 8+
+- Java 23+ (Java 25 LTS recommended), Gradle 9+
 - OpenAI API key with `gpt-4o`, Whisper, and TTS access
 - Docker (Redis + Chroma)
 - Node.js (tldraw frontend)

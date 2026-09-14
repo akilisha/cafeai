@@ -117,20 +117,25 @@ String answer = app.prompt("What is the parental leave policy?").call().text();
 
 ### Tools
 
-Java methods the LLM can call. Annotate, register, done.
+Java methods the LLM can call, via an agent — LangChain4j `AiServices` owns dispatch, CafeAI gives it an HTTP identity.
 
 ```java
 class CreditCheckTool {
-    @CafeAITool("Check applicant credit score and eligibility")
+    @Tool("Check applicant credit score and eligibility")
     public String checkCredit(String applicantId, double loanAmount) {
         return creditService.evaluate(applicantId, loanAmount).toJson();
     }
 }
 
-app.tool(new CreditCheckTool());
+interface LoanAgent {
+    String qualify(String question);
+}
+
+app.agent("loan", LoanAgent.class).tool(new CreditCheckTool());
 
 // The LLM calls the tool when it decides it needs to
-String decision = app.prompt("Qualify applicant A123 for a $250,000 mortgage").call().text();
+var agent = app.agent("loan", LoanAgent.class, sessionId);
+String decision = agent.qualify("Qualify applicant A123 for a $250,000 mortgage");
 ```
 
 ### Guardrails
@@ -189,12 +194,14 @@ app.observe(ObserveStrategy.console());
 
 ## What it runs on
 
-- **Java 21** — virtual threads, records, pattern matching, sealed classes
+- **Java 23+** — virtual threads, records, pattern matching, sealed classes, FFM, the Vector API (Java 25, the current LTS, is recommended)
 - **Helidon 4** — reactive HTTP server on virtual threads
 - **LangChain4j 1.11** — LLM provider abstraction
-- **OpenAI** — GPT-4o, GPT-4o Mini, Whisper, TTS, o1
-- **Anthropic** — Claude 3.5 Sonnet, Claude 3 Haiku
-- **Ollama** — any local model (Llama 3, LLaVA, Mistral)
+- **OpenAI** — any chat model by id (`gpt-4o`, ...), plus Whisper and TTS
+- **Anthropic** — any Claude model by id (`claude-sonnet-4-5`, ...)
+- **Gemini** — any Gemini model by id (`gemini-2.5-flash`, ...)
+- **Ollama** — any local model by id (`llama3.3`, `llava`, `mistral`, ...)
+- **Jlama** — any pure-Java in-process local model by id, no server required
 
 ---
 
@@ -206,27 +213,31 @@ Java-first philosophy. The bet is that most production AI applications need
 the same 8 things done well, not 800 things done tolerably.
 
 CafeAI is also not production-hardened at scale yet — it is a framework by
-one developer, with 411 tests, four capstone applications, and a clear
-roadmap. It is ready for real projects. It is not ready to be the infrastructure
-layer for a Fortune 500 company's AI platform. That comes after 0.2.0.
+one developer, with a large test suite, four complete capstone applications,
+and a clear roadmap. It is ready for real projects. It is not yet the
+infrastructure layer for a Fortune 500 company's AI platform.
 
 ---
 
 ## The capstone applications
 
 Four complete applications built with CafeAI, each demonstrating a different
-use case:
+use case, plus a fifth still at the spec stage:
 
-**helios** — AI-powered customer support platform. Prompt pipeline, guardrails,
-session memory, topic boundary enforcement.
+**support-desk** — AI-powered customer support platform for the fictional
+Helios API. Prompt pipeline, guardrails, session memory, topic boundary
+enforcement.
+
+**meridian-qualify** — Regulated loan pre-qualification. Forced tool-protocol
+agent, ECOA/FCRA/Fair-Housing guardrails, structured `QualificationDecision`.
 
 **acme-claims** — Insurance claim processing with RAG. PDF ingestion, semantic
 retrieval, structured extraction, PII protection.
 
-**atlas-inbox** — Intelligent email routing with vision. PDF/image classification,
-structured output, multi-strategy routing, confidence scoring.
+**invoice-processor** — Vendor invoice processing with vision. PDF/image
+classification, structured extraction, reconciliation, Gmail integration.
 
-**nova-tutor** (in progress) — AI tutoring agent with voice. Named providers,
+**nova-tutor** (spec only) — AI tutoring agent with voice. Named providers,
 TTS synthesis, whiteboard command generation, lesson plan RAG.
 
 ---

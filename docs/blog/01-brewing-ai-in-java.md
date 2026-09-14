@@ -104,6 +104,8 @@ CafeAI does not treat Java 21's new features as demos. They are load-bearing arc
 
 These are not features added for novelty. They are the reason CafeAI can offer a tiered memory model where the default is SSD-backed (not Redis), local embedding (not a cloud API), and concurrent agent execution (not sequential).
 
+These features shipped in Java 21, but CafeAI's own toolchain floor has since moved to **Java 23+** (needed for the Vector API that backs `Jlama`). If you're choosing a JDK to standardize on, **Java 25** — the current LTS release — is the recommended target.
+
 ---
 
 ## The Tiered Memory Model
