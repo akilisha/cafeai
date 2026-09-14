@@ -1,12 +1,12 @@
 # Prompt Engineering in Java — Templates, System Prompts, and the API Vocabulary
 
-*Post 4 of 12 in the CafeAI series*
+*Post 4 of 13 in the CafeAI series*
 
 ---
 
 Prompt engineering gets a bad reputation in typed language communities. The name sounds like the opposite of engineering — something fluid and intuitive that resists the structure that Java developers are paid to impose. The reality is that production AI systems need the same discipline applied to prompts that they apply to everything else: typed contracts, reusable components, testable units.
 
-CafeAI provides three mechanisms for structured prompt management: system prompts for persona, named templates for reusable patterns, and the fluent `PromptRequest` chain for call-specific overrides. This post covers all three, with examples drawn from the `support-agent` and `meridian-qualify` capstones.
+CafeAI provides three mechanisms for structured prompt management: system prompts for persona, named templates for reusable patterns, and the fluent `PromptRequest` chain for call-specific overrides. This post covers all three, with examples drawn from the `support-desk` and `meridian-qualify` capstones.
 
 ---
 
@@ -189,7 +189,7 @@ SentimentResult result = app.prompt(sentimentPrompt)
 
 Internally, `SchemaHintBuilder` reflects on `SentimentResult` and appends a JSON schema example to the prompt. `ResponseDeserializer` strips any markdown fences from the response and parses it. The developer writes neither.
 
-The `atlas-inbox` capstone uses this pattern four times: `SentimentResult`, `AttachmentClassification`, `InvoiceData`, and `ReconciliationResult`. Each is a plain Java record. Each is populated by one `.call()` line. The 40 lines of boilerplate parsing that existed in the original version are gone.
+The `invoice-processor` capstone uses this pattern four times: `SentimentResult`, `AttachmentClassification`, `InvoiceData`, and `ReconciliationResult`. Each is a plain Java record. Each is populated by one `.call()` line. The 40 lines of boilerplate parsing that existed in the original version are gone.
 
 ---
 

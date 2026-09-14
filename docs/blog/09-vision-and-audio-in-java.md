@@ -1,10 +1,10 @@
 # Vision and Audio in Java — Multimodal AI Without the Boilerplate
 
-*Post 9 of 12 in the CafeAI series*
+*Post 9 of 13 in the CafeAI series*
 
 ---
 
-The first version of `atlas-inbox` worked. The Meridian Home Loans vendor invoice processor classified attachments, extracted invoice data, reconciled amounts, and drafted replies. It processed real vendor PDFs and produced correct decisions.
+The first version of `invoice-processor` worked. The Meridian Home Loans vendor invoice processor classified attachments, extracted invoice data, reconciled amounts, and drafted replies. It processed real vendor PDFs and produced correct decisions.
 
 It also had a structural problem: the part that worked hardest — the multimodal classification and extraction — bypassed CafeAI entirely.
 
@@ -69,7 +69,7 @@ The `VisionMessageBuilder` handles provider-specific content encoding. OpenAI's 
 
 ---
 
-## The `atlas-inbox` Refactor
+## The `invoice-processor` Refactor
 
 Before ROADMAP-14:
 
@@ -98,7 +98,7 @@ The outcome is identical. The architecture is correct.
 
 ## Structured Output from Vision
 
-The `.returning(Class)` pattern works identically for vision and text. `atlas-inbox` uses it for both classification and extraction:
+The `.returning(Class)` pattern works identically for vision and text. `invoice-processor` uses it for both classification and extraction:
 
 ```java
 // Classify the attachment
@@ -234,7 +234,7 @@ This enables a pattern where a complex audio analysis produces a structured tran
 
 ## Classification Prompt Engineering for PDFs
 
-One practical finding from the `atlas-inbox` validation: multi-page PDFs that combine an invoice with a packing list were initially misclassified as `PACKING_LIST`. The model read the first visible content and stopped.
+One practical finding from the `invoice-processor` validation: multi-page PDFs that combine an invoice with a packing list were initially misclassified as `PACKING_LIST`. The model read the first visible content and stopped.
 
 The fix was a prompt instruction:
 

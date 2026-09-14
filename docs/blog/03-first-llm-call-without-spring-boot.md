@@ -1,6 +1,6 @@
 # Your First LLM Call Without Spring Boot
 
-*Post 3 of 12 in the CafeAI series*
+*Post 3 of 13 in the CafeAI series*
 
 ---
 
@@ -14,7 +14,7 @@ No Spring Boot. No annotations. No autowiring. Helidon SE for HTTP, LangChain4j 
 
 ## The Application
 
-`support-agent` is the first CafeAI capstone. It is a customer support assistant for Helios, a fictional API platform. Developers ask questions about the API, report issues, and check issue status. The assistant:
+`support-desk` is the first CafeAI capstone. It is a customer support assistant for Helios, a fictional API platform. Developers ask questions about the API, report issues, and check issue status. The assistant:
 
 - Answers questions using a knowledge base of six documentation pages (RAG)
 - Looks up real GitHub issue status via registered tools
@@ -23,7 +23,7 @@ No Spring Boot. No annotations. No autowiring. Helidon SE for HTTP, LangChain4j 
 - Traces every LLM call with token counts and latency (observability)
 - Runs on Ollama locally, falls back to OpenAI if Ollama is unavailable
 
-The complete source is in `cafeai-capstone/support-agent`. This post builds it step by step.
+The complete source is in `capstones/support-desk`. This post builds it step by step.
 
 ---
 
@@ -36,14 +36,16 @@ plugins {
     id 'application'
 }
 
-java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+java { toolchain { languageVersion = JavaLanguageVersion.of(23) } }
+
+repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.1.0-SNAPSHOT'
-    implementation 'com.akilisha.oss:cafeai-rag:0.1.0-SNAPSHOT'
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.1.0-SNAPSHOT'
-    implementation 'com.akilisha.oss:cafeai-observability:0.1.0-SNAPSHOT'
-    implementation 'com.akilisha.oss:cafeai-security:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-rag:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-observability:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-security:0.3.2'
 }
 
 application {
@@ -188,6 +190,42 @@ The local ONNX embedding model runs via Java FFM — no external API call, no la
 
 ## Step 5: Add Tool Use
 
+The assistant needs to look up real GitHub issue status — something no amount of RAG or prompting can do, because it's live data, not documentation. CafeAI doesn't own tool dispatch itself; LangChain4j's `AiServices` does, and `app.agent()` gives that an HTTP identity:
+
+```java
+interface SupportAgent {
+    String answer(String question);
+}
+
+app.agent("support", SupportAgent.class)
+   .tool(new GitHubTools())      // @Tool-annotated methods the model can call
+   .memory(MemoryStrategy.mapped())
+   .guard(GuardRail.jailbreak());
+```
+
+```java
+// GitHubTools.java
+public class GitHubTools {
+    @Tool("Fetch the current status of a Helios GitHub issue by its number.")
+    public String getIssueStatus(String issueNumber) {
+        // real implementation: GET https://api.github.com/repos/helios-pool/helios/issues/{issueNumber}
+        ...
+    }
+}
+```
+
+The `/chat` handler now resolves the agent instead of calling `app.prompt()` directly:
+
+```java
+app.post("/chat", (req, res, next) -> {
+    var agent = app.agent("support", SupportAgent.class, req.header("X-Session-Id"));
+    res.json(Map.of("response", agent.answer(req.body("message"))));
+});
+```
+
+Ask "What's the status of issue 156?" and the model decides on its own to call `getIssueStatus("156")` — there is no manual dispatch code in the application. Post 7 covers tool use in depth.
+
+---
 
 ## Step 6: Add Guardrails and Security
 
@@ -284,7 +322,7 @@ public class SupportAgent {
         app.post("/chat", SupportAgent::handleChat);
 
         // Start
-        app.listen(8080, () -> System.out.println("☕ support-agent on :8080"));
+        app.listen(8080, () -> System.out.println("☕ support-desk on :8080"));
     }
 
     private static void handleChat(Request req, Response res, Next next) {
@@ -320,7 +358,7 @@ The fix was correct and the tests were added. The guardrails fire. The lesson: b
 ## Running It
 
 ```bash
-cd cafeai-capstone/support-agent
+cd capstones/support-desk
 export OPENAI_API_KEY=sk-...   # used as fallback if Ollama is not running
 ./gradlew run
 ```

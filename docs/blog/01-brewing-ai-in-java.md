@@ -1,6 +1,6 @@
 # Brewing AI in Java — Introducing CafeAI
 
-*Post 1 of 12 in the CafeAI series*
+*Post 1 of 13 in the CafeAI series*
 
 ---
 
@@ -143,21 +143,22 @@ The rest of the application is identical. The memory strategy is registered once
 
 ## What This Series Covers
 
-This is Post 1 of 12. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
+This is Post 1 of 13. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
 
 | Post | Topic | Capstone |
 |------|-------|----------|
-| 2 | The middleware pattern and how it applies to AI | support-agent |
-| 3 | Your first LLM call without Spring Boot | support-agent |
-| 4 | Prompt engineering in Java | support-agent, meridian-qualify |
+| 2 | The middleware pattern and how it applies to AI | support-desk |
+| 3 | Your first LLM call without Spring Boot | support-desk |
+| 4 | Prompt engineering in Java | support-desk, meridian-qualify |
 | 5 | Context memory without the cloud tax | meridian-qualify, acme-claims |
-| 6 | Building a RAG pipeline in Java | support-agent, acme-claims |
+| 6 | Building a RAG pipeline in Java | support-desk, acme-claims |
 | 7 | Tool use — giving the AI actions to take | all four capstones |
 | 8 | Ethical guardrails as middleware | meridian-qualify, acme-claims |
-| 9 | Vision and audio in Java | atlas-inbox |
-| 10 | Structured output — typed LLM responses | atlas-inbox |
-| 11 | Production-grade AI — budgets, retries, observability | atlas-inbox |
+| 9 | Vision and audio in Java | invoice-processor |
+| 10 | Structured output — typed LLM responses | invoice-processor |
+| 11 | Production-grade AI — budgets, retries, observability | invoice-processor |
 | 12 | The capstone series — what four applications prove | all four capstones |
+| 13 | cafeai-sentinel — an AI Kubernetes/OpenShift incident pipeline | cluster-sentinel |
 
 Every post links to running code. Every claim is backed by a test that passes. Nothing in this series is aspirational — it describes what the framework does today.
 
@@ -165,17 +166,13 @@ Every post links to running code. Every claim is backed by a test that passes. N
 
 ## Getting Started
 
-```bash
-git clone https://github.com/your-org/cafeai.git
-cd cafeai
-./gradlew publishToMavenLocal
-```
-
-Then in your project's `build.gradle`:
+CafeAI is on Maven Central. In your project's `build.gradle`:
 
 ```groovy
+repositories { mavenCentral() }
+
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.1.0-SNAPSHOT'
+    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
 }
 ```
 

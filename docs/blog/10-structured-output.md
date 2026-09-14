@@ -1,6 +1,6 @@
 # Structured Output — Typed LLM Responses, No Parser Required
 
-*Post 10 of 12 in the CafeAI series*
+*Post 10 of 13 in the CafeAI series*
 
 ---
 
@@ -8,7 +8,7 @@ Language models produce text. Applications need data.
 
 The gap between these two facts is responsible for an enormous amount of boilerplate code in AI applications. The developer writes a prompt that asks for JSON. The model produces JSON. Sometimes it wraps it in markdown fences. Sometimes it adds a prose introduction. Sometimes it includes a closing remark. The developer writes a parser that strips all of this, handles the edge cases, catches the `JsonParseException` when the model decides to produce something unexpected, and calls the result "structured output."
 
-The `atlas-inbox` capstone had this pattern four times: `SentimentResult`, `AttachmentClassification`, `InvoiceData`, `ReconciliationResult`. Each was the same three steps. Forty lines of boilerplate that appeared once every 80 lines of application code — a repeating pattern with no single place to fix when the fence-stripping logic had a bug.
+The `invoice-processor` capstone had this pattern four times: `SentimentResult`, `AttachmentClassification`, `InvoiceData`, `ReconciliationResult`. Each was the same three steps. Forty lines of boilerplate that appeared once every 80 lines of application code — a repeating pattern with no single place to fix when the fence-stripping logic had a bug.
 
 A repeating pattern with no single place to fix is a missing primitive. CafeAI added it.
 
@@ -17,7 +17,7 @@ A repeating pattern with no single place to fix is a missing primitive. CafeAI a
 ## The Pattern Before
 
 ```java
-// The 40-line pattern, repeated four times in atlas-inbox
+// The 40-line pattern, repeated four times in invoice-processor
 String prompt = buildSentimentPrompt(emailBody);
 String raw    = app.prompt(prompt).call().text();
 
@@ -220,7 +220,7 @@ Plain `.call()` is appropriate when:
 - The response is a free-form explanation or draft text
 - The exact format does not matter to downstream code
 
-`atlas-inbox` uses structured output for classification, extraction, and reconciliation — all of which produce data that drives downstream logic. It uses plain text for response composition — the drafted vendor email is displayed as-is, with no programmatic processing.
+`invoice-processor` uses structured output for classification, extraction, and reconciliation — all of which produce data that drives downstream logic. It uses plain text for response composition — the drafted vendor email is displayed as-is, with no programmatic processing.
 
 ---
 
@@ -269,7 +269,7 @@ These tests run in milliseconds — no API calls, no infrastructure. The structu
 
 ## Post 11 — Production-Grade AI
 
-Post 11 covers the operational side: token budgets, retry policies, observability, and what it took to make `atlas-inbox` production-ready. The `Thread.sleep` calls that existed in the first version — application code managing the framework's concern — are the starting point.
+Post 11 covers the operational side: token budgets, retry policies, observability, and what it took to make `invoice-processor` production-ready. The `Thread.sleep` calls that existed in the first version — application code managing the framework's concern — are the starting point.
 
 ---
 

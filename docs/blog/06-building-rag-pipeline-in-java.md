@@ -1,6 +1,6 @@
 # Building a RAG Pipeline in Java — Ingestion, Embedding, and Retrieval
 
-*Post 6 of 12 in the CafeAI series*
+*Post 6 of 13 in the CafeAI series*
 
 ---
 
@@ -132,7 +132,7 @@ app.vectordb(VectorStore.chroma("http://localhost:8000", "collection-name"));
 app.vectordb(VectorStore.pgVector(PgVectorConfig.of("localhost", 5432, "cafeai")));
 ```
 
-The `support-agent` capstone uses `VectorStore.inMemory()` — the knowledge base is small (six documentation pages), ingested at startup, and does not need persistence. Restarting the application re-ingests in under a second.
+The `support-desk` capstone uses `VectorStore.inMemory()` — the knowledge base is small (six documentation pages), ingested at startup, and does not need persistence. Restarting the application re-ingests in under a second.
 
 The `acme-claims` capstone uses `VectorStore.chroma()` — the insurance knowledge base is larger, shared across application instances, and needs to persist across restarts. Chroma is pinned to version 0.5.23 (LangChain4j is not yet compatible with Chroma 0.6+).
 
@@ -156,9 +156,9 @@ Hybrid retrieval combines semantic similarity with keyword matching. It is bette
 
 ---
 
-## What RAG Retrieved — The `support-agent` Capstone
+## What RAG Retrieved — The `support-desk` Capstone
 
-The observability output from a `support-agent` prompt call shows exactly what RAG retrieved:
+The observability output from a `support-desk` prompt call shows exactly what RAG retrieved:
 
 ```
 -- LLM Call -----------------------------------------
@@ -201,13 +201,13 @@ For high-availability scenarios, the update can be performed on a shadow index a
 
 RAG has a token cost. Each retrieved chunk adds tokens to the LLM prompt — typically 200-500 tokens per chunk, multiplied by the number of chunks retrieved. Three chunks at 400 tokens each add 1,200 tokens to every prompt call.
 
-The `atlas-inbox` capstone demonstrates cost management with the token budget:
+The `invoice-processor` capstone demonstrates cost management with the token budget:
 
 ```java
 app.budget(TokenBudget.perMinute(30_000));  // OpenAI free tier
 ```
 
-The token budget tracker monitors actual usage across all calls. When the budget is approaching the limit, subsequent calls wait until the window resets. This prevents rate limit errors without the `Thread.sleep` calls that appeared in the original atlas-inbox implementation before the budget API was added.
+The token budget tracker monitors actual usage across all calls. When the budget is approaching the limit, subsequent calls wait until the window resets. This prevents rate limit errors without the `Thread.sleep` calls that appeared in the original invoice-processor implementation before the budget API was added.
 
 Post 11 covers token budgets, retry policies, and production observability in full.
 

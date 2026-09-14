@@ -1,6 +1,6 @@
 # Context Memory Without the Cloud Tax
 
-*Post 5 of 12 in the CafeAI series*
+*Post 5 of 13 in the CafeAI series*
 
 ---
 
@@ -95,7 +95,7 @@ app.memory(MemoryStrategy.hybrid(
 
 Recent sessions (warm tier) served from local SSD. Sessions not accessed recently (cold tier) promoted from Redis. Idle sessions demoted from SSD to Redis on a configurable schedule.
 
-This gives the latency profile of local SSD with the durability and cross-instance sharing of Redis. The `atlas-inbox` capstone uses a simplified version of this pattern for its claims processing sessions.
+This gives the latency profile of local SSD with the durability and cross-instance sharing of Redis. The `invoice-processor` capstone uses a simplified version of this pattern for its claims processing sessions.
 
 **Use for:** High-traffic multi-instance deployments where session read latency matters.
 
@@ -208,7 +208,7 @@ Graduate to Redis when you need it. Not before.
 
 ## Post 6 — RAG
 
-Post 6 covers retrieval-augmented generation — how CafeAI ingests documents, creates embeddings via local ONNX models, stores them in a vector database, and retrieves semantically relevant chunks on every prompt call. The `support-agent` and `acme-claims` capstones demonstrate two different vector store backends and two different retrieval strategies.
+Post 6 covers retrieval-augmented generation — how CafeAI ingests documents, creates embeddings via local ONNX models, stores them in a vector database, and retrieves semantically relevant chunks on every prompt call. The `support-desk` and `acme-claims` capstones demonstrate two different vector store backends and two different retrieval strategies.
 
 ---
 

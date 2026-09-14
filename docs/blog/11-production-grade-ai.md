@@ -1,10 +1,10 @@
 # Production-Grade AI — Token Budgets, Retries, and Observability
 
-*Post 11 of 12 in the CafeAI series*
+*Post 11 of 13 in the CafeAI series*
 
 ---
 
-The `atlas-inbox` capstone had two `Thread.sleep` calls in its first version.
+The `invoice-processor` capstone had two `Thread.sleep` calls in its first version.
 
 ```java
 // Rate limit courtesy pause between emails — keeps us under 30k TPM
@@ -70,7 +70,7 @@ The retry policy applies to all call types — text, vision, and audio. It is re
 18:35:40 WARN  RetryUtils - A retriable exception occurred. Remaining retries: 1 of 2
 ```
 
-The `atlas-inbox` validation run showed LangChain4j's own retry layer catching connection resets before CafeAI's retry layer sees them. Both layers are present and correct — LangChain4j handles network-level transients; CafeAI handles API-level rate limits.
+The `invoice-processor` validation run showed LangChain4j's own retry layer catching connection resets before CafeAI's retry layer sees them. Both layers are present and correct — LangChain4j handles network-level transients; CafeAI handles API-level rate limits.
 
 If all retries are exhausted, `RetryPolicy.RateLimitExceededException` is thrown with the original cause and the number of attempts made.
 
@@ -119,7 +119,7 @@ The hooks — `beforePrompt`/`afterPrompt`, `beforeVision`/`afterVision`, `befor
 
 ## What Observability Reveals
 
-The `atlas-inbox` validation run produced this observability picture across five emails:
+The `invoice-processor` validation run produced this observability picture across five emails:
 
 ```
 Email 1 — ElevenLabs marketing (pre-filtered, 0 tokens)
@@ -131,7 +131,7 @@ All five emails were pre-filtered without any LLM calls. The pre-filter — a ch
 
 This is observability working correctly: it confirms the pre-filter is saving tokens, not just claiming to.
 
-During classification tests, the observability output confirmed that multi-page PDFs were consuming more tokens than single-page documents (the model reads all pages). The token counts in the observability trace were the evidence that led to the decision to add `TokenBudget.perMinute(30_000)` to `atlas-inbox`.
+During classification tests, the observability output confirmed that multi-page PDFs were consuming more tokens than single-page documents (the model reads all pages). The token counts in the observability trace were the evidence that led to the decision to add `TokenBudget.perMinute(30_000)` to `invoice-processor`.
 
 ---
 
@@ -178,7 +178,7 @@ app.connect(
 
 ## The `Thread.sleep` Refactor — Before and After
 
-The complete `atlas-inbox` startup before ROADMAP-14:
+The complete `invoice-processor` startup before ROADMAP-14:
 
 ```java
 var chat = new MultimodalChatService(SYSTEM_PROMPT);  // raw LangChain4j
@@ -212,7 +212,7 @@ The `Thread.sleep` calls were not wrong. They were correct for their time — th
 
 ## Helidon SE and Virtual Threads
 
-The HTTP server behind `support-agent` and `meridian-qualify` uses Helidon SE with virtual threads. Each incoming request runs on a virtual thread — a lightweight, JVM-managed thread that parks during I/O without blocking a platform thread.
+The HTTP server behind `support-desk` and `meridian-qualify` uses Helidon SE with virtual threads. Each incoming request runs on a virtual thread — a lightweight, JVM-managed thread that parks during I/O without blocking a platform thread.
 
 LLM calls are entirely I/O-bound. A `gpt-4o` call takes 1-5 seconds of waiting for the API to respond. On a platform thread, that blocks. On a virtual thread, the JVM parks the thread and resumes it when the response arrives — zero platform thread blocked, zero thread pool bottleneck.
 

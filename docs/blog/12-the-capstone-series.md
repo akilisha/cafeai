@@ -1,12 +1,16 @@
 # The Capstone Series — What Four Applications Prove
 
-*Post 12 of 12 in the CafeAI series*
+*Post 12 of 13 in the CafeAI series*
 
 > **Note (2026-09).** This post is written in the past tense as narrative. The four
 > apps now live in `capstones/` in the main repo, built against `project(':cafeai-*')`.
-> `atlas-inbox` was renamed `invoice-processor`. The tool-calling shown here as
-> `app.tool()` / `@CafeAITool` is now agent-only — `app.agent(name, Iface).tool(...)`
-> with LangChain4j `@Tool`. See `capstones/README.md`.
+> `support-agent` was renamed `support-desk`; `atlas-inbox` was renamed
+> `invoice-processor`. The tool-calling shown here as `app.tool()` / `@CafeAITool`
+> is now agent-only — `app.agent(name, Iface).tool(...)` with LangChain4j `@Tool`.
+> ROADMAP-16's named-provider registry — described below as a still-open gap —
+> has since shipped as `app.ai(name, provider)`; `nova-tutor` itself, the
+> capstone that would prove it under real use, is still unbuilt. See
+> `capstones/README.md`.
 
 ---
 
@@ -90,11 +94,11 @@ What `atlas-inbox` proved:
 | Test modules | cafeai-core (307), cafeai-guardrails (33), cafeai-memory (20), cafeai-rag (13), cafeai-security (14) |
 | Capstones | 4 complete, 1 specified (nova-tutor) |
 | Roadmap items | 15 complete |
-| Framework modules | 10 (core, memory, rag, tools, agents, guardrails, observability, security, streaming, connect) |
+| Framework modules | 11 (core, memory, rag, agents, guardrails, observability, security, streaming, connect, views-mustache, sentinel) |
 | Modalities | 3 (prompt, vision, audio) |
 | Memory rungs | 5 (inMemory, mapped, chronicle, redis, hybrid) |
 | Vector stores | 3 (inMemory, Chroma, PgVector) |
-| LLM providers | 4 (OpenAI, Anthropic, Ollama, Whisper) |
+| LLM providers | 5 (OpenAI, Anthropic, Gemini, Ollama, Jlama) |
 
 ---
 
@@ -162,9 +166,10 @@ That is what the four capstones prove. Not that CafeAI does everything — that 
 | 4 | [Prompt Engineering in Java](04-prompt-engineering-in-java.md) |
 | 5 | [Context Memory Without the Cloud Tax](05-context-memory-without-cloud-tax.md) |
 | 6 | [Building a RAG Pipeline in Java](06-building-rag-pipeline-in-java.md) |
-| 7 | Tool Use in Java *(coming in ROADMAP-17)* |
+| 7 | Tool Use in Java *(outline drafted, prose pending)* |
 | 8 | [Ethical Guardrails as Middleware](08-ethical-guardrails-as-middleware.md) |
 | 9 | [Vision and Audio in Java](09-vision-and-audio-in-java.md) |
 | 10 | [Structured Output](10-structured-output.md) |
 | 11 | [Production-Grade AI](11-production-grade-ai.md) |
 | 12 | [The Capstone Series](12-the-capstone-series.md) |
+| 13 | cafeai-sentinel — When the LLM Watches Your Cluster *(outline drafted, prose pending)* |

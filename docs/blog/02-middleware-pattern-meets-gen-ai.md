@@ -1,6 +1,6 @@
 # The Middleware Pattern Meets Gen AI — From Express to CafeAI
 
-*Post 2 of 12 in the CafeAI series*
+*Post 2 of 13 in the CafeAI series*
 
 ---
 
@@ -213,7 +213,7 @@ This is the composability payoff. It is not a theoretical benefit. It is a pract
 
 Post 3 walks through the first real CafeAI application from scratch — a customer support assistant backed by a knowledge base, with session memory and guardrails. By the end, you will have made a real LLM call through the full CafeAI pipeline, without a Spring Boot dependency in sight.
 
-The code is in `cafeai-capstone/support-agent`. The tests pass. The application runs.
+The code is in `capstones/support-desk`. The tests pass. The application runs.
 
 ---
 
