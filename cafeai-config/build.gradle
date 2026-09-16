@@ -1,0 +1,23 @@
+// ============================================================
+//  cafeai-config
+//  File-based application configuration for CafeAI.
+//
+//  Supplies io.cafeai.core.spi.ConfigProvider: application.properties
+//  plus an optional profile overlay (application-{profile}.properties,
+//  profile selected via CAFEAI_PROFILE or -Dcafeai.profile). The
+//  AppConfig contract itself, and the zero-dependency env-var/system-
+//  property layer, live in cafeai-core — this module only ever needs
+//  to worry about files. No module that reads config needs to depend
+//  on this one; it's an application-level opt-in.
+//
+//  See docs/adr/ADR-012-application-config.md.
+// ============================================================
+
+description = 'File-based application configuration for CafeAI — application.properties ' +
+    'with environment profile overlays, layered under cafeai-core\'s AppConfig.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+}

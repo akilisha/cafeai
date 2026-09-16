@@ -52,6 +52,7 @@ from the factory class named in the last column.
 |---|---|---|---|
 | `MemoryStrategyProvider` | `MemoryStrategy.mapped()/redis()/chronicle()/hybrid()` | `cafeai-memory` | `MemoryStrategy` |
 | `RagProvider` | `VectorStore.chroma()/pgVector()`, `EmbeddingProvider.local()/openAi()`, `Source.pdf()/file()/directory()/url()` | `cafeai-rag` | `VectorStore`, `EmbeddingProvider`, `Source` |
+| `ConfigProvider` | `AppConfig.load()` reading `application.properties` + profile overlays | `cafeai-config` | `AppConfig` |
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (stubs without it) | `cafeai-guardrails` | `GuardRail` |
 | `ObserveBridge` | `app.observe(...)` tracing / spans | `cafeai-observability` | `CafeAIApp` |
 | `AgentBridge` | `app.agent(...)` | `cafeai-agents` | `CafeAIApp` |
