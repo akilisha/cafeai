@@ -432,18 +432,20 @@ changes. Not published.
 
 Each module is a blog post. The project is the curriculum.
 
-1. **Brewing AI in Java** — [CafeAI Introduction and Philosophy](https://github.com/akilisha/cafeai/blob/main/docs/blog/01-brewing-ai-in-java.md)
+1. **Brewing AI in Java** — [Introducing CafeAI](https://github.com/akilisha/cafeai/blob/main/docs/blog/01-brewing-ai-in-java.md)
 2. **The Middleware Pattern Meets Gen AI** — [From Express to CafeAI](https://github.com/akilisha/cafeai/blob/main/docs/blog/02-middleware-pattern-meets-gen-ai.md)
-3. **Your First LLM Call Without Spring Boot** — [Helidon SE + Langchain4j](https://github.com/akilisha/cafeai/blob/main/docs/blog/03-first-llm-call-without-spring-boot.md)
+3. **Your First LLM Call Without Spring Boot** — [Helidon SE + LangChain4j](https://github.com/akilisha/cafeai/blob/main/docs/blog/03-first-llm-call-without-spring-boot.md)
 4. **Prompt Engineering in Java** — [Templates, System Prompts, and the API Vocabulary](https://github.com/akilisha/cafeai/blob/main/docs/blog/04-prompt-engineering-in-java.md)
 5. **Context Memory Without the Cloud Tax** — [Java FFM and the Tiered Memory Model](https://github.com/akilisha/cafeai/blob/main/docs/blog/05-context-memory-without-cloud-tax.md)
-6. **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval
-7. **Tool Use and MCP in Java** — [The Difference Between a Tool and an MCP Server](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
-8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Hallucination](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
-9. **Multi-Agent Patterns in Java** — Supervisors, Sequential Pipelines, and Parallel Fan-Out
-10. **Production-Grade AI Observability** — [OpenTelemetry, Evals, and Prompt Versioning](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
-11. **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, and Cache Poisoning
-12. **Token Streaming in Java** — SSE, WebSocket, and Reactive Backpressure
+6. **Building a RAG Pipeline in Java** — [Ingestion, Embedding, and Retrieval](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
+7. **Tool Use in Java** — Giving the LLM Actions to Take *(outline drafted, prose pending)*
+8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Regulatory Compliance](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
+9. **Vision and Audio in Java** — [Multimodal AI Without the Boilerplate](https://github.com/akilisha/cafeai/blob/main/docs/blog/09-vision-and-audio-in-java.md)
+10. **Structured Output** — [Typed LLM Responses, No Parser Required](https://github.com/akilisha/cafeai/blob/main/docs/blog/10-structured-output.md)
+11. **Production-Grade AI** — [Token Budgets, Retries, and Observability](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
+12. **The Capstone Series** — [What Four Applications Prove](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
+13. **cafeai-sentinel** — When the LLM Watches Your Cluster *(outline drafted, prose pending)*
+14. **cafeai-config** — The Configuration Nobody Documented *(outline drafted, prose pending)*
 
 ---
 

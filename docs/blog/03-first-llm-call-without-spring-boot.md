@@ -1,6 +1,6 @@
 # Your First LLM Call Without Spring Boot
 
-*Post 3 of 13 in the CafeAI series*
+*Post 3 of 14 in the CafeAI series*
 
 ---
 

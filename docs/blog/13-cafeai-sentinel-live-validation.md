@@ -2,7 +2,7 @@
 
 # cafeai-sentinel — When the LLM Watches Your Cluster
 
-*Post 13 of 13 in the CafeAI series*
+*Post 13 of 14 in the CafeAI series*
 
 ---
 
@@ -86,7 +86,13 @@
 
 ## Closing
 
-- This is the series finale (13 of 13, resolved). Close by pointing back to
+- This closes the capstone arc (four request/response apps, then this — the
+  one application in the series that isn't). Close by pointing back to
   `capstones/cluster-sentinel` and `docs/roadmap/ROADMAP-18-sentinel.md` for
   anyone who wants the full design detail, rather than a "next post" link.
+- One more post follows this one, and it's a deliberate tonal shift: post 14
+  is not a new application, it's the framework quietly fixing something
+  none of the five capstones — this one included — ever exposed:
+  `cafeai-sentinel`'s own webhook retry count was one of the three
+  hardcoded, undocumented constants that motivated `cafeai-config`.
 - Standard closing tagline.

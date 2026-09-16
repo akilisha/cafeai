@@ -1,6 +1,6 @@
 # Prompt Engineering in Java — Templates, System Prompts, and the API Vocabulary
 
-*Post 4 of 13 in the CafeAI series*
+*Post 4 of 14 in the CafeAI series*
 
 ---
 

@@ -1,6 +1,6 @@
 # The Middleware Pattern Meets Gen AI — From Express to CafeAI
 
-*Post 2 of 13 in the CafeAI series*
+*Post 2 of 14 in the CafeAI series*
 
 ---
 
