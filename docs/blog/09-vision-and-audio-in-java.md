@@ -1,6 +1,6 @@
 # Vision and Audio in Java — Multimodal AI Without the Boilerplate
 
-*Post 9 of 14 in the CafeAI series*
+*Post 9 of 12 in the CafeAI series*
 
 ---
 

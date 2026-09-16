@@ -1,6 +1,6 @@
 # Structured Output — Typed LLM Responses, No Parser Required
 
-*Post 10 of 14 in the CafeAI series*
+*Post 10 of 12 in the CafeAI series*
 
 ---
 

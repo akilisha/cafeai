@@ -1,6 +1,6 @@
 # Ethical Guardrails as Middleware — PII, Jailbreak, Bias, and Regulatory Compliance
 
-*Post 8 of 14 in the CafeAI series*
+*Post 8 of 12 in the CafeAI series*
 
 ---
 

@@ -1,6 +1,6 @@
 # The Capstone Series — What Four Applications Prove
 
-*Post 12 of 14 in the CafeAI series*
+*Post 12 of 12 in the CafeAI series*
 
 > **Note (2026-09).** This post is written in the past tense as narrative. The four
 > apps now live in `capstones/` in the main repo, built against `project(':cafeai-*')`.
@@ -172,5 +172,3 @@ That is what the four capstones prove. Not that CafeAI does everything — that 
 | 10 | [Structured Output](10-structured-output.md) |
 | 11 | [Production-Grade AI](11-production-grade-ai.md) |
 | 12 | [The Capstone Series](12-the-capstone-series.md) |
-| 13 | cafeai-sentinel — When the LLM Watches Your Cluster *(outline drafted, prose pending)* |
-| 14 | cafeai-config — The Configuration Nobody Documented *(outline drafted, prose pending)* |

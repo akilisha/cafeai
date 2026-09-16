@@ -4,7 +4,7 @@
 
 # Tool Use in Java — Giving the LLM Actions to Take
 
-*Post 7 of 14 in the CafeAI series*
+*Post 7 of 12 in the CafeAI series*
 
 ---
 

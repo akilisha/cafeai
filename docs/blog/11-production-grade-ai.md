@@ -1,6 +1,6 @@
 # Production-Grade AI — Token Budgets, Retries, and Observability
 
-*Post 11 of 14 in the CafeAI series*
+*Post 11 of 12 in the CafeAI series*
 
 ---
 
