@@ -39,7 +39,7 @@ public final class Locals {
     /** The registered vector store (type: {@code EmbeddingStore}). */
     public static final String VECTOR_STORE     = "__cafeai.rag.vectorStore";
 
-    /** The registered embedding model (type: {@code EmbeddingModel}). */
+    /** The registered embedding model (type: {@code EmbeddingProvider}). */
     public static final String EMBEDDING_MODEL  = "__cafeai.rag.embeddingModel";
 
     // -- Observability ---------------------------------------------------------

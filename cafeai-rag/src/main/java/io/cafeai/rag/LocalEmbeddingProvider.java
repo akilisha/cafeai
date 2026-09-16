@@ -12,16 +12,16 @@ import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2Quantize
  * <p>The ONNX model is bundled in the Langchain4j dependency — no separate
  * download required.
  *
- * <p>Package-private — obtained via {@link EmbeddingModel#local()}.
+ * <p>Package-private — obtained via {@link EmbeddingProvider#local()}.
  */
-final class LocalEmbeddingModel implements EmbeddingModel {
+final class LocalEmbeddingProvider implements EmbeddingProvider {
 
     private static final int DIMENSIONS = 384;
 
     // Thread-safe — Langchain4j's ONNX model is safe for concurrent use
     private final AllMiniLmL6V2QuantizedEmbeddingModel delegate;
 
-    LocalEmbeddingModel() {
+    LocalEmbeddingProvider() {
         this.delegate = new AllMiniLmL6V2QuantizedEmbeddingModel();
     }
 

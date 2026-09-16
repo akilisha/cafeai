@@ -15,7 +15,7 @@ import java.util.ServiceLoader;
  * {@code .contentRetriever(...)}.
  *
  * <p>Holds the opaque {@code io.cafeai.rag.*} handles registered on the app
- * ({@code Retriever}, {@code VectorStore}, {@code EmbeddingModel}) and dispatches
+ * ({@code Retriever}, {@code VectorStore}, {@code EmbeddingProvider}) and dispatches
  * retrieval through the {@link RagPipeline} SPI — the same path
  * {@code app.prompt()} uses — so an agent and a plain prompt see the same
  * knowledge base. Requires {@code cafeai-rag} on the classpath.

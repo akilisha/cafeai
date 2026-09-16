@@ -17,13 +17,13 @@ public final class CafeAIRagModule implements CafeAIModule {
     public String name()    { return "cafeai-rag"; }
 
     @Override
-    public String version() { return "0.1.0"; }
+    public String version() { return CafeAIModule.versionOf(getClass()); }
 
     @Override
     public void register(CafeAIRegistry registry) {
-        registry.registerEmbeddingModel("local",  () -> EmbeddingModel.local());
-        registry.registerEmbeddingModel("openai", () -> EmbeddingModel.openAi());
-        registry.registerVectorStore("inmemory",  () -> VectorStore.inMemory());
+        registry.registerEmbeddingModel("local", EmbeddingProvider::local);
+        registry.registerEmbeddingModel("openai", EmbeddingProvider::openAi);
+        registry.registerVectorStore("inmemory", VectorStore::inMemory);
         registry.registerVectorStore("pgvector",  () -> null); // requires connection config
         registry.registerVectorStore("chroma",    () -> null); // requires connection config
     }

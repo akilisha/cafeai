@@ -21,7 +21,7 @@ public final class CafeAIMemoryModule implements CafeAIModule {
     public String name()    { return "cafeai-memory"; }
 
     @Override
-    public String version() { return "0.1.0"; }
+    public String version() { return CafeAIModule.versionOf(getClass()); }
 
     @Override
     public void register(CafeAIRegistry registry) {

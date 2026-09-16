@@ -29,7 +29,7 @@ public final class PgVector {
      * Connects to pgvector using the given configuration.
      *
      * @param config connection + schema settings; {@code dimension} must match
-     *               the registered {@code EmbeddingModel}
+     *               the registered {@code EmbeddingProvider}
      */
     public static VectorStore connect(PgVectorConfig config) {
         return new PgVectorStoreAdapter(config);

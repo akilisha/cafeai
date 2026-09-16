@@ -664,8 +664,8 @@ public interface CafeAI extends Router {
      * and queries during retrieval.
      *
      * <pre>{@code
-     *   app.embed(EmbeddingModel.local());       // ONNX — no API key, no latency
-     *   app.embed(EmbeddingModel.openAi());      // OpenAI ada-002
+     *   app.embed(EmbeddingProvider.local());       // ONNX — no API key, no latency
+     *   app.embed(EmbeddingProvider.openAi());      // OpenAI ada-002
      * }</pre>
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
@@ -676,7 +676,7 @@ public interface CafeAI extends Router {
      * Ingests a knowledge source into the vector store.
      *
      * <p>The source is parsed, split into overlapping chunks, each chunk is
-     * embedded using the registered {@code EmbeddingModel}, and
+     * embedded using the registered {@code EmbeddingProvider}, and
      * the chunks are upserted into the registered {@code VectorStore}.
      * Re-ingesting the same source updates existing chunks without duplication.
      *

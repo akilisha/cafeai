@@ -16,7 +16,7 @@ class HybridRetrieverTest {
      * The query embeds nearest to the POLICY doc; the PROCEDURE doc only wins
      * once keyword weight is high enough.
      */
-    static final class RiggedEmbedding implements EmbeddingModel {
+    static final class RiggedEmbedding implements EmbeddingProvider {
         @Override public float[] embed(String text) {
             String t = text.toLowerCase();
             if (t.contains("query"))      return new float[] {0.95f, 0.30f, 0f, 0f};
@@ -29,7 +29,7 @@ class HybridRetrieverTest {
     }
 
     private VectorStore store;
-    private final EmbeddingModel embed = new RiggedEmbedding();
+    private final EmbeddingProvider embed = new RiggedEmbedding();
 
     @BeforeEach
     void seed() {

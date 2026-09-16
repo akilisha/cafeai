@@ -12,13 +12,13 @@ import java.util.Objects;
  *           .database("cafeai")
  *           .user("cafeai")
  *           .password(System.getenv("PGPASSWORD"))
- *           .dimension(384)          // must match the registered EmbeddingModel
+ *           .dimension(384)          // must match the registered EmbeddingProvider
  *           .build()));
  * }</pre>
  *
  * <p>{@code dimension} must equal the dimensionality of vectors produced by the
- * {@code EmbeddingModel} registered with {@code app.embed(...)} —
- * {@code EmbeddingModel.local()} is 384, {@code EmbeddingModel.openAi()} is 1536.
+ * {@code EmbeddingProvider} registered with {@code app.embed(...)} —
+ * {@code EmbeddingProvider.local()} is 384, {@code EmbeddingProvider.openAi()} is 1536.
  */
 public final class PgVectorConfig {
 
@@ -46,7 +46,7 @@ public final class PgVectorConfig {
         this.maxPoolSize   = b.maxPoolSize;
         if (dimension <= 0) {
             throw new IllegalArgumentException(
-                "dimension must be set to the EmbeddingModel's vector size (e.g. 384 for local, 1536 for OpenAI)");
+                "dimension must be set to the EmbeddingProvider's vector size (e.g. 384 for local, 1536 for OpenAI)");
         }
     }
 

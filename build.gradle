@@ -54,6 +54,19 @@ subprojects {
         options.compilerArgs << '-parameters'
     }
 
+    // Stamps the real project version into every module's JAR manifest — the
+    // Java equivalent of reading package.json at runtime. CafeAIModule.versionOf()
+    // reads this back via Package.getImplementationVersion(), so no
+    // implementation ever hardcodes a version string that then rots.
+    tasks.withType(Jar).configureEach {
+        manifest {
+            attributes(
+                'Implementation-Title':   project.name,
+                'Implementation-Version': project.version
+            )
+        }
+    }
+
     test {
         useJUnitPlatform()
         testLogging {

@@ -1,6 +1,7 @@
 package io.cafeai.observability;
 
 import io.cafeai.core.ai.*;
+import io.cafeai.core.spi.CafeAIModule;
 import io.cafeai.core.spi.ObserveBridge;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
@@ -25,7 +26,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
     private static final Logger log = LoggerFactory.getLogger(ObserveBridgeImpl.class);
 
     private static final Tracer TRACER = GlobalOpenTelemetry.getTracer(
-        "io.cafeai", "0.1.0");
+        "io.cafeai", CafeAIModule.versionOf(ObserveBridgeImpl.class));
 
     // Set by CafeAIApp.observe() immediately after bridge is loaded
     private volatile ObserveStrategy strategy = new ConsoleObserveStrategy();

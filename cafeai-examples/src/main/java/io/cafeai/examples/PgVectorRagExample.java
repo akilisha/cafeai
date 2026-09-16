@@ -60,8 +60,8 @@ import java.util.Map;
  *
  * <h2>The one gotcha — vector dimension</h2>
  * {@code PgVectorConfig.dimension()} MUST equal the registered
- * {@code EmbeddingModel}'s size: {@code EmbeddingModel.local()} is 384,
- * {@code EmbeddingModel.openAi()} is 1536. A mismatch fails at
+ * {@code EmbeddingProvider}'s size: {@code EmbeddingProvider.local()} is 384,
+ * {@code EmbeddingProvider.openAi()} is 1536. A mismatch fails at
  * {@code CREATE TABLE} or returns nonsense from {@code search}.
  */
 public class PgVectorRagExample {
@@ -85,7 +85,7 @@ public class PgVectorRagExample {
         //   Before:  app.vectordb(VectorStore.inMemory());
         //   After:   app.vectordb(VectorStore.pgVector(config));
         //
-        // dimension MUST match the EmbeddingModel below (local() == 384).
+        // dimension MUST match the EmbeddingProvider below (local() == 384).
         var config = PgVectorConfig.builder()
             .host(env("PGVECTOR_HOST", "localhost"))
             .port(Integer.parseInt(env("PGVECTOR_PORT", "5432")))
@@ -96,7 +96,7 @@ public class PgVectorRagExample {
             .build();
 
         app.vectordb(VectorStore.pgVector(config));
-        app.embed(EmbeddingModel.local());          // 384-dim, no API key
+        app.embed(EmbeddingProvider.local());          // 384-dim, no API key
         app.rag(Retriever.hybrid(4)                 // dense + keyword fusion
             .denseWeight(0.7)
             .sparseWeight(0.3));

@@ -8,7 +8,7 @@ import java.util.List;
  * Retrieval strategy for the RAG pipeline.
  *
  * <p>A {@code Retriever} is given the user's query, embeds it using the
- * registered {@link EmbeddingModel}, searches the {@link VectorStore}, and
+ * registered {@link EmbeddingProvider}, searches the {@link VectorStore}, and
  * returns the top-K most relevant chunks.
  *
  * <p>Register via {@code app.rag(retriever)}:
@@ -38,7 +38,7 @@ public interface Retriever {
      * @param vectorStore    the store to search
      * @return ordered list of relevant documents, most relevant first
      */
-    List<RagDocument> retrieve(String query, EmbeddingModel embeddingModel,
+    List<RagDocument> retrieve(String query, EmbeddingProvider embeddingModel,
                                VectorStore vectorStore);
 
     /**
@@ -85,7 +85,7 @@ public interface Retriever {
 
     record SemanticRetriever(int topK) implements Retriever {
         @Override
-        public List<RagDocument> retrieve(String query, EmbeddingModel embeddingModel,
+        public List<RagDocument> retrieve(String query, EmbeddingProvider embeddingModel,
                                           VectorStore vectorStore) {
             float[] queryEmbedding = embeddingModel.embed(query);
             return vectorStore.search(queryEmbedding, topK);
@@ -129,7 +129,7 @@ public interface Retriever {
         @Override public int topK() { return topK; }
 
         @Override
-        public List<RagDocument> retrieve(String query, EmbeddingModel embeddingModel,
+        public List<RagDocument> retrieve(String query, EmbeddingProvider embeddingModel,
                                           VectorStore vectorStore) {
             float[] queryEmbedding = embeddingModel.embed(query);
             List<RagDocument> candidates =

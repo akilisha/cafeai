@@ -27,7 +27,7 @@ public interface VectorStore {
      *
      * @param id        stable identifier for this chunk — used for idempotent upsert
      * @param content   the text content of the chunk
-     * @param embedding the embedding vector produced by the registered {@link EmbeddingModel}
+     * @param embedding the embedding vector produced by the registered {@link EmbeddingProvider}
      * @param sourceId  the source document identifier (file path, URL, etc.)
      * @param chunkIndex position of this chunk within the source document
      */
@@ -129,7 +129,7 @@ public interface VectorStore {
      *       PgVectorConfig.builder()
      *           .host("localhost").database("cafeai")
      *           .user("cafeai").password(System.getenv("PGPASSWORD"))
-     *           .dimension(384)        // match the registered EmbeddingModel
+     *           .dimension(384)        // match the registered EmbeddingProvider
      *           .build()));
      * }</pre>
      *

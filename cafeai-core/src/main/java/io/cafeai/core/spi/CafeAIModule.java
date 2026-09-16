@@ -14,7 +14,7 @@ package io.cafeai.core.spi;
  * <pre>{@code
  *   public class PineconeModule implements CafeAIModule {
  *       @Override public String name()    { return "cafeai-pinecone"; }
- *       @Override public String version() { return "1.0.0"; }
+ *       @Override public String version() { return CafeAIModule.versionOf(getClass()); }
  *
  *       @Override
  *       public void register(CafeAIRegistry registry) {
@@ -38,4 +38,23 @@ public interface CafeAIModule {
      * @param registry the registry to register capabilities into
      */
     void register(CafeAIRegistry registry);
+
+    /**
+     * Reads a module's version from its JAR manifest ({@code Implementation-Version},
+     * stamped by the build from {@code project.version} — see the root
+     * {@code build.gradle}) rather than a hardcoded literal, which drifts the
+     * moment the module is released again. Implementations should call this
+     * with their own class from {@link #version()}:
+     *
+     * <pre>{@code
+     *   @Override public String version() { return CafeAIModule.versionOf(getClass()); }
+     * }</pre>
+     *
+     * <p>Returns {@code "dev"} when run from an exploded classpath (IDE run,
+     * tests) rather than a packaged JAR, where no manifest is present.
+     */
+    static String versionOf(Class<?> moduleClass) {
+        String v = moduleClass.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
 }

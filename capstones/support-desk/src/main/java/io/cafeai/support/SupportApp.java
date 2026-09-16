@@ -10,7 +10,7 @@ import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.WsHandler;
 import io.cafeai.core.routing.WsSession;
 import io.cafeai.observability.ObserveStrategy;
-import io.cafeai.rag.EmbeddingModel;
+import io.cafeai.rag.EmbeddingProvider;
 import io.cafeai.rag.Retriever;
 import io.cafeai.rag.VectorStore;
 import io.cafeai.security.AiSecurity;
@@ -54,9 +54,9 @@ public class SupportApp {
         // In production, swap VectorStore.inMemory() for PgVector.
         app.vectordb(VectorStore.inMemory());
 
-        // EmbeddingModel converts text to vectors for similarity search.
+        // EmbeddingProvider converts text to vectors for similarity search.
         // local() uses a bundled ONNX model — no API key, no network call.
-        app.embed(EmbeddingModel.local());
+        app.embed(EmbeddingProvider.local());
 
         // Retriever finds the top 3 most relevant chunks per question.
         // Raising this number gives more context; lowering it speeds things up.

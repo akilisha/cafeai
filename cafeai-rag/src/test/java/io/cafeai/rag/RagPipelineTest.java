@@ -24,7 +24,7 @@ class RagPipelineTest {
      * for semantic search, but consistent for testing store/retrieve round-trips
      * and score ordering.
      */
-    static class StubEmbeddingModel implements EmbeddingModel {
+    static class StubEmbeddingModel implements EmbeddingProvider {
         @Override
         public float[] embed(String text) {
             float[] vec = new float[4];
@@ -98,7 +98,7 @@ class RagPipelineTest {
     @DisplayName("VectorStore.inMemory() stores and retrieves by cosine similarity")
     void vectorStore_storeAndRetrieve() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
 
         store.upsert("chunk-1", "password reset instructions", model.embed("password reset instructions"), "kb/auth", 0);
         store.upsert("chunk-2", "billing and invoices",        model.embed("billing and invoices"),        "kb/billing", 0);
@@ -114,7 +114,7 @@ class RagPipelineTest {
     @DisplayName("VectorStore returns top-K results ordered by score descending")
     void vectorStore_topK_orderedByScore() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
 
         store.upsert("a", "cats and kittens",   model.embed("cats and kittens"),   "doc", 0);
         store.upsert("b", "dogs and puppies",   model.embed("dogs and puppies"),   "doc", 1);
@@ -132,7 +132,7 @@ class RagPipelineTest {
     @DisplayName("VectorStore.upsert() replaces existing chunk with same ID")
     void vectorStore_upsert_replacesExisting() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
 
         store.upsert("chunk-1", "original content", model.embed("original content"), "src", 0);
         store.upsert("chunk-1", "updated content",  model.embed("updated content"),  "src", 0);
@@ -144,7 +144,7 @@ class RagPipelineTest {
     @DisplayName("VectorStore.deleteBySource() removes all chunks for a source")
     void vectorStore_deleteBySource() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
 
         store.upsert("a", "doc A chunk 1", model.embed("doc A chunk 1"), "doc-A", 0);
         store.upsert("b", "doc A chunk 2", model.embed("doc A chunk 2"), "doc-A", 1);
@@ -161,7 +161,7 @@ class RagPipelineTest {
     @DisplayName("VectorStore returns empty list when empty")
     void vectorStore_empty_returnsEmpty() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
 
         List<RagDocument> results = store.search(model.embed("anything"), 5);
 
@@ -174,7 +174,7 @@ class RagPipelineTest {
     @DisplayName("Retriever.semantic() returns top-K relevant documents")
     void retriever_semantic_topK() {
         VectorStore store = VectorStore.inMemory();
-        EmbeddingModel model = new StubEmbeddingModel();
+        EmbeddingProvider model = new StubEmbeddingModel();
         Retriever retriever = Retriever.semantic(2);
 
         store.upsert("1", "loan eligibility requirements",  model.embed("loan eligibility requirements"),  "loans", 0);

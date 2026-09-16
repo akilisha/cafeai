@@ -120,7 +120,7 @@ public class ChromaVectorExample {
         // are available on every subsequent run without re-ingestion.
         //
         app.vectordb(VectorStore.chroma("http://localhost:8000", COLLECTION));
-        app.embed(EmbeddingModel.local());
+        app.embed(EmbeddingProvider.local());
         app.rag(Retriever.semantic(3));
 
         // ── Knowledge Base ────────────────────────────────────────────────────

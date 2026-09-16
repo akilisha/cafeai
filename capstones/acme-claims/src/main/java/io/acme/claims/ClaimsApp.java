@@ -9,7 +9,7 @@ import io.cafeai.connect.Fallback;
 import io.cafeai.connect.Ollama;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.observability.ObserveStrategy;
-import io.cafeai.rag.EmbeddingModel;
+import io.cafeai.rag.EmbeddingProvider;
 import io.cafeai.rag.Retriever;
 import io.cafeai.rag.VectorStore;
 import io.cafeai.security.AiSecurity;
@@ -91,7 +91,7 @@ public class ClaimsApp {
 
         // ── RAG pipeline ───────────────────────────────────────────
         app.vectordb(VectorStore.chroma("http://localhost:8000", "acme-claims"));
-        app.embed(EmbeddingModel.local());
+        app.embed(EmbeddingProvider.local());
         app.rag(Retriever.semantic(3));
 
         // ── Observability ──────────────────────────────────────────

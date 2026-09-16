@@ -30,7 +30,7 @@ final class CafeAIRegistryImpl implements CafeAIRegistry {
 
     @Override
     public void registerEmbeddingModel(String name, Supplier<?> factory) {
-        register("EmbeddingModel", name, embeddingModels, factory);
+        register("EmbeddingProvider", name, embeddingModels, factory);
     }
 
     @Override

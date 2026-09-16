@@ -1514,7 +1514,7 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public CafeAI embed(Object model) {
         assertNotStarted("embed()");
-        this.embeddingModel = Objects.requireNonNull(model, "EmbeddingModel must not be null");
+        this.embeddingModel = Objects.requireNonNull(model, "EmbeddingProvider must not be null");
         locals.put(Locals.EMBEDDING_MODEL, model);
         log.info("Embedding model registered: {}", model.getClass().getSimpleName());
         return this;
@@ -1529,7 +1529,7 @@ public final class CafeAIApp implements CafeAI {
         }
         if (embeddingModel == null) {
             throw new IllegalStateException(
-                    "No embedding model registered. Call app.embed(EmbeddingModel.local()) first.");
+                    "No embedding model registered. Call app.embed(EmbeddingProvider.local()) first.");
         }
         // Ingestion is executed by cafeai-rag via the RagPipeline SPI.
         // The objects are stored here; actual chunking/embedding/upserting happens

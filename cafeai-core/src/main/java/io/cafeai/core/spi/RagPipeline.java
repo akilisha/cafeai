@@ -19,7 +19,7 @@ public interface RagPipeline {
      *
      * @param source         a {@code io.cafeai.rag.Source} instance
      * @param vectorStore    a {@code io.cafeai.rag.VectorStore} instance
-     * @param embeddingModel a {@code io.cafeai.rag.EmbeddingModel} instance
+     * @param embeddingModel a {@code io.cafeai.rag.EmbeddingProvider} instance
      */
     void ingest(Object source, Object vectorStore, Object embeddingModel);
 
@@ -29,7 +29,7 @@ public interface RagPipeline {
      * @param query          the user's question
      * @param retriever      a {@code io.cafeai.rag.Retriever} instance
      * @param vectorStore    a {@code io.cafeai.rag.VectorStore} instance
-     * @param embeddingModel a {@code io.cafeai.rag.EmbeddingModel} instance
+     * @param embeddingModel a {@code io.cafeai.rag.EmbeddingProvider} instance
      * @return list of {@code io.cafeai.rag.RagDocument} instances, as {@code Object}
      */
     java.util.List<Object> retrieve(String query, Object retriever,

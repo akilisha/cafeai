@@ -24,7 +24,7 @@ public final class CafeAIRagPipeline implements RagPipeline {
     public void ingest(Object sourceObj, Object vectorStoreObj, Object embeddingModelObj) {
         Source        source        = requireType(sourceObj,        Source.class,        "Source");
         VectorStore   vectorStore   = requireType(vectorStoreObj,   VectorStore.class,   "VectorStore");
-        EmbeddingModel embeddingModel = requireType(embeddingModelObj, EmbeddingModel.class, "EmbeddingModel");
+        EmbeddingProvider embeddingModel = requireType(embeddingModelObj, EmbeddingProvider.class, "EmbeddingProvider");
 
         log.info("Ingesting source: {}", source.sourceId());
 
@@ -53,7 +53,7 @@ public final class CafeAIRagPipeline implements RagPipeline {
                                  Object vectorStoreObj, Object embeddingModelObj) {
         Retriever      retriever      = requireType(retrieverObj,      Retriever.class,      "Retriever");
         VectorStore    vectorStore    = requireType(vectorStoreObj,    VectorStore.class,    "VectorStore");
-        EmbeddingModel embeddingModel = requireType(embeddingModelObj, EmbeddingModel.class, "EmbeddingModel");
+        EmbeddingProvider embeddingModel = requireType(embeddingModelObj, EmbeddingProvider.class, "EmbeddingProvider");
 
         List<RagDocument> docs = retriever.retrieve(query, embeddingModel, vectorStore);
         // Cast each RagDocument to Object for the core-level return type

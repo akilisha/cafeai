@@ -13,7 +13,7 @@ import io.cafeai.core.spi.CafeAIRegistry;
 public final class CafeAIObservabilityModule implements CafeAIModule {
 
     @Override public String name()    { return "cafeai-observability"; }
-    @Override public String version() { return "0.1.0"; }
+    @Override public String version() { return CafeAIModule.versionOf(getClass()); }
 
     @Override
     public void register(CafeAIRegistry registry) {
