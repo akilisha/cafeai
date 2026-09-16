@@ -288,7 +288,7 @@ an external MCP server → the `McpEndpoint` connection above; **give** its tool
 ### 3.10 Configuration Primitives &nbsp;<sub>✅ shipped — `cafeai-config` (ADR-012)</sub>
 
 ```java
-static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
         "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
         "Timeout for a single LLM chat call, any provider");
 

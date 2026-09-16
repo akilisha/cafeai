@@ -1660,7 +1660,7 @@ coded default, and a one-line description — declared right next to the code
 that reads it:
 
 ```java
-private static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+private static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
         "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
         "Timeout for a single LLM chat call, any provider");
 ```

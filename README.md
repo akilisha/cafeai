@@ -268,7 +268,7 @@ app.eval(EvalHarness.defaults())          // retrieval + response quality scorin
 ```java
 // declared once, at the point of use — a self-documenting, self-registering key
 static final ConfigKey<Integer> CHUNK_SIZE =
-    new ConfigKey<>("cafeai.rag.chunk.size", Integer.class, 500, "Chunk size in characters");
+    ConfigKey.of("cafeai.rag.chunk.size", Integer.class, 500, "Chunk size in characters");
 
 int size = AppConfig.load().get(CHUNK_SIZE);
 ```
@@ -444,6 +444,8 @@ Each module is a blog post. The project is the curriculum.
 10. **Structured Output** — [Typed LLM Responses, No Parser Required](https://github.com/akilisha/cafeai/blob/main/docs/blog/10-structured-output.md)
 11. **Production-Grade AI** — [Token Budgets, Retries, and Observability](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
 12. **The Capstone Series** — [What Four Applications Prove](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
+13. **cafeai-sentinel** — [When the LLM Watches Your Cluster](https://github.com/akilisha/cafeai/blob/main/docs/blog/13-cafeai-sentinel-live-validation.md)
+14. **cafeai-config** — [The Configuration Nobody Documented](https://github.com/akilisha/cafeai/blob/main/docs/blog/14-cafeai-config-application-configuration.md)
 
 ---
 

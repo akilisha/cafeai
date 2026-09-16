@@ -1,6 +1,6 @@
 # Brewing AI in Java — Introducing CafeAI
 
-*Post 1 of 12 in the CafeAI series*
+*Post 1 of 14 in the CafeAI series*
 
 ---
 
@@ -145,7 +145,7 @@ The rest of the application is identical. The memory strategy is registered once
 
 ## What This Series Covers
 
-This is Post 1 of 12. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
+This is Post 1 of 14. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
 
 | Post | Topic | Capstone |
 |------|-------|----------|

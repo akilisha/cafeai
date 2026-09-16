@@ -1,6 +1,6 @@
 # Context Memory Without the Cloud Tax
 
-*Post 5 of 12 in the CafeAI series*
+*Post 5 of 14 in the CafeAI series*
 
 ---
 

@@ -196,7 +196,7 @@ A timeout, a pool size, a retry count — declared once, at the point of use, as
 a self-documenting `ConfigKey`, not a bare undocumented constant:
 
 ```java
-static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
         "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
         "Timeout for a single LLM chat call, any provider");
 

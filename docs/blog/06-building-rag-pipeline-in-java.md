@@ -1,6 +1,6 @@
 # Building a RAG Pipeline in Java — Ingestion, Embedding, and Retrieval
 
-*Post 6 of 12 in the CafeAI series*
+*Post 6 of 14 in the CafeAI series*
 
 ---
 
