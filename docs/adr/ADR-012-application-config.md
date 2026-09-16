@@ -51,19 +51,26 @@ SPI, present only if an application chooses to add it.
   only needs to worry about files; `AppConfig.load()` has already checked
   system properties and environment variables before ever reaching it.
 
-**`cafeai-config` supplies:** `PropertiesConfigProvider` — loads
-`application.properties` from the classpath, overlaid by
-`application-{profile}.properties` when a profile is active (`CAFEAI_PROFILE`
+**`cafeai-config` supplies:** `HelidonConfigProvider` — loads
+`application.properties`/`.yaml`/`.yml` from the classpath, overlaid by the
+`application-{profile}.` equivalent when a profile is active (`CAFEAI_PROFILE`
 env var, or `cafeai.profile` system property, which wins if both are set).
-A missing file of either kind is silently skipped, not an error — an
-application may configure entirely through environment variables and ship no
-file at all.
+Built on Helidon Config (`helidon-config` + `helidon-config-yaml`) rather than
+a hand-rolled properties merger — the same "don't reinvent, build on
+Helidon" choice `cafeai-core` already makes for its HTTP layer (ADR-001).
+Those two dependencies live entirely inside `cafeai-config`; no other module
+ever sees `io.helidon.config` directly. (They had, in fact, already been
+added to `cafeai-core` in anticipation of this feature and then never used —
+found and removed as dead weight from every application's baseline while
+building this.) A missing file of either format is silently skipped, not an
+error — an application may configure entirely through environment variables
+and ship no file at all.
 
 **Precedence, highest to lowest:**
 
 ```
-system property → environment variable → application-{profile}.properties
-                → application.properties → the ConfigKey's own coded default
+system property → environment variable → application-{profile}.yaml/.properties
+                → application.yaml/.properties → the ConfigKey's own coded default
 ```
 
 **Naming convention:** one logical key, two spellings. `cafeai.rag.chunk.size`

@@ -1,0 +1,4 @@
+test:
+  pcp:
+    yaml:
+      key: from-yaml

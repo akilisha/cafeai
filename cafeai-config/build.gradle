@@ -2,22 +2,31 @@
 //  cafeai-config
 //  File-based application configuration for CafeAI.
 //
-//  Supplies io.cafeai.core.spi.ConfigProvider: application.properties
-//  plus an optional profile overlay (application-{profile}.properties,
+//  Supplies io.cafeai.core.spi.ConfigProvider: application.properties/.yaml
+//  plus an optional profile overlay (application-{profile}.properties/.yaml,
 //  profile selected via CAFEAI_PROFILE or -Dcafeai.profile). The
 //  AppConfig contract itself, and the zero-dependency env-var/system-
 //  property layer, live in cafeai-core — this module only ever needs
 //  to worry about files. No module that reads config needs to depend
 //  on this one; it's an application-level opt-in.
 //
+//  Built on Helidon Config rather than a hand-rolled properties merger —
+//  the same "don't reinvent, build on Helidon" choice cafeai-core already
+//  makes for its HTTP layer (ADR-001). Isolated entirely to this module:
+//  no other module ever touches io.helidon.config, only AppConfig/ConfigKey
+//  in cafeai-core.
+//
 //  See docs/adr/ADR-012-application-config.md.
 // ============================================================
 
-description = 'File-based application configuration for CafeAI — application.properties ' +
+description = 'File-based application configuration for CafeAI — application.properties/.yaml ' +
     'with environment profile overlays, layered under cafeai-core\'s AppConfig.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 
 dependencies {
     api project(':cafeai-core')
+
+    implementation 'io.helidon.config:helidon-config'
+    implementation 'io.helidon.config:helidon-config-yaml'
 }

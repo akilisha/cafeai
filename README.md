@@ -53,7 +53,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.3.2'
 
     // add only what you use:
-    implementation 'com.akilisha.oss:cafeai-config:0.3.2'         // application.properties + profiles
+    implementation 'com.akilisha.oss:cafeai-config:0.3.2'         // application.properties/.yaml + profiles
     implementation 'com.akilisha.oss:cafeai-agents:0.3.2'         // app.agent() — LangChain4j AiServices
     implementation 'com.akilisha.oss:cafeai-memory:0.3.2'         // tiered context memory
     implementation 'com.akilisha.oss:cafeai-rag:0.3.2'            // retrieval-augmented generation
@@ -271,7 +271,7 @@ app.eval(EvalHarness.defaults())          // retrieval + response quality scorin
 ```
 cafeai/
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
-├── cafeai-config         ← File-based config (application.properties + profiles) for AppConfig
+├── cafeai-config         ← File-based config (application.properties/.yaml + profiles) for AppConfig
 ├── cafeai-agents         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
 ├── cafeai-memory         ← Tiered context memory (FFM, Chronicle, Redis, Memcached)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs

@@ -24,7 +24,6 @@ dependencies {
     implementation 'io.helidon.common:helidon-common-buffers'  // BufferData (WebSocket binary)
     implementation 'io.helidon.http.media:helidon-http-media-jsonp'
     implementation 'io.helidon.http.media:helidon-http-media-jsonb'
-    implementation 'io.helidon.config:helidon-config-yaml'
 
     // ── Langchain4j Core ─────────────────────────────────────
     // `api`: these leak through the public API, so consumers need them at
