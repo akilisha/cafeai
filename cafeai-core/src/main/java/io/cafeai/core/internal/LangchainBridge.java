@@ -11,6 +11,8 @@ import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.config.ConfigKey;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -31,7 +33,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class LangchainBridge {
 
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
+    /**
+     * Timeout for a single LLM chat call, any provider — was a hardcoded
+     * 60-second constant with no override until this key existed. Override
+     * via {@code cafeai.chat.timeout} (e.g. {@code -Dcafeai.chat.timeout=120s}),
+     * {@code CAFEAI_CHAT_TIMEOUT}, or an {@code application.properties} entry.
+     */
+    public static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
+        "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
+        "Timeout for a single LLM chat call, any provider.");
+
+    private static Duration timeout() {
+        return AppConfig.load().get(CHAT_TIMEOUT);
+    }
 
     // Cache keyed by provider identity (name + modelId) -- models are thread-safe
     private final Map<String, ChatModel> modelCache = new ConcurrentHashMap<>();
@@ -77,13 +91,13 @@ public final class LangchainBridge {
             case OPENAI -> OpenAiStreamingChatModel.builder()
                 .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
                 .modelName(provider.modelId())
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(timeout())
                 .build();
 
             case ANTHROPIC -> AnthropicStreamingChatModel.builder()
                 .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
                 .modelName(provider.modelId())
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(timeout())
                 .build();
 
             case OLLAMA -> {
@@ -93,7 +107,7 @@ public final class LangchainBridge {
                 yield OllamaStreamingChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(DEFAULT_TIMEOUT)
+                    .timeout(timeout())
                     .build();
             }
 
@@ -115,7 +129,7 @@ public final class LangchainBridge {
             case OPENAI -> OpenAiChatModel.builder()
                 .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
                 .modelName(provider.modelId())
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(timeout())
                 .logRequests(false)
                 .logResponses(false)
                 .build();
@@ -123,7 +137,7 @@ public final class LangchainBridge {
             case ANTHROPIC -> AnthropicChatModel.builder()
                 .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
                 .modelName(provider.modelId())
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(timeout())
                 .logRequests(false)
                 .logResponses(false)
                 .build();
@@ -135,7 +149,7 @@ public final class LangchainBridge {
                 yield OllamaChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(DEFAULT_TIMEOUT)
+                    .timeout(timeout())
                     .build();
             }
 

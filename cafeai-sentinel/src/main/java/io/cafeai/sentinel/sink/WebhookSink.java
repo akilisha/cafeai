@@ -1,5 +1,7 @@
 package io.cafeai.sentinel.sink;
 
+import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.config.ConfigKey;
 import io.cafeai.sentinel.incident.IncidentEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,16 +25,25 @@ import java.util.concurrent.Executors;
 public final class WebhookSink implements IncidentSink, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookSink.class);
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
-    private static final int MAX_ATTEMPTS = 2;
+
+    public static final ConfigKey<Duration> TIMEOUT = ConfigKey.of(
+        "cafeai.sentinel.webhook.timeout", Duration.class, Duration.ofSeconds(5),
+        "Connect and request timeout for a webhook incident POST.");
+    public static final ConfigKey<Integer> MAX_ATTEMPTS = ConfigKey.of(
+        "cafeai.sentinel.webhook.max_attempts", Integer.class, 2,
+        "How many times to attempt a webhook POST before dropping the event.");
 
     private final URI url;
+    private final Duration timeout;
+    private final int maxAttempts;
     private final HttpClient http;
     private final ExecutorService worker;
 
     public WebhookSink(String url) {
         this.url = URI.create(Objects.requireNonNull(url, "url"));
-        this.http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+        this.timeout = AppConfig.load().get(TIMEOUT);
+        this.maxAttempts = AppConfig.load().get(MAX_ATTEMPTS);
+        this.http = HttpClient.newBuilder().connectTimeout(timeout).build();
         this.worker = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "sentinel-webhook");
             t.setDaemon(true);
@@ -54,27 +65,27 @@ public final class WebhookSink implements IncidentSink, AutoCloseable {
 
     private void post(String body, String incidentId) {
         HttpRequest request = HttpRequest.newBuilder(url)
-                .timeout(TIMEOUT)
+                .timeout(timeout)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
 
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 HttpResponse<Void> response = http.send(request, HttpResponse.BodyHandlers.discarding());
                 if (response.statusCode() / 100 == 2) {
                     return;
                 }
                 log.warn("webhook for {} returned {} (attempt {}/{})",
-                        incidentId, response.statusCode(), attempt, MAX_ATTEMPTS);
+                        incidentId, response.statusCode(), attempt, maxAttempts);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception e) {
                 log.warn("webhook for {} failed (attempt {}/{}): {}",
-                        incidentId, attempt, MAX_ATTEMPTS, e.toString());
+                        incidentId, attempt, maxAttempts, e.toString());
             }
         }
-        log.warn("webhook for {} dropped after {} attempts", incidentId, MAX_ATTEMPTS);
+        log.warn("webhook for {} dropped after {} attempts", incidentId, maxAttempts);
     }
 }

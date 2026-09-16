@@ -12,6 +12,8 @@ import io.cafeai.agents.adapter.CafeAiContentRetriever;
 import io.cafeai.agents.adapter.GuardrailAdapters;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.rag.EmbeddingProvider;
@@ -36,7 +38,16 @@ import java.util.function.Consumer;
  */
 public final class AgentRegistry implements AgentBridge {
 
-    private static final int DEFAULT_MEMORY_WINDOW = 20;
+    /**
+     * Sliding chat-memory window size, in messages, for an agent's session
+     * memory — was a hardcoded 20 with no override regardless of the
+     * {@link MemoryStrategy} configured. Override via
+     * {@code cafeai.agent.memory.window}, {@code CAFEAI_AGENT_MEMORY_WINDOW},
+     * or an {@code application.properties} entry.
+     */
+    public static final ConfigKey<Integer> MEMORY_WINDOW = ConfigKey.of(
+        "cafeai.agent.memory.window", Integer.class, 20,
+        "Number of messages an agent's chat memory retains per session.");
 
     private final Map<String, AgentConfig<?>> configs = new ConcurrentHashMap<>();
     private final Map<String, Object>         proxies = new ConcurrentHashMap<>();
@@ -136,7 +147,7 @@ public final class AgentRegistry implements AgentBridge {
         if (memory != null) {
             builder.chatMemory(MessageWindowChatMemory.builder()
                 .id(sessionId == null ? "default" : sessionId)
-                .maxMessages(DEFAULT_MEMORY_WINDOW)
+                .maxMessages(AppConfig.load().get(MEMORY_WINDOW))
                 .chatMemoryStore(new CafeAiChatMemoryStore(memory))
                 .build());
         }
