@@ -8,38 +8,47 @@ import io.helidon.config.spi.ConfigSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Loads application configuration via Helidon Config — the same engine
- * {@code cafeai-core} already builds its HTTP layer on (ADR-001), applied
- * here instead of hand-rolling a properties merger. {@code helidon-config}
- * and {@code helidon-config-yaml} are dependencies of this module only; no
- * other module ever sees {@code io.helidon.config} directly, only
- * {@code AppConfig}/{@code ConfigKey} in {@code cafeai-core}.
+ * Full configuration resolution for CafeAI, built entirely on Helidon
+ * Config — the same engine {@code cafeai-core} already builds its HTTP
+ * layer on (ADR-001). {@code cafeai-core} resolves only a
+ * {@link io.cafeai.core.config.ConfigKey}'s coded default; every other
+ * source layer is this class's job in full, including system properties
+ * and environment variables — {@code AppConfig.load()} does not check
+ * anything itself before reaching here.
  *
- * <p>Both {@code .properties} and {@code .yaml}/{@code .yml} are recognised
- * transparently — Helidon's {@code ConfigParser} SPI picks the format by
- * file extension, so an application can use either without this class
- * caring which. Recognised files, profile overlay first (so it takes
- * precedence over the base file):
+ * <p>A configuration key is always a single dotted name, Spring/Helidon
+ * style — {@code "cafeai.rag.chunk.size"}. There is no second,
+ * CafeAI-specific spelling for any layer. Whether, and how, that name maps
+ * onto an environment variable is entirely Helidon's own established
+ * mapping ({@link ConfigSources#environmentVariables()}), not a convention
+ * this module invents.
  *
- * <pre>
- *   application-{profile}.yaml / .yml / .properties
- *   application.yaml / .yml / .properties
- * </pre>
+ * <p>Sources, highest precedence first:
+ * <ol>
+ *   <li>system properties</li>
+ *   <li>environment variables</li>
+ *   <li>an external file, if {@code CAFEAI_CONFIG_FILE} (env var) or
+ *       {@code cafeai.config.file} (system property, wins if both set)
+ *       points to one — for configuration mounted outside the jar, e.g. a
+ *       Kubernetes ConfigMap volume</li>
+ *   <li>{@code application-{profile}.yaml}/{@code .yml}/{@code .properties}
+ *       on the classpath, when a profile is active</li>
+ *   <li>{@code application.yaml}/{@code .yml}/{@code .properties} on the
+ *       classpath</li>
+ * </ol>
  *
  * <p>Profile is read from the {@code CAFEAI_PROFILE} environment variable or
  * the {@code cafeai.profile} system property (the latter wins if both are
- * set — same precedence as every other key). Every source is optional — a
- * missing file is silently skipped, not an error, since an application may
- * configure entirely through environment variables and ship no file at all.
- *
- * <p>This provider does not itself check environment variables or system
- * properties; {@link AppConfig#load()} already does that before ever
- * reaching here.
+ * set). Every file-based source is optional — a missing one is silently
+ * skipped, not an error, since an application may configure entirely
+ * through system properties and environment variables and ship no file at
+ * all.
  *
  * <p>Registered via:
  * {@code META-INF/services/io.cafeai.core.spi.ConfigProvider}
@@ -53,29 +62,39 @@ public final class HelidonConfigProvider implements ConfigProvider {
 
     public HelidonConfigProvider() {
         List<Supplier<? extends ConfigSource>> sources = new ArrayList<>();
-        String profile = resolveProfile();
-        if (profile != null && !profile.isBlank()) {
-            addSourcesFor("application-" + profile.trim(), sources);
+        sources.add(ConfigSources.systemProperties());
+        sources.add(ConfigSources.environmentVariables());
+
+        String externalFile = resolve("cafeai.config.file", "CAFEAI_CONFIG_FILE");
+        if (externalFile != null && !externalFile.isBlank()) {
+            sources.add(ConfigSources.file(Path.of(externalFile.trim())).optional());
         }
-        addSourcesFor("application", sources);
+
+        String profile = resolve("cafeai.profile", "CAFEAI_PROFILE");
+        if (profile != null && !profile.isBlank()) {
+            addClasspathSourcesFor("application-" + profile.trim(), sources);
+        }
+        addClasspathSourcesFor("application", sources);
 
         this.config = Config.builder().sources(sources).build();
-        log.info("Configuration sources checked: {}{}", sources.size(),
-                profile != null && !profile.isBlank() ? " (profile: " + profile + ")" : "");
+        log.info("Configuration sources: {}{}{}", sources.size(),
+                profile != null && !profile.isBlank() ? ", profile: " + profile : "",
+                externalFile != null && !externalFile.isBlank() ? ", external file: " + externalFile : "");
     }
 
-    private static void addSourcesFor(String baseName, List<Supplier<? extends ConfigSource>> sources) {
+    private static void addClasspathSourcesFor(String baseName, List<Supplier<? extends ConfigSource>> sources) {
         for (String ext : EXTENSIONS) {
             sources.add(ConfigSources.classpath(baseName + "." + ext).optional());
         }
     }
 
-    private static String resolveProfile() {
-        String sysProp = System.getProperty("cafeai.profile");
+    /** System property first, then environment variable — same precedence as every other key. */
+    private static String resolve(String systemProperty, String envVar) {
+        String sysProp = System.getProperty(systemProperty);
         if (sysProp != null) {
             return sysProp;
         }
-        return System.getenv("CAFEAI_PROFILE");
+        return System.getenv(envVar);
     }
 
     @Override

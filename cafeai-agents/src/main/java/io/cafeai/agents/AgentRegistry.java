@@ -41,9 +41,10 @@ public final class AgentRegistry implements AgentBridge {
     /**
      * Sliding chat-memory window size, in messages, for an agent's session
      * memory — was a hardcoded 20 with no override regardless of the
-     * {@link MemoryStrategy} configured. Override via
-     * {@code cafeai.agent.memory.window}, {@code CAFEAI_AGENT_MEMORY_WINDOW},
-     * or an {@code application.properties} entry.
+     * {@link MemoryStrategy} configured. Override with {@code cafeai-config}
+     * on the classpath: a system property, an environment variable, or an
+     * {@code application.properties}/{@code .yaml} entry for
+     * {@code cafeai.agent.memory.window}.
      */
     public static final ConfigKey<Integer> MEMORY_WINDOW = ConfigKey.of(
         "cafeai.agent.memory.window", Integer.class, 20,

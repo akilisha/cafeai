@@ -5,6 +5,10 @@ import io.cafeai.core.config.ConfigKey;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,8 +25,9 @@ class HelidonConfigProviderTest {
         "test.pcp.yaml.key", String.class, "coded-default-yaml", "Present only in application.yaml.");
 
     @AfterEach
-    void clearProfile() {
+    void clearSystemProperties() {
         System.clearProperty("cafeai.profile");
+        System.clearProperty("cafeai.config.file");
         System.clearProperty(KEY_1.name());
     }
 
@@ -69,13 +74,31 @@ class HelidonConfigProviderTest {
     }
 
     @Test
-    @DisplayName("AppConfig.load() discovers this provider via ServiceLoader and layers under system properties")
-    void appConfigLoad_discoversProviderAndRespectsPrecedence() {
-        // Without any system property: the file value wins over the coded default.
-        assertThat(AppConfig.load().get(KEY_1)).isEqualTo("base-value");
+    @DisplayName("an external file (CAFEAI_CONFIG_FILE / cafeai.config.file) overrides the bundled classpath files")
+    void externalFile_overridesClasspathFiles(@TempDir Path tempDir) throws Exception {
+        Path external = tempDir.resolve("external.properties");
+        Files.writeString(external, "test.pcp.key1=from-external-file\n");
+        System.setProperty("cafeai.config.file", external.toString());
 
-        // A system property still outranks the file.
+        AppConfig config = new HelidonConfigProvider().config();
+
+        assertThat(config.get(KEY_1)).isEqualTo("from-external-file"); // beats the classpath base file
+        assertThat(config.get(KEY_2)).isEqualTo("base-value-2");       // untouched, still from the base file
+    }
+
+    @Test
+    @DisplayName("a system property outranks every file, resolved entirely within this provider")
+    void systemProperty_outranksFiles() {
+        AppConfig config = new HelidonConfigProvider().config();
+        assertThat(config.get(KEY_1)).isEqualTo("base-value");
+
         System.setProperty(KEY_1.name(), "from-system-property");
-        assertThat(AppConfig.load().get(KEY_1)).isEqualTo("from-system-property");
+        assertThat(new HelidonConfigProvider().config().get(KEY_1)).isEqualTo("from-system-property");
+    }
+
+    @Test
+    @DisplayName("AppConfig.load() discovers this provider via ServiceLoader")
+    void appConfigLoad_discoversProvider() {
+        assertThat(AppConfig.load().get(KEY_1)).isEqualTo("base-value");
     }
 }

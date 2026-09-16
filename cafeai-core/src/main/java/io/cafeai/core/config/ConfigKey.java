@@ -1,6 +1,5 @@
 package io.cafeai.core.config;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -19,6 +18,14 @@ import java.util.Objects;
  *
  *   Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
  * }</pre>
+ *
+ * <p>The name is a dotted key, same style as Spring or Helidon —
+ * {@code "cafeai.rag.chunk.size"}. Nothing in {@code cafeai-core} ever
+ * derives a second spelling from it (an environment-variable form, a
+ * system-property form, or otherwise); there is exactly one name. Whether,
+ * and how, that name maps onto an environment variable is entirely
+ * {@code cafeai-config}'s concern, resolved by Helidon Config's own
+ * established mapping — not a convention CafeAI invents or owns.
  *
  * <p>Constructing a {@code ConfigKey} self-registers it into
  * {@link ConfigCatalog} — the same "declaring it is registering it" idiom
@@ -49,11 +56,7 @@ public final class ConfigKey<T> {
         ConfigCatalog.register(this);
     }
 
-    /**
-     * Declares a configuration key. Dotted, lowercase names are the
-     * convention — {@code "cafeai.rag.chunk.size"} — since {@link #envVarName()}
-     * derives the environment-variable form from it.
-     */
+    /** Declares a configuration key. Dotted names are the convention — {@code "cafeai.rag.chunk.size"}. */
     public static <T> ConfigKey<T> of(String name, Class<T> type, T defaultValue, String description) {
         return new ConfigKey<>(name, type, defaultValue, description);
     }
@@ -62,15 +65,6 @@ public final class ConfigKey<T> {
     public Class<T> type() { return type; }
     public T defaultValue() { return defaultValue; }
     public String description() { return description; }
-
-    /**
-     * The environment-variable form of this key — dots become underscores,
-     * uppercased: {@code "cafeai.rag.chunk.size"} → {@code "CAFEAI_RAG_CHUNK_SIZE"}.
-     * One logical key, nameable either way regardless of which layer it's set in.
-     */
-    public String envVarName() {
-        return name.toUpperCase(Locale.ROOT).replace('.', '_');
-    }
 
     @Override
     public String toString() {

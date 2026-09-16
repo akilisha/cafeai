@@ -18,20 +18,18 @@ import java.util.ServiceLoader;
  *   Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
  * }</pre>
  *
- * <p>Two entry points:
- * <ul>
- *   <li>{@link #ambient()} — system properties, then environment variables.
- *       Zero dependencies; works with {@code cafeai-core} alone.</li>
- *   <li>{@link #load()} — {@code ambient()}, then falls through to
- *       {@code cafeai-config}'s file/profile layer when that module is on
- *       the classpath. This is what application and framework code should
- *       call; a library module never needs to know or check which one it
- *       got.</li>
- * </ul>
- *
- * <p>Precedence, highest to lowest: system property, environment variable,
- * active-profile properties file, default properties file, the
- * {@link ConfigKey}'s own coded default.
+ * <p><strong>{@code cafeai-core} resolves defaults; {@code cafeai-config}
+ * resolves everything else.</strong> {@link #load()} looks for a
+ * {@link ConfigProvider} via {@link ServiceLoader}; if {@code cafeai-config}
+ * is on the classpath, resolution — system properties, environment
+ * variables, configuration files, whatever sources that module composes —
+ * is entirely its job, using Helidon Config's own mapping between a dotted
+ * key and an environment variable. If {@code cafeai-config} is absent,
+ * {@code load()} returns the {@link ConfigKey}'s coded default, unconditionally
+ * — the exact behavior every one of these values had before it was a
+ * {@code ConfigKey} at all. Declaring a value as a {@code ConfigKey} is what
+ * gives it a real path to being overridden; it never risks a working
+ * default disappearing.
  *
  * <p><strong>Config supplies values, never wires capabilities.</strong> A key
  * can say what a timeout is; it never causes {@code app.ai(...)} or any other
@@ -59,34 +57,15 @@ public interface AppConfig {
     }
 
     /**
-     * System properties, then environment variables. No files, no profiles —
-     * works with {@code cafeai-core} alone, zero extra dependency.
-     */
-    static AppConfig ambient() {
-        return key -> {
-            String sysProp = System.getProperty(key.name());
-            if (sysProp != null) {
-                return Optional.of(sysProp);
-            }
-            return Optional.ofNullable(System.getenv(key.envVarName()));
-        };
-    }
-
-    /**
-     * {@link #ambient()} first; if neither a system property nor an
-     * environment variable is set, falls through to {@code cafeai-config}'s
-     * {@link ConfigProvider} when that module is present. Falls back to
-     * {@code ambient()} alone otherwise.
+     * {@link ConfigProvider} via {@link ServiceLoader} when {@code cafeai-config}
+     * is present; otherwise an {@code AppConfig} that resolves nothing, so
+     * {@link #get} always returns the {@link ConfigKey}'s coded default.
      */
     static AppConfig load() {
-        AppConfig ambient = ambient();
         return ServiceLoader.load(ConfigProvider.class)
             .findFirst()
-            .<AppConfig>map(provider -> key -> {
-                Optional<String> fromAmbient = ambient.getRaw(key);
-                return fromAmbient.isPresent() ? fromAmbient : provider.config().getRaw(key);
-            })
-            .orElse(ambient);
+            .<AppConfig>map(ConfigProvider::config)
+            .orElse(key -> Optional.empty());
     }
 
     private static <T> T parse(ConfigKey<T> key, String raw) {

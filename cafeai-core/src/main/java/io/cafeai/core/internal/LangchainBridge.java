@@ -36,8 +36,9 @@ public final class LangchainBridge {
     /**
      * Timeout for a single LLM chat call, any provider — was a hardcoded
      * 60-second constant with no override until this key existed. Override
-     * via {@code cafeai.chat.timeout} (e.g. {@code -Dcafeai.chat.timeout=120s}),
-     * {@code CAFEAI_CHAT_TIMEOUT}, or an {@code application.properties} entry.
+     * with {@code cafeai-config} on the classpath: a system property
+     * (e.g. {@code -Dcafeai.chat.timeout=120s}), an environment variable, or
+     * an {@code application.properties}/{@code .yaml} entry.
      */
     public static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
         "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
