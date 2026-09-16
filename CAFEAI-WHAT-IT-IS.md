@@ -105,7 +105,7 @@ Retrieval-augmented generation. Ingest documents once, retrieve relevant
 context automatically on every prompt call.
 
 ```java
-app.embed(EmbeddingModel.local());
+app.embed(EmbeddingProvider.local());
 app.vectordb(VectorStore.inMemory());
 app.rag(Retriever.semantic(5));
 
@@ -190,6 +190,55 @@ app.observe(ObserveStrategy.console());
 // model, tokens, latency, and guardrail outcomes.
 ```
 
+### Configuration
+
+A timeout, a pool size, a retry count — declared once, at the point of use, as
+a self-documenting `ConfigKey`, not a bare undocumented constant:
+
+```java
+static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+        "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
+        "Timeout for a single LLM chat call, any provider");
+
+Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
+```
+
+Add `cafeai-config` and that value becomes real, overridable configuration —
+system property, environment variable, an external file, or
+`application.yaml` on the classpath — resolved by Helidon Config, dotted keys,
+no CafeAI-invented naming scheme. Without it, every key just resolves to its
+own coded default. No module needs `cafeai-config` to *declare* a key; only
+the application deciding whether real resolution is active needs it.
+
+### Cluster incidents
+
+An AI pipeline for Kubernetes/OpenShift, built on the agent layer above, not
+a separate paradigm:
+
+```java
+SentinelConfig config = SentinelConfig.create().namespace("payments");
+ClusterWatch watch = new ClusterWatch(config);
+
+app.agent("cluster-investigator", ClusterInvestigator.class)
+    .model(Anthropic.of("claude-sonnet-4-5-20250929"))
+    .tool(new KubeTools(watch.client(), "payments", Redactor.of(config.isRedact())));
+
+IncidentTracker tracker = new IncidentTracker(config)
+    .onIncident(IncidentSink.of(new LogSink(), new SsePublisher()))
+    .start();
+
+watch.onPodState(tracker::accept);
+```
+
+`cafeai-sentinel` watches one namespace, triages pod failures with rules (no
+model — cheap, every event), coalesces correlated failures into one incident
+per broken workload, and runs a read-only agentic investigation on confirmed
+incidents, redacting secrets and PII before anything reaches the prompt. It's
+a pipeline, not a product — it ends at "incident published," fanned out to a
+log, a webhook, or a live SSE stream. Validated live against both minikube
+and a real OpenShift cluster; see the runnable `capstones/cluster-sentinel`
+companion.
+
 ---
 
 ## What it runs on
@@ -213,7 +262,7 @@ Java-first philosophy. The bet is that most production AI applications need
 the same 8 things done well, not 800 things done tolerably.
 
 CafeAI is also not production-hardened at scale yet — it is a framework by
-one developer, with a large test suite, four complete capstone applications,
+one developer, with a large test suite, five complete capstone applications,
 and a clear roadmap. It is ready for real projects. It is not yet the
 infrastructure layer for a Fortune 500 company's AI platform.
 
@@ -221,8 +270,8 @@ infrastructure layer for a Fortune 500 company's AI platform.
 
 ## The capstone applications
 
-Four complete applications built with CafeAI, each demonstrating a different
-use case, plus a fifth still at the spec stage:
+Five complete applications built with CafeAI, each demonstrating a different
+use case, plus a sixth still at the spec stage:
 
 **support-desk** — AI-powered customer support platform for the fictional
 Helios API. Prompt pipeline, guardrails, session memory, topic boundary
@@ -237,6 +286,11 @@ retrieval, structured extraction, PII protection.
 **invoice-processor** — Vendor invoice processing with vision. PDF/image
 classification, structured extraction, reconciliation, Gmail integration.
 
+**cluster-sentinel** — AI cluster incident pipeline for Kubernetes/OpenShift
+(ROADMAP-18). Rule-based triage, agentic investigation with read-only tools,
+secret/PII redaction, live SSE dashboard. Validated against minikube and a
+real OpenShift cluster.
+
 **nova-tutor** (spec only) — AI tutoring agent with voice. Named providers,
 TTS synthesis, whiteboard command generation, lesson plan RAG.
 
@@ -246,9 +300,9 @@ TTS synthesis, whiteboard command generation, lesson plan RAG.
 
 | Metric | Value |
 |--------|-------|
-| Modules | 8 |
+| Modules | 12 |
 | Tests | 411 |
-| Capstone applications | 4 (+ 1 in progress) |
+| Capstone applications | 5 (+ 1 in progress) |
 | LLM providers supported | 3 (OpenAI, Anthropic, Ollama) |
 | Lines of production code | ~12,000 |
 | External dependencies | 3 (Helidon, LangChain4j, SLF4J) |

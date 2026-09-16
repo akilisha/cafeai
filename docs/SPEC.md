@@ -1,6 +1,6 @@
 # CafeAI — Formal Specification
 
-> Version: `0.2.0` | Last updated September 2026
+> Version: `0.4.0` | Last updated September 2026
 
 ---
 
@@ -210,8 +210,8 @@ app.vectordb(VectorStore.inMemory())       // development vector store
 app.vectordb(VectorStore.pgVector(url))    // production PostgreSQL + pgvector
 app.vectordb(VectorStore.chroma(url))      // Chroma vector database
 
-app.embed(EmbeddingModel.local())          // bundled ONNX model — no API key
-app.embed(EmbeddingModel.openAI())         // OpenAI text-embedding-3-small
+app.embed(EmbeddingProvider.local())       // bundled ONNX model — no API key
+app.embed(EmbeddingProvider.openAi())      // OpenAI, model id from CAFEAI_EMBEDDING_MODEL
 
 app.ingest(Source.text(content, name))     // ingest raw text
 app.ingest(Source.file(path))              // ingest from file
@@ -284,6 +284,55 @@ app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — extern
 MCP splits three ways: **serve** CafeAI as an MCP server → `app.helidon()` (§12); **reach**
 an external MCP server → the `McpEndpoint` connection above; **give** its tools to an agent →
 `cafeai-agents` (ROADMAP-12). No `cafeai-mcp` module in any of them.
+
+### 3.10 Configuration Primitives &nbsp;<sub>✅ shipped — `cafeai-config` (ADR-012)</sub>
+
+```java
+static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+        "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
+        "Timeout for a single LLM chat call, any provider");
+
+Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
+```
+
+`ConfigKey`/`AppConfig`/`ConfigProvider` live in `cafeai-core` — any module can
+declare a tunable value with no new dependency. `cafeai-core` itself resolves
+only a key's own coded default; every other source (system property,
+environment variable, external file, profile or base classpath file) is
+`cafeai-config`'s job in full, via Helidon Config — no CafeAI-invented naming
+scheme. An application adds `cafeai-config` to turn declared keys into real,
+overridable settings; a library module never depends on it just to declare one.
+
+### 3.11 Cluster Incident Primitives &nbsp;<sub>✅ shipped — `cafeai-sentinel` (ROADMAP-18)</sub>
+
+```java
+SentinelConfig config = SentinelConfig.create().namespace("payments");
+ClusterWatch watch = new ClusterWatch(config);
+
+app.agent("cluster-investigator", ClusterInvestigator.class)
+    .model(Anthropic.of("claude-sonnet-4-5-20250929"))
+    .tool(new KubeTools(watch.client(), "payments", Redactor.of(config.isRedact())));
+
+IncidentTracker tracker = new IncidentTracker(config)
+    .onIncident(IncidentSink.of(new LogSink(), new SsePublisher()))
+    .investigator(incident -> /* run the agent above */ null)
+    .start();
+
+watch.onPodState(tracker::accept);
+```
+
+`cafeai-sentinel` is a different shape from the rest of the vocabulary: not an
+`app.*` registration, but a standalone pipeline built *on* `app.agent(...)`.
+`ClusterWatch` correlates raw pod events into a `PodState` per pod;
+`IncidentTracker` triages with rules (`TriageRules`, no model) and coalesces
+correlated failures into one incident per broken workload; a confirmed
+incident triggers a read-only agentic investigation
+(`ClusterInvestigator` + `KubeTools`), redacted of secrets and PII by
+`Redactor` before anything reaches the prompt. It ends at "incident
+published," fanned out to a pluggable `IncidentSink` (log, webhook, SSE, or
+your own) — no dashboard, incident store, or remediation. See
+`docs/roadmap/ROADMAP-18-sentinel.md` and the runnable `capstones/cluster-sentinel`
+companion.
 
 ---
 
@@ -375,6 +424,7 @@ cafeai/
 │   └── roadmap/                        ← Roadmaps and Milestones
 │
 ├── cafeai-core/                        ← Express-style API, routing, middleware, AI primitives
+├── cafeai-config/                      ← Application configuration — ConfigKey/AppConfig, Helidon Config-backed
 ├── cafeai-memory/                      ← Tiered context memory
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
 ├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
@@ -385,6 +435,7 @@ cafeai/
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
 ├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity
 │                                         — session, guardrails, RAG, observability (ROADMAP-12)
+├── cafeai-sentinel/                    ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 └── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
 ```
 
@@ -400,7 +451,7 @@ agent layer via LangChain4j.
 |---|---|
 | **Verbs declare actions** | `ingest`, `embed`, `guard`, `observe`, `connect` |
 | **Nouns declare registrations** | `ai`, `memory`, `agent` |
-| **Strategies are configurable** | `MemoryStrategy`, `EmbeddingModel`, `GuardRail`, `Retriever` |
+| **Strategies are configurable** | `MemoryStrategy`, `EmbeddingProvider`, `GuardRail`, `Retriever` |
 | **Everything is composable** | guardrails are middleware, agents get HTTP identity, tools become MCP nodes |
 | **Names are guessable** | a developer should be right before they look it up |
 | **No abbreviations** | `vectordb` not `vdb`, `system` not `sys`, `observe` not `obs` |

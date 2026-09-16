@@ -10,10 +10,9 @@
  * no incident store, no remediation. The runnable companion is the
  * {@code cluster-sentinel} capstone.
  *
- * <p><strong>Status:</strong> functionally complete and validated live against
- * minikube; not yet published (see {@code docs/roadmap/ROADMAP-18-sentinel.md} —
- * publishing is gated on running the same scenarios against a real OpenShift
- * cluster, since "runs identically on both" is the module's reusability claim).
+ * <p><strong>Status:</strong> released at 0.3.2 — validated live against both
+ * minikube and a real OpenShift cluster (see
+ * {@code docs/roadmap/ROADMAP-18-sentinel.md}).
  * {@link io.cafeai.sentinel.ClusterWatch}
  * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState};
  * {@link io.cafeai.sentinel.IncidentTracker} triages each snapshot with

@@ -17,8 +17,9 @@ repositories { mavenCentral() }
 
 dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.4.0'
-    // cafeai-agents · cafeai-memory · cafeai-rag · cafeai-guardrails · cafeai-observability
-    // cafeai-security · cafeai-streaming · cafeai-connect · cafeai-views-mustache
+    // cafeai-config · cafeai-agents · cafeai-memory · cafeai-rag · cafeai-guardrails
+    // cafeai-observability · cafeai-security · cafeai-streaming · cafeai-connect
+    // cafeai-views-mustache · cafeai-sentinel
 }
 ```
 
@@ -67,37 +68,48 @@ without a version — pin them to `0.4.0` (or import a version catalog).
     - [15.4 Retrieval strategies](#154-retrieval-strategies)
     - [15.5 Accessing retrieved documents](#155-accessing-retrieved-documents-in-handlers)
 16. [Module Structure and Dependencies](#16-module-structure-and-dependencies)
-17. [cafeai-connect — Out-of-Process Service Connectivity](#17-cafeai-connect--out-of-process-service-connectivity)
-    - [17.1 Two kinds of extension](#171-two-kinds-of-extension)
-    - [17.2 Adding cafeai-connect](#172-adding-cafeai-connect)
-    - [17.3 The four built-in connectors](#173-the-four-built-in-connectors)
-    - [17.4 Fallback policies](#174-fallback-policies--operational-intelligence-at-the-connection-level)
-    - [17.5 Environment-driven configuration](#175-environment-driven-configuration)
-    - [17.6 Health checks](#176-health-checks)
-    - [17.7 Custom connections](#177-implementing-a-custom-connection)
-    - [17.8 Why this boundary matters](#178-why-this-boundary-matters)
-18. [Chains — Composable AI Processing Pipelines](#18-chains--composable-ai-processing-pipelines)
-    - [18.1 What a chain is](#181-what-a-chain-is)
-    - [18.2 Registering and invoking a chain](#182-registering-and-invoking-a-chain)
-    - [18.3 Built-in steps](#183-built-in-steps)
-    - [18.4 Chains are immutable and composable](#184-chains-are-immutable-and-composable)
-    - [18.5 Accessing chain results](#185-accessing-chain-results-in-the-final-handler)
-19. [Guardrails — Ethical and Safety Middleware](#19-guardrails--ethical-and-safety-middleware)
-    - [19.1 Guardrails are middleware](#191-guardrails-are-middleware)
-    - [19.2 Activating real implementations](#192-activating-real-implementations)
-    - [19.3 Available guardrails](#193-available-guardrails)
-    - [19.4 Guardrail position](#194-guardrail-position)
-    - [19.5 Guardrail violations](#195-guardrail-violations)
-    - [19.6 Composing guardrails](#196-composing-guardrails)
-20. [Observability — Tracing, Metrics, and Eval](#20-observability--tracing-metrics-and-eval)
-21. [The Helidon Foundation — `app.helidon()`](#21-the-helidon-foundation--apphelidon)
-22. [Extending CafeAI — writing a module](#22-extending-cafeai--writing-a-module)
-    - [20.1 Why observability matters](#201-why-observability-matters-for-llm-applications)
-    - [20.2 Adding cafeai-observability](#202-adding-cafeai-observability)
-    - [20.3 Console strategy](#203-console-strategy--development)
-    - [20.4 OpenTelemetry strategy](#204-opentelemetry-strategy--production)
-    - [20.5 Eval harness](#205-eval-harness--automatic-quality-scoring)
-    - [20.6 Combining observation and eval](#206-combining-observation-and-eval)
+17. [Application Configuration — cafeai-config](#17-application-configuration--cafeai-config)
+    - [17.1 Declaring a ConfigKey](#171-declaring-a-configkey)
+    - [17.2 Resolving it — AppConfig](#172-resolving-it--appconfig)
+    - [17.3 Adding cafeai-config](#173-adding-cafeai-config)
+    - [17.4 Precedence order](#174-precedence-order)
+    - [17.5 The boundary: values, never wiring](#175-the-boundary-values-never-wiring)
+18. [cafeai-connect — Out-of-Process Service Connectivity](#18-cafeai-connect--out-of-process-service-connectivity)
+    - [18.1 Two kinds of extension](#181-two-kinds-of-extension)
+    - [18.2 Adding cafeai-connect](#182-adding-cafeai-connect)
+    - [18.3 The four built-in connectors](#183-the-four-built-in-connectors)
+    - [18.4 Fallback policies](#184-fallback-policies--operational-intelligence-at-the-connection-level)
+    - [18.5 Environment-driven configuration](#185-environment-driven-configuration)
+    - [18.6 Health checks](#186-health-checks)
+    - [18.7 Custom connections](#187-implementing-a-custom-connection)
+    - [18.8 Why this boundary matters](#188-why-this-boundary-matters)
+19. [Chains — Composable AI Processing Pipelines](#19-chains--composable-ai-processing-pipelines)
+    - [19.1 What a chain is](#191-what-a-chain-is)
+    - [19.2 Registering and invoking a chain](#192-registering-and-invoking-a-chain)
+    - [19.3 Built-in steps](#193-built-in-steps)
+    - [19.4 Chains are immutable and composable](#194-chains-are-immutable-and-composable)
+    - [19.5 Accessing chain results](#195-accessing-chain-results-in-the-final-handler)
+20. [Guardrails — Ethical and Safety Middleware](#20-guardrails--ethical-and-safety-middleware)
+    - [20.1 Guardrails are middleware](#201-guardrails-are-middleware)
+    - [20.2 Activating real implementations](#202-activating-real-implementations)
+    - [20.3 Available guardrails](#203-available-guardrails)
+    - [20.4 Guardrail position](#204-guardrail-position)
+    - [20.5 Guardrail violations](#205-guardrail-violations)
+    - [20.6 Composing guardrails](#206-composing-guardrails)
+21. [Observability — Tracing, Metrics, and Eval](#21-observability--tracing-metrics-and-eval)
+    - [21.1 Why observability matters](#211-why-observability-matters-for-llm-applications)
+    - [21.2 Adding cafeai-observability](#212-adding-cafeai-observability)
+    - [21.3 Console strategy](#213-console-strategy--development)
+    - [21.4 OpenTelemetry strategy](#214-opentelemetry-strategy--production)
+    - [21.5 Eval harness](#215-eval-harness--automatic-quality-scoring)
+    - [21.6 Combining observation and eval](#216-combining-observation-and-eval)
+22. [The Helidon Foundation — `app.helidon()`](#22-the-helidon-foundation--apphelidon)
+23. [Extending CafeAI — writing a module](#23-extending-cafeai--writing-a-module)
+24. [cafeai-sentinel — AI Cluster Incident Pipeline](#24-cafeai-sentinel--ai-cluster-incident-pipeline)
+    - [24.1 Assembling a pipeline](#241-assembling-a-pipeline)
+    - [24.2 Investigation and redaction](#242-investigation-and-redaction)
+    - [24.3 Sinks](#243-sinks)
+    - [24.4 Connecting to a cluster](#244-connecting-to-a-cluster)
 
 ---
 
@@ -1100,8 +1112,8 @@ The capability modules build on them:
   `app.rag()` — prompts grounded in your own documents. See §15.
 - **Guardrails** — `cafeai-guardrails` turns the `GuardRail.*()` factories from
   logged pass-throughs into real PII / jailbreak / injection / toxicity /
-  regulatory checks. Register them now; adding the module makes them live. See §19.
-- **Observability** — `cafeai-observability` traces and scores every LLM call. See §20.
+  regulatory checks. Register them now; adding the module makes them live. See §20.
+- **Observability** — `cafeai-observability` traces and scores every LLM call. See §21.
 
 **Agents and tool use** are the remaining frontier, and the design changed course.
 Rather than a bespoke ReAct loop, CafeAI binds LangChain4j `AiServices` — which
@@ -1513,7 +1525,7 @@ four method calls at startup.
 ```java
 // Requires cafeai-rag on the classpath
 app.vectordb(VectorStore.inMemory())         // where vectors are stored
-app.embed(EmbeddingModel.local())            // how text becomes vectors (no API key)
+app.embed(EmbeddingProvider.local())         // how text becomes vectors (no API key)
 app.ingest(Source.pdf("docs/handbook.pdf"))  // what knowledge to load
 app.ingest(Source.directory("knowledge/"))   // can ingest multiple sources
 app.rag(Retriever.semantic(5))               // retrieve top-5 relevant chunks per query
@@ -1547,12 +1559,12 @@ source before re-ingesting. You get idempotent upserts, not duplicates.
 ### 15.3 Embedding models
 
 ```java
-EmbeddingModel.local()                  // ONNX all-MiniLM-L6-v2, 384d, no API key
-EmbeddingModel.openAi()                 // text-embedding-ada-002, 1536d, OPENAI_API_KEY
-EmbeddingModel.openAi("text-embedding-3-large")  // higher quality, 3072d
+EmbeddingProvider.local()                  // ONNX all-MiniLM-L6-v2, 384d, no API key
+EmbeddingProvider.openAi()                 // reads CAFEAI_EMBEDDING_MODEL, throws if unset
+EmbeddingProvider.openAi("text-embedding-3-large")  // explicit model id, 3072d
 ```
 
-`EmbeddingModel.local()` is the right default for most applications. It runs
+`EmbeddingProvider.local()` is the right default for most applications. It runs
 entirely on the JVM, produces no network traffic, and the model quality is
 sufficient for most document retrieval tasks.
 
@@ -1594,6 +1606,7 @@ what you use. The dependency graph flows in one direction — modules depend on
 
 ```
 cafeai-core          ← always required; HTTP + AI primitives
+cafeai-config        ← optional; unlocks file/profile-based AppConfig resolution
 cafeai-memory        ← optional; unlocks mapped, redis, hybrid memory
 cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
 cafeai-examples      ← reference; not a runtime dependency
@@ -1630,9 +1643,117 @@ to add and what the import should look like. It never silently degrades.
 
 ---
 
-## 17. cafeai-connect — Out-of-Process Service Connectivity
+## 17. Application Configuration — cafeai-config
 
-### 17.1 Two kinds of extension
+Every framework accumulates values that a real deployment needs to tune —
+timeouts, pool sizes, retry counts, window sizes. Left as bare
+`private static final` constants, they're undocumented, non-overridable, and
+invisible until someone reads the source. `cafeai-config` exists so that
+never has to be true: a configurable value is declared once, at the point of
+use, and is real, overridable configuration the moment an application wants
+it to be.
+
+### 17.1 Declaring a `ConfigKey`
+
+A `ConfigKey<T>` is a single dotted name (Spring/Helidon style), a type, a
+coded default, and a one-line description — declared right next to the code
+that reads it:
+
+```java
+private static final ConfigKey<Duration> CHAT_TIMEOUT = new ConfigKey<>(
+        "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
+        "Timeout for a single LLM chat call, any provider");
+```
+
+Constructing a `ConfigKey` self-registers it into `ConfigCatalog` — declaring
+it *is* registering it, the same "declaring is registering" pattern
+`CafeAIModule` uses for module discovery. There is no central file listing
+every key; `ConfigCatalog.known()` reflects whichever key-declaring classes
+the JVM has loaded so far, so read it after the application has been running
+a while (e.g. at the end of `app.listen()`), not on the first line of `main()`.
+
+### 17.2 Resolving it — `AppConfig`
+
+```java
+Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
+```
+
+`AppConfig.load()` discovers a `ConfigProvider` via `ServiceLoader`. If one is
+found (because `cafeai-config` is on the classpath), resolution is entirely
+that provider's job. If none is found, `get()` returns the key's own coded
+default, unconditionally — exactly the behavior the value already had before
+it was a `ConfigKey`. Adding a configurable value never risks a working
+default disappearing.
+
+`cafeai-core` itself uses this for the three constants an audit found
+hardcoded in production code paths: `LangchainBridge`'s per-call chat
+timeout, `AgentRegistry`'s chat-memory window, and `cafeai-sentinel`'s
+`WebhookSink` retry timeout/attempt count.
+
+### 17.3 Adding `cafeai-config`
+
+```groovy
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-config:0.4.0'
+}
+```
+
+No module that merely *declares* a `ConfigKey` needs this dependency —
+`ConfigKey`/`AppConfig` live in `cafeai-core`, which every module already
+depends on. Whether real resolution is active at all is a decision the
+*application* makes, by adding `cafeai-config` to itself, not something a
+library module like `cafeai-rag` ever checks for.
+
+`cafeai-config` supplies `HelidonConfigProvider`, built entirely on Helidon
+Config — the same "don't reinvent, build on Helidon" choice `cafeai-core`
+already makes for its HTTP layer. Dotted key names map onto environment
+variables and system properties using Helidon's own established convention,
+not a CafeAI-invented spelling.
+
+### 17.4 Precedence order
+
+Highest precedence first, every file-based source optional (a missing one is
+silently skipped, never an error):
+
+1. System properties
+2. Environment variables
+3. An external file, if `CAFEAI_CONFIG_FILE` (env var) or `cafeai.config.file`
+   (system property) points to one — e.g. a Kubernetes ConfigMap volume
+4. `application-{profile}.yaml` / `.yml` / `.properties` on the classpath,
+   when a profile is active (`CAFEAI_PROFILE` / `cafeai.profile`)
+5. `application.yaml` / `.yml` / `.properties` on the classpath
+6. The `ConfigKey`'s own coded default — always available, `cafeai-config`
+   present or not
+
+```yaml
+# src/main/resources/application.yaml
+cafeai:
+  chat:
+    timeout: 90s
+  agent:
+    memory:
+      window: 40
+```
+
+### 17.5 The boundary: values, never wiring
+
+`cafeai-config` answers questions that were explicitly asked, by key — it
+never constructs objects or registers capabilities on its own. A config file
+can say what a timeout is; it can never cause `app.ai(...)`,
+`app.vectordb(...)`, or any other registration call to happen by itself.
+That's a deliberate, firm line against Spring Boot-style auto-configuration —
+application code stays the only thing that calls `app.*` methods. Full
+rationale, including the design mistake this ADR corrects (an earlier version
+of this system tried to resolve system properties and environment variables
+directly in `cafeai-core`, with a hand-rolled naming convention), is in
+`docs/adr/ADR-012-application-config.md`.
+
+---
+
+## 18. cafeai-connect — Out-of-Process Service Connectivity
+
+### 18.1 Two kinds of extension
 
 Before using `cafeai-connect`, understand the distinction it formalises.
 
@@ -1663,7 +1784,7 @@ out-of-process services. Redis can be running but refusing connections. Ollama
 can be reachable but missing the model you need. `cafeai-connect` models this
 correctly with three reachability states and an explicit degradation policy.
 
-### 17.2 Adding cafeai-connect
+### 18.2 Adding cafeai-connect
 
 ```groovy
 dependencies {
@@ -1678,7 +1799,7 @@ dependencies {
 needed if you use connectors that register into them (`Redis` → `cafeai-memory`,
 `PgVector` → `cafeai-rag`).
 
-### 17.3 The three built-in connectors
+### 18.3 The three built-in connectors
 
 **Redis** — connects to a Redis server and registers it as the memory strategy:
 
@@ -1708,7 +1829,7 @@ app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai").credentials("u
 > (`McpToolProvider`) to that surface rather than reimplement the protocol — see
 > `docs/roadmap/ROADMAP-11` and `ROADMAP-12`.
 
-### 17.4 Fallback policies — operational intelligence at the connection level
+### 18.4 Fallback policies — operational intelligence at the connection level
 
 Every connection carries a degradation policy. The default is `warnAndContinue` —
 log a warning if the service is unreachable at startup, continue without it.
@@ -1741,7 +1862,7 @@ This encodes operational policy — what the application does when a dependency
 isn't available — at exactly the right level. Not in infrastructure scripts,
 not in application logic, but at the connection registration.
 
-### 17.5 Environment-driven configuration
+### 18.5 Environment-driven configuration
 
 `Connect.fromEnv()` reads standard environment variables and returns a list
 of configured connections. Pass each to `app.connect()`:
@@ -1818,7 +1939,7 @@ The same code runs locally (no environment variables set → no connections → 
 back to whatever defaults are configured), in CI (partial environment), and in
 production (full environment). Zero code changes between environments.
 
-### 17.6 Health checks
+### 18.6 Health checks
 
 `Connect.healthCheck(app)` returns a middleware that probes all registered
 connections and reports their status:
@@ -1872,7 +1993,7 @@ readinessProbe:
   periodSeconds: 5
 ```
 
-### 17.7 Implementing a custom Connection
+### 18.7 Implementing a custom Connection
 
 The `Connection` interface is open. Any service that can be probed over a
 network and that can register a capability with CafeAI can be a `Connection`:
@@ -1919,7 +2040,7 @@ The same `probe`/`register`/`fallback` model applies regardless of protocol.
 HTTP, TCP, JDBC, gRPC — any transport works. The `Connection` abstraction
 is deliberately protocol-agnostic.
 
-### 17.8 Why this boundary matters
+### 18.8 Why this boundary matters
 
 The in-process vs out-of-process distinction is not just organisational — it
 reflects a real difference in how capabilities behave at runtime.
@@ -1945,9 +2066,9 @@ implementations without any changes to the core framework.
 
 ---
 
-## 18. Chains — Composable AI Processing Pipelines
+## 19. Chains — Composable AI Processing Pipelines
 
-### 18.1 What a chain is
+### 19.1 What a chain is
 
 A chain is a named sequence of steps that processes a request through a defined
 pipeline. Chains are middleware — they implement `Middleware` and can be used
@@ -1958,7 +2079,7 @@ The mental model: if a middleware is a single transformation, a chain is a named
 reusable pipeline of transformations. You register the pipeline once and invoke
 it by name from any handler.
 
-### 18.2 Registering and invoking a chain
+### 19.2 Registering and invoking a chain
 
 ```java
 // Registration at startup
@@ -1986,7 +2107,7 @@ app.post("/support", (req, res, next) ->
 app.post("/support", app.chain("classify-and-route"), myFinalHandler);
 ```
 
-### 18.3 Built-in steps
+### 19.3 Built-in steps
 
 **`Steps.prompt(templateName)`** — renders a named template with `req.body()` as
 the variable map, calls the LLM, and stores the result:
@@ -2036,7 +2157,7 @@ response text before the next step sees it:
 Steps.transform(text -> text.trim().toLowerCase())
 ```
 
-### 18.4 Chains are immutable and composable
+### 19.4 Chains are immutable and composable
 
 `Chain` is immutable — `app.chain()` creates a fixed pipeline. The `use()` method
 returns a new chain with the step appended:
@@ -2048,7 +2169,7 @@ Chain premium = base.use(Steps.prompt("premium-addon"));
 // base is unchanged; premium is a new chain
 ```
 
-### 18.5 Accessing chain results in the final handler
+### 19.5 Accessing chain results in the final handler
 
 Steps communicate via request attributes. After a chain runs, the handler
 reads what was set:
@@ -2071,9 +2192,9 @@ app.post("/support", (req, res, next) -> {
 
 ---
 
-## 19. Guardrails — Ethical and Safety Middleware
+## 20. Guardrails — Ethical and Safety Middleware
 
-### 19.1 Guardrails are middleware
+### 20.1 Guardrails are middleware
 
 Every guardrail implements `Middleware`. There is no special guardrail pipeline —
 they compose with everything else: filters, route arrays, chain steps.
@@ -2092,7 +2213,7 @@ app.chain("support",
     Steps.prompt("respond"));
 ```
 
-### 19.2 Activating real implementations
+### 20.2 Activating real implementations
 
 Guardrails in `cafeai-core` are pass-through stubs by default. Add
 `cafeai-guardrails` to activate real implementations:
@@ -2108,7 +2229,7 @@ Without `cafeai-guardrails`, every guardrail logs a one-time warning and calls
 `next.run()`. Your application compiles and runs — guardrails just don't enforce
 anything. Adding the JAR activates enforcement with zero code changes.
 
-### 19.3 Available guardrails
+### 20.3 Available guardrails
 
 **`GuardRail.pii()`** — detects personally identifiable information in both
 the user's prompt (pre-LLM) and the model's response (post-LLM). Detects emails,
@@ -2163,7 +2284,7 @@ app.guard(GuardRail.regulatory().hipaa().gdpr());
 app.guard(GuardRail.regulatory().hipaa().fcra().ccpa());
 ```
 
-### 19.4 Guardrail position
+### 20.4 Guardrail position
 
 Each guardrail has a `Position` that determines when it runs relative to the LLM call:
 
@@ -2175,7 +2296,7 @@ Each guardrail has a `Position` that determines when it runs relative to the LLM
 
 Position is determined by the guardrail implementation — you don't set it manually.
 
-### 19.5 Guardrail violations
+### 20.5 Guardrail violations
 
 When a guardrail triggers, by default it responds with HTTP 400:
 
@@ -2191,7 +2312,7 @@ The violation is also recorded in request attributes for observability:
 - `req.attribute(Attributes.GUARDRAIL_NAME)` — which guardrail triggered
 - `req.attribute(Attributes.GUARDRAIL_SCORE)` — confidence score (0.0–1.0)
 
-### 19.6 Composing guardrails
+### 20.6 Composing guardrails
 
 Guardrails compose naturally because they're middleware:
 
@@ -2216,15 +2337,15 @@ app.post("/chat", safetyStack, myHandler);
 
 ---
 
-## 20. Observability — Tracing, Metrics, and Eval
+## 21. Observability — Tracing, Metrics, and Eval
 
-### 20.1 Why observability matters for LLM applications
+### 21.1 Why observability matters for LLM applications
 
 An LLM call is not like a database query. The response is non-deterministic. Token costs vary per call. Retrieval quality affects answer quality. Guardrails may or may not trigger. Without instrumentation, you are running blind in production.
 
 `cafeai-observability` makes every `app.prompt().call()` a first-class observed event — zero application code changes required.
 
-### 20.2 Adding cafeai-observability
+### 21.2 Adding cafeai-observability
 
 ```groovy
 dependencies {
@@ -2235,7 +2356,7 @@ dependencies {
 
 Without the module, `app.observe()` throws `IllegalStateException` with the exact dependency to add. Nothing else changes.
 
-### 20.3 Console strategy — development
+### 21.3 Console strategy — development
 
 `ObserveStrategy.console()` writes structured output per LLM call. Use it locally and in CI where you want readable traces without running an observability stack.
 
@@ -2254,7 +2375,7 @@ Output per call:
 ──────────────────────────────────────────────
 ```
 
-### 20.4 OpenTelemetry strategy — production
+### 21.4 OpenTelemetry strategy — production
 
 `ObserveStrategy.otel()` creates an OpenTelemetry span per LLM call, exported to whatever backend you configure — Jaeger, Zipkin, Grafana Tempo, Honeycomb, Datadog, or any OTLP-compatible collector.
 
@@ -2297,7 +2418,7 @@ Span attributes recorded per call:
 | `cafeai.cache_hit` | boolean | Whether response came from cache |
 | `cafeai.error` | string | Error class name if the call failed |
 
-### 20.5 Eval harness — automatic quality scoring
+### 21.5 Eval harness — automatic quality scoring
 
 `EvalHarness.defaults()` automatically scores every RAG-augmented response on three dimensions. Register it alongside an observation strategy:
 
@@ -2340,7 +2461,7 @@ When `app.observe(ObserveStrategy.otel())` is also active, eval scores are attac
 - `cafeai.eval.relevance`
 - `cafeai.eval.groundedness`
 
-### 20.6 Combining observation and eval
+### 21.6 Combining observation and eval
 
 ```java
 var app = CafeAI.create();
@@ -2348,7 +2469,7 @@ var app = CafeAI.create();
 // AI infrastructure
 app.ai(OpenAI.of("gpt-4o"));
 app.vectordb(VectorStore.inMemory());
-app.embed(EmbeddingModel.local());
+app.embed(EmbeddingProvider.local());
 app.rag(Retriever.semantic(5));
 app.ingest(Source.pdf("docs/handbook.pdf"));
 
@@ -2369,7 +2490,7 @@ That is a fully observable, RAG-augmented LLM application. Every call produces a
 
 ---
 
-## 21. The Helidon Foundation — `app.helidon()`
+## 22. The Helidon Foundation — `app.helidon()`
 
 CafeAI is a thin binding over Helidon SE. When you need something Helidon offers
 that the Express-style API doesn't cover — TLS, HTTP/2 tuning, connection limits,
@@ -2377,7 +2498,7 @@ health-check endpoints, Prometheus metrics, OpenAPI, raw routing, gRPC — you
 reach through `app.helidon()` and use Helidon's own builders directly. CafeAI
 does not re-wrap these; the escape hatch *is* the API.
 
-### 21.1 The two hooks
+### 22.1 The two hooks
 
 ```java
 app.helidon()
@@ -2399,7 +2520,7 @@ app.helidon()
 
 Both are fluent, applied in registration order, and may be called more than once.
 
-### 21.2 Health, metrics, OpenAPI — via Helidon features
+### 22.2 Health, metrics, OpenAPI — via Helidon features
 
 Helidon ships these as `HttpFeature`s. Add the dependency, register the feature
 through `.routing()`, and the endpoint appears next to your CafeAI routes:
@@ -2433,23 +2554,23 @@ keep in sync with every Helidon release. Kubernetes probes point at
 `/observe/health/live` and `/observe/health/ready`; Prometheus scrapes
 `/observe/metrics`.
 
-### 21.3 gRPC
+### 22.3 gRPC
 
 Not wired into the CafeAI API (no demand surfaced across the capstone series). If
 you need it, add `io.helidon.webserver:helidon-webserver-grpc` and register the
 `GrpcRouting` through a Helidon feature in `.routing()`. It runs on the same
 server.
 
-### 21.4 When to use the escape hatch vs. an extension module
+### 22.4 When to use the escape hatch vs. an extension module
 
 `app.helidon()` is for *this application's* infrastructure needs — one-off,
 deployment-specific wiring. If you're adding a **reusable capability** (a new
 vector store, a new guardrail, a new memory tier) that other apps would want,
-write a module instead — see §22.
+write a module instead — see §23.
 
 ---
 
-## 22. Extending CafeAI — writing a module
+## 23. Extending CafeAI — writing a module
 
 Custom guardrails, providers, and shared configuration jars all plug in through
 plain interfaces and `ServiceLoader` — no annotation scanner, no container. The
@@ -2465,3 +2586,102 @@ three levels:
 
 Full guide with the SPI catalogue, a worked module example, and testing
 patterns: **[docs/EXTENDING.md](docs/EXTENDING.md)**.
+
+---
+
+## 24. cafeai-sentinel — AI Cluster Incident Pipeline
+
+`cafeai-sentinel` watches a single Kubernetes/OpenShift namespace, triages pod
+failures with rules (no model — cheap, runs on every event), coalesces
+correlated failures into one incident per broken workload (not one per event
+per replica), and — on a confirmed incident — runs an agentic investigation
+against the live cluster with a CafeAI `app.agent(...)` and a read-only tool
+bundle. It is a pipeline, not a product: it ends at "incident published," with
+no dashboard, incident store, or remediation baked in. See
+`docs/roadmap/ROADMAP-18-sentinel.md` for the full design and the runnable
+`capstones/cluster-sentinel` companion for a complete HTTP + dashboard app
+built on top of it.
+
+### 24.1 Assembling a pipeline
+
+```java
+SentinelConfig config = SentinelConfig.create()
+        .namespace("payments")
+        .connection(ClusterConnection.ambient())   // kubeconfig or in-cluster SA token
+        .tokenBudget(TokenBudget.perMinute(50_000));
+
+ClusterWatch watch = new ClusterWatch(config);
+
+CafeAI app = CafeAI.create();
+app.agent("cluster-investigator", ClusterInvestigator.class)
+   .model(Anthropic.of("claude-sonnet-4-5-20250929"))   // no default — model ids retire
+   .tool(new KubeTools(watch.client(), "payments", Redactor.of(config.isRedact())));
+
+Investigator investigator = incident ->
+        app.agent("cluster-investigator", ClusterInvestigator.class, null)
+           .investigate(IncidentBrief.of(incident));
+
+IncidentTracker tracker = new IncidentTracker(config)
+        .onIncident(IncidentSink.of(new LogSink(), new WebhookSink(webhookUrl)))
+        .investigator(investigator)
+        .start();
+
+watch.onPodState(tracker::accept);
+watch.start();
+```
+
+`ClusterWatch` correlates raw pod events into a `PodState` per pod;
+`IncidentTracker` triages each one with `TriageRules` and keys incidents on
+the owning `Deployment`/workload, so two flapping replicas of the same broken
+rollout stay one incident, not two. `SentinelConfig` covers connection,
+namespace, `investigateOnStartup`, `resolveAfter` (how long a quiet incident
+stays open before auto-resolving), `updateDebounce` (rate-limits noisy
+`UPDATED` events), and `redact`. The investigation model/prompt and the
+incident sink deliberately live outside `SentinelConfig` — they already have
+their own fluent surface (`app.agent(...)` and
+`IncidentTracker.onIncident(...)`), so the config doesn't duplicate them.
+
+### 24.2 Investigation and redaction
+
+A confirmed incident triggers `ClusterInvestigator` — an ordinary
+`app.agent(...)` bound to `KubeTools`, a read-only tool bundle (pod logs,
+events, deployment specs — no writes, no exec). Every piece of cluster text
+(logs, env values, event messages) passes through `Redactor` before it
+reaches the prompt or the published incident, scrubbing credentials and PII.
+Investigations are gated by a `TokenBudget` — a rolling per-minute ceiling;
+when the next investigation would exceed it, `IncidentTracker` defers it to
+the next sweep rather than skipping it outright.
+
+### 24.3 Sinks
+
+Incident lifecycle events (`OPENED`, `INVESTIGATED`, `UPDATED`, `RESOLVED`)
+fan out to one or more `IncidentSink`s: `LogSink` (structured log lines),
+`WebhookSink` (POSTs JSON elsewhere — timeout and retry count are
+`ConfigKey`s, `cafeai.sentinel.webhook.timeout`/`.max_attempts`, see §17),
+`SsePublisher` (a live Server-Sent-Events stream, e.g. served over
+`app.get("/incidents/stream", ...)`), or your own — `IncidentSink` is a plain
+functional interface. `IncidentSink.of(...)` fans one event out to several
+sinks at once.
+
+### 24.4 Connecting to a cluster
+
+`ClusterConnection.ambient()` (the default) uses the current kubeconfig
+context, or the in-cluster ServiceAccount token when running inside the
+cluster. `ClusterConnection.token(apiServerUrl, token)` — plus
+`.caCertFile(...)` or `.trustCerts(true)` for a self-signed dev cluster — is
+for a sentinel that runs *outside* the cluster it watches: a bastion host, a
+CI runner, or a separate management cluster reaching into OpenShift, the
+common enterprise shape. `oc whoami --show-server` / `oc whoami -t` supply the
+values directly. Run with a dedicated `ServiceAccount`, not a personal user
+token — `capstones/cluster-sentinel/deploy/rbac.yaml` defines one scoped to
+exactly what `KubeTools`/`ClusterWatch` read (pods, logs, events, deployments,
+replicasets, quota — namespaced `Role`; nodes — the one cluster-scoped
+`ClusterRole` lookup), matching sentinel's single-namespace blast-radius
+limit.
+
+```groovy
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'
+}
+```

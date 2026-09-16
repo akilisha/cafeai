@@ -11,10 +11,10 @@ for building or contributing to CafeAI itself.
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.2.0'
-    // add capability modules as needed — cafeai-agents, cafeai-memory, cafeai-rag,
-    // cafeai-guardrails, cafeai-observability, cafeai-security,
-    // cafeai-streaming, cafeai-connect, cafeai-views-mustache
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    // add capability modules as needed — cafeai-config, cafeai-agents, cafeai-memory,
+    // cafeai-rag, cafeai-guardrails, cafeai-observability, cafeai-security,
+    // cafeai-streaming, cafeai-connect, cafeai-views-mustache, cafeai-sentinel
 }
 ```
 
@@ -23,7 +23,7 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.2.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -103,6 +103,7 @@ curl -X POST http://localhost:8080/classify \
 ```
 cafeai/
 ├── cafeai-core/            ← Start here — the Express API + AI primitives
+├── cafeai-config/          ← Application configuration — ConfigKey/AppConfig, Helidon Config-backed
 ├── cafeai-memory/          ← Tiered context memory
 ├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
 ├── cafeai-guardrails/      ← PII, jailbreak, bias, hallucination, regulatory
@@ -112,6 +113,7 @@ cafeai/
 ├── cafeai-streaming/       ← SSE / WebSocket token streaming
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector, MCP
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
+├── cafeai-sentinel/        ← AI cluster incident pipeline for Kubernetes / OpenShift
 ├── cafeai-examples/        ← Runnable examples — always kept working
 ├── capstones/              ← Full reference apps (support-desk, meridian-qualify, acme-claims, invoice-processor)
 └── docs/

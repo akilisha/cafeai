@@ -15,7 +15,8 @@ run those harnesses.
 | 2 | `meridian-qualify` | Regulated loan pre-qual | a forced tool-protocol agent, ECOA/FCRA/Fair-Housing guardrails, structured `QualificationDecision` |
 | 3 | `acme-claims` | Insurance claims intake | a claims-API agent, Redis session memory, Chroma RAG, HIPAA + fraud guardrails |
 | 4 | `invoice-processor` | AP / vendor invoices | batch job (no HTTP), `app.vision()` extraction, a reconciliation agent, Gmail |
-| 5 | `nova-tutor` | AI tutor / presenter | **spec only** — see `docs/roadmap/CAPSTONE-5-nova-tutor.md` |
+| 5 | `cluster-sentinel` | Kubernetes/OpenShift incident response | `cafeai-sentinel` — rule-based triage, agentic investigation, secret/PII redaction, SSE dashboard (ROADMAP-18) |
+| 6 | `nova-tutor` | AI tutor / presenter | **spec only** — see `docs/roadmap/CAPSTONE-5-nova-tutor.md` |
 
 ## Running
 
@@ -26,6 +27,7 @@ From the repository root:
 ./gradlew :capstones:meridian-qualify:run
 ./gradlew :capstones:acme-claims:run          # needs docker-compose up -d (Redis + Chroma)
 ./gradlew :capstones:invoice-processor:run -Pdry
+SENTINEL_NAMESPACE=demo ./gradlew :capstones:cluster-sentinel:run   # see its own README for cluster setup
 ```
 
 Each needs `OPENAI_API_KEY` (or a local Ollama for 1–3). `acme-claims` and the
@@ -49,6 +51,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'   // cluster-sentinel only
     // invoice-processor also: the Gmail API client + jakarta.mail
 }
 ```

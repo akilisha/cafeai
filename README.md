@@ -216,7 +216,7 @@ app.memory(MemoryStrategy.hybrid())      // Rung 5: warm SSD + cold Redis
 ### RAG
 ```java
 app.vectordb(PgVector.connect(config))   // vector store
-app.embed(EmbeddingModel.local())        // embedding model (ONNX via FFM)
+app.embed(EmbeddingProvider.local())     // embedding model (ONNX via FFM)
 app.ingest(Source.pdf("handbook.pdf"))   // ingest knowledge
 app.ingest(Source.url("https://..."))
 app.ingest(Source.directory("docs/"))
@@ -263,6 +263,54 @@ app.observe(ObserveStrategy.otel())       // OpenTelemetry — production
 app.observe(ObserveStrategy.console())    // console — development
 app.eval(EvalHarness.defaults())          // retrieval + response quality scoring
 ```
+
+### Configuration
+```java
+// declared once, at the point of use — a self-documenting, self-registering key
+static final ConfigKey<Integer> CHUNK_SIZE =
+    new ConfigKey<>("cafeai.rag.chunk.size", Integer.class, 500, "Chunk size in characters");
+
+int size = AppConfig.load().get(CHUNK_SIZE);
+```
+```yaml
+# application.yaml on the classpath — or application-{profile}.yaml, or an
+# external file pointed to by CAFEAI_CONFIG_FILE / cafeai.config.file
+cafeai:
+  rag:
+    chunk:
+      size: 800
+```
+`ConfigKey`/`AppConfig` live in `cafeai-core` — every module can declare a tunable
+value with no new dependency. Add `cafeai-config` to your *application* to turn
+those keys into real, overridable settings — system property, environment
+variable, profile file, or `application.yaml` — resolved by Helidon Config, no
+CafeAI-invented naming scheme. Without it, every key just resolves to its own
+coded default, exactly as before this existed. See `docs/adr/ADR-012-application-config.md`.
+
+### `cafeai-sentinel` — AI Cluster Incident Pipeline
+```java
+SentinelConfig config = SentinelConfig.create().namespace("payments");
+ClusterWatch watch = new ClusterWatch(config);
+
+app.agent("cluster-investigator", ClusterInvestigator.class)
+    .model(Anthropic.of("claude-sonnet-4-5-20250929"))
+    .tool(new KubeTools(watch.client(), "payments", Redactor.of(config.isRedact())));
+
+IncidentTracker tracker = new IncidentTracker(config)
+    .onIncident(IncidentSink.of(new LogSink(), new SsePublisher()))
+    .investigator(incident -> /* run the agent above */ null)
+    .start();
+
+watch.onPodState(tracker::accept);
+watch.start();
+```
+Watches one Kubernetes/OpenShift namespace, triages pod failures with rules
+(no model), coalesces correlated failures into one incident per broken
+workload, and runs a read-only agentic investigation on confirmed incidents —
+secrets and PII redacted before anything reaches the prompt. A pipeline, not a
+product: it ends at "incident published," fanned out to a log, a webhook, an
+SSE stream, or your own `IncidentSink`. See `docs/roadmap/ROADMAP-18-sentinel.md`
+and the runnable `capstones/cluster-sentinel` companion.
 
 ---
 
