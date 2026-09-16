@@ -4,17 +4,14 @@
 
 ---
 
-An audit of the framework — done for an unrelated reason, comparing
-`cafeai-rag` against a plain LangChain4j tutorial (post 6's territory) —
-turned up something worse than complexity. `LangchainBridge`, the class every
-single `app.prompt()` / `app.vision()` / `app.audio()` call eventually goes
-through, hardcoded a 60-second timeout into every LLM call, any provider,
-at six separate call sites. No setter. No environment variable. Nothing
-written down anywhere that it existed. Two more constants of the identical
-shape turned up in the same pass: `AgentRegistry`'s chat-memory window, fixed
-at 20 messages regardless of which `MemoryStrategy` an application had
-configured, and a webhook retry count buried in `cafeai-sentinel`'s
-`WebhookSink` — the same module post 13 covered.
+`LangchainBridge` — the class every single `app.prompt()` / `app.vision()` /
+`app.audio()` call eventually goes through — hardcoded a 60-second timeout
+into every LLM call, any provider, at six separate call sites. No setter. No
+environment variable. Nothing written down anywhere that it existed. Two more
+constants of the identical shape existed alongside it: `AgentRegistry`'s
+chat-memory window, fixed at 20 messages regardless of which `MemoryStrategy`
+an application had configured, and a webhook retry count buried in
+`cafeai-sentinel`'s `WebhookSink` — the same module post 13 covered.
 
 None of these were edge cases. They were live in every application built on
 the framework, silently, since before this series started.
