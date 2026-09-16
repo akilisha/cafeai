@@ -50,20 +50,20 @@ On Maven Central under `com.akilisha.oss`. CafeAI is modular — start with
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
 
     // add only what you use:
-    implementation 'com.akilisha.oss:cafeai-config:0.3.2'         // application.properties/.yaml + profiles
-    implementation 'com.akilisha.oss:cafeai-agents:0.3.2'         // app.agent() — LangChain4j AiServices
-    implementation 'com.akilisha.oss:cafeai-memory:0.3.2'         // tiered context memory
-    implementation 'com.akilisha.oss:cafeai-rag:0.3.2'            // retrieval-augmented generation
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.2'     // PII, jailbreak, bias, …
-    implementation 'com.akilisha.oss:cafeai-observability:0.3.2'  // OpenTelemetry, evals
-    implementation 'com.akilisha.oss:cafeai-security:0.3.2'       // prompt injection, data leakage
-    implementation 'com.akilisha.oss:cafeai-streaming:0.3.2'      // SSE / WebSocket streaming
-    implementation 'com.akilisha.oss:cafeai-connect:0.3.2'        // Redis, Ollama, pgvector, MCP
-    implementation 'com.akilisha.oss:cafeai-views-mustache:0.3.2' // Mustache view engine
-    implementation 'com.akilisha.oss:cafeai-sentinel:0.3.2'       // AI Kubernetes/OpenShift incident pipeline
+    implementation 'com.akilisha.oss:cafeai-config:0.4.0'         // application.properties/.yaml + profiles
+    implementation 'com.akilisha.oss:cafeai-agents:0.4.0'         // app.agent() — LangChain4j AiServices
+    implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // tiered context memory
+    implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, bias, …
+    implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry, evals
+    implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // prompt injection, data leakage
+    implementation 'com.akilisha.oss:cafeai-streaming:0.4.0'      // SSE / WebSocket streaming
+    implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector, MCP
+    implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0' // Mustache view engine
+    implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'       // AI Kubernetes/OpenShift incident pipeline
 }
 ```
 
@@ -72,7 +72,7 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.3.2</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 

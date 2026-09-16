@@ -5,6 +5,71 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09
+
+### Changed — BREAKING
+
+- **`VectorStore`, `EmbeddingProvider`, `Retriever`, `Source`, `RagDocument`
+  moved from `io.cafeai.rag` to `io.cafeai.core.rag`.** `app.vectordb()`,
+  `.embed()`, `.ingest()`, `.rag()` are now properly typed (were `Object`,
+  checked only at runtime). `PromptResponse`/`AudioResponse`/
+  `VisionResponse.ragDocuments()` now return `List<RagDocument>` (was
+  `List<Object>`, with one carrying a comment admitting it was "typed as
+  Object to avoid dep"). The old `io.cafeai.core.spi.RagPipeline` SPI is
+  deleted outright — no longer needed once the types are core-owned.
+  `EmbeddingModel` is renamed `EmbeddingProvider`, closing the one real name
+  collision against LangChain4j's own `EmbeddingModel` in the framework.
+  `cafeai-rag` still supplies everything needing real dependencies (Chroma,
+  pgvector, Tika, an ONNX model) via the new `io.cafeai.core.spi.RagProvider`
+  SPI. Full rationale in `docs/adr/ADR-011-rag-provider-abstraction.md`.
+- **`Connection`, `HealthStatus`, `Fallback` moved from `io.cafeai.connect`
+  to `io.cafeai.core.connect`.** `app.connect()` is now typed
+  `CafeAI.connect(Connection)` (was `Object`). The old
+  `io.cafeai.core.spi.ConnectBridge` SPI is deleted — a `Connection` is
+  self-contained and calls back into already-typed `app.vectordb()`/
+  `.memory()`/`.ai()`, so there was nothing for a provider SPI to supply. A
+  fully custom `Connection` implementation no longer needs
+  `cafeai-connect` on the classpath at all.
+- **`EmbeddingProvider.openAi()` has no default model id.** The old
+  zero-arg factory silently defaulted to the retired
+  `text-embedding-ada-002`. Pass a model id explicitly
+  (`EmbeddingProvider.openAi("text-embedding-3-large")`), or set
+  `CAFEAI_EMBEDDING_MODEL` and call the zero-arg overload. Dimensionality is
+  now measured from a real embedding call, not guessed from the model id
+  string.
+
+### Added
+
+- **`cafeai-config`** — file-based application configuration. A
+  `io.cafeai.core.config.ConfigKey` declares a value (dotted name, type,
+  default, description) right where it's used; `AppConfig.load()` resolves
+  it. `cafeai-core` resolves only the coded default; `cafeai-config`
+  resolves everything else — system properties, environment variables, an
+  external file (`CAFEAI_CONFIG_FILE`, e.g. a Kubernetes ConfigMap volume),
+  and `application.properties`/`.yaml` with profile overlays — built on
+  Helidon Config, not a hand-rolled merger. No module that declares a key
+  needs a new dependency to do so. Full rationale in
+  `docs/adr/ADR-012-application-config.md`.
+- Three previously hardcoded, non-overridable constants are now `ConfigKey`s:
+  `LangchainBridge`'s 60-second chat timeout (`cafeai.chat.timeout`, applied
+  to every provider, every call site), `AgentRegistry`'s 20-message chat
+  memory window (`cafeai.agent.memory.window`, previously fixed regardless
+  of the configured `MemoryStrategy`), and `WebhookSink`'s timeout/retry
+  count (`cafeai.sentinel.webhook.timeout`/`.max_attempts`).
+- `CafeAIModule.versionOf(Class)` reads a module's real version from its JAR
+  manifest (`Implementation-Version`, stamped by the build from
+  `project.version`) instead of a hardcoded literal — every module's
+  `version()` was returning `"0.1.0"` regardless of the actual released
+  version. The OTel tracer in `cafeai-observability` had the identical bug
+  independently and is fixed the same way.
+
+### Removed
+
+- `helidon-config-yaml` from `cafeai-core` — a dependency every application
+  carried with zero actual usage anywhere in the module's source, almost
+  certainly added in anticipation of the `cafeai-config` work above and
+  never wired up. Now lives only in `cafeai-config`, where it's used.
+
 ## [0.3.2] — 2026-09
 
 ### Added
