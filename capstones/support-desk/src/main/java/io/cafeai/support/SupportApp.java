@@ -10,9 +10,9 @@ import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.WsHandler;
 import io.cafeai.core.routing.WsSession;
 import io.cafeai.observability.ObserveStrategy;
-import io.cafeai.rag.EmbeddingProvider;
-import io.cafeai.rag.Retriever;
-import io.cafeai.rag.VectorStore;
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.Retriever;
+import io.cafeai.core.rag.VectorStore;
 import io.cafeai.security.AiSecurity;
 
 import java.util.Map;

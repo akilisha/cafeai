@@ -7,6 +7,9 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
+import io.cafeai.core.rag.PgVectorConfig;
+import io.cafeai.core.rag.RagDocument;
+import io.cafeai.core.rag.VectorStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

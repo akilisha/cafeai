@@ -1,4 +1,4 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -4,6 +4,7 @@ import dev.langchain4j.service.AiServices;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.rag.Retriever;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,7 @@ public final class AgentConfig<T> {
     private       MemoryStrategy    memoryStrategy;
     private final List<GuardRail>   guardRails  = new ArrayList<>();
     private final List<Object>      tools       = new ArrayList<>();
-    private       Object            ragRetriever;
+    private       Retriever         ragRetriever;
     private       Consumer<?>       builderConsumer;
 
     public AgentConfig(Class<T> agentInterface) {
@@ -84,16 +85,15 @@ public final class AgentConfig<T> {
     }
 
     /**
-     * Gives this agent a RAG content retriever. Pass a {@code io.cafeai.rag.Retriever}
-     * (e.g. {@code Retriever.semantic(3)}); it is adapted to a LangChain4j
-     * {@code ContentRetriever} and wired via {@code AiServices.contentRetriever(...)},
-     * drawing on the vector store and embedding model registered with
-     * {@code app.vectordb(...)} / {@code app.embed(...)}.
+     * Gives this agent a RAG content retriever (e.g. {@code Retriever.semantic(3)});
+     * it is adapted to a LangChain4j {@code ContentRetriever} and wired via
+     * {@code AiServices.contentRetriever(...)}, drawing on the vector store and
+     * embedding model registered with {@code app.vectordb(...)} / {@code app.embed(...)}.
      *
      * <p>When unset, the agent inherits the application-level retriever from
-     * {@code app.rag(...)} if one is registered. Requires {@code cafeai-rag}.
+     * {@code app.rag(...)} if one is registered.
      */
-    public AgentConfig<T> rag(Object retriever) {
+    public AgentConfig<T> rag(Retriever retriever) {
         this.ragRetriever = retriever;
         return this;
     }
@@ -137,7 +137,7 @@ public final class AgentConfig<T> {
     public MemoryStrategy     memoryStrategy()  { return memoryStrategy; }
     public List<GuardRail>    guardRails()      { return List.copyOf(guardRails); }
     public List<Object>       tools()           { return List.copyOf(tools); }
-    public Object             ragRetriever()    { return ragRetriever; }
+    public Retriever          ragRetriever()    { return ragRetriever; }
 
     @SuppressWarnings("unchecked")
     public Consumer<AiServices<T>> builderConsumer() {

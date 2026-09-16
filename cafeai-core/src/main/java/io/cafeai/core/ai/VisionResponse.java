@@ -60,7 +60,7 @@ public final class VisionResponse {
      * Always empty — RAG retrieval is not applicable to vision calls.
      * Binary content cannot be embedded and compared to text embeddings.
      */
-    public java.util.List<Object> ragDocuments() { return java.util.List.of(); }
+    public java.util.List<io.cafeai.core.rag.RagDocument> ragDocuments() { return java.util.List.of(); }
 
     /** Shorthand — delegates to {@link #text()}. */
     @Override

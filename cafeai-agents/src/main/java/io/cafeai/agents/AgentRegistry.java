@@ -14,6 +14,9 @@ import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.Retriever;
+import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.spi.AgentBridge;
 
 import java.util.ArrayList;
@@ -120,10 +123,10 @@ public final class AgentRegistry implements AgentBridge {
         if (!outputRails.isEmpty()) builder.outputGuardrails(outputRails);
 
         // -- RAG --------------------------------------------------------
-        Object ragRetriever = config.ragRetriever() != null
+        Retriever ragRetriever = config.ragRetriever() != null
             ? config.ragRetriever() : support.ragRetriever();
-        Object vectorStore    = support.vectorStore();
-        Object embeddingModel = support.embeddingModel();
+        VectorStore vectorStore       = support.vectorStore();
+        EmbeddingProvider embeddingModel = support.embeddingModel();
         if (ragRetriever != null && vectorStore != null && embeddingModel != null) {
             builder.contentRetriever(
                 new CafeAiContentRetriever(ragRetriever, vectorStore, embeddingModel));

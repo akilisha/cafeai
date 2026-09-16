@@ -1,25 +1,28 @@
 package io.cafeai.connect;
 
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.rag.PgVectorConfig;
+import io.cafeai.core.rag.VectorStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
 import java.sql.DriverManager;
 
 /**
  * Out-of-process pgvector (PostgreSQL + vector extension) connection.
  *
  * <p>Probes via a JDBC connection attempt, then registers a pgvector-backed
- * {@code VectorStore} with the application.
- *
- * <p>Requires {@code cafeai-rag} on the classpath for the actual
- * {@code PgVectorStore} implementation.
+ * {@link VectorStore} with the application via
+ * {@code io.cafeai.core.rag.VectorStore.pgVector(...)} — which itself requires
+ * {@code cafeai-rag} on the classpath for the real implementation.
  *
  * <pre>{@code
- *   app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai"));
+ *   app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai").dimension(384));
  *   app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai")
- *       .credentials("cafeai", "secret"));
- *   app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai")
+ *       .credentials("cafeai", "secret")
+ *       .dimension(1536));
+ *   app.connect(PgVector.at("jdbc:postgresql://pgvector:5432/cafeai").dimension(384)
  *       .onUnavailable(Fallback.use(VectorStore.inMemory())));
  * }</pre>
  */
@@ -30,6 +33,7 @@ public final class PgVector implements Connection {
     private final String jdbcUrl;
     private String username;
     private String password;
+    private int    dimension;
 
     private PgVector(String jdbcUrl) {
         this.jdbcUrl = jdbcUrl;
@@ -43,6 +47,19 @@ public final class PgVector implements Connection {
     public PgVector credentials(String username, String password) {
         this.username = username;
         this.password = password;
+        return this;
+    }
+
+    /**
+     * Vector dimensionality — must match the {@code EmbeddingProvider}
+     * registered with {@code app.embed(...)} (384 for
+     * {@code EmbeddingProvider.local()}, 1536 for OpenAI's
+     * {@code text-embedding-3-small}). Required — there is no default,
+     * since the wrong dimension silently corrupts the index rather than
+     * failing loudly.
+     */
+    public PgVector dimension(int dimension) {
+        this.dimension = dimension;
         return this;
     }
 
@@ -65,25 +82,28 @@ public final class PgVector implements Connection {
 
     @Override
     public void register(CafeAI app) {
-        try {
-            // PgVectorStore lives in cafeai-rag -- use reflection to avoid circular dep
-            Class<?> configClass = Class.forName("io.cafeai.rag.PgVectorConfig");
-            Object config = username != null
-                ? configClass.getMethod("of", String.class, String.class, String.class)
-                    .invoke(null, jdbcUrl, username, password)
-                : configClass.getMethod("of", String.class).invoke(null, jdbcUrl);
-
-            Class<?> pgClass = Class.forName("io.cafeai.rag.PgVector");
-            Object store = pgClass.getMethod("connect", configClass).invoke(null, config);
-            app.vectordb(store);
-            log.info("Connected: {} -> registered as vector store", name());
-        } catch (ClassNotFoundException e) {
+        if (dimension <= 0) {
             throw new IllegalStateException(
-                "PgVector connection requires cafeai-rag on the classpath. " +
-                "Add: implementation 'com.akilisha.oss:cafeai-rag'", e);
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                "Failed to register PgVector connection: " + e.getMessage(), e);
+                "PgVector.dimension(int) must be set to the registered EmbeddingProvider's " +
+                "vector size (e.g. 384 for local, 1536 for OpenAI text-embedding-3-small) " +
+                "before connecting.");
         }
+        app.vectordb(VectorStore.pgVector(toConfig()));
+        log.info("Connected: {} -> registered as vector store", name());
+    }
+
+    /** Parses {@code jdbc:postgresql://host:port/database} into a {@link PgVectorConfig}. */
+    private PgVectorConfig toConfig() {
+        URI uri = URI.create(jdbcUrl.replaceFirst("^jdbc:", ""));
+        String database = uri.getPath() != null && uri.getPath().length() > 1
+            ? uri.getPath().substring(1) : null;
+        var builder = PgVectorConfig.builder()
+            .host(uri.getHost())
+            .database(database)
+            .dimension(dimension);
+        if (uri.getPort() > 0) builder.port(uri.getPort());
+        if (username != null)  builder.user(username);
+        if (password != null)  builder.password(password);
+        return builder.build();
     }
 }

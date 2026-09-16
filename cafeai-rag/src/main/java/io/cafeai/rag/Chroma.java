@@ -1,5 +1,7 @@
 package io.cafeai.rag;
 
+import io.cafeai.core.rag.VectorStore;
+
 /**
  * Factory for Chroma-backed {@link VectorStore} instances.
  *

@@ -1,5 +1,8 @@
 package io.cafeai.rag;
 
+import io.cafeai.core.rag.PgVectorConfig;
+import io.cafeai.core.rag.VectorStore;
+
 /**
  * Factory for PostgreSQL/pgvector-backed {@link VectorStore} instances.
  *

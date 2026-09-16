@@ -30,8 +30,10 @@ app.guard(new BusinessHoursGuard());
 ```
 
 The same applies to `Middleware`, `AiProvider`, `WsHandler`, `ResponseFormatter`,
-and the `Retriever` / `VectorStore` / `EmbeddingModel` interfaces in `cafeai-rag`.
-If you only need it in one app, stop here.
+and the `Retriever` / `VectorStore` / `EmbeddingProvider` / `Source` interfaces in
+`io.cafeai.core.rag` (the contracts live in `cafeai-core`; `cafeai-rag` supplies
+the implementations that need real dependencies — Chroma, pgvector, Tika, an ONNX
+model). If you only need it in one app, stop here.
 
 ---
 
@@ -49,22 +51,26 @@ from the factory class named in the last column.
 | SPI | Unlocks | Implemented today by | Loaded from |
 |---|---|---|---|
 | `MemoryStrategyProvider` | `MemoryStrategy.mapped()/redis()/chronicle()/hybrid()` | `cafeai-memory` | `MemoryStrategy` |
-| `RagPipeline` | `app.ingest()` + RAG retrieval on `app.prompt()` / agents | `cafeai-rag` | `CafeAIApp`, `cafeai-agents` |
+| `RagProvider` | `VectorStore.chroma()/pgVector()`, `EmbeddingProvider.local()/openAi()`, `Source.pdf()/file()/directory()/url()` | `cafeai-rag` | `VectorStore`, `EmbeddingProvider`, `Source` |
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (stubs without it) | `cafeai-guardrails` | `GuardRail` |
 | `ObserveBridge` | `app.observe(...)` tracing / spans | `cafeai-observability` | `CafeAIApp` |
 | `ConnectBridge` | `app.connect(...)` connectors + fallback | `cafeai-connect` | `CafeAIApp` |
 | `AgentBridge` | `app.agent(...)` | `cafeai-agents` | `CafeAIApp` |
 | `ViewEngineProvider` | `app.engine(...)` / `res.render(...)` | `cafeai-views-mustache` | `CafeAIApp` |
 
-Each SPI's Javadoc is the contract. Parameters are typed `Object` where the SPI
-would otherwise force a compile-time dependency the other way — the implementer
-casts to the concrete types it owns.
+Each SPI's Javadoc is the contract. Most SPI methods are fully typed — the
+contract type lives in `cafeai-core` (`MemoryStrategy`, `VectorStore`,
+`EmbeddingProvider`, `Source`, ...) precisely so the SPI itself doesn't need
+`Object`. The exception is genuinely open-ended input with no useful common
+type — `AgentConfig.tool(Object)` accepts any `@Tool`-annotated class the
+application author writes, which by definition `cafeai-core` can't know about
+in advance.
 
 ### Worked example — `cafeai-pgvector-lite`
 
 A hypothetical module adding a second pgvector-style store. (In practice you'd
-implement `io.cafeai.rag.VectorStore` and hand the instance to `app.vectordb(...)`
-— Level 1 — but this shows the SPI shape.)
+implement `io.cafeai.core.rag.VectorStore` and hand the instance to
+`app.vectordb(...)` — Level 1 — but this shows the SPI shape.)
 
 ```groovy
 // cafeai-pgvector-lite/build.gradle
@@ -79,13 +85,13 @@ dependencies {
 ```java
 package com.example.pgvlite;
 
-public final class PgVectorLiteProvider implements io.cafeai.core.spi.MemoryStrategyProvider {
-    // implement the SPI's methods — see MemoryStrategyProvider Javadoc for the contract
+public final class PgVectorLiteProvider implements io.cafeai.core.spi.RagProvider {
+    // implement the SPI's methods — see RagProvider Javadoc for the contract
 }
 ```
 
 ```
-# src/main/resources/META-INF/services/io.cafeai.core.spi.MemoryStrategyProvider
+# src/main/resources/META-INF/services/io.cafeai.core.spi.RagProvider
 com.example.pgvlite.PgVectorLiteProvider
 ```
 

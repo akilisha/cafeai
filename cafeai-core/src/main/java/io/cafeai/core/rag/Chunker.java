@@ -1,4 +1,4 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -17,6 +17,7 @@ import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.rag.*;
 import io.cafeai.core.routing.*;
 import io.cafeai.core.spi.*;
 import io.helidon.webserver.WebServer;
@@ -74,9 +75,9 @@ public final class CafeAIApp implements CafeAI {
     private final List<GuardRail> guardRails = new ArrayList<>();
 
     // RAG pipeline state (ROADMAP-07 Phase 4)
-    private Object vectorStore;
-    private Object embeddingModel;
-    private Object retriever;
+    private VectorStore vectorStore;
+    private EmbeddingProvider embeddingModel;
+    private Retriever retriever;
 
     // Tool registry bridge (ROADMAP-07 Phase 5) -- loaded via ServiceLoader
 
@@ -167,9 +168,9 @@ public final class CafeAIApp implements CafeAI {
         @Override public AiProvider     defaultProvider() { return aiProvider; }
         @Override public ObserveBridge  observeBridge()   { return observeBridge; }
         @Override public MemoryStrategy defaultMemory()   { return memoryStrategy; }
-        @Override public Object         ragRetriever()    { return retriever; }
-        @Override public Object         vectorStore()     { return vectorStore; }
-        @Override public Object         embeddingModel()  { return embeddingModel; }
+        @Override public Retriever         ragRetriever()    { return retriever; }
+        @Override public VectorStore       vectorStore()     { return vectorStore; }
+        @Override public EmbeddingProvider embeddingModel()  { return embeddingModel; }
     }
 
     // -- Agents (ROADMAP-12) -------------------------------------------------
@@ -359,37 +360,29 @@ public final class CafeAIApp implements CafeAI {
         messages.add(UserMessage.from(effectiveMessage));
 
         // -- 3b. RAG retrieval -- inject context before the LLM call -----------
-        List<Object> retrievedDocs = List.of();
+        List<RagDocument> retrievedDocs = List.of();
         if (retriever != null && vectorStore != null && embeddingModel != null) {
             Object retrievalCtx = observeBridge != null
                     ? observeBridge.beforeRetrieval(request.message()) : null;
             Throwable retrievalError = null;
             try {
-                var pipeline = ServiceLoader
-                        .load(RagPipeline.class)
-                        .findFirst()
-                        .orElse(null);
+                retrievedDocs = retriever.retrieve(request.message(), embeddingModel, vectorStore);
 
-                if (pipeline != null) {
-                    retrievedDocs = pipeline.retrieve(
-                            request.message(), retriever, vectorStore, embeddingModel);
-
-                    if (!retrievedDocs.isEmpty()) {
-                        // Build a context block from the retrieved documents.
-                        // Injected as a UserMessage immediately before the actual question
-                        // so the LLM sees: [system] -> [history] -> [context] -> [question]
-                        var sb = new StringBuilder(
-                                "Relevant context from the knowledge base:\n\n");
-                        for (int i = 0; i < retrievedDocs.size(); i++) {
-                            sb.append("[").append(i + 1).append("] ");
-                            sb.append(retrievedDocs.get(i).toString());
-                            sb.append("\n\n");
-                        }
-                        sb.append("Use the above context to answer the following question:");
-                        // Insert context BEFORE the user question (swap last two)
-                        messages.add(messages.size() - 1,
-                                UserMessage.from(sb.toString()));
+                if (!retrievedDocs.isEmpty()) {
+                    // Build a context block from the retrieved documents.
+                    // Injected as a UserMessage immediately before the actual question
+                    // so the LLM sees: [system] -> [history] -> [context] -> [question]
+                    var sb = new StringBuilder(
+                            "Relevant context from the knowledge base:\n\n");
+                    for (int i = 0; i < retrievedDocs.size(); i++) {
+                        sb.append("[").append(i + 1).append("] ");
+                        sb.append(retrievedDocs.get(i).toString());
+                        sb.append("\n\n");
                     }
+                    sb.append("Use the above context to answer the following question:");
+                    // Insert context BEFORE the user question (swap last two)
+                    messages.add(messages.size() - 1,
+                            UserMessage.from(sb.toString()));
                 }
             } catch (Exception e) {
                 retrievalError = e;
@@ -1503,7 +1496,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI vectordb(Object store) {
+    public CafeAI vectordb(VectorStore store) {
         assertNotStarted("vectordb()");
         this.vectorStore = Objects.requireNonNull(store, "VectorStore must not be null");
         locals.put(Locals.VECTOR_STORE, store);
@@ -1512,7 +1505,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI embed(Object model) {
+    public CafeAI embed(EmbeddingProvider model) {
         assertNotStarted("embed()");
         this.embeddingModel = Objects.requireNonNull(model, "EmbeddingProvider must not be null");
         locals.put(Locals.EMBEDDING_MODEL, model);
@@ -1521,7 +1514,7 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI ingest(Object source) {
+    public CafeAI ingest(Source source) {
         Objects.requireNonNull(source, "Source must not be null");
         if (vectorStore == null) {
             throw new IllegalStateException(
@@ -1531,20 +1524,12 @@ public final class CafeAIApp implements CafeAI {
             throw new IllegalStateException(
                     "No embedding model registered. Call app.embed(EmbeddingProvider.local()) first.");
         }
-        // Ingestion is executed by cafeai-rag via the RagPipeline SPI.
-        // The objects are stored here; actual chunking/embedding/upserting happens
-        // in cafeai-rag where all the types are visible.
-        ServiceLoader.load(RagPipeline.class)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "RAG ingestion requires the cafeai-rag module. " +
-                                "Add: implementation 'com.akilisha.oss:cafeai-rag'"))
-                .ingest(source, vectorStore, embeddingModel);
+        RagIngestion.ingest(source, vectorStore, embeddingModel);
         return this;
     }
 
     @Override
-    public CafeAI rag(Object retriever) {
+    public CafeAI rag(Retriever retriever) {
         assertNotStarted("rag()");
         this.retriever = Objects.requireNonNull(retriever, "Retriever must not be null");
         log.info("RAG retriever registered: {}", retriever.getClass().getSimpleName());

@@ -2,6 +2,7 @@ package io.cafeai.rag;
 
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
+import io.cafeai.core.rag.EmbeddingProvider;
 
 /**
  * Local ONNX embedding model using {@code all-MiniLM-L6-v2-quantized}.

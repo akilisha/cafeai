@@ -1,6 +1,7 @@
 package io.cafeai.observability;
 
 import io.cafeai.core.ai.PromptResponse;
+import io.cafeai.core.rag.RagDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +79,7 @@ public final class EvalHarness {
     public Map<String, Double> evaluate(String question, PromptResponse response) {
         Map<String, Double> scores = new LinkedHashMap<>();
 
-        List<Object> ragDocs = response.ragDocuments();
+        List<RagDocument> ragDocs = response.ragDocuments();
         String answer = response.text() != null ? response.text() : "";
 
         if (ragDocs == null || ragDocs.isEmpty()) {

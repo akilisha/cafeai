@@ -1,4 +1,8 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
+
+import io.cafeai.core.spi.RagProvider;
+
+import java.util.ServiceLoader;
 
 /**
  * Provider-agnostic embedding provider for the RAG pipeline.
@@ -14,6 +18,10 @@ package io.cafeai.rag;
  *   // OpenAI embeddings — higher quality, requires API key and a model id
  *   app.embed(EmbeddingProvider.openAi("text-embedding-3-large"));
  * }</pre>
+ *
+ * <p>Both factories require {@code com.akilisha.oss:cafeai-rag} on the
+ * classpath — {@code cafeai-core} has no built-in embedding implementation,
+ * since even the "local" option needs a real ONNX model bundle.
  */
 public interface EmbeddingProvider {
 
@@ -48,10 +56,10 @@ public interface EmbeddingProvider {
      * {@code all-MiniLM-L6-v2} model (384 dimensions). Appropriate for
      * production single-node deployments where data sovereignty matters.
      *
-     * <p>Requires {@code com.akilisha.oss:cafeai-rag} on the classpath.
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static EmbeddingProvider local() {
-        return new LocalEmbeddingProvider();
+        return loadProvider().localEmbedding();
     }
 
     /**
@@ -66,9 +74,10 @@ public interface EmbeddingProvider {
      * is measured from the real model on first use, not guessed from the id.
      *
      * @param modelId the OpenAI embedding model id
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static EmbeddingProvider openAi(String modelId) {
-        return new OpenAiEmbeddingProvider(modelId);
+        return loadProvider().openAiEmbedding(modelId);
     }
 
     /**
@@ -77,6 +86,7 @@ public interface EmbeddingProvider {
      * pinning a model per-environment without touching code.
      *
      * @throws IllegalStateException if {@code CAFEAI_EMBEDDING_MODEL} is not set
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static EmbeddingProvider openAi() {
         String modelId = System.getenv("CAFEAI_EMBEDDING_MODEL");
@@ -87,5 +97,17 @@ public interface EmbeddingProvider {
                 + "or set the CAFEAI_EMBEDDING_MODEL environment variable.");
         }
         return openAi(modelId);
+    }
+
+    // ── ServiceLoader discovery ──────────────────────────────────────────────
+
+    private static RagProvider loadProvider() {
+        return ServiceLoader.load(RagProvider.class)
+            .findFirst()
+            .orElseThrow(() -> new RagModuleNotFoundException(
+                "Embedding providers require the cafeai-rag module. " +
+                "Add the following dependency:\n\n" +
+                "  Gradle: implementation 'com.akilisha.oss:cafeai-rag'\n" +
+                "  Maven:  <artifactId>cafeai-rag</artifactId>"));
     }
 }

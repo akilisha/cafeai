@@ -1,4 +1,4 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
 
 import io.cafeai.core.Attributes;
 
@@ -8,8 +8,8 @@ import java.util.List;
  * Retrieval strategy for the RAG pipeline.
  *
  * <p>A {@code Retriever} is given the user's query, embeds it using the
- * registered {@link EmbeddingProvider}, searches the {@link VectorStore}, and
- * returns the top-K most relevant chunks.
+ * registered {@link EmbeddingProvider}, searches the {@link VectorStore},
+ * and returns the top-K most relevant chunks.
  *
  * <p>Register via {@code app.rag(retriever)}:
  *

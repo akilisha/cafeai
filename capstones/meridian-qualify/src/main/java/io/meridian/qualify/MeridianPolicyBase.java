@@ -1,7 +1,7 @@
 package io.meridian.qualify;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.rag.Source;
+import io.cafeai.core.rag.Source;
 
 public class MeridianPolicyBase {
 

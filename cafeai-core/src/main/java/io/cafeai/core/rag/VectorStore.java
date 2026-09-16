@@ -1,6 +1,9 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
+
+import io.cafeai.core.spi.RagProvider;
 
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  * Provider-agnostic vector store for CafeAI's RAG pipeline.
@@ -19,6 +22,10 @@ import java.util.List;
  *   app.vectordb(VectorStore.pgVector(
  *       PgVectorConfig.builder().host("localhost").database("cafeai").dimension(384).build()));
  * }</pre>
+ *
+ * <p>{@code chroma(...)} and {@code pgVector(...)} require
+ * {@code com.akilisha.oss:cafeai-rag} on the classpath — {@code inMemory()}
+ * does not.
  */
 public interface VectorStore {
 
@@ -84,10 +91,10 @@ public interface VectorStore {
      *   docker run -p 8000:8000 chromadb/chroma:0.5.23
      * </pre>
      *
-     * @see Chroma
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static VectorStore chroma() {
-        return Chroma.local();
+        return loadProvider().chroma();
     }
 
     /**
@@ -98,10 +105,10 @@ public interface VectorStore {
      * }</pre>
      *
      * @param baseUrl Chroma base URL
-     * @see Chroma#connect(String)
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static VectorStore chroma(String baseUrl) {
-        return Chroma.connect(baseUrl);
+        return loadProvider().chroma(baseUrl);
     }
 
     /**
@@ -113,10 +120,10 @@ public interface VectorStore {
      *
      * @param baseUrl        Chroma base URL
      * @param collectionName Chroma collection to use
-     * @see Chroma#connect(String, String)
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static VectorStore chroma(String baseUrl, String collectionName) {
-        return Chroma.connect(baseUrl, collectionName);
+        return loadProvider().chroma(baseUrl, collectionName);
     }
 
     /**
@@ -134,9 +141,22 @@ public interface VectorStore {
      * }</pre>
      *
      * @param config connection + schema settings
-     * @see PgVector
+     * @throws RagModuleNotFoundException if {@code cafeai-rag} is absent
      */
     static VectorStore pgVector(PgVectorConfig config) {
-        return PgVector.connect(config);
+        return loadProvider().pgVector(config);
+    }
+
+    // ── ServiceLoader discovery ──────────────────────────────────────────────
+
+    private static RagProvider loadProvider() {
+        return ServiceLoader.load(RagProvider.class)
+            .findFirst()
+            .orElseThrow(() -> new RagModuleNotFoundException(
+                "Chroma and PgVector vector stores require the cafeai-rag module. " +
+                "Add the following dependency:\n\n" +
+                "  Gradle: implementation 'com.akilisha.oss:cafeai-rag'\n" +
+                "  Maven:  <artifactId>cafeai-rag</artifactId>\n\n" +
+                "For development, use VectorStore.inMemory() (zero dependencies)."));
     }
 }

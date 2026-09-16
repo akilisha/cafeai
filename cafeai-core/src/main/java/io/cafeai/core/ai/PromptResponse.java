@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.rag.RagDocument;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -26,7 +28,7 @@ public final class PromptResponse {
     private final int     outputTokens;
     private final String  modelId;
     private final boolean fromCache;
-    private final List<Object> ragDocuments;  // List<RagDocument>, typed as Object to avoid dep
+    private final List<RagDocument> ragDocuments;
 
     private PromptResponse(Builder b) {
         this.text         = b.text;
@@ -60,9 +62,8 @@ public final class PromptResponse {
     /**
      * Documents retrieved by the RAG pipeline for this prompt.
      * Empty list if RAG is not configured or no documents were retrieved.
-     * Each element is an {@code io.cafeai.rag.RagDocument} instance.
      */
-    public List<Object> ragDocuments() { return ragDocuments; }
+    public List<RagDocument> ragDocuments() { return ragDocuments; }
 
     /** Shorthand -- delegates to {@link #text()}. Makes response usable as a string. */
     @Override
@@ -76,14 +77,14 @@ public final class PromptResponse {
         private int     outputTokens;
         private String  modelId;
         private boolean fromCache;
-        private List<Object> ragDocuments;
+        private List<RagDocument> ragDocuments;
 
         public Builder text(String t)                         { this.text         = t; return this; }
         public Builder promptTokens(int n)                    { this.promptTokens = n; return this; }
         public Builder outputTokens(int n)                    { this.outputTokens = n; return this; }
         public Builder modelId(String m)                      { this.modelId      = m; return this; }
         public Builder fromCache(boolean c)                   { this.fromCache    = c; return this; }
-        public Builder ragDocuments(List<Object> d) { this.ragDocuments = d; return this; }
+        public Builder ragDocuments(List<RagDocument> d)      { this.ragDocuments = d; return this; }
 
         public PromptResponse build()                         { return new PromptResponse(this); }
     }

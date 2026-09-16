@@ -1,9 +1,9 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
 
 import java.util.Objects;
 
 /**
- * Connection and schema settings for a {@link PgVector}-backed {@link VectorStore}.
+ * Connection and schema settings for a PgVector-backed {@link VectorStore}.
  *
  * <pre>{@code
  *   app.vectordb(VectorStore.pgVector(
@@ -18,7 +18,8 @@ import java.util.Objects;
  *
  * <p>{@code dimension} must equal the dimensionality of vectors produced by the
  * {@code EmbeddingProvider} registered with {@code app.embed(...)} —
- * {@code EmbeddingProvider.local()} is 384, {@code EmbeddingProvider.openAi()} is 1536.
+ * {@code EmbeddingProvider.local()} is 384, OpenAI's {@code text-embedding-3-small}
+ * is 1536.
  */
 public final class PgVectorConfig {
 

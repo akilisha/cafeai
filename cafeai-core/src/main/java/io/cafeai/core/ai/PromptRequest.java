@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.routing.Request;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,7 +38,7 @@ public final class PromptRequest {
     private String sessionId;
     private String providerName;
     private String systemOverride;
-    private io.cafeai.core.routing.Request httpRequest;
+    private Request httpRequest;
     private Class<?> returningType;
     private String schemaHint;
     private final PromptExecutor executor;

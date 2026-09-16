@@ -4,7 +4,7 @@ import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.rag.*;
+import io.cafeai.core.rag.*;
 
 import java.util.Map;
 

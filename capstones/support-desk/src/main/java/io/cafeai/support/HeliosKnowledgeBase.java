@@ -1,7 +1,7 @@
 package io.cafeai.support;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.rag.Source;
+import io.cafeai.core.rag.Source;
 
 /**
  * Seeds the Helios knowledge base at startup.

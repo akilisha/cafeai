@@ -3,6 +3,7 @@ package io.cafeai.rag;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
+import io.cafeai.core.rag.EmbeddingProvider;
 
 /**
  * OpenAI embedding provider.

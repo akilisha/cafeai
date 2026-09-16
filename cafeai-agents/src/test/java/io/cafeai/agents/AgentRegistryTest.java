@@ -11,6 +11,9 @@ import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.Retriever;
+import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.spi.AgentBridge;
 import io.cafeai.core.spi.ObserveBridge;
 import org.junit.jupiter.api.BeforeEach;
@@ -203,12 +206,16 @@ class AgentRegistryTest {
     }
 
     @Test
-    void rag_wiringDegradesGracefullyWithoutCafeaiRag() {
-        // retriever + store + model all present, but no RagPipeline on the test
-        // classpath — the content retriever must return nothing, not throw.
-        support.ragRetriever = "retriever-handle";
-        support.vectorStore = "store-handle";
-        support.embeddingModel = "model-handle";
+    void rag_wiringReturnsNothingWhenTheStoreIsEmpty() {
+        // retriever + store + model all wired, but nothing has been ingested —
+        // the content retriever must return nothing, not throw.
+        support.ragRetriever = Retriever.semantic(1);
+        support.vectorStore = VectorStore.inMemory();
+        support.embeddingModel = new EmbeddingProvider() {
+            @Override public float[] embed(String text) { return new float[]{1f}; }
+            @Override public int dimensions() { return 1; }
+            @Override public String modelId() { return "fake"; }
+        };
         registry.init(support);
         support.model = fixedModel("answer");
         registry.register("assistant", Assistant.class);
@@ -224,9 +231,9 @@ class AgentRegistryTest {
         final AiProvider defaultProvider = namedProvider("default");
         final java.util.Map<AiProvider, FixedModel> overrides = new java.util.HashMap<>();
         ObserveBridge observeBridge;
-        Object ragRetriever;
-        Object vectorStore;
-        Object embeddingModel;
+        Retriever ragRetriever;
+        VectorStore vectorStore;
+        EmbeddingProvider embeddingModel;
 
         @Override
         public ChatModel chatModel(AiProvider provider) {
@@ -237,9 +244,9 @@ class AgentRegistryTest {
         @Override public AiProvider defaultProvider() { return defaultProvider; }
         @Override public ObserveBridge observeBridge() { return observeBridge; }
         @Override public MemoryStrategy defaultMemory() { return null; }
-        @Override public Object ragRetriever() { return ragRetriever; }
-        @Override public Object vectorStore() { return vectorStore; }
-        @Override public Object embeddingModel() { return embeddingModel; }
+        @Override public Retriever ragRetriever() { return ragRetriever; }
+        @Override public VectorStore vectorStore() { return vectorStore; }
+        @Override public EmbeddingProvider embeddingModel() { return embeddingModel; }
     }
 
     private static final class RecordingObserveBridge implements ObserveBridge {

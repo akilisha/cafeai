@@ -1,4 +1,4 @@
-package io.cafeai.rag;
+package io.cafeai.core.rag;
 
 /**
  * A single document chunk retrieved from the vector store.

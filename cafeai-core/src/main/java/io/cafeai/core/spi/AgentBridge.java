@@ -4,6 +4,9 @@ import dev.langchain4j.model.chat.ChatModel;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.Retriever;
+import io.cafeai.core.rag.VectorStore;
 
 /**
  * SPI that lets {@code cafeai-agents} provide agent registration and resolution
@@ -72,14 +75,13 @@ public interface AgentBridge {
         /**
          * The application-level RAG retriever from {@code app.rag(...)}, or {@code null}.
          * An agent uses this when {@code AgentConfig.rag(...)} is not set.
-         * Typed {@code Object} — a {@code io.cafeai.rag.Retriever}.
          */
-        default Object ragRetriever() { return null; }
+        default Retriever ragRetriever() { return null; }
 
         /** The application-level vector store from {@code app.vectordb(...)}, or {@code null}. */
-        default Object vectorStore() { return null; }
+        default VectorStore vectorStore() { return null; }
 
         /** The application-level embedding model from {@code app.embed(...)}, or {@code null}. */
-        default Object embeddingModel() { return null; }
+        default EmbeddingProvider embeddingModel() { return null; }
     }
 }

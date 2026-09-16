@@ -9,6 +9,10 @@ import io.cafeai.core.internal.SubRouter;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.Retriever;
+import io.cafeai.core.rag.Source;
+import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.routing.Router;
 import io.cafeai.core.routing.WsHandler;
 import io.cafeai.core.spi.CafeAIConfigurer;
@@ -657,20 +661,20 @@ public interface CafeAI extends Router {
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI vectordb(Object store);
+    CafeAI vectordb(VectorStore store);
 
     /**
      * Registers the embedding model used to embed documents during ingestion
      * and queries during retrieval.
      *
      * <pre>{@code
-     *   app.embed(EmbeddingProvider.local());       // ONNX — no API key, no latency
-     *   app.embed(EmbeddingProvider.openAi());      // OpenAI ada-002
+     *   app.embed(EmbeddingProvider.local());                              // ONNX — no API key, no latency
+     *   app.embed(EmbeddingProvider.openAi("text-embedding-3-large"));    // OpenAI, explicit model id
      * }</pre>
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI embed(Object model);
+    CafeAI embed(EmbeddingProvider model);
 
     /**
      * Ingests a knowledge source into the vector store.
@@ -689,7 +693,7 @@ public interface CafeAI extends Router {
      * @throws RuntimeException if the source cannot be loaded
      * @throws IllegalStateException if no vectordb or embedding model is registered
      */
-    CafeAI ingest(Object source);
+    CafeAI ingest(Source source);
 
     /**
      * Attaches a retrieval strategy to the application.
@@ -706,7 +710,7 @@ public interface CafeAI extends Router {
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI rag(Object retriever);
+    CafeAI rag(Retriever retriever);
 
 
     // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────

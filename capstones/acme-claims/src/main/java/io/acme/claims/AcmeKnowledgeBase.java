@@ -1,7 +1,7 @@
 package io.acme.claims;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.rag.Source;
+import io.cafeai.core.rag.Source;
 
 /**
  * Seeds the Acme Insurance Group knowledge base with six policy documents.

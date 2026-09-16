@@ -1,5 +1,7 @@
 package io.cafeai.rag;
 
+import io.cafeai.core.rag.EmbeddingProvider;
+import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.spi.CafeAIModule;
 import io.cafeai.core.spi.CafeAIRegistry;
 

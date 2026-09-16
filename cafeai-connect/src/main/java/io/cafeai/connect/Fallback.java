@@ -133,19 +133,15 @@ public interface Fallback {
             app.ai(provider);
         } else if (alternative instanceof io.cafeai.core.memory.MemoryStrategy strategy) {
             app.memory(strategy);
+        } else if (alternative instanceof io.cafeai.core.rag.VectorStore store) {
+            app.vectordb(store);
+        } else if (alternative instanceof io.cafeai.core.rag.EmbeddingProvider embeddingProvider) {
+            app.embed(embeddingProvider);
         } else {
-            // For vectordb, embed, etc. -- use the Object-based registration
-            try {
-                app.vectordb(alternative);
-            } catch (Exception ignored) {
-                try { app.embed(alternative); }
-                catch (Exception e) {
-                    throw new IllegalArgumentException(
-                        "Cannot register fallback of type " +
-                        alternative.getClass().getName() +
-                        " -- not a recognized CafeAI capability type", e);
-                }
-            }
+            throw new IllegalArgumentException(
+                "Cannot register fallback of type " +
+                alternative.getClass().getName() +
+                " -- not a recognized CafeAI capability type");
         }
     }
 
