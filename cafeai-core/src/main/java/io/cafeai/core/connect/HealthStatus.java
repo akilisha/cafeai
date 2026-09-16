@@ -1,4 +1,4 @@
-package io.cafeai.connect;
+package io.cafeai.core.connect;
 
 import java.time.Instant;
 

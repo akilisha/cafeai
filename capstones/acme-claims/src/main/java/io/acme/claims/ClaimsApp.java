@@ -5,7 +5,7 @@ import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.memory.RedisConfig;
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.connect.Fallback;
+import io.cafeai.core.connect.Fallback;
 import io.cafeai.connect.Ollama;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.observability.ObserveStrategy;

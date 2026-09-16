@@ -12,6 +12,8 @@ import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.*;
 import io.cafeai.core.ai.*;
 import io.cafeai.core.agents.AgentConfig;
+import io.cafeai.core.connect.Connection;
+import io.cafeai.core.connect.HealthStatus;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -1431,27 +1433,29 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
-    public CafeAI connect(Object connection) {
+    @SuppressWarnings("unchecked")
+    public CafeAI connect(Connection connection) {
         assertNotStarted("connect()");
         Objects.requireNonNull(connection, "Connection must not be null");
 
-        // Probe the service
-        ConnectBridge bridge = loadConnectBridge();
-        if (bridge != null) {
-            bridge.connect(connection, this);
+        // Register in the connection list for Connect.healthCheck()
+        List<Object> connections = (List<Object>) locals.get(Locals.CONNECTIONS);
+        if (connections == null) {
+            connections = new ArrayList<>();
+        }
+        connections.add(connection);
+        locals.put(Locals.CONNECTIONS, connections);
+
+        log.info("Probing {}...", connection.name());
+        HealthStatus status = connection.probe();
+        log.info("  {}", status);
+
+        if (status.isHealthy()) {
+            connection.register(this);
         } else {
-            // No cafeai-connect -- store for later, log clearly
-            log.warn("app.connect() called but cafeai-connect is not on the classpath. " +
-                    "Add: implementation 'com.akilisha.oss:cafeai-connect'");
+            connection.fallback().onUnavailable(status, this);
         }
         return this;
-    }
-
-    private ConnectBridge loadConnectBridge() {
-        return ServiceLoader
-                .load(ConnectBridge.class)
-                .findFirst()
-                .orElse(null);
     }
 
     @Override

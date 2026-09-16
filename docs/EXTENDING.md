@@ -54,9 +54,15 @@ from the factory class named in the last column.
 | `RagProvider` | `VectorStore.chroma()/pgVector()`, `EmbeddingProvider.local()/openAi()`, `Source.pdf()/file()/directory()/url()` | `cafeai-rag` | `VectorStore`, `EmbeddingProvider`, `Source` |
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (stubs without it) | `cafeai-guardrails` | `GuardRail` |
 | `ObserveBridge` | `app.observe(...)` tracing / spans | `cafeai-observability` | `CafeAIApp` |
-| `ConnectBridge` | `app.connect(...)` connectors + fallback | `cafeai-connect` | `CafeAIApp` |
 | `AgentBridge` | `app.agent(...)` | `cafeai-agents` | `CafeAIApp` |
 | `ViewEngineProvider` | `app.engine(...)` / `res.render(...)` | `cafeai-views-mustache` | `CafeAIApp` |
+
+`app.connect(...)` needs no SPI at all: `Connection`, `HealthStatus`, and
+`Fallback` live in `io.cafeai.core.connect`, and a `Connection` implementation
+is self-contained (it calls straight back into already-typed `app.vectordb()`/
+`app.memory()`/`app.ai()`). `cafeai-connect` just supplies the built-in
+connectors (`Redis`, `Ollama`, `PgVector`) — a fully custom `Connection` needs
+no dependency on `cafeai-connect` at all.
 
 Each SPI's Javadoc is the contract. Most SPI methods are fully typed — the
 contract type lives in `cafeai-core` (`MemoryStrategy`, `VectorStore`,

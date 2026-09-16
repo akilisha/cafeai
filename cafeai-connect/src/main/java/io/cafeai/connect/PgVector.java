@@ -1,6 +1,8 @@
 package io.cafeai.connect;
 
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.connect.Connection;
+import io.cafeai.core.connect.HealthStatus;
 import io.cafeai.core.rag.PgVectorConfig;
 import io.cafeai.core.rag.VectorStore;
 import org.slf4j.Logger;

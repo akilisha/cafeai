@@ -7,6 +7,7 @@ import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.internal.CafeAIApp;
 import io.cafeai.core.internal.SubRouter;
 import io.cafeai.core.memory.MemoryStrategy;
+import io.cafeai.core.connect.Connection;
 import io.cafeai.core.middleware.ErrorMiddleware;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.rag.EmbeddingProvider;
@@ -989,10 +990,13 @@ public interface CafeAI extends Router {
      *   Connect.fromEnv().forEach(app::connect);
      * }</pre>
      *
-     * @param connection an {@code io.cafeai.connect.Connection} instance
+     * @param connection a built-in connector ({@code Redis}/{@code Ollama}/{@code PgVector}
+     *                   from {@code cafeai-connect}) or your own {@link Connection}
+     *                   implementation — a custom {@code Connection} needs no
+     *                   dependency on {@code cafeai-connect} at all
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
-    CafeAI connect(Object connection);
+    CafeAI connect(Connection connection);
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
 

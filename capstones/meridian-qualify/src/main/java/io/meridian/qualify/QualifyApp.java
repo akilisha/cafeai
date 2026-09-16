@@ -1,6 +1,6 @@
 package io.meridian.qualify;
 
-import io.cafeai.connect.Fallback;
+import io.cafeai.core.connect.Fallback;
 import io.cafeai.connect.Ollama;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
