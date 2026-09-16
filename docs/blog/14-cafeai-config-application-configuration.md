@@ -1,4 +1,4 @@
-# cafeai-config — The Configuration Nobody Documented
+# cafeai-config — Three Hardcoded Constants Nobody Could Change
 
 *Post 14 of 14 in the CafeAI series*
 

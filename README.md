@@ -445,7 +445,7 @@ Each module is a blog post. The project is the curriculum.
 11. **Production-Grade AI** — [Token Budgets, Retries, and Observability](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
 12. **The Capstone Series** — [What Four Applications Prove](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
 13. **cafeai-sentinel** — [When the LLM Watches Your Cluster](https://github.com/akilisha/cafeai/blob/main/docs/blog/13-cafeai-sentinel-live-validation.md)
-14. **cafeai-config** — [The Configuration Nobody Documented](https://github.com/akilisha/cafeai/blob/main/docs/blog/14-cafeai-config-application-configuration.md)
+14. **cafeai-config** — [Three Hardcoded Constants Nobody Could Change](https://github.com/akilisha/cafeai/blob/main/docs/blog/14-cafeai-config-application-configuration.md)
 
 ---
 

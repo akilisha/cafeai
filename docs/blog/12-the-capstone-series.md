@@ -173,4 +173,4 @@ That is what the four capstones prove. Not that CafeAI does everything — that 
 | 11 | [Production-Grade AI](11-production-grade-ai.md) |
 | 12 | [The Capstone Series](12-the-capstone-series.md) |
 | 13 | [cafeai-sentinel — When the LLM Watches Your Cluster](13-cafeai-sentinel-live-validation.md) |
-| 14 | [cafeai-config — The Configuration Nobody Documented](14-cafeai-config-application-configuration.md) |
+| 14 | [cafeai-config — Three Hardcoded Constants Nobody Could Change](14-cafeai-config-application-configuration.md) |
