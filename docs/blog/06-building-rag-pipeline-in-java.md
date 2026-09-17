@@ -12,7 +12,7 @@ CafeAI's RAG pipeline is three registrations and an ingestion call:
 
 ```java
 app.vectordb(VectorStore.inMemory());  // where chunks are stored
-app.embed(EmbeddingModel.local());     // how text becomes vectors
+app.embed(EmbeddingProvider.local());  // how text becomes vectors
 app.rag(Retriever.semantic(3));        // how vectors become context
 
 app.ingest(Source.pdf("handbook.pdf")); // load knowledge
@@ -104,10 +104,10 @@ CafeAI provides two embedding options:
 
 ```java
 // Local ONNX model — no API call, no cost, no data leaves the machine
-app.embed(EmbeddingModel.local());
+app.embed(EmbeddingProvider.local());
 
 // OpenAI embedding API — higher quality, network required
-app.embed(EmbeddingModel.openai("text-embedding-3-small"));
+app.embed(EmbeddingProvider.openAi("text-embedding-3-small"));
 ```
 
 The local ONNX model runs via Java FFM — the same API that backs the SSD session memory. A pre-trained embedding model is bundled with `cafeai-rag` and runs entirely in-process. For most documentation retrieval use cases, the local model produces retrieval quality that is indistinguishable from the OpenAI API.

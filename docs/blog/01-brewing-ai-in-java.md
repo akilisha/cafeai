@@ -147,7 +147,7 @@ The rest of the application is identical. The memory strategy is registered once
 
 One more decision is worth calling out this early, for the same reason as the memory model above: it shapes every application you build, and getting it wrong is invisible until someone goes looking for it.
 
-Magic values are a source of real, silent pain: a hardcoded timeout, retry count, or memory window that's wrong for your workload just fails or misbehaves, with no lever anywhere to fix it — no setter, no environment variable, not even a line of documentation admitting it exists.
+Magic variables inside a codebase are a major source of real, silent, and painful developer experience. They typically come from immutable, hardcoded values, or from values sourced unexpectedly from undocumented places. Either way, they constrain what the application — or framework — can do to only the range those variables happen to permit: a hardcoded timeout, retry count, or memory window that's wrong for your workload just fails or misbehaves, with no lever anywhere to fix it — no setter, no environment variable, not even a line of documentation admitting it exists.
 
 CafeAI's answer is a self-documenting configuration key, declared once, right next to the code that reads it — not in a central file that can drift out of sync with what's actually read:
 

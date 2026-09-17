@@ -41,11 +41,11 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(23) } }
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
-    implementation 'com.akilisha.oss:cafeai-rag:0.3.2'
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.3.2'
-    implementation 'com.akilisha.oss:cafeai-observability:0.3.2'
-    implementation 'com.akilisha.oss:cafeai-security:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-rag:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-observability:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-security:0.4.0'
 }
 
 application {
@@ -170,7 +170,7 @@ Retrieval-augmented generation (RAG) gives the assistant access to documentation
 ```java
 // Register the vector store and embedding model
 app.vectordb(VectorStore.inMemory());
-app.embed(EmbeddingModel.local());   // ONNX model via Java FFM — no API call
+app.embed(EmbeddingProvider.local());  // ONNX model via Java FFM — no API call
 app.rag(Retriever.semantic(3));      // retrieve 3 chunks per prompt
 
 // Ingest documentation at startup
@@ -301,7 +301,7 @@ public class SupportAgent {
 
         // Knowledge base
         app.vectordb(VectorStore.inMemory());
-        app.embed(EmbeddingModel.local());
+        app.embed(EmbeddingProvider.local());
         app.rag(Retriever.semantic(3));
         ingestDocumentation(app);
 
