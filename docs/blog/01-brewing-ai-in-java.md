@@ -147,7 +147,7 @@ The rest of the application is identical. The memory strategy is registered once
 
 One more decision is worth calling out this early, for the same reason as the memory model above: it shapes every application you build, and getting it wrong is invisible until someone goes looking for it.
 
-Three values in earlier versions of the framework were hardcoded where they had no business being fixed — and each one fails in a way you'd only discover in production. Every LLM call died after 60 seconds, no matter the provider, so a legitimately slow request — a big local model, a large document, an overloaded API — simply failed, with no setting anywhere to raise the ceiling. Every conversation, regardless of which memory tier you'd configured, only showed the model its most recent 20 messages — a long support thread would quietly start forgetting how it began, and switching to Redis for durability did nothing to fix that, because the limit lived somewhere memory configuration couldn't reach. A failed incident notification retried once more, then gave up for good, with no way to make it try harder. None of the three had a setter, an environment variable, or a line of documentation anywhere.
+Magic values are a source of real, silent pain: a hardcoded timeout, retry count, or memory window that's wrong for your workload just fails or misbehaves, with no lever anywhere to fix it — no setter, no environment variable, not even a line of documentation admitting it exists.
 
 CafeAI's answer is a self-documenting configuration key, declared once, right next to the code that reads it — not in a central file that can drift out of sync with what's actually read:
 
