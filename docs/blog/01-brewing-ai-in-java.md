@@ -1,6 +1,6 @@
 # Brewing AI in Java — Introducing CafeAI
 
-*Post 1 of 14 in the CafeAI series*
+*Post 1 of 12 in the CafeAI series*
 
 ---
 
@@ -143,9 +143,38 @@ The rest of the application is identical. The memory strategy is registered once
 
 ---
 
+## Configuration, Not Magic Numbers
+
+One more decision is worth calling out this early, for the same reason as the memory model above: it shapes every application you build, and getting it wrong is invisible until someone goes looking for it.
+
+An audit of the framework's own internals found three constants that had no business being constants: a 60-second timeout wired into every LLM call regardless of provider, a 20-message chat-memory window fixed regardless of which memory tier was configured, and a webhook retry count with no way to change it. None of them had a setter, an environment variable, or a line of documentation. They were live in every CafeAI application, silently, since before this series started.
+
+CafeAI's answer is a self-documenting configuration key, declared once, right next to the code that reads it — not in a central file that can drift out of sync with what's actually read:
+
+```java
+static final ConfigKey<Duration> CHAT_TIMEOUT = ConfigKey.of(
+        "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
+        "Timeout for a single LLM chat call, any provider");
+
+Duration timeout = AppConfig.load().get(CHAT_TIMEOUT);
+```
+
+Declaring a `ConfigKey` costs nothing extra — it lives in `cafeai-core`, which every module already depends on. Without anything more, `get()` returns the coded default unconditionally: 60 seconds, exactly the behaviour the value already had as a bare constant. Add the optional `cafeai-config` module, and the same call resolves — in order — a system property, an environment variable, an external file, or `application.yaml` on the classpath, using dotted names the way Spring or Helidon would, mapped to environment variables by Helidon Config itself rather than any spelling CafeAI invents:
+
+```yaml
+# application.yaml
+cafeai:
+  chat:
+    timeout: 90s
+```
+
+The same boundary that shapes the rest of this framework applies here too: config supplies values, it never wires capabilities. A key can say what a timeout is; it can never cause `app.ai(...)` or `app.vectordb(...)` to register anything on its own. Application code stays the only thing that calls `app.*` — configuration only ever answers a question the code explicitly asked.
+
+---
+
 ## What This Series Covers
 
-This is Post 1 of 14. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
+This is Post 1 of 12. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
 
 | Post | Topic | Capstone |
 |------|-------|----------|
@@ -158,9 +187,8 @@ This is Post 1 of 14. Each subsequent post covers one capability of the framewor
 | 8 | Ethical guardrails as middleware | meridian-qualify, acme-claims |
 | 9 | Vision and audio in Java | invoice-processor |
 | 10 | Structured output — typed LLM responses | invoice-processor |
-| 11 | Production-grade AI — budgets, retries, observability | invoice-processor |
+| 11 | Production-grade AI — budgets, retries, observability, cluster incident response | invoice-processor, cluster-sentinel |
 | 12 | The capstone series — what four applications prove | all four capstones |
-| 13 | cafeai-sentinel — an AI Kubernetes/OpenShift incident pipeline | cluster-sentinel |
 
 Every post links to running code. Every claim is backed by a test that passes. Nothing in this series is aspirational — it describes what the framework does today.
 
@@ -174,7 +202,7 @@ CafeAI is on Maven Central. In your project's `build.gradle`:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.3.2'
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
 }
 ```
 

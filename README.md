@@ -430,7 +430,7 @@ changes. Not published.
 
 ## Blog Series
 
-Each module is a blog post. The project is the curriculum.
+A narrative arc through the framework, one capability at a time, each post anchored to working code — not one post per module.
 
 1. **Brewing AI in Java** — [Introducing CafeAI](https://github.com/akilisha/cafeai/blob/main/docs/blog/01-brewing-ai-in-java.md)
 2. **The Middleware Pattern Meets Gen AI** — [From Express to CafeAI](https://github.com/akilisha/cafeai/blob/main/docs/blog/02-middleware-pattern-meets-gen-ai.md)
@@ -442,10 +442,8 @@ Each module is a blog post. The project is the curriculum.
 8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Regulatory Compliance](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
 9. **Vision and Audio in Java** — [Multimodal AI Without the Boilerplate](https://github.com/akilisha/cafeai/blob/main/docs/blog/09-vision-and-audio-in-java.md)
 10. **Structured Output** — [Typed LLM Responses, No Parser Required](https://github.com/akilisha/cafeai/blob/main/docs/blog/10-structured-output.md)
-11. **Production-Grade AI** — [Token Budgets, Retries, and Observability](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
+11. **Production-Grade AI** — [Token Budgets, Retries, Observability, and Incident Response](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
 12. **The Capstone Series** — [What Four Applications Prove](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
-13. **cafeai-sentinel** — [When the LLM Watches Your Cluster](https://github.com/akilisha/cafeai/blob/main/docs/blog/13-cafeai-sentinel-live-validation.md)
-14. **cafeai-config** — [Three Hardcoded Constants Nobody Could Change](https://github.com/akilisha/cafeai/blob/main/docs/blog/14-cafeai-config-application-configuration.md)
 
 ---
 

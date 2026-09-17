@@ -1,6 +1,6 @@
-# Production-Grade AI — Token Budgets, Retries, and Observability
+# Production-Grade AI — Token Budgets, Retries, Observability, and Incident Response
 
-*Post 11 of 14 in the CafeAI series*
+*Post 11 of 12 in the CafeAI series*
 
 ---
 
@@ -117,6 +117,27 @@ The hooks — `beforePrompt`/`afterPrompt`, `beforeVision`/`afterVision`, `befor
 
 ---
 
+## Beyond Observability — When the Framework Watches Itself
+
+Observability answers "what happened." `cafeai-sentinel` is built on the same primitives to answer a harder, more production-critical question: "is anything wrong right now, and why, and what should be done about it." It's a different application shape from everything else in this series — nothing comes in over HTTP; it watches a Kubernetes/OpenShift namespace continuously and decides, on its own, when something is broken enough to investigate — but it needed zero new capability added to `cafeai-core`. It's `app.agent()`, `@Tool`, guardrails, and a sink, aimed at a domain the framework was never designed for.
+
+The pipeline is two-tiered for exactly the cost reason `TokenBudget` already established above. `TriageRules` classifies every pod/event snapshot with a lookup table — no model call — into benign, notable, or error; only a confirmed error, coalesced by the pod's owning Deployment (so three crashing replicas become one incident, not three), triggers the expensive tier: a real `app.agent(...)` bound to seven read-only cluster-reading tools, investigating the live cluster and producing a structured cause, confidence, and suggested fix. It has to watch pod *objects*, not just Events, to do this correctly — `OOMKilled` only ever shows up in a pod's container status (exit code 137), never as an Event of its own. Every byte those tools return is scrubbed of secrets and PII before it reaches the prompt, the incident, or a log line.
+
+The first live run against minikube found three real bugs no mock server ever could: incidents that never resolved, because a deleted pod's owner resolved to its own now-vanished ReplicaSet instead of the Deployment the incident was keyed on; investigations that retried forever against a dead API key with no give-up condition; and one real crash loop counted as four separate investigations, because `Error → BackOff → CrashLoopBackOff` looked like three new problems instead of one. A corrected, real run reads like this:
+
+```
+17:12:04 WARN  i.c.sentinel.sink.LogSink - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/oom-demo — OOMKilled, CrashLoopBackOff (pods: oom-demo-7d9f-xr2k)
+17:12:31 WARN  i.c.sentinel.sink.LogSink - ✔ INVESTIGATED inc-3f2a9c1d Deployment/oom-demo — [RESOURCES/HIGH] worker is OOMKilled: the 16Mi memory limit is far below what it allocates under load
+17:12:31 INFO  i.c.sentinel.sink.LogSink -              → raise limits.memory to at least 128Mi, or roll back to the previous image if the footprint regressed
+17:15:41 INFO  i.c.sentinel.sink.LogSink - ○ RESOLVED inc-3f2a9c1d Deployment/oom-demo — was [ERROR], 6 signals over PT3M37S
+```
+
+The module's actual design claim is that it runs identically on Kubernetes and OpenShift — and that claim only became true after it was validated on a real OpenShift cluster, not just minikube. That run found a gap minikube structurally couldn't find: the design doc claimed a least-privilege RBAC manifest had already shipped, and it hadn't. Every prior run had used a personal kubeconfig user with broad access; on the real cluster, that token turned out to lack `list`/`watch` on `events`. The fix — a dedicated `ServiceAccount` scoped to exactly what the tools read, one narrow cluster-scoped `Role` for node reads — is also the credential shape an unattended pipeline should have had from the start, not an afterthought a real cluster happened to force.
+
+`cafeai-sentinel` ends exactly where observability starts feeling insufficient — at "structured incident published," never at auto-remediation. That boundary is deliberate, not a missing feature: it's a pipeline, not a product.
+
+---
+
 ## What Observability Reveals
 
 The `invoice-processor` validation run produced this observability picture across five emails:
@@ -172,6 +193,14 @@ app.observe(ObserveStrategy.console());  // development
 app.connect(
     Ollama.at("http://localhost:11434").model("qwen2.5")
           .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
+```
+
+**Cluster incident response (optional — containerized deployments):**
+```java
+SentinelConfig config = SentinelConfig.create().namespace("payments");
+new IncidentTracker(config)
+    .onIncident(IncidentSink.of(new LogSink(), new WebhookSink(webhookUrl)))
+    .start();
 ```
 
 ---
