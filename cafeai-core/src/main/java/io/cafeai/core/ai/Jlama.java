@@ -37,7 +37,7 @@ public final class Jlama {
      * Models are cached in Jlama's default directory ({@code ~/.jlama/models}).
      */
     public static AiProvider of(String modelId) {
-        return new JlamaProvider(modelId, null);
+        return new JlamaProvider(modelId, null, null, null);
     }
 
     /** A builder that caches downloaded models in the given directory. */
@@ -47,7 +47,7 @@ public final class Jlama {
 
     public record JlamaBuilder(String modelCachePath) {
         public AiProvider model(String modelId) {
-            return new JlamaProvider(modelId, modelCachePath);
+            return new JlamaProvider(modelId, modelCachePath, null, null);
         }
     }
 
@@ -57,8 +57,16 @@ public final class Jlama {
      * public {@link AiProvider} interface. A {@code null} path means "use Jlama's
      * default cache directory".
      */
-    private record JlamaProvider(String modelId, String modelCachePath)
+    private record JlamaProvider(String modelId, String modelCachePath,
+                                 Double temperature, Integer maxTokens)
             implements AiProvider, LangchainBridge.JlamaProviderAccess {
+        @Override public AiProvider withTemperature(double t) { return new JlamaProvider(modelId, modelCachePath, t, maxTokens); }
+        @Override public AiProvider withMaxTokens(int n)      { return new JlamaProvider(modelId, modelCachePath, temperature, n); }
+
+        @Override public AiProvider withTimeout(java.time.Duration d) {
+            throw new UnsupportedOperationException(
+                "Jlama runs in-process, so there is no network call to time out");
+        }
         @Override public String       name() { return "jlama"; }
         @Override public ProviderType type() { return ProviderType.JLAMA; }
     }

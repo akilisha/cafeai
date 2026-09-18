@@ -41,6 +41,7 @@ public final class PromptRequest {
     private Request httpRequest;
     private Class<?> returningType;
     private String schemaHint;
+    private Consumer<String> thinkingConsumer;
     private final PromptExecutor executor;
     private final PromptStreamExecutor streamExecutor;
 
@@ -122,6 +123,27 @@ public final class PromptRequest {
      */
     public <T> PromptRequest returning(Class<T> type) {
         this.returningType = type;
+        return this;
+    }
+
+    /**
+     * Receives the model's reasoning ("thinking") tokens while the response is
+     * {@linkplain #stream() streamed}, for models that expose them
+     * (e.g. {@code Nvidia.of("moonshotai/kimi-k3")}). Ignored for providers that
+     * don't, and for {@link #call()}.
+     *
+     * <pre>{@code
+     *   app.prompt("Plan a migration")
+     *       .onThinking(t -> System.err.print(t))
+     *       .stream(System.out::print);
+     * }</pre>
+     *
+     * <p>A side channel: reasoning never reaches the stream's tokens, session
+     * memory, guardrails or the budget's assembled text. The consumer is invoked
+     * on the streaming thread, so it must not block.
+     */
+    public PromptRequest onThinking(Consumer<String> onThinking) {
+        this.thinkingConsumer = onThinking;
         return this;
     }
 
@@ -228,6 +250,7 @@ public final class PromptRequest {
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
     public Class<?> returningType()  { return returningType; }
     public String schemaHint()       { return schemaHint; }
+    public Consumer<String> thinkingConsumer() { return thinkingConsumer; }
 
     /**
      * Internal executor interface -- implemented by CafeAIApp.

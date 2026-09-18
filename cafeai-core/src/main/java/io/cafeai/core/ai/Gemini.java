@@ -4,6 +4,8 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import io.cafeai.core.internal.LangchainBridge;
 
+import java.time.Duration;
+
 /**
  * Factory for Google Gemini providers, via the Gemini Developer API (Google AI
  * Studio) — an API key, no GCP project or service account to set up.
@@ -34,11 +36,15 @@ public final class Gemini {
 
     /** A Gemini provider for the given model id (e.g. {@code "gemini-2.5-flash"}). */
     public static AiProvider of(String modelId) {
-        return new GeminiProvider(modelId);
+        return new GeminiProvider(modelId, null, null, null);
     }
 
-    private record GeminiProvider(String modelId)
+    private record GeminiProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout)
             implements AiProvider, LangchainBridge.ChatModelAccess {
+
+        @Override public AiProvider withTemperature(double t) { return new GeminiProvider(modelId, t, maxTokens, timeout); }
+        @Override public AiProvider withMaxTokens(int n)      { return new GeminiProvider(modelId, temperature, n, timeout); }
+        @Override public AiProvider withTimeout(Duration d)   { return new GeminiProvider(modelId, temperature, maxTokens, d); }
 
         @Override public String name() { return "gemini"; }
 
@@ -63,10 +69,13 @@ public final class Gemini {
                     + "  export GEMINI_API_KEY=your-key-here\n\n"
                     + "Get one at https://aistudio.google.com/apikey");
             }
-            return GoogleAiGeminiChatModel.builder()
+            var builder = GoogleAiGeminiChatModel.builder()
                     .apiKey(apiKey)
-                    .modelName(modelId)
-                    .build();
+                    .modelName(modelId);
+            if (temperature != null) builder.temperature(temperature);
+            if (maxTokens != null)   builder.maxOutputTokens(maxTokens);
+            if (timeout != null)     builder.timeout(timeout);
+            return builder.build();
         }
     }
 }

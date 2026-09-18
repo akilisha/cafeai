@@ -57,6 +57,7 @@ public final class VisionRequest {
     private io.cafeai.core.routing.Request httpRequest;
     private final VisionExecutor executor;
     private VisionStreamExecutor streamExecutor;
+    private Consumer<String> thinkingConsumer;
 
     /** Package-private — constructed by CafeAIApp.vision() */
     public VisionRequest(String prompt, byte[] content, String mimeType,
@@ -131,6 +132,27 @@ public final class VisionRequest {
         return this;
     }
 
+    /**
+     * Receives the model's reasoning ("thinking") tokens while the response is
+     * {@linkplain #stream(Consumer) streamed}, for models that expose them
+     * (e.g. {@code Nvidia.of("moonshotai/kimi-k3")}). Ignored for providers that
+     * don't, and for {@link #call()}.
+     *
+     * <pre>{@code
+     *   app.vision("What is in this image?", bytes, "image/jpeg")
+     *       .onThinking(t -> System.err.print(t))
+     *       .stream(System.out::print);
+     * }</pre>
+     *
+     * <p>A side channel: reasoning never reaches the answer text, session memory
+     * or guardrails. The consumer is invoked on the streaming thread, so it must
+     * not block.
+     */
+    public VisionRequest onThinking(Consumer<String> onThinking) {
+        this.thinkingConsumer = onThinking;
+        return this;
+    }
+
     /** Executes the vision call synchronously and returns the response. */
     public VisionResponse call() {
         return executor.execute(this);
@@ -192,6 +214,7 @@ public final class VisionRequest {
     public String  systemOverride() { return systemOverride; }
     public Class<?> returningType() { return returningType; }
     public String  schemaHint()     { return schemaHint; }
+    public Consumer<String> thinkingConsumer() { return thinkingConsumer; }
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
 
     /**

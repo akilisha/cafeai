@@ -44,12 +44,22 @@ public final class LangchainBridge {
         "cafeai.chat.timeout", Duration.class, Duration.ofSeconds(60),
         "Timeout for a single LLM chat call, any provider.");
 
-    private static Duration timeout() {
-        return AppConfig.load().get(CHAT_TIMEOUT);
+    /**
+     * The provider's own {@code withTimeout(...)} if it set one, otherwise the
+     * {@link #CHAT_TIMEOUT} setting. A per-model limit wins because the right value
+     * is a property of the model, not of the application.
+     */
+    private static Duration timeout(AiProvider provider) {
+        return provider.timeout() != null
+            ? provider.timeout()
+            : AppConfig.load().get(CHAT_TIMEOUT);
     }
 
-    // Cache keyed by provider identity (name + modelId) -- models are thread-safe
-    private final Map<String, ChatModel> modelCache = new ConcurrentHashMap<>();
+    // Cache keyed by the provider itself. Built-in providers are records, so two
+    // providers with the same model but a different temperature, max tokens or
+    // base URL are distinct entries -- a name + modelId key would silently share
+    // one model between them. Models are thread-safe.
+    private final Map<AiProvider, ChatModel> modelCache = new ConcurrentHashMap<>();
 
     private LangchainBridge() {}
 
@@ -69,8 +79,7 @@ public final class LangchainBridge {
         if (provider instanceof ChatModelAccess access) {
             return access.toChatModel();
         }
-        String cacheKey = provider.name() + ":" + provider.modelId();
-        return modelCache.computeIfAbsent(cacheKey, k -> createModel(provider));
+        return modelCache.computeIfAbsent(provider, this::createModel);
     }
 
     /**
@@ -89,27 +98,38 @@ public final class LangchainBridge {
 
     private StreamingChatModel createStreamingModel(AiProvider provider) {
         return switch (provider.type()) {
-            case OPENAI -> OpenAiStreamingChatModel.builder()
-                .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
-                .modelName(provider.modelId())
-                .timeout(timeout())
-                .build();
+            case OPENAI -> {
+                var builder = OpenAiStreamingChatModel.builder()
+                    .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
+                    .modelName(provider.modelId())
+                    .timeout(timeout(provider));
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
+                if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
+                yield builder.build();
+            }
 
-            case ANTHROPIC -> AnthropicStreamingChatModel.builder()
-                .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
-                .modelName(provider.modelId())
-                .timeout(timeout())
-                .build();
+            case ANTHROPIC -> {
+                var builder = AnthropicStreamingChatModel.builder()
+                    .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
+                    .modelName(provider.modelId())
+                    .timeout(timeout(provider));
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
+                yield builder.build();
+            }
 
             case OLLAMA -> {
                 String baseUrl = provider instanceof OllamaProviderAccess opa
                     ? opa.baseUrl()
                     : "http://localhost:11434";
-                yield OllamaStreamingChatModel.builder()
+                var builder = OllamaStreamingChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(timeout())
-                    .build();
+                    .timeout(timeout(provider));
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                if (provider.maxTokens() != null)   builder.numPredict(provider.maxTokens());
+                yield builder.build();
             }
 
             case JLAMA -> {
@@ -117,6 +137,8 @@ public final class LangchainBridge {
                 if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
                     builder.modelCachePath(Path.of(jpa.modelCachePath()));
                 }
+                if (provider.temperature() != null) builder.temperature(provider.temperature().floatValue());
+                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
             }
 
@@ -127,31 +149,42 @@ public final class LangchainBridge {
 
     private ChatModel createModel(AiProvider provider) {
         return switch (provider.type()) {
-            case OPENAI -> OpenAiChatModel.builder()
-                .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
-                .modelName(provider.modelId())
-                .timeout(timeout())
-                .logRequests(false)
-                .logResponses(false)
-                .build();
+            case OPENAI -> {
+                var builder = OpenAiChatModel.builder()
+                    .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
+                    .modelName(provider.modelId())
+                    .timeout(timeout(provider))
+                    .logRequests(false)
+                    .logResponses(false);
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
+                if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
+                yield builder.build();
+            }
 
-            case ANTHROPIC -> AnthropicChatModel.builder()
-                .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
-                .modelName(provider.modelId())
-                .timeout(timeout())
-                .logRequests(false)
-                .logResponses(false)
-                .build();
+            case ANTHROPIC -> {
+                var builder = AnthropicChatModel.builder()
+                    .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
+                    .modelName(provider.modelId())
+                    .timeout(timeout(provider))
+                    .logRequests(false)
+                    .logResponses(false);
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
+                yield builder.build();
+            }
 
             case OLLAMA -> {
                 String baseUrl = provider instanceof OllamaProviderAccess opa
                     ? opa.baseUrl()
                     : "http://localhost:11434";
-                yield OllamaChatModel.builder()
+                var builder = OllamaChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(timeout())
-                    .build();
+                    .timeout(timeout(provider));
+                if (provider.temperature() != null) builder.temperature(provider.temperature());
+                if (provider.maxTokens() != null)   builder.numPredict(provider.maxTokens());
+                yield builder.build();
             }
 
             case JLAMA -> {
@@ -159,6 +192,8 @@ public final class LangchainBridge {
                 if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
                     builder.modelCachePath(Path.of(jpa.modelCachePath()));
                 }
+                if (provider.temperature() != null) builder.temperature(provider.temperature().floatValue());
+                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
             }
 

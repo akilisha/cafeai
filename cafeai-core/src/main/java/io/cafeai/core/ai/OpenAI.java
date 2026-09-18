@@ -4,6 +4,8 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import io.cafeai.core.internal.LangchainBridge;
 
+import java.time.Duration;
+
 /**
  * Factory for OpenAI LLM providers.
  *
@@ -25,7 +27,7 @@ public final class OpenAI {
 
     /** An OpenAI provider for the given chat model id (e.g. {@code "gpt-4o"}). */
     public static AiProvider of(String modelId) {
-        return new OpenAiProvider(modelId);
+        return new OpenAiProvider(modelId, null, null, null);
     }
 
     /**
@@ -66,7 +68,12 @@ public final class OpenAI {
         return new OpenAiAudioProvider("whisper-1");
     }
 
-    private record OpenAiProvider(String modelId) implements AiProvider {
+    private record OpenAiProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout)
+            implements AiProvider {
+        @Override public AiProvider withTemperature(double t) { return new OpenAiProvider(modelId, t, maxTokens, timeout); }
+        @Override public AiProvider withMaxTokens(int n)      { return new OpenAiProvider(modelId, temperature, n, timeout); }
+        @Override public AiProvider withTimeout(Duration d)   { return new OpenAiProvider(modelId, temperature, maxTokens, d); }
+
         @Override public String       name()          { return "openai"; }
         @Override public ProviderType type()          { return ProviderType.OPENAI; }
         // Modern OpenAI chat models are broadly multimodal; let the API reject the exception.

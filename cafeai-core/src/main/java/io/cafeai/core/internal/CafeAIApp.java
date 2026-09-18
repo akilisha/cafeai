@@ -7,6 +7,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.*;
@@ -577,6 +578,13 @@ public final class CafeAIApp implements CafeAI {
                         }
 
                         @Override
+                        public void onPartialThinking(PartialThinking thinking) {
+                            if (request.thinkingConsumer() != null) {
+                                request.thinkingConsumer().accept(thinking.text());
+                            }
+                        }
+
+                        @Override
                         public void onCompleteResponse(ChatResponse response) {
                             String full = assembled.toString();
                             TokenUsage usage = response.tokenUsage();
@@ -904,6 +912,13 @@ public final class CafeAIApp implements CafeAI {
             public void onPartialResponse(String token) {
                 assembled.append(token);
                 onChunk.accept(token);
+            }
+
+            @Override
+            public void onPartialThinking(PartialThinking thinking) {
+                if (request.thinkingConsumer() != null) {
+                    request.thinkingConsumer().accept(thinking.text());
+                }
             }
 
             @Override

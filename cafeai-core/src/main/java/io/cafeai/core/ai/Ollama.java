@@ -2,6 +2,8 @@ package io.cafeai.core.ai;
 
 import io.cafeai.core.internal.LangchainBridge;
 
+import java.time.Duration;
+
 /**
  * Factory for Ollama local model providers.
  *
@@ -23,7 +25,7 @@ public final class Ollama {
 
     /** An Ollama provider for {@code modelId} on {@code localhost:11434}. */
     public static AiProvider of(String modelId) {
-        return new OllamaProvider(modelId, DEFAULT_BASE_URL);
+        return new OllamaProvider(modelId, DEFAULT_BASE_URL, null, null, null);
     }
 
     /**
@@ -32,7 +34,7 @@ public final class Ollama {
      * other image-capable models.
      */
     public static AiProvider vision(String modelId) {
-        return new OllamaVisionProvider(modelId, DEFAULT_BASE_URL);
+        return new OllamaVisionProvider(modelId, DEFAULT_BASE_URL, null, null, null);
     }
 
     /** A builder targeting a remote Ollama instance. */
@@ -42,12 +44,12 @@ public final class Ollama {
 
     public record OllamaBuilder(String baseUrl) {
         public AiProvider model(String modelId) {
-            return new OllamaProvider(modelId, baseUrl);
+            return new OllamaProvider(modelId, baseUrl, null, null, null);
         }
 
         /** A multimodal model on this remote instance. */
         public AiProvider visionModel(String modelId) {
-            return new OllamaVisionProvider(modelId, baseUrl);
+            return new OllamaVisionProvider(modelId, baseUrl, null, null, null);
         }
     }
 
@@ -56,15 +58,23 @@ public final class Ollama {
      * can read the base URL via pattern matching without exposing it on
      * the public {@link AiProvider} interface.
      */
-    private record OllamaProvider(String modelId, String baseUrl)
+    private record OllamaProvider(String modelId, String baseUrl,
+                                  Double temperature, Integer maxTokens, Duration timeout)
             implements AiProvider, LangchainBridge.OllamaProviderAccess {
+        @Override public AiProvider withTemperature(double t) { return new OllamaProvider(modelId, baseUrl, t, maxTokens, timeout); }
+        @Override public AiProvider withMaxTokens(int n)      { return new OllamaProvider(modelId, baseUrl, temperature, n, timeout); }
+        @Override public AiProvider withTimeout(Duration d)   { return new OllamaProvider(modelId, baseUrl, temperature, maxTokens, d); }
         @Override public String name()       { return "ollama"; }
         @Override public ProviderType type() { return ProviderType.OLLAMA; }
     }
 
     /** Vision-capable Ollama provider (llava and similar multimodal models). */
-    private record OllamaVisionProvider(String modelId, String baseUrl)
+    private record OllamaVisionProvider(String modelId, String baseUrl,
+                                        Double temperature, Integer maxTokens, Duration timeout)
             implements AiProvider, LangchainBridge.OllamaProviderAccess {
+        @Override public AiProvider withTemperature(double t) { return new OllamaVisionProvider(modelId, baseUrl, t, maxTokens, timeout); }
+        @Override public AiProvider withMaxTokens(int n)      { return new OllamaVisionProvider(modelId, baseUrl, temperature, n, timeout); }
+        @Override public AiProvider withTimeout(Duration d)   { return new OllamaVisionProvider(modelId, baseUrl, temperature, maxTokens, d); }
         @Override public String       name()          { return "ollama"; }
         @Override public ProviderType type()          { return ProviderType.OLLAMA; }
         @Override public boolean      supportsVision() { return true; }

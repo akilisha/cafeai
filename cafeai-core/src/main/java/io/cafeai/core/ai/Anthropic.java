@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import java.time.Duration;
+
 /**
  * Factory for Anthropic Claude LLM providers.
  *
@@ -20,10 +22,15 @@ public final class Anthropic {
 
     /** An Anthropic provider for the given model id (e.g. {@code "claude-sonnet-4-5"}). */
     public static AiProvider of(String modelId) {
-        return new AnthropicProvider(modelId);
+        return new AnthropicProvider(modelId, null, null, null);
     }
 
-    private record AnthropicProvider(String modelId) implements AiProvider {
+    private record AnthropicProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout)
+            implements AiProvider {
+        @Override public AiProvider withTemperature(double t) { return new AnthropicProvider(modelId, t, maxTokens, timeout); }
+        @Override public AiProvider withMaxTokens(int n)      { return new AnthropicProvider(modelId, temperature, n, timeout); }
+        @Override public AiProvider withTimeout(Duration d)   { return new AnthropicProvider(modelId, temperature, maxTokens, d); }
+
         @Override public String       name()          { return "anthropic"; }
         @Override public ProviderType type()          { return ProviderType.ANTHROPIC; }
         // Every Claude 3 model and later is multimodal; let the API reject the rare exception.

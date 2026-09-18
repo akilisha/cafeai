@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import java.time.Duration;
+
 /**
  * Abstraction over an LLM provider and model.
  *
@@ -22,6 +24,76 @@ public interface AiProvider {
 
     /** The provider type. */
     ProviderType type();
+
+    /**
+     * Sampling temperature, or {@code null} to leave it to the model's default.
+     * Set with {@link #withTemperature(double)}.
+     */
+    default Double temperature() { return null; }
+
+    /**
+     * Cap on generated tokens, or {@code null} to leave it to the model's default.
+     * Set with {@link #withMaxTokens(int)}.
+     */
+    default Integer maxTokens() { return null; }
+
+    /**
+     * How long a single chat call may wait for the model, or {@code null} to use
+     * the {@code cafeai.chat.timeout} setting (60 seconds by default). Set with
+     * {@link #withTimeout(Duration)}.
+     */
+    default Duration timeout() { return null; }
+
+    /**
+     * A copy of this provider that samples at the given temperature. Providers are
+     * immutable, so the original is unchanged:
+     *
+     * <pre>{@code
+     *   app.ai(Anthropic.of("claude-sonnet-4-5").withTemperature(0));   // deterministic classifier
+     * }</pre>
+     *
+     * @throws UnsupportedOperationException if this provider does not support it
+     *         (the default — the built-in providers all override it)
+     */
+    default AiProvider withTemperature(double temperature) {
+        throw new UnsupportedOperationException(
+            "Provider '" + name() + "' does not support withTemperature");
+    }
+
+    /**
+     * A copy of this provider that caps generation at {@code maxTokens} tokens.
+     * For a reasoning model the cap includes its thinking, so a low value can
+     * leave nothing for the answer.
+     *
+     * @throws UnsupportedOperationException if this provider does not support it
+     *         (the default — the built-in providers all override it)
+     */
+    default AiProvider withMaxTokens(int maxTokens) {
+        throw new UnsupportedOperationException(
+            "Provider '" + name() + "' does not support withMaxTokens");
+    }
+
+    /**
+     * A copy of this provider that waits up to {@code timeout} for the model. This
+     * is per model because it should be: a fast classifier and a reasoning model
+     * that thinks for minutes before its first token do not share a sensible limit.
+     * Overrides {@code cafeai.chat.timeout} for this provider only.
+     *
+     * <pre>{@code
+     *   app.ai(Nvidia.of("moonshotai/kimi-k3").withTimeout(Duration.ofMinutes(10)));
+     * }</pre>
+     *
+     * <p>For a streamed call the limit covers the wait for the response to start,
+     * not the time between tokens once it has.
+     *
+     * @throws UnsupportedOperationException if this provider does not support it
+     *         (the default; also {@code Jlama}, which runs in-process with no
+     *         network call to time out)
+     */
+    default AiProvider withTimeout(Duration timeout) {
+        throw new UnsupportedOperationException(
+            "Provider '" + name() + "' does not support withTimeout");
+    }
 
     /**
      * Returns {@code true} if this provider may accept multimodal (vision) input.

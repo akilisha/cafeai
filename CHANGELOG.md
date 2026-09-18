@@ -5,6 +5,46 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+### Added
+
+- **NVIDIA provider** — `io.cafeai.core.ai.Nvidia`, for models on NVIDIA's hosted
+  API catalog (`Nvidia.of("moonshotai/kimi-k3")`, key from `$NVIDIA_API_KEY`).
+  The endpoint is OpenAI-compatible, so it is wired through `ChatModelAccess`
+  and `StreamingChatModelAccess` like `Gemini`; no new dependency. Uses a
+  5-minute timeout rather than `cafeai.chat.timeout`, since hosted reasoning
+  models can exceed 60 seconds before the first token.
+  `Nvidia.of(id)` also takes `.withReasoningEffort("max")`, which is NVIDIA-specific.
+  See `NvidiaVisionExample` in `cafeai-examples`.
+- **`withTemperature(double)`, `withMaxTokens(int)` and `withTimeout(Duration)`
+  on every provider** —
+  `OpenAI`, `Anthropic`, `Gemini`, `Ollama`, `Jlama` and `Nvidia` were all
+  `of(modelId)` and nothing more, so there was no way to set any of them. They are
+  now on the `AiProvider` interface (plus `temperature()` / `maxTokens()` /
+  `timeout()` accessors), each returning an immutable copy:
+  `app.ai(Anthropic.of("claude-sonnet-4-5").withTemperature(0))`. Unset means the
+  model's own default, exactly as before. A custom `AiProvider` that doesn't
+  override them throws `UnsupportedOperationException` rather than ignoring the
+  setting, and so does `ModelRouter` — set them on the models it routes between.
+  `maxTokens` maps to the vendor's own parameter (`max_completion_tokens` for
+  OpenAI, `num_predict` for Ollama, `maxOutputTokens` for Gemini).
+  `withTimeout` overrides `cafeai.chat.timeout` (60s by default) for that one
+  provider — the right granularity, since a classifier and a reasoning model that
+  takes minutes to respond don't share a sensible limit. `Jlama` refuses it: it
+  runs in-process, so there is no network call to time out.
+- **`.onThinking(Consumer<String>)`** on `PromptRequest` and `VisionRequest` —
+  receives a reasoning model's thinking tokens during `.stream(...)`, as a side
+  channel that never reaches the answer text, session memory or guardrails.
+  Providers that don't emit reasoning are unaffected. `Nvidia` enables it; the
+  built-in OpenAI/Anthropic/Ollama/Jlama providers don't request thinking yet.
+
+### Fixed
+
+- **Chat-model cache shared models it shouldn't have.** `LangchainBridge` cached
+  by `name:modelId`, so two `Ollama.at(...)` providers on different base URLs
+  serving the same model id shared one client. It is now keyed on the provider
+  itself (a value-comparing record), which the new temperature / max-token
+  settings also require.
+
 ## [0.4.0] — 2026-09
 
 ### Changed — BREAKING
