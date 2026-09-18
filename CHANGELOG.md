@@ -3,374 +3,158 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [Unreleased]
+## [0.4.0] — unreleased
 
-### Removed — BREAKING
+### Breaking changes
 
-- **`CafeAIRegistry`, `CafeAIRegistryImpl`, and `CafeAIModule.register(...)`.**
-  The registry was write-only: seven modules registered about 19 named
-  capability factories into it, and no code — in any module, test, or the git
-  history — ever read one back. (Some registrations were placeholders such as
-  `registerMemoryStrategy("redis", () -> null)`.) Capabilities are wired through
-  the provider SPIs (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`),
-  so nothing that worked stops working. `CafeAIModule` is now just `name()` and
-  `version()`; module discovery is unchanged and each module is still logged at
-  startup. External modules must delete their `register` method — see
-  `MIGRATION.md` and ADR-006. The startup DEBUG lines
-  `CafeAI registry: … registered` are gone.
-- **Public API that did nothing.** A dead-code audit found declarations with no
-  reader or caller anywhere in the repo. Removed:
-  - `TextGuardRail` — an interface with no implementer and no caller; its
-    Javadoc described a use "in `AgentRegistry`" that never existed.
-  - Six `Setting` values that could be set but that nothing ever read:
-    `CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`, `JSON_ESCAPE_HTML`,
-    `QUERY_PARSER`, `VIEW_CACHE`. Setting them silently changed nothing.
-  - `AiProvider.ProviderType.AZURE_OPENAI` and `GOOGLE_VERTEX` — no provider
-    produced them, and the bridge throws for them.
-  - `Connection.ServiceType.MCP` and `EMBEDDING`.
-  - `returningType()` on `PromptRequest`, `VisionRequest` and `AudioRequest`
-    (see the fix below).
-  - `PodState.hasContainerTrouble()` and `hasWarningEvents()`.
-- **The `cafeai-streaming` module.** It never contained a source file: every
-  version published to Maven Central (0.1.0 – 0.3.2) is a jar holding only a
-  manifest. The SSE / WebSocket streaming its docs advertised lives in
-  `cafeai-core`. Removed from the build, `cafeai-examples`, and the README,
-  GETTING-STARTED, DEVELOPER_GUIDE and SPEC; the artifacts already on Central
-  can't be deleted, but nothing new will be published.
-- **`CAFEAI_MCP_SERVERS` handling in `Connect.fromEnv()`.** It parsed the
-  variable and then did nothing with it (an empty loop body). `McpEndpoint` was
-  never built. Also dropped "MCP" from the `cafeai-connect` description and the
-  docs that claimed it.
-- **`MemoryStrategy.chronicle()`**, a stub that threw "not yet implemented" while
-  the README advertised `app.memory(MemoryStrategy.chronicle())` as a working
-  option. Its Chronicle Map dependency (an early-access build, imported by
-  nothing) rode along on every `cafeai-memory` consumer's runtime classpath.
-  ADR-003 now describes only the rungs that exist; rungs 3 (Chronicle Map) and 5 (Memcached — which had no
-  code at all) were never built.
-- **Eight unused dependencies**, none referenced by any source or resource file,
-  all `implementation` scope and so shipped to consumers' runtime classpaths:
-  `opennlp-tools` (`cafeai-guardrails` — PII detection is regex), `chronicle-map`
-  (`cafeai-memory`), `helidon-security` and its JWT provider (`cafeai-security`),
-  `helidon-tracing`, its OpenTelemetry provider and `helidon-metrics`
-  (`cafeai-observability` — it calls the OpenTelemetry API directly), plus a
-  redundant `langchain4j-core` in guardrails and security. A consumer of the full
-  stack goes from 373 to 293 runtime artifacts.
-- **Documentation claims with nothing behind them**, corrected in the README,
-  GETTING-STARTED, SPEC, EXTENDING and the LC4J guide: `MemoryStrategy.chronicle()`,
-  Memcached, "PII detection: Apache OpenNLP", observability "metrics" and "prompt
-  versioning" (neither exists), and stale Helidon / LangChain4j versions and
-  provider list in the README's technology table.
-- **Signed cookies, and `req.range()`.** `req.signedCookies()` / `signedCookie()` always
-  returned empty/`null`, and `CookieOptions.signed(true)` was accepted and **never
-  honoured — `res.cookie(...)` sent an unsigned cookie**, so anything relying on it for
-  tamper-protection had none. Signing needs an application secret that CafeAI has no
-  setting for, so the API is removed instead of implying protection it didn't give.
-  `req.range(size)` was declared to return an untyped `Object` and always returned
-  `null`. ADR-005 marks all of these "Omitted".
-- **`GuardRail.bias()` and `GuardRail.hallucination()`** (and the same two methods on
-  the `GuardRailProvider` SPI). They were pass-through stubs even with
-  `cafeai-guardrails` on the classpath: `app.guard(GuardRail.bias())` returned a guardrail
-  that let everything through, so the app looked protected when it was not. Bias
-  detection needs a trained model that was never bundled; hallucination *scoring* exists
-  as `EvalHarness`'s heuristic faithfulness / relevance / groundedness scores, which score
-  rather than block.
-- **The semantic-cache remnants.** No semantic cache was ever built, yet:
-  `PromptResponse`/`VisionResponse`/`AudioResponse.fromCache()` was hard-wired to `false`
-  (and `PromptResponse.Builder.fromCache(boolean)`), observability branched on it and wrote
-  a `cafeai.cache_hit` span attribute that could only ever be `false`, and the security
-  module shipped `AiSecurity.semanticCachePoisoningDetector()` with a
-  `SecurityEvent.CachePoisoningAttempt` type. That detector was not inert: it answered
-  `400 "Potential cache poisoning attempt detected"` to any prompt under 200 characters
-  containing four of `always`, `never`, `respond`, `say`, `output`, `return`, `answer`,
-  `tell`, `write`, `pretend` — an ordinary short instruction — to protect a cache that does
-  not exist. All removed. `SecurityEvent` is a sealed interface, so an exhaustive `switch`
-  over it must drop its `CachePoisoningAttempt` case.
-- **Wrong module descriptions**, which are published to Maven Central: `cafeai-security`
-  claimed jailbreak detection, PII scrubbing and token-budget enforcement (none are in that
-  module; it has `promptInjectionDetector`, `ragDataLeakagePrevention` and `onEvent`),
-  `cafeai-guardrails` claimed bias and hallucination detection and "NLP" (it is all
-  pattern-based), and `cafeai-observability` claimed metrics and prompt versioning.
-  The README, GETTING-STARTED, SPEC and LC4J guide are corrected, and the SPEC's
-  `EvalStrategy.faithfulness()` (no such class) now reads `EvalHarness.defaults()`.
-
-### Fixed
-
-- **Guardrails were not enforced on `app.prompt()` — security.** `app.prompt(...).call()` and
-  `.stream()` ran no guardrail at all: PRE_LLM and POST_LLM checks existed only on `vision`
-  and `audio`. The HTTP-middleware form of a guardrail could not fill the gap — it runs after
-  the route handler, which has already sent the response, so it could never stop an output —
-  and it did nothing for programmatic (non-HTTP) calls. An app that registered
-  `app.guard(GuardRail.pii())` and called `app.prompt(userText)` had no guardrail on that call.
-  The engine now applies every registered guardrail to `prompt`, streamed `prompt`, `vision` and
-  `audio` through one shared path, on the text the model actually sees.
-- **`GuardRail.Action` is honoured by the engine.** `BLOCK` / `WARN` / `LOG` worked on the
-  HTTP path but the engine ignored it and always blocked, so a `LOG`-only guardrail still
-  blocked a vision call. `WARN` and `LOG` now record the violation and let the call proceed.
-- **Agents (`app.agent(...)`) get the same treatment.** `GuardrailAdapters`, which applies a
-  CafeAI guardrail through LangChain4j's `AiServices`, had no tests and ignored `Action` (every
-  violation was a hard failure), threw on a multimodal user message (`singleText()`), would NPE on
-  a guardrail that returned `null`, and put the guardrail's *reason* into the exception
-  LangChain4j throws to the caller. It now honours `Action`, screens a multimodal message on its
-  text, treats `null` as a pass, and names the guardrail without the reason (which is logged).
-  The default error handler maps LangChain4j's `InputGuardrailException` to `400` and
-  `OutputGuardrailException` to `500`, with a generic body.
-- **A blocked request is a typed exception and a 400, not a 500.** Blocked input throws the new
-  `GuardRailViolationException` (a `RuntimeException`, so existing catches still work) instead of
-  a bare `RuntimeException`. With no error handler that claims it, the default handler answers
-  `400` with the guardrail's *name only*; the reason (a matched pattern, a moderation verdict)
-  stays in the logs, because it tells an attacker how the detector works. The old path returned
-  a 500 that echoed the exception message.
-- **The request/response pair was never wired.** `res.request()`, `req.response()`
-  and `res.app()` returned `null` (nothing set them), so `res.format()` never saw the
-  request's `Accept` header and always chose the first handler. They are now paired
-  where `CafeAIApp` builds the context, and `res.format()` negotiates properly (and
-  answers 406 when nothing matches).
-- **`res.render()` always threw** `UnsupportedOperationException` ("requires
-  app.engine() registration -- ROADMAP-02 Phase 8") even with `app.engine(...)` and a
-  view engine registered. It now renders through the app's engine and sends `text/html`;
-  locals layer as `app.locals()` < `res.locals()` < the locals you pass.
-- **`req.cookies()` / `req.cookie(name)`** returned an empty map / `null` whatever the
-  client sent — the "cookieParser middleware" their Javadoc required never existed. They
-  now parse the `Cookie` header; no middleware is needed.
-- **`req.accepts()`** used substring matching, ignoring `q`-values (`Accept:
-  text/html;q=0.1, application/json;q=0.9` selected HTML). It, and
-  `acceptsCharsets/Encodings/Languages()` — which returned the first offer regardless of
-  the header — now do real negotiation (`q`, wildcard specificity, `q=0` refusal,
-  `en` → `en-US`).
-- **`req.fresh()` / `req.stale()`** were hard-wired to `false` / `true`. They now compare
-  `If-None-Match` to the response's `ETag` (weakly) or `If-Modified-Since` to its
-  `Last-Modified`, per RFC 9110.
-- **`CookieOptions.expires(...)`** was accepted and never written. `res.cookie(...)` now
-  emits an `Expires` attribute in HTTP-date form.
-
-- **`.returning(Class)` was a no-op.** It stored the type in a field nothing
-  read; the schema instruction reached the prompt only via `call(Class)`, so
-  `returning(X.class).call()` sent no instruction, and the documented
-  `.returning(X.class).call(X.class)` named the type twice for no reason.
-  `returning()` now appends the type's JSON schema instruction to the prompt, so
-  `.call()` returns JSON text in that shape; `.call(X.class)` is unchanged and
-  needs no separate `returning()`. Applies to `prompt`, `vision` and `audio`.
-
-- **`GuardRail.pii()`, `.jailbreak()`, `.promptInjection()`, `.toxicity()`, `.regulatory()` and
-  `.topicBoundary()` throw `GuardRailModuleNotFoundException` when `cafeai-guardrails` is not on
-  the classpath** (BREAKING). They used to return a guardrail that passed everything through and
-  logged one warning: the code compiled, the app ran, the guardrail was registered, and it protected
-  nothing — indistinguishable from protection until the day it mattered. The message names the
-  Gradle and Maven coordinate to add. `StubGuardRail` is gone; `GuardRail.RegulatoryGuardRail` and
-  `GuardRail.TopicBoundaryGuardRail` are now interfaces (the `cafeai-guardrails` implementations
-  implement them). Guardrails that need no module still work: `GuardRail.moderation(model)` and any
-  `GuardRail` you implement.
-
-### Security
-
-- **`GuardRail.promptInjection()`, `.regulatory()` and `.topicBoundary()` now actually run on
-  `app.prompt()`, `.vision()` and `.audio()` (BREAKING in effect).** They implemented only the HTTP
-  middleware form, so the engine's `checkInput` fell through to "pass": registered with
-  `app.guard(...)`, they protected nothing on the engine path, which is the path that matters.
-  Only `pii`, `jailbreak` and `toxicity` were enforced. Requests that used to pass may now be
-  refused with a 400.
-- **`GuardRail.promptLeak(systemPrompt)`** — stops the model repeating its own system prompt, by
-  checking the response for a run of the prompt's words. Needs no module. Catches verbatim and
-  near-verbatim disclosure; not paraphrase, translation or encoding.
-- **`GuardRail.secrets()`** (in `cafeai-guardrails`) — API keys, tokens, private keys, JWTs,
-  credentials in URLs, in what users send and in what the model says. Reports the kind, never the
-  value. `SecretsGuardRail.scrub(text)` redacts.
-- **Text normalisation.** `TextNormalizer` folds case, full-width letters, zero-width and other
-  invisible characters, accents and Cyrillic/Greek look-alikes before any pattern-based guardrail
-  matches, so "ignore" written in full-width letters, with a zero-width space inside, or with a
-  Cyrillic "o" no longer slips past. Public, for your own guardrails.
-- **RAG documents are screened.** `GuardRail.checkRetrieved(String)` lets a guardrail vet each
-  retrieved document before it enters the model's context; `promptInjection()` uses it. A document
-  a `BLOCK` guardrail flags is dropped and the question answered from the rest. (`app.prompt()`
-  only; an agent's retrieval belongs to LangChain4j.) Previously `promptInjection()` claimed to
-  check RAG documents but read an attribute the engine never set.
-- **The default 500 body no longer echoes the exception message** (`{"error": "Internal Server
-  Error"}`). Messages can carry SQL, paths, upstream URLs or credentials. They stay in the log;
-  register `app.onError(...)` to put one on the wire.
-- **An HTTP-path guardrail block no longer echoes the detector's `reason`** (the body was
-  `{error, guardrail, reason}`, now `{error, guardrail}`), matching the engine path. The reason
-  tells a caller which pattern to rephrase around; it is logged.
-
-- **`AiSecurity.ragDataLeakagePrevention()` and `SecurityEvent.DataLeakageAttempt` are removed
-  (BREAKING) — the feature never worked, and the module advertised it.** It was billed as
-  preventing RAG from returning documents the requesting user is not authorised to see. It read an
-  attribute the engine never sets, so it found no documents and did nothing; it ran after the
-  response was already sent; its "authorisation" was a substring test for `/private/` in a source
-  id; and it had no test. `README`, `GETTING-STARTED` and `SPEC` all listed "data leakage" as a
-  capability of `cafeai-security`. There is no per-user document access control in CafeAI; do not
-  rely on this module for it. `AiSecurity.promptInjectionDetector()` remains, now sharing
-  `GuardRail.promptInjection()`'s normalised detection (so the two cannot disagree), no longer
-  claiming to screen RAG documents (the engine does, via that guardrail), and returning
-  `{error, eventId}` without the reason. `SecurityEvent.InjectionAttempt` loses its `source()`
-  field, which could only ever be `"user_input"` now. Blog posts 03 and 08 showed
-  `app.guard(AiSecurity.promptInjectionDetector())` (a `Middleware` is not a `GuardRail`) and a
-  non-existent `app.onSecurityEvent(...)`; both corrected.
-
-### Fixed
-
-- **`GuardRail.jailbreak()` fired on any text containing "dan"** ("Daniel", "abundant",
-  "dangerous"): its `DAN` pattern had no word boundary. It matches the word only.
-- **`PiiGuardRail.scrubbing()` is removed.** It set a flag nothing read and logged instead of
-  redacting, while its Javadoc promised in-place redaction. A guardrail cannot rewrite text in
-  flight; use `PiiGuardRail.scrub(text)` on text you log or forward.
-- **`GuardRail.topicBoundary().deny(...)` blocked on any single word of a denied phrase.**
-  Topics were split into individual words, so `deny("medical advice")` blocked every input
-  containing "advice", and `deny("other financial products")` blocked any message containing
-  "other". A denied topic now matches only when its words appear together and in order. An
-  *allowed* topic now needs all of its words (any order), so `allow("customer service")` is no
-  longer satisfied by "customer" alone; single-word topics behave as before, and a comma inside one
-  argument still separates topics.
-- **`TopicBoundaryGuardRailImpl` returned the hard-coded reason "I can only help with Helios
-  connection pooling questions."** — demo text left in the framework.
-- `GuardRail.regulatory()` declared `Position.BOTH` but only ever inspected input; it now declares
-  `PRE_LLM`, which is what it does (run over a response, its patterns would flag the model
-  correctly refusing a discriminatory request).
-- Removed `PromptInjectionGuardRail`'s unused `threshold` and the unused `score()` in
-  `JailbreakGuardRail`.
-
-### Housekeeping
-
-- Deleted `StreamingProbe` (a scratch file left in `cafeai-core`'s main source),
-  an unreachable `if (false)` branch in `CafeAIApp`, two unused loggers, three
-  unused imports, and `TokenBudgetTracker.currentWindowTokens()`.
-- `docs/adr/`: `ADR-010` and `ADR-008-connectivity-…` were byte-identical.
-  Kept `ADR-010`, corrected its title, and repointed `ROADMAP-09` at it.
-
-### Added
-
-- **Semantic cache, with cache-poisoning defences: `app.cache(SemanticCache...)`.** Repeat
-  `app.prompt()` questions are answered from a cache matched by meaning, skipping the model call;
-  `response.fromCache()` (and the `cafeai.cache_hit` span attribute) report it, truthfully this
-  time. A cache shared between users is an attack surface — one user's request can decide what
-  another is told — so the defences are the design: only **clean, prompt-only** answers are stored
-  (nothing any guardrail flagged, even a `WARN`; nothing with a `session()` or with RAG configured;
-  nothing over a size limit); entries are namespaced by model, its settings and the system prompt; a
-  hit requires high embedding similarity **and** high word overlap **and** similar length, so a
-  victim's question with instructions appended does not match it; every hit is **re-screened** by the
-  current `POST_LLM` guardrails and evicted if it fails; and entries expire and are size-bounded. A
-  request blocked by a guardrail never reaches the cache, and a cache or embedding failure never
-  fails the call. `.noCache()` opts a call out; vision and audio are never cached. `SemanticCache` is
-  an interface to back with your own store; `SemanticCache.inMemory(embedder)` is per-process and
-  scans linearly. The end-to-end test runs the attack itself and shows the victim is not served the
-  poisoned entry; a control test shows it *would* be with the word-overlap and length guards off.
-  See ADR-013 for the threat model and its limits. This replaces the removed
-  `semanticCachePoisoningDetector()`, which guarded a cache that did not exist.
-- **`EmbeddingProvider.of(EmbeddingModel)`** — any LangChain4j embedding model as a CafeAI
-  embedding provider, without an adapter of yours.
-- **Content moderation by a model: `GuardRail.moderation(ModerationModel)`.** A guardrail
-  backed by LangChain4j's own `ModerationModel` — a model, not a pattern list, so it catches what
-  keyword rules cannot. CafeAI adds no wrapper: pass any provider's model, or use
-  `OpenAI.moderation("omni-moderation-latest")`, which returns the LangChain4j type. It applies to
-  `prompt`, `vision` and `audio` and, through the adapters, to `app.agent(...)`. Configure it with
-  `.at(Position)`, `.action(Action)`, `.named(...)` and `.failOpen()`. **It fails closed**: if the
-  moderation call itself fails, the text is blocked, because a safety control that quietly passes
-  everything when its dependency is down only looks protective (`failOpen()` opts out, logged at
-  WARN). LangChain4j's portable `Moderation` carries only a verdict, so that is all it reports.
-  LangChain4j's own agent hook is tested too: `configure(b -> b.moderationModel(m))` with
-  `@Moderate` throws its `ModerationException`. See `LC4J-TO-CAFEAI.md` §2.11 for every seam where
-  CafeAI accepts a LangChain4j type directly.
-- **NVIDIA provider** — `io.cafeai.core.ai.Nvidia`, for models on NVIDIA's hosted
-  API catalog (`Nvidia.of("moonshotai/kimi-k3")`, key from `$NVIDIA_API_KEY`).
-  The endpoint is OpenAI-compatible, so it is wired through `ChatModelAccess`
-  and `StreamingChatModelAccess` like `Gemini`; no new dependency. Uses a
-  5-minute timeout rather than `cafeai.chat.timeout`, since hosted reasoning
-  models can exceed 60 seconds before the first token.
-  `Nvidia.of(id)` also takes `.withReasoningEffort("max")`, which is NVIDIA-specific.
-  See `NvidiaVisionExample` in `cafeai-examples`.
-- **`withTemperature(double)`, `withMaxTokens(int)` and `withTimeout(Duration)`
-  on every provider** —
-  `OpenAI`, `Anthropic`, `Gemini`, `Ollama`, `Jlama` and `Nvidia` were all
-  `of(modelId)` and nothing more, so there was no way to set any of them. They are
-  now on the `AiProvider` interface (plus `temperature()` / `maxTokens()` /
-  `timeout()` accessors), each returning an immutable copy:
-  `app.ai(Anthropic.of("claude-sonnet-4-5").withTemperature(0))`. Unset means the
-  model's own default, exactly as before. A custom `AiProvider` that doesn't
-  override them throws `UnsupportedOperationException` rather than ignoring the
-  setting, and so does `ModelRouter` — set them on the models it routes between.
-  `maxTokens` maps to the vendor's own parameter (`max_completion_tokens` for
-  OpenAI, `num_predict` for Ollama, `maxOutputTokens` for Gemini).
-  `withTimeout` overrides `cafeai.chat.timeout` (60s by default) for that one
-  provider — the right granularity, since a classifier and a reasoning model that
-  takes minutes to respond don't share a sensible limit. `Jlama` refuses it: it
-  runs in-process, so there is no network call to time out.
-- **`.onThinking(Consumer<String>)`** on `PromptRequest` and `VisionRequest` —
-  receives a reasoning model's thinking tokens during `.stream(...)`, as a side
-  channel that never reaches the answer text, session memory or guardrails.
-  Providers that don't emit reasoning are unaffected. `Nvidia` enables it; the
-  built-in OpenAI/Anthropic/Ollama/Jlama providers don't request thinking yet.
-
-### Fixed
-
-- **Chat-model cache shared models it shouldn't have.** `LangchainBridge` cached
-  by `name:modelId`, so two `Ollama.at(...)` providers on different base URLs
-  serving the same model id shared one client. It is now keyed on the provider
-  itself (a value-comparing record), which the new temperature / max-token
-  settings also require.
-
-## [0.4.0] — 2026-09
-
-### Changed — BREAKING
-
-- **`VectorStore`, `EmbeddingProvider`, `Retriever`, `Source`, `RagDocument`
-  moved from `io.cafeai.rag` to `io.cafeai.core.rag`.** `app.vectordb()`,
-  `.embed()`, `.ingest()`, `.rag()` are now properly typed (were `Object`,
-  checked only at runtime). `PromptResponse`/`AudioResponse`/
-  `VisionResponse.ragDocuments()` now return `List<RagDocument>` (was
-  `List<Object>`, with one carrying a comment admitting it was "typed as
-  Object to avoid dep"). The old `io.cafeai.core.spi.RagPipeline` SPI is
-  deleted outright — no longer needed once the types are core-owned.
-  `EmbeddingModel` is renamed `EmbeddingProvider`, closing the one real name
-  collision against LangChain4j's own `EmbeddingModel` in the framework.
-  `cafeai-rag` still supplies everything needing real dependencies (Chroma,
-  pgvector, Tika, an ONNX model) via the new `io.cafeai.core.spi.RagProvider`
-  SPI. Full rationale in `docs/adr/ADR-011-rag-provider-abstraction.md`.
-- **`Connection`, `HealthStatus`, `Fallback` moved from `io.cafeai.connect`
-  to `io.cafeai.core.connect`.** `app.connect()` is now typed
-  `CafeAI.connect(Connection)` (was `Object`). The old
-  `io.cafeai.core.spi.ConnectBridge` SPI is deleted — a `Connection` is
-  self-contained and calls back into already-typed `app.vectordb()`/
-  `.memory()`/`.ai()`, so there was nothing for a provider SPI to supply. A
-  fully custom `Connection` implementation no longer needs
-  `cafeai-connect` on the classpath at all.
-- **`EmbeddingProvider.openAi()` has no default model id.** The old
-  zero-arg factory silently defaulted to the retired
-  `text-embedding-ada-002`. Pass a model id explicitly
-  (`EmbeddingProvider.openAi("text-embedding-3-large")`), or set
-  `CAFEAI_EMBEDDING_MODEL` and call the zero-arg overload. Dimensionality is
-  now measured from a real embedding call, not guessed from the model id
-  string.
-
-### Added
-
-- **`cafeai-config`** — file-based application configuration. A
-  `io.cafeai.core.config.ConfigKey` declares a value (dotted name, type,
-  default, description) right where it's used; `AppConfig.load()` resolves
-  it. `cafeai-core` resolves only the coded default; `cafeai-config`
-  resolves everything else — system properties, environment variables, an
-  external file (`CAFEAI_CONFIG_FILE`, e.g. a Kubernetes ConfigMap volume),
-  and `application.properties`/`.yaml` with profile overlays — built on
-  Helidon Config, not a hand-rolled merger. No module that declares a key
-  needs a new dependency to do so. Full rationale in
-  `docs/adr/ADR-012-application-config.md`.
-- Three previously hardcoded, non-overridable constants are now `ConfigKey`s:
-  `LangchainBridge`'s 60-second chat timeout (`cafeai.chat.timeout`, applied
-  to every provider, every call site), `AgentRegistry`'s 20-message chat
-  memory window (`cafeai.agent.memory.window`, previously fixed regardless
-  of the configured `MemoryStrategy`), and `WebhookSink`'s timeout/retry
-  count (`cafeai.sentinel.webhook.timeout`/`.max_attempts`).
-- `CafeAIModule.versionOf(Class)` reads a module's real version from its JAR
-  manifest (`Implementation-Version`, stamped by the build from
-  `project.version`) instead of a hardcoded literal — every module's
-  `version()` was returning `"0.1.0"` regardless of the actual released
-  version. The OTel tracer in `cafeai-observability` had the identical bug
-  independently and is fixed the same way.
+- **Guardrails are enforced by the engine on every call.** `app.prompt(...).call()`,
+  `.stream()`, `.vision()` and `.audio()` apply every guardrail registered with `app.guard(...)`
+  to the text the model sees (input) and to what it returns (output), through one shared path.
+  `GuardRail.Action` is honoured: `BLOCK` throws the new `GuardRailViolationException` for input
+  and replaces output with a refusal; `WARN` and `LOG` record the violation and continue. With no
+  error handler that claims it, the default handler answers `400` with the guardrail's name only.
+  `app.agent(...)` applies the same guardrails through LangChain4j's `AiServices`
+  (`GuardrailAdapters`: honours `Action`, screens a multimodal message on its text, treats a `null`
+  result as a pass, and names the guardrail without its reason).
+- **`promptInjection()`, `regulatory()` and `topicBoundary()` run on the engine path**, like
+  `pii()`, `jailbreak()` and `toxicity()`. Requests they refuse now get a `400` from `app.prompt()`.
+  `regulatory()` screens input only and declares `Position.PRE_LLM`.
+- **`GuardRail.pii()`, `.jailbreak()`, `.promptInjection()`, `.toxicity()`, `.regulatory()`,
+  `.topicBoundary()` and `.secrets()` throw `GuardRailModuleNotFoundException`** when
+  `cafeai-guardrails` is not on the classpath. The message names the Gradle and Maven coordinate to
+  add. `GuardRail.RegulatoryGuardRail` and `GuardRail.TopicBoundaryGuardRail` are interfaces.
+  `GuardRail.moderation(model)`, `GuardRail.promptLeak(prompt)` and your own guardrails need no module.
+- **`topicBoundary()` matches phrases.** A denied topic blocks an input containing its words
+  together and in order; an allowed topic needs all of its words (any order). A comma inside one
+  argument separates topics.
+- **Terser error bodies.** The default `500` is `{"error": "Internal Server Error"}`; a guardrail
+  block on the HTTP path is `{error, guardrail}`. Messages and reasons are logged. Register
+  `app.onError(...)` to put more on the wire.
+- **RAG and Connect types moved into `io.cafeai.core`.** `VectorStore`, `EmbeddingProvider`,
+  `Retriever`, `Source` and `RagDocument` moved from `io.cafeai.rag` to `io.cafeai.core.rag`;
+  `Connection`, `HealthStatus` and `Fallback` moved from `io.cafeai.connect` to
+  `io.cafeai.core.connect`. `app.vectordb()`, `.embed()`, `.ingest()`, `.rag()` and `.connect()` are
+  typed, and `ragDocuments()` returns `List<RagDocument>`. `EmbeddingModel` is renamed
+  `EmbeddingProvider`. `cafeai-rag` supplies the implementations that need real dependencies (Chroma,
+  pgvector, Tika, an ONNX model) through the `io.cafeai.core.spi.RagProvider` SPI; the
+  `RagPipeline` and `ConnectBridge` SPIs are gone. See ADR-011.
+- **`EmbeddingProvider.openAi()` takes a model id** (`EmbeddingProvider.openAi("text-embedding-3-large")`),
+  or reads `CAFEAI_EMBEDDING_MODEL` for the zero-argument overload. Dimensionality is measured from a
+  real embedding call.
+- **`CafeAIModule` is `name()` and `version()`.** `CafeAIRegistry`, `CafeAIRegistryImpl` and
+  `CafeAIModule.register(...)` are removed; capabilities are wired through the provider SPIs
+  (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`). External modules delete their
+  `register` method. See ADR-006.
+- **`.returning(X.class)` appends the type's JSON schema instruction to the prompt**, so
+  `.returning(X.class).call()` returns JSON text in that shape. `.call(X.class)` is unchanged.
+  Applies to `prompt`, `vision` and `audio`.
 
 ### Removed
 
-- `helidon-config-yaml` from `cafeai-core` — a dependency every application
-  carried with zero actual usage anywhere in the module's source, almost
-  certainly added in anticipation of the `cafeai-config` work above and
-  never wired up. Now lives only in `cafeai-config`, where it's used.
+- **Modules and dependencies.** The `cafeai-streaming` module (streaming lives in `cafeai-core`).
+  Eight unused libraries no longer ship on consumers' runtime classpaths: `opennlp-tools`,
+  `chronicle-map`, `helidon-security` and its JWT provider, `helidon-tracing`, its OpenTelemetry
+  provider and `helidon-metrics`, and a duplicate `langchain4j-core`; `helidon-config-yaml` now
+  lives only in `cafeai-config`. A consumer of the full stack goes from 373 to 293 runtime artifacts.
+- **Guardrails.** `GuardRail.bias()`, `GuardRail.hallucination()` (and the same methods on
+  `GuardRailProvider`), `PiiGuardRail.scrubbing()` and `StubGuardRail`. For scoring an answer against
+  its sources use `EvalHarness`.
+- **Security.** `AiSecurity.ragDataLeakagePrevention()`, `AiSecurity.semanticCachePoisoningDetector()`,
+  `SecurityEvent.DataLeakageAttempt`, `SecurityEvent.CachePoisoningAttempt` and
+  `SecurityEvent.InjectionAttempt.source()`. CafeAI has no per-user document access control.
+- **Memory and connectivity.** `MemoryStrategy.chronicle()`; `CAFEAI_MCP_SERVERS` handling in
+  `Connect.fromEnv()`; `Connection.ServiceType.MCP` and `EMBEDDING`.
+- **HTTP.** `CookieOptions.signed(...)`, `req.signedCookies()`, `req.signedCookie(...)` and
+  `req.range(...)`. Signing needs an application secret; sign and verify a cookie value yourself.
+- **Declarations.** `TextGuardRail`; the settings `CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`,
+  `JSON_ESCAPE_HTML`, `QUERY_PARSER` and `VIEW_CACHE`; `AiProvider.ProviderType.AZURE_OPENAI` and
+  `GOOGLE_VERTEX`; `returningType()` on the request types; `fromCache()` on `VisionResponse` and
+  `AudioResponse`; `PodState.hasContainerTrouble()` and `hasWarningEvents()`.
+
+### Added
+
+- **Semantic cache: `app.cache(SemanticCache...)`.** Repeat `app.prompt()` questions are answered
+  from a cache matched by meaning, skipping the model call. `response.fromCache()` and the
+  `cafeai.cache_hit` span attribute report it. A cache shared between users can let one user's
+  request decide what another is told, so the defences are part of the design: only **clean,
+  prompt-only** answers are stored (nothing any guardrail flagged, even a `WARN`; nothing with a
+  `session()` or with RAG configured; nothing over a size limit); entries are namespaced by model,
+  its settings and the system prompt; a hit requires high embedding similarity **and** high word
+  overlap **and** similar length, so a question with instructions appended does not match; every hit
+  is **re-screened** by the current `POST_LLM` guardrails and evicted if it fails; entries expire and
+  the cache is size-bounded. A request a guardrail blocks never reaches the cache, and a cache or
+  embedding failure never fails the call. `.noCache()` opts a call out; vision and audio are never
+  cached. `SemanticCache` is an interface to back with your own store; `SemanticCache.inMemory(embedder)`
+  is per-process and scans linearly. See ADR-013 for the threat model and its limits.
+- **`EmbeddingProvider.of(EmbeddingModel)`** — any LangChain4j embedding model as a CafeAI
+  embedding provider.
+- **`GuardRail.moderation(ModerationModel)`** — a guardrail backed by LangChain4j's own
+  `ModerationModel`: a model, not a pattern list. CafeAI adds no wrapper; use any provider's model or
+  `OpenAI.moderation("omni-moderation-latest")`. It applies to `prompt`, `vision`, `audio` and
+  `app.agent(...)`, and is configured with `.at(Position)`, `.action(Action)`, `.named(...)` and
+  `.failOpen()`. It fails closed: if the moderation call fails, the text is blocked (`failOpen()` opts
+  out, logged at WARN). LangChain4j's agent hook works too: `configure(b -> b.moderationModel(m))`
+  with `@Moderate` throws its `ModerationException`. See `LC4J-TO-CAFEAI.md` §2.11.
+- **`GuardRail.promptLeak(systemPrompt)`** — flags a response that reproduces a run of the system
+  prompt's words. Needs no module. Catches verbatim and near-verbatim disclosure, not paraphrase,
+  translation or encoding.
+- **`GuardRail.secrets()`** — API keys, tokens, private keys, JWTs and credentials in URLs, in what
+  users send and in what the model says. Reports the kind, never the value;
+  `SecretsGuardRail.scrub(text)` redacts.
+- **`TextNormalizer`** — folds case, full-width letters, zero-width and other invisible characters,
+  accents and Cyrillic/Greek look-alikes before any pattern-based guardrail matches. Public, for your
+  own guardrails.
+- **RAG documents are screened.** `GuardRail.checkRetrieved(String)` lets a guardrail vet each
+  retrieved document before it enters the model's context; `promptInjection()` uses it, and a
+  document a `BLOCK` guardrail flags is dropped. `app.prompt()` only; an agent's retrieval belongs to
+  LangChain4j.
+- **`cafeai-config`** — file-based application configuration. A `ConfigKey` declares a value (dotted
+  name, type, default, description) where it is used; `AppConfig.load()` resolves it from system
+  properties, environment variables, an external file (`CAFEAI_CONFIG_FILE`, e.g. a Kubernetes
+  ConfigMap volume) and `application.properties`/`.yaml` with profile overlays, built on Helidon
+  Config. `cafeai-core` resolves only the coded default. Keys: `cafeai.chat.timeout` (chat timeout,
+  every provider), `cafeai.agent.memory.window` (agent chat-memory window) and
+  `cafeai.sentinel.webhook.timeout` / `.max_attempts`. See ADR-012.
+- **NVIDIA provider** — `Nvidia.of("moonshotai/kimi-k3")`, key from `$NVIDIA_API_KEY`, for models on
+  NVIDIA's hosted API catalog. OpenAI-compatible, wired through `ChatModelAccess` and
+  `StreamingChatModelAccess` like `Gemini`; no new dependency. Uses a 5-minute timeout, since hosted
+  reasoning models can take more than 60 seconds to the first token. `.withReasoningEffort("max")` is
+  NVIDIA-specific. See `NvidiaVisionExample`.
+- **`withTemperature(double)`, `withMaxTokens(int)` and `withTimeout(Duration)`** on every provider,
+  with `temperature()` / `maxTokens()` / `timeout()` accessors on `AiProvider`. Each returns an
+  immutable copy: `Anthropic.of("claude-sonnet-4-5").withTemperature(0)`. Unset means the model's own
+  default. `maxTokens` maps to the vendor's parameter (`max_completion_tokens` for OpenAI,
+  `num_predict` for Ollama, `maxOutputTokens` for Gemini). `withTimeout` overrides
+  `cafeai.chat.timeout` for one provider. A custom `AiProvider` that does not override them, and
+  `ModelRouter`, throw `UnsupportedOperationException`; `Jlama` refuses a timeout, since it runs
+  in-process.
+- **`.onThinking(Consumer<String>)`** on `PromptRequest` and `VisionRequest` — receives a reasoning
+  model's thinking tokens during `.stream(...)`, apart from the answer text, session memory and
+  guardrails. `Nvidia` enables it.
+- **`CafeAIModule.versionOf(Class)`** reads a module's version from its JAR manifest
+  (`Implementation-Version`), used by every module and the OpenTelemetry tracer.
+- **HTTP.** `req.cookies()` / `req.cookie(name)` parse the `Cookie` header. `req.accepts()`,
+  `acceptsCharsets()`, `acceptsEncodings()` and `acceptsLanguages()` negotiate on `q`-values,
+  wildcard specificity and `q=0`. `req.fresh()` / `req.stale()` compare `If-None-Match` to `ETag`
+  (weakly) and `If-Modified-Since` to `Last-Modified`, per RFC 9110. `res.format()` negotiates on
+  `Accept` and answers 406 when nothing matches. `res.render()` renders through the registered
+  view engine (locals layer as `app.locals()` < `res.locals()` < those you pass). `res.request()`,
+  `req.response()` and `res.app()` return the live objects. `CookieOptions.expires(...)` writes an
+  `Expires` attribute.
+
+### Fixed
+
+- The chat-model cache is keyed on the provider itself (a value-comparing record) rather than
+  `name:modelId`, so two `Ollama.at(...)` providers on different base URLs no longer share a client.
+- `GuardRail.jailbreak()` matches `DAN` as a word, not as a substring of "Daniel" or "abundant".
+- `TopicBoundaryGuardRailImpl` no longer returns application-specific text as its reason.
+
+### Housekeeping
+
+- Deleted `StreamingProbe`, an unreachable `if (false)` branch in `CafeAIApp`, two unused loggers,
+  three unused imports and `TokenBudgetTracker.currentWindowTokens()`.
+- `docs/adr/`: `ADR-010` and `ADR-008-connectivity-…` were byte-identical; kept `ADR-010`, corrected
+  its title, and repointed `ROADMAP-09` at it.
 
 ## [0.3.2] — 2026-09
 

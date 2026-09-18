@@ -22,8 +22,7 @@ dependencies {
 
 ### Breaking changes
 
-**1. `EmbeddingModel` is renamed `EmbeddingProvider`** — closes a real name
-collision against LangChain4j's own `EmbeddingModel`.
+**1. `EmbeddingModel` is renamed `EmbeddingProvider`.**
 
 ```java
 // Before
@@ -33,41 +32,31 @@ app.embed(EmbeddingModel.local());
 app.embed(EmbeddingProvider.local());
 ```
 
-**2. RAG and Connect types moved into `io.cafeai.core`, and are now really
-typed.** `VectorStore`, `EmbeddingProvider`, `Retriever`, `Source`,
-`RagDocument` moved from `io.cafeai.rag` to `io.cafeai.core.rag`; `Connection`,
-`HealthStatus`, `Fallback` moved from `io.cafeai.connect` to
-`io.cafeai.core.connect`. Update imports. `app.vectordb()`, `.embed()`,
-`.ingest()`, `.rag()`, and `.connect()` are now properly typed (were `Object`,
-checked only at runtime) — if you were passing something that only
-duck-typed its way past a runtime check, the compiler will now catch it.
-`PromptResponse`/`AudioResponse`/`VisionResponse.ragDocuments()` now return
-`List<RagDocument>` (was `List<Object>`). `cafeai-rag` and `cafeai-connect`
-still supply everything needing real dependencies (Chroma, pgvector, Tika,
-Redis, Ollama) — nothing to change there beyond the import paths. A fully
-custom `Connection` implementation no longer needs `cafeai-connect` on the
-classpath at all. Full rationale: `docs/adr/ADR-011-rag-provider-abstraction.md`,
+**2. RAG and Connect types moved into `io.cafeai.core`, and are typed.** `VectorStore`,
+`EmbeddingProvider`, `Retriever`, `Source` and `RagDocument` moved from `io.cafeai.rag` to
+`io.cafeai.core.rag`; `Connection`, `HealthStatus` and `Fallback` moved from `io.cafeai.connect` to
+`io.cafeai.core.connect`. Update imports. `app.vectordb()`, `.embed()`, `.ingest()`, `.rag()` and
+`.connect()` take real types, and `PromptResponse`/`AudioResponse`/`VisionResponse.ragDocuments()`
+return `List<RagDocument>`. `cafeai-rag` and `cafeai-connect` still supply everything that needs real
+dependencies (Chroma, pgvector, Tika, Redis, Ollama); a fully custom `Connection` needs no
+`cafeai-connect` on the classpath. See `docs/adr/ADR-011-rag-provider-abstraction.md` and
 `docs/adr/ADR-012-application-config.md`.
 
-**3. `EmbeddingProvider.openAi()` has no default model id.** The old zero-arg
-factory silently defaulted to the retired `text-embedding-ada-002`.
+**3. `EmbeddingProvider.openAi()` takes a model id.**
 
 ```java
 // Before
-app.embed(EmbeddingProvider.openAi());          // silently used a retired model
+app.embed(EmbeddingProvider.openAi());
 
 // After
 app.embed(EmbeddingProvider.openAi("text-embedding-3-large"));
 // or set CAFEAI_EMBEDDING_MODEL and keep calling the zero-arg overload
 ```
 
-**4. `CafeAIRegistry` and `CafeAIModule.register(...)` are removed.** The
-registry was write-only: modules registered named capability factories into
-it, and nothing ever read them back. Capabilities are wired through the
-provider SPIs (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`),
-not the registry, so nothing that worked before stops working. This only
-affects you if you wrote your own `cafeai-*`-style module: `CafeAIModule` is
-now just `name()` and `version()`, so delete your `register` method.
+**4. `CafeAIRegistry` and `CafeAIModule.register(...)` are removed.** Capabilities are wired through
+the provider SPIs (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`). This affects you
+only if you wrote your own `cafeai-*`-style module: `CafeAIModule` is `name()` and `version()`, so
+delete your `register` method.
 
 ```java
 // Before
@@ -79,7 +68,7 @@ public class PineconeModule implements CafeAIModule {
     }
 }
 
-// After — delete register(); the module is still discovered and logged at startup
+// After — the module is still discovered and logged at startup
 public class PineconeModule implements CafeAIModule {
     @Override public String name()    { return "cafeai-pinecone"; }
     @Override public String version() { return CafeAIModule.versionOf(getClass()); }
@@ -88,169 +77,124 @@ public class PineconeModule implements CafeAIModule {
 
 See `docs/adr/ADR-006-di-cdi-service-loaders.md`.
 
-**5. Declarations that nothing ever read are removed.** All of these could be
-referenced without doing anything, so removing them changes behaviour only if you
-were relying on a no-op:
+**5. Unused declarations are removed.** Delete any reference to:
 
-- `Setting.CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`, `JSON_ESCAPE_HTML`,
-  `QUERY_PARSER`, `VIEW_CACHE` — settable, never honoured. Delete the
-  `app.set(...)` calls.
-- `AiProvider.ProviderType.AZURE_OPENAI` and `GOOGLE_VERTEX`, and
-  `Connection.ServiceType.MCP` and `EMBEDDING` — no code produced or consumed them.
-- `TextGuardRail` — no implementer, no caller.
+- `Setting.CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`, `JSON_ESCAPE_HTML`, `QUERY_PARSER`,
+  `VIEW_CACHE` (and the `app.set(...)` calls).
+- `AiProvider.ProviderType.AZURE_OPENAI` and `GOOGLE_VERTEX`, and `Connection.ServiceType.MCP` and
+  `EMBEDDING`.
+- `TextGuardRail`.
 - `PromptRequest`/`VisionRequest`/`AudioRequest.returningType()`.
 
-**6. `.returning(X.class)` now does something.** It previously stored the type and
-did nothing, so structured output worked only through `.call(X.class)`. It now
-appends the schema instruction to the prompt. `.call(X.class)` behaves exactly as
-before, and you can drop the redundant `.returning(X.class)` in front of it. If
-you call `.returning(X.class).call()` (no argument) you now get JSON-shaped text
-where you previously got unconstrained text.
+**6. `.returning(X.class)` appends the schema instruction to the prompt.** `.call(X.class)` behaves as
+before, and you can drop a redundant `.returning(X.class)` in front of it. `.returning(X.class).call()`
+(no argument) now returns JSON-shaped text.
 
-**7. The `cafeai-streaming` module is gone.** It was an empty artifact: every
-published version (0.1.0 – 0.3.2) is a jar holding only a manifest, and the module
-never had source files. The SSE / WebSocket streaming its docs advertised has
-always lived in `cafeai-core` (`res.stream(...)`, `PromptRequest.stream(...)`,
-`WsSession.streamTokens(...)`). Delete the dependency; nothing is lost.
+**7. The `cafeai-streaming` module is removed.** SSE and WebSocket streaming are in `cafeai-core`
+(`res.stream(...)`, `PromptRequest.stream(...)`, `WsSession.streamTokens(...)`). Delete the dependency.
 
 ```groovy
 // Before
-implementation 'com.akilisha.oss:cafeai-streaming:0.3.2'   // an empty jar
+implementation 'com.akilisha.oss:cafeai-streaming:0.3.2'
 
 // After — nothing to add; streaming is in cafeai-core
 ```
 
-**8. `Connect.fromEnv()` no longer reads `CAFEAI_MCP_SERVERS`.** It documented the
-variable, parsed it, then did nothing with the URLs. `McpEndpoint` was never built,
-so there is nothing to connect to; remove the variable from your environment.
+**8. `Connect.fromEnv()` does not read `CAFEAI_MCP_SERVERS`.** Remove the variable from your
+environment.
 
-**9. `MemoryStrategy.chronicle()` is removed, and eight unused libraries are no
-longer on your runtime classpath.** `chronicle()` always threw
-`UnsupportedOperationException`, so no working code calls it. Separately,
-`cafeai-guardrails`, `cafeai-security`, `cafeai-observability` and `cafeai-memory`
-stopped shipping libraries none of their code used: `opennlp-tools`,
-`chronicle-map`, `helidon-security` (+ JWT provider), `helidon-tracing` (+ its
-OpenTelemetry provider), `helidon-metrics`, and a duplicate `langchain4j-core`.
-They were `implementation` dependencies, so they were never on your *compile*
-classpath; only if your own code reached for one at runtime through CafeAI's
-transitive dependencies do you now need to declare it yourself.
+**9. `MemoryStrategy.chronicle()` is removed, and eight libraries are off your runtime classpath.**
+`cafeai-guardrails`, `cafeai-security`, `cafeai-observability` and `cafeai-memory` no longer ship
+`opennlp-tools`, `chronicle-map`, `helidon-security` (+ JWT provider), `helidon-tracing` (+ its
+OpenTelemetry provider), `helidon-metrics` and a duplicate `langchain4j-core`. They were
+`implementation` dependencies, so never on your compile classpath; declare one yourself only if your
+code reached for it at runtime through CafeAI.
 
-**10. Signed cookies and `req.range()` are removed — check any use of `signed(true)`.**
-`CookieOptions.signed(boolean)`, `req.signedCookies()`, `req.signedCookie(String)` and
-`req.range(long)` are gone. **`signed(true)` never did anything:** `res.cookie(...)` sent
-a plain, unsigned cookie, and the request side always returned nothing. If you set it
-expecting tamper-protection, you never had it — sign and verify the value yourself (an
-HMAC over the value with a secret you manage), or use a session mechanism. `req.range()`
-always returned `null`.
+**10. Signed cookies and `req.range()` are removed.** `CookieOptions.signed(boolean)`,
+`req.signedCookies()`, `req.signedCookie(String)` and `req.range(long)` are gone. `signed(true)` did
+not sign the cookie: `res.cookie(...)` sent it unsigned. If you set it for tamper-protection, sign and
+verify the value yourself (an HMAC over the value with a secret you manage) or use a session mechanism.
 
 ```java
-// Before — compiled, but the cookie was NOT signed
+// Before — the cookie was sent unsigned
 res.cookie("session", id, CookieOptions.builder().signed(true).build());
 
-// After — remove signed(true); protect the value yourself if you need integrity
+// After — protect the value yourself if you need integrity
 res.cookie("session", signedValue, CookieOptions.builder().httpOnly(true).secure(true).build());
 ```
 
-**11. Behaviour fixes you may notice** (each previously returned a fixed value):
-`req.cookies()` / `req.cookie()` now return the client's cookies; `req.accepts*()` now
-honour `q`-values and the actual header; `req.fresh()` / `stale()` now evaluate the
-conditional headers; `res.format()` now picks by `Accept` and returns 406 when nothing
-matches, where it used to always run the first handler; `res.render()` now works instead
-of throwing; and `res.request()`, `req.response()`, `res.app()` now return the live
-objects instead of `null`. If you had written around any of these — for example
-reading cookies from the raw `Cookie` header, or catching the `UnsupportedOperationException`
-from `res.render()` — you can delete the workaround.
+**11. Request and response helpers are implemented.** `req.cookies()` / `req.cookie()` return the
+client's cookies; `req.accepts*()` honour `q`-values; `req.fresh()` / `stale()` evaluate the
+conditional headers; `res.format()` picks by `Accept` and returns 406 when nothing matches;
+`res.render()` renders through the registered view engine; `res.request()`, `req.response()` and
+`res.app()` return the live objects. If you worked around any of these — reading the raw `Cookie`
+header, catching an exception from `res.render()` — you can delete the workaround.
 
-**11a. Guardrails now actually run on `app.prompt()` — expect blocks you did not see before.**
-If you registered guardrails (`app.guard(GuardRail.pii())`, `.jailbreak()`, …) and called
-`app.prompt(...)`, those guardrails were **not applied to that call** (only `vision`/`audio`
-enforced them). They are now, so a request that was silently let through can be blocked, and a
-response that was silently let through can be replaced with `[Response blocked by guardrail: …]`.
-Blocked input throws `GuardRailViolationException` (a `RuntimeException`); in an HTTP route with no
-error handler for it, CafeAI answers `400` naming the guardrail — not its reason. Catch it with
-`app.onError(...)` to shape the reply. Audit anything that relied on the old, unguarded behaviour,
-and review your guardrail `Action`s: `WARN` and `LOG` now proceed on `vision` and `audio` too,
-where they previously always blocked.
+**12. Guardrails are enforced by the engine on every call.** `app.guard(...)` applies the guardrail
+to `app.prompt()` (plain and streamed), `.vision()` and `.audio()`, and to `app.agent(...)`. A request
+a guardrail blocks throws `GuardRailViolationException` (a `RuntimeException`); in an HTTP route with
+no error handler for it, CafeAI answers `400` naming the guardrail — not its reason. A response a
+guardrail blocks is replaced with `[Response blocked by guardrail: …]`. Catch the exception with
+`app.onError(...)` to shape the reply. `GuardRail.Action` is honoured: `WARN` and `LOG` record and
+continue. `promptInjection()`, `regulatory()` and `topicBoundary()` are enforced like the rest, and
+`regulatory()` declares `Position.PRE_LLM` (it screens input). Before upgrading production, run your
+real prompts against your guardrails and review their thresholds and `Action`s for false positives.
 
-**12. `GuardRail.bias()` and `GuardRail.hallucination()` are removed — they never
-guarded anything.** Both returned a pass-through guardrail, so a request was never
-blocked or flagged by them. Remove the `app.guard(...)` calls; nothing about your
-app's behaviour changes, but do not assume bias or hallucination is being checked,
-because it never was. For hallucination *scoring* (not blocking) use
-`app.eval(EvalHarness.defaults())`. If you implement `GuardRailProvider` yourself,
-delete the two `@Override` methods.
+**13. `GuardRail.pii()` / `jailbreak()` / `promptInjection()` / `toxicity()` / `regulatory()` /
+`topicBoundary()` / `secrets()` require `cafeai-guardrails`.** Without it they throw
+`GuardRailModuleNotFoundException` at startup, naming the dependency:
+`implementation 'com.akilisha.oss:cafeai-guardrails'`. `GuardRail.RegulatoryGuardRail` and
+`GuardRail.TopicBoundaryGuardRail` are interfaces (`implements`, not `extends`); `StubGuardRail` is
+removed. If you implement `GuardRailProvider` yourself, add `secrets()` and drop `bias()` and
+`hallucination()`.
 
-**13. `AiSecurity.semanticCachePoisoningDetector()`, and `fromCache()` on `VisionResponse` and
-`AudioResponse`, are removed — and a real semantic cache replaces them.** They were built for a
-cache that did not exist: `fromCache()` always returned `false`. `PromptResponse.fromCache()` and
-the `cafeai.cache_hit` span attribute **come back, and are now true when they say so**, because
-`app.cache(SemanticCache...)` is real (see `docs/adr/ADR-013-semantic-cache-and-poisoning-defences.md`).
-Vision and audio are never cached, so their `fromCache()` stays gone. If you registered
-`semanticCachePoisoningDetector()`, remove it: besides guarding nothing, it rejected
-short prompts containing several imperative words with a 400. `SecurityEvent` is a
-sealed interface whose `CachePoisoningAttempt` subtype is removed, so delete that case
-from any exhaustive `switch (event)`.
+**14. `GuardRail.bias()` and `GuardRail.hallucination()` are removed.** Delete the `app.guard(...)`
+calls; they had no effect. For scoring an answer against its sources (not blocking) use
+`app.eval(EvalHarness.defaults())`.
 
-**14. `GuardRail.pii()` / `jailbreak()` / `promptInjection()` / `toxicity()` / `regulatory()` /
-`topicBoundary()` now throw `GuardRailModuleNotFoundException` without `cafeai-guardrails` — they
-no longer return a pass-through guardrail.** If your app called them without the module, it was
-running unprotected and logging one warning; it now fails at startup, naming the dependency:
-`implementation 'com.akilisha.oss:cafeai-guardrails'`. Nothing else changes once the module is
-present. If you referenced `GuardRail.RegulatoryGuardRail` or `GuardRail.TopicBoundaryGuardRail` as
-classes (to extend them), they are now interfaces — `implements`, not `extends`. `StubGuardRail`
-is removed.
+**15. The semantic-cache surface changed.** `AiSecurity.semanticCachePoisoningDetector()` and
+`SecurityEvent.CachePoisoningAttempt` are removed, as is `fromCache()` on `VisionResponse` and
+`AudioResponse` (vision and audio are never cached). `PromptResponse.fromCache()` and the
+`cafeai.cache_hit` span attribute report whether `app.cache(SemanticCache...)` answered — see
+`docs/adr/ADR-013-semantic-cache-and-poisoning-defences.md`. `SecurityEvent` is a sealed interface:
+delete any `CachePoisoningAttempt` case from an exhaustive `switch (event)`.
 
-**15. `promptInjection()`, `regulatory()` and `topicBoundary()` are now enforced on
-`app.prompt()`, `.vision()` and `.audio()`.** They were registered but did nothing on the engine
-path. If you had them registered, requests they would always have refused now get a `400` from
-`app.prompt()` — check your prompts and your thresholds for false positives before upgrading
-production. `regulatory()` now declares `Position.PRE_LLM` (it only ever screened input).
+**16. `PiiGuardRail.scrubbing()` is removed.** A guardrail cannot rewrite text in flight; use
+`PiiGuardRail.scrub(text)` on text you log or forward. Tuning methods (`threshold`, `action`) are on
+the concrete classes — `new JailbreakGuardRail().threshold(0.9)`,
+`new ToxicityGuardRail().action(Action.WARN)` — not on what `GuardRail.xxx()` returns.
 
-**16. `PiiGuardRail.scrubbing()` is removed** (it never redacted anything). Use
-`PiiGuardRail.scrub(text)` on text you log or forward. Tuning methods (`threshold`, `action`)
-are on the concrete classes — `new JailbreakGuardRail().threshold(0.9)`, `new ToxicityGuardRail()
-.action(Action.WARN)` — not on what `GuardRail.xxx()` returns.
+**17. Error bodies are terser.** The default `500` is `{"error": "Internal Server Error"}` (no
+`"message"`), and a guardrail `400` on the HTTP path has no `"reason"`. If a client parsed either,
+register `app.onError(...)` and say what you want on the wire.
 
-**17. Error bodies are terser.** The default `500` no longer includes `"message"`, and a guardrail
-`400` no longer includes `"reason"`. If a client parsed either, register `app.onError(...)` and
-say what you want on the wire. If you implement `GuardRailProvider` yourself, add `secrets()`.
+**18. `AiSecurity.ragDataLeakagePrevention()` and `SecurityEvent.DataLeakageAttempt` are removed.**
+Delete the line that registers it. CafeAI does not provide per-user document access control; to keep
+one user's documents from another, enforce it where documents are stored or retrieved (a separate
+index per tenant, or filtering on an owner id at query time). `SecurityEvent` has one permit,
+`InjectionAttempt`, which no longer has `source()`; drop the `DataLeakageAttempt` case from any
+exhaustive `switch`. `AiSecurity.promptInjectionDetector()` answers `400` with `{error, eventId}`
+and is HTTP-only — pair it with `app.guard(GuardRail.promptInjection())`, which the engine enforces
+on every call.
 
-**18. `AiSecurity.ragDataLeakagePrevention()` and `SecurityEvent.DataLeakageAttempt` are removed —
-the feature never worked; do not rely on it for per-user document access.** If you registered it,
-delete the line: it was already doing nothing, so nothing you depended on stops. If you need to
-keep one user's documents from another, that has to be enforced where documents are stored or
-retrieved (separate indexes per tenant, or filtering by an owner id at query time) — CafeAI does not
-do it. `SecurityEvent` is now a sealed interface with one permit, so drop the `DataLeakageAttempt`
-case from any exhaustive `switch`. `SecurityEvent.InjectionAttempt` no longer has `source()` (it
-could only be `"user_input"`), and `AiSecurity.promptInjectionDetector()`'s `400` body is
-`{error, eventId}` — the `reason` is gone.
-
-**19. `topicBoundary()` matches phrases, not single words.** A denied phrase now blocks only when
-its words appear together and in order — inputs that a multi-word `deny(...)` used to block through
-one common word ("advice", "other", "how") now pass. An allowed multi-word topic now requires all of
-its words, so an input that used to satisfy `allow("customer service")` with "customer" alone is
-now blocked; list the words separately (`allow("customer", "service")`) to keep the old leniency.
-Single-word topics are unchanged.
+**19. `topicBoundary()` matches phrases.** A denied topic blocks only when its words appear together
+and in order. An allowed multi-word topic requires all of its words, so `allow("customer service")`
+is no longer satisfied by "customer" alone; list the words separately
+(`allow("customer", "service")`) to keep that leniency. Single-word topics are unchanged.
 
 ### Not breaking, but new
 
-- **`cafeai-config`** — an optional module for real application configuration.
-  A `ConfigKey` declares a tunable value (dotted name, type, default,
-  description) right where it's used; `AppConfig.load().get(key)` resolves
-  it. Without `cafeai-config` on the classpath, every key just resolves to
-  its own coded default — nothing breaks if you don't add it. Add it to
-  override values via system property, environment variable, an external
-  file, or `application.yaml`/`.properties` with profile overlays, all
-  resolved by Helidon Config. Three previously hardcoded, non-overridable
-  constants are now `ConfigKey`s worth knowing about:
-  `cafeai.chat.timeout` (was a fixed 60s in `LangchainBridge`, every
-  provider), `cafeai.agent.memory.window` (was a fixed 20 messages in
-  `AgentRegistry`), and `cafeai.sentinel.webhook.timeout` /
-  `.max_attempts` (in `cafeai-sentinel`'s `WebhookSink`). See
+- **`cafeai-config`** — an optional module for application configuration. A `ConfigKey` declares a
+  tunable value where it is used; `AppConfig.load().get(key)` resolves it from a system property, an
+  environment variable, an external file, or `application.yaml`/`.properties` with profile overlays.
+  Without the module every key resolves to its coded default. Keys: `cafeai.chat.timeout`,
+  `cafeai.agent.memory.window`, `cafeai.sentinel.webhook.timeout` / `.max_attempts`. See
   `docs/adr/ADR-012-application-config.md` and DEVELOPER_GUIDE.md §17.
-- `CafeAIModule.versionOf(Class)` now reads a module's real version from its
-  JAR manifest instead of every module previously reporting a hardcoded
-  `"0.1.0"` from `version()`.
+- **Semantic cache** (`app.cache(...)`), **`GuardRail.moderation(model)`**,
+  **`GuardRail.promptLeak(prompt)`**, **`GuardRail.secrets()`**, the **NVIDIA provider**,
+  **`withTemperature` / `withMaxTokens` / `withTimeout`** on every provider, and
+  **`.onThinking(...)`** — see `CHANGELOG.md`.
+- `CafeAIModule.versionOf(Class)` reads a module's version from its JAR manifest.
 
 ## 0.1.3 → 0.2.0
 
