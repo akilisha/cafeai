@@ -98,7 +98,8 @@ class ServicesIntegrationTest {
         CafeAI app = mock(CafeAI.class);
 
         assertThat(connection.probe().isHealthy()).isTrue();
-        assertThat(connection.name()).doesNotContain(POSTGRES.getPassword()).doesNotContain("password");
+        // The container's database is also called "test", so check the URL parts, not the word.
+        assertThat(connection.name()).doesNotContain("?").doesNotContain("password=").doesNotContain("user=");
         connection.register(app);
 
         ArgumentCaptor<VectorStore> captor = ArgumentCaptor.forClass(VectorStore.class);

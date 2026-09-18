@@ -182,6 +182,8 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Housekeeping
 
+- Testcontainers is 1.21.4 (was 1.20.2): older releases cannot talk to Docker Engine 29, so the
+  container-based tests were skipped on a machine running it.
 - CI: `.github/workflows/ci.yml` builds and tests every module, and compiles every capstone, on each
   push to `main` and each pull request. It needs no API keys; live provider tests are excluded.
 - Deleted `StreamingProbe`, an unreachable `if (false)` branch in `CafeAIApp`, two unused loggers,
