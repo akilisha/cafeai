@@ -50,7 +50,7 @@ public final class Attributes {
 
     /**
      * Guardrail evaluation score for the current request/response.
-     * Attached by guardrail middleware (PII, hallucination, bias).
+     * Attached by guardrail middleware.
      * Type: {@code Double} (0.0 = clean, 1.0 = fully triggered)
      */
     public static final String GUARDRAIL_SCORE  = "cafeai.guardrail.score";

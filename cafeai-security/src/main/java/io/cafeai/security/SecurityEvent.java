@@ -15,8 +15,7 @@ import java.util.UUID;
  */
 public sealed interface SecurityEvent
         permits SecurityEvent.InjectionAttempt,
-                SecurityEvent.DataLeakageAttempt,
-                SecurityEvent.CachePoisoningAttempt {
+                SecurityEvent.DataLeakageAttempt {
 
     /** Unique event ID -- use for deduplication in audit systems. */
     String eventId();
@@ -58,17 +57,6 @@ public sealed interface SecurityEvent
             String principal
     ) implements SecurityEvent {}
 
-    /**
-     * Raised when an adversarial prompt is detected that appears designed to
-     * corrupt cached responses for future users.
-     */
-    record CachePoisoningAttempt(
-            String eventId,
-            Instant timestamp,
-            String requestPath,
-            String triggeringInput
-    ) implements SecurityEvent {}
-
     // -- Factory helpers -------------------------------------------------------
 
     static InjectionAttempt injection(String path, String input, String source) {
@@ -80,10 +68,5 @@ public sealed interface SecurityEvent
                                            String docId, String principal) {
         return new DataLeakageAttempt(UUID.randomUUID().toString(),
             Instant.now(), path, input, docId, principal);
-    }
-
-    static CachePoisoningAttempt cachePoisoning(String path, String input) {
-        return new CachePoisoningAttempt(UUID.randomUUID().toString(),
-            Instant.now(), path, input);
     }
 }

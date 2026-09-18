@@ -13,8 +13,6 @@ package io.cafeai.security;
  *           auditLog.record("INJECTION", e.requestPath(), e.source());
  *       case SecurityEvent.DataLeakageAttempt e ->
  *           alerting.critical("DATA_LEAK", e.principal(), e.documentSourceId());
- *       case SecurityEvent.CachePoisoningAttempt e ->
- *           auditLog.record("CACHE_POISON", e.requestPath());
  *   });
  * }</pre>
  */

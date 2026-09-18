@@ -1,14 +1,15 @@
 // ============================================================
 //  cafeai-guardrails
-//  Ethical, regulatory, and safety guardrails for CafeAI.
+//  Safety and regulatory guardrails for CafeAI.
 //  Pre-LLM and post-LLM middleware layers.
-//  Covers: bias detection, PII scrubbing, content safety,
-//  regulatory compliance (GDPR, HIPAA, FCRA), hallucination
-//  detection, and output validation.
+//  Covers: PII scrubbing, jailbreak and prompt-injection
+//  detection, toxicity filtering, topic boundaries, and
+//  regulatory compliance (GDPR, HIPAA, FCRA, CCPA, ECOA,
+//  fair housing). All pattern-based; no ML model is bundled.
 // ============================================================
 
-description = 'Ethical, regulatory, and safety guardrails for CafeAI — bias detection, ' +
-    'PII scrubbing, content safety, and output validation middleware.'
+description = 'Safety and regulatory guardrails for CafeAI — PII scrubbing, jailbreak and ' +
+    'prompt-injection detection, toxicity filtering, topic boundaries, and regulatory compliance.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 

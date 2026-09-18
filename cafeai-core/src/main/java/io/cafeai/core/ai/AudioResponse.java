@@ -17,7 +17,6 @@ package io.cafeai.core.ai;
  * <h2>Differences from {@link PromptResponse}</h2>
  * <ul>
  *   <li>{@link #ragDocuments()} is always empty — RAG is not applicable to audio calls</li>
- *   <li>{@link #fromCache()} is always {@code false} — audio semantic cache not yet implemented</li>
  *   <li>Token counts reflect the audio encoding cost, which is typically higher
  *       than equivalent text prompts</li>
  * </ul>
@@ -92,12 +91,6 @@ public final class AudioResponse {
      * }</pre>
      */
     public boolean hasSpeech()  { return audioBytes != null && audioBytes.length > 0; }
-
-    /**
-     * Always {@code false} — audio semantic cache is not yet implemented.
-     * Reserved for future use.
-     */
-    public boolean fromCache()  { return false; }
 
     /**
      * Always empty — RAG retrieval is not applicable to audio calls.

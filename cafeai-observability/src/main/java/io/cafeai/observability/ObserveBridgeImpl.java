@@ -64,7 +64,6 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         // CafeAI extensions (no semconv equivalent)
         static final String LATENCY   = "cafeai.latency_ms";
         static final String SESSION   = "cafeai.session.id";
-        static final String CACHE_HIT = "cafeai.cache_hit";
         static final String RAG_DOCS  = "cafeai.rag.documents_retrieved";
         static final String TOTAL_TOK = "cafeai.usage.total_tokens";
 
@@ -192,9 +191,6 @@ public final class ObserveBridgeImpl implements ObserveBridge {
             if (ragDocs > 0) {
                 sb.append("  rag docs:   ").append(ragDocs).append(" retrieved\n");
             }
-            if (response.fromCache()) {
-                sb.append("  cache:      hit\n");
-            }
         }
         sb.append("------------------------------------------------------");
         log.info(sb.toString());
@@ -218,7 +214,6 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 span.setAttribute(Sem.IN_TOKENS,  response.promptTokens());
                 span.setAttribute(Sem.OUT_TOKENS, response.outputTokens());
                 span.setAttribute(Sem.TOTAL_TOK,  response.totalTokens());
-                span.setAttribute(Sem.CACHE_HIT,  response.fromCache());
 
                 int ragDocs = response.ragDocuments() != null
                     ? response.ragDocuments().size() : 0;

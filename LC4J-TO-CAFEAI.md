@@ -482,7 +482,7 @@ app.guard(GuardRail.topicBoundary().allow("insurance").deny("competitor pricing"
 ```
 
 `GuardRail` (`cafeai-guardrails`: PII via regex patterns, jailbreak,
-prompt-injection, bias, hallucination, toxicity, a GDPR/HIPAA/FCRA/CCPA/
+prompt-injection, toxicity, a GDPR/HIPAA/FCRA/CCPA/
 ECOA/fair-housing catalog, topic-boundary allow/deny) has **zero
 LangChain4j imports** — none of this exists in LangChain4j at all (§1.9);
 `InputGuardrail`/`OutputGuardrail` are an empty hook there. Two additional

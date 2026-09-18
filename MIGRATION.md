@@ -161,6 +161,23 @@ objects instead of `null`. If you had written around any of these — for exampl
 reading cookies from the raw `Cookie` header, or catching the `UnsupportedOperationException`
 from `res.render()` — you can delete the workaround.
 
+**12. `GuardRail.bias()` and `GuardRail.hallucination()` are removed — they never
+guarded anything.** Both returned a pass-through guardrail, so a request was never
+blocked or flagged by them. Remove the `app.guard(...)` calls; nothing about your
+app's behaviour changes, but do not assume bias or hallucination is being checked,
+because it never was. For hallucination *scoring* (not blocking) use
+`app.eval(EvalHarness.defaults())`. If you implement `GuardRailProvider` yourself,
+delete the two `@Override` methods.
+
+**13. `fromCache()` and `AiSecurity.semanticCachePoisoningDetector()` are removed —
+there is no semantic cache.** `response.fromCache()` (on `PromptResponse`,
+`VisionResponse` and `AudioResponse`) always returned `false`; drop any branch on it.
+The `cafeai.cache_hit` OpenTelemetry span attribute is gone with it. If you registered
+`semanticCachePoisoningDetector()`, remove it: besides guarding nothing, it rejected
+short prompts containing several imperative words with a 400. `SecurityEvent` is a
+sealed interface whose `CachePoisoningAttempt` subtype is removed, so delete that case
+from any exhaustive `switch (event)`.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.

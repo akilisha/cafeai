@@ -947,7 +947,7 @@ public interface CafeAI extends Router {
      * <p>Span attributes recorded per LLM call:
      * {@code model}, {@code prompt_tokens}, {@code completion_tokens},
      * {@code latency_ms}, {@code rag_documents_retrieved},
-     * {@code guardrail_triggered}, {@code cache_hit}, {@code session_id}.
+     * {@code guardrail_triggered}, {@code session_id}.
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */

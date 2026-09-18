@@ -259,7 +259,6 @@ class NamedProviderTest {
                 .modelId("whisper-1")
                 .build();
             assertThat(r.totalTokens()).isEqualTo(60);
-            assertThat(r.fromCache()).isFalse();
             assertThat(r.ragDocuments()).isEmpty();
             assertThat(r.toString()).isEqualTo("hello");
         }

@@ -57,7 +57,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-agents:0.4.0'         // app.agent() — LangChain4j AiServices
     implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // tiered context memory
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, bias, …
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, toxicity, regulatory
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry, evals
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // prompt injection, data leakage
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector
@@ -151,15 +151,11 @@ Incoming Request
    ↓
 [ token budget enforcer ]       ← cost middleware
    ↓
-[ semantic cache lookup ]       ← memory middleware
-   ↓
 [ RAG retrieval ]               ← rag middleware
    ↓
 [ LLM call / model router ]     ← ai middleware
    ↓
 [ guardrails POST ]             ← ethical / regulatory middleware
-   ↓
-[ hallucination scorer ]        ← guardrail middleware
    ↓
 [ observability / OTel trace ]  ← observe middleware
    ↓
@@ -228,8 +224,6 @@ app.rag(Retriever.hybrid(5))             // dense + sparse retrieval
 app.guard(GuardRail.pii())               // PII scrub — pre and post LLM
 app.guard(GuardRail.jailbreak())         // adversarial prompt detection
 app.guard(GuardRail.promptInjection())   // data-sourced injection detection
-app.guard(GuardRail.bias())              // demographic bias detection
-app.guard(GuardRail.hallucination())     // factual grounding scoring
 app.guard(GuardRail.toxicity())          // harmful content filtering
 app.guard(GuardRail.regulatory()         // GDPR, HIPAA, FCRA, CCPA
     .gdpr().hipaa())
@@ -322,9 +316,9 @@ cafeai/
 ├── cafeai-agents         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
 ├── cafeai-memory         ← Tiered context memory (in-memory, FFM/SSD, Redis)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
-├── cafeai-guardrails     ← PII, jailbreak, bias, hallucination, regulatory compliance
+├── cafeai-guardrails     ← PII, jailbreak, toxicity, regulatory compliance
 ├── cafeai-observability  ← OpenTelemetry tracing, console logging, eval harness
-├── cafeai-security       ← Prompt injection, data leakage, semantic cache poisoning
+├── cafeai-security       ← Prompt injection, data leakage
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)

@@ -91,11 +91,9 @@ Incoming Request
    ├─► [ prompt injection guard ]      ← security middleware
    ├─► [ guardrails PRE ]              ← ethical / regulatory middleware
    ├─► [ token budget enforcer ]       ← cost middleware
-   ├─► [ semantic cache lookup ]       ← memory middleware
    ├─► [ RAG retrieval ]               ← rag middleware
    ├─► [ LLM call / model router ]     ← ai middleware
    ├─► [ guardrails POST ]             ← ethical / regulatory middleware
-   ├─► [ hallucination scorer ]        ← guardrail middleware
    ├─► [ observability / OTel trace ]  ← observe middleware
    ├─► [ memory write ]                ← memory middleware
    └─► [ streaming response ]          ← streaming middleware (SSE / WebSocket)
@@ -116,11 +114,11 @@ graph TD
         subgraph MW["Middleware Chain"]
             Auth["Auth / Rate Limit"]
             Security["Security Layer\n(PII · Jailbreak · Injection)"]
-            GuardPre["Guardrails PRE\n(Bias · Regulatory · Topic)"]
-            Cost["Token Budget\nSemantic Cache"]
+            GuardPre["Guardrails PRE\n(Regulatory · Topic)"]
+            Cost["Token Budget"]
             RAG["RAG Retrieval\n(Embed · Search · Rerank)"]
             LLM["LLM Call\nModel Router"]
-            GuardPost["Guardrails POST\n(Hallucination · Toxicity)"]
+            GuardPost["Guardrails POST\n(Toxicity)"]
             Observe["Observability\n(OTel · Evals · Prompts)"]
             MemWrite["Memory Write"]
             Stream["Streaming Response\n(SSE / WebSocket)"]
@@ -253,7 +251,7 @@ AiSecurity.onEvent(event -> { ... })              // typed audit event listener
 app.observe(ObserveStrategy.console())    // development console traces
 app.observe(ObserveStrategy.otel())       // OpenTelemetry export
 app.eval(EvalStrategy.relevance())        // RAG relevance scoring
-app.eval(EvalStrategy.faithfulness())     // hallucination detection
+app.eval(EvalHarness.defaults())         // heuristic faithfulness / relevance / groundedness scores
 ```
 
 ### 3.8 Agent Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
@@ -425,9 +423,9 @@ cafeai/
 ├── cafeai-config/                      ← Application configuration — ConfigKey/AppConfig, Helidon Config-backed
 ├── cafeai-memory/                      ← Tiered context memory
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
-├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
+├── cafeai-guardrails/                  ← PII, jailbreak, toxicity, regulatory compliance
 ├── cafeai-observability/               ← OpenTelemetry tracing, console logging, evals
-├── cafeai-security/                    ← Prompt injection, data leakage, cache poisoning
+├── cafeai-security/                    ← Prompt injection, data leakage
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
 ├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity

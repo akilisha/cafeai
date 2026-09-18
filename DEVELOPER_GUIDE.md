@@ -790,7 +790,6 @@ response.promptTokens()  // → 12   (tokens you paid for the input)
 response.outputTokens()  // → 23   (tokens you paid for the output)
 response.totalTokens()   // → 35   (promptTokens + outputTokens)
 response.modelId()       // → "gpt-4o"   (which model actually answered)
-response.fromCache()     // → false  (semantic cache — future phase)
 response.toString()      // → same as .text() — usable directly as a String
 ```
 
@@ -2291,7 +2290,7 @@ Each guardrail has a `Position` that determines when it runs relative to the LLM
 | Position | When it runs | Typical use |
 |---|---|---|
 | `PRE_LLM` | Before the LLM is called | Input validation, jailbreak detection |
-| `POST_LLM` | After the LLM responds | Output filtering, bias detection |
+| `POST_LLM` | After the LLM responds | Output filtering, toxicity checks |
 | `BOTH` | Both before and after | PII (scrub input, check output) |
 
 Position is determined by the guardrail implementation — you don't set it manually.
@@ -2415,7 +2414,6 @@ Span attributes recorded per call:
 | `cafeai.latency_ms` | long | Wall-clock latency in milliseconds |
 | `cafeai.session_id` | string | Session ID if present |
 | `cafeai.rag_docs_retrieved` | int | Number of RAG documents retrieved |
-| `cafeai.cache_hit` | boolean | Whether response came from cache |
 | `cafeai.error` | string | Error class name if the call failed |
 
 ### 21.5 Eval harness — automatic quality scoring

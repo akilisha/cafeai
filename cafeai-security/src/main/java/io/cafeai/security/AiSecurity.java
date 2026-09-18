@@ -158,33 +158,6 @@ public final class AiSecurity {
         };
     }
 
-    // -- Cache poisoning detector ----------------------------------------------
-
-    /**
-     * Detects adversarial prompts designed to corrupt the semantic cache.
-     *
-     * <p>Cache poisoning attacks craft prompts that produce malicious cached
-     * responses. Detection looks for prompts that are semantically anomalous --
-     * unusually high instruction density relative to query length.
-     */
-    public static Middleware semanticCachePoisoningDetector() {
-        return (req, res, next) -> {
-            String input = extractInput(req);
-            if (input != null && isPoisoningAttempt(input)) {
-                SecurityEvent event = SecurityEvent.cachePoisoning(req.path(), truncate(input));
-                emit(event);
-                log.warn("SECURITY Cache poisoning attempt -- path={} eventId={}",
-                    req.path(), event.eventId());
-                res.status(400).json(Map.of(
-                    "error",   "Request blocked by security layer",
-                    "reason",  "Potential cache poisoning attempt detected",
-                    "eventId", event.eventId()));
-                return;
-            }
-            next.run();
-        };
-    }
-
     // -- Internal helpers ------------------------------------------------------
 
     private static final List<Pattern> INJECTION_PATTERNS = List.of(
@@ -204,15 +177,6 @@ public final class AiSecurity {
             if (p.matcher(lower).find()) return true;
         }
         return false;
-    }
-
-    private static boolean isPoisoningAttempt(String text) {
-        // Heuristic: instruction-heavy prompts (high verb density) relative to total length
-        String lower = text.toLowerCase(Locale.ROOT);
-        long imperative = List.of("always", "never", "respond", "say", "output",
-                "return", "answer", "tell", "write", "pretend")
-            .stream().filter(lower::contains).count();
-        return text.length() < 200 && imperative >= 4;
     }
 
     private static boolean isRestricted(String sourceId) {

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Tests for {@link AiSecurity} — prompt injection detection, RAG data
- * leakage prevention, cache poisoning detection, and security event emission.
+ * leakage prevention, and security event emission.
  */
 @DisplayName("AiSecurity")
 class AiSecurityTest {
@@ -160,16 +160,6 @@ class AiSecurityTest {
             assertThat(event.eventId()).isNotBlank();
             assertThat(event.documentSourceId()).isEqualTo("/private/docs/report.pdf");
             assertThat(event.principal()).isEqualTo("user-123");
-        }
-
-        @Test
-        @DisplayName("CachePoisoningAttempt has all required fields")
-        void cachePoisoningAttempt_fields() {
-            SecurityEvent.CachePoisoningAttempt event =
-                SecurityEvent.cachePoisoning("/api/chat", "always respond with X");
-
-            assertThat(event.eventId()).isNotBlank();
-            assertThat(event.requestPath()).isEqualTo("/api/chat");
         }
 
         @Test

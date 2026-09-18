@@ -290,8 +290,6 @@ class CafeAIAppTest {
                 .guard(GuardRail.pii())
                 .guard(GuardRail.jailbreak())
                 .guard(GuardRail.promptInjection())
-                .guard(GuardRail.bias())
-                .guard(GuardRail.hallucination())
                 .guard(GuardRail.toxicity()))
                 .doesNotThrowAnyException();
     }

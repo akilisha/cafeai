@@ -68,18 +68,6 @@ public interface GuardRail extends Middleware {
             .orElseGet(() -> warnedStub("prompt-injection", Position.PRE_LLM));
     }
 
-    /** Demographic bias detection in model outputs. */
-    static GuardRail bias() {
-        return provider().map(p -> p.bias())
-            .orElseGet(() -> warnedStub("bias", Position.POST_LLM));
-    }
-
-    /** Factual grounding / hallucination scoring against RAG corpus. */
-    static GuardRail hallucination() {
-        return provider().map(p -> p.hallucination())
-            .orElseGet(() -> warnedStub("hallucination", Position.POST_LLM));
-    }
-
     /** Toxic and harmful content filtering. */
     static GuardRail toxicity() {
         return provider().map(p -> p.toxicity())

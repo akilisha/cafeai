@@ -149,7 +149,6 @@ class AiPrimitivesTest {
 
         assertThat(response.text()).isEqualTo("Paris");
         assertThat(response.modelId()).isEqualTo("test-model");
-        assertThat(response.fromCache()).isFalse();
     }
 
     @Test

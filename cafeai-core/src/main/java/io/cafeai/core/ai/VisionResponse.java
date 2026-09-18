@@ -17,7 +17,6 @@ package io.cafeai.core.ai;
  * <h2>Differences from {@link PromptResponse}</h2>
  * <ul>
  *   <li>{@link #ragDocuments()} is always empty — RAG is not applicable to vision calls</li>
- *   <li>{@link #fromCache()} is always {@code false} — vision semantic cache not yet implemented</li>
  *   <li>Token counts include both the text prompt and the binary content encoding</li>
  * </ul>
  */
@@ -49,12 +48,6 @@ public final class VisionResponse {
 
     /** The model ID that generated this response. */
     public String modelId()     { return modelId; }
-
-    /**
-     * Always {@code false} — vision semantic cache is not yet implemented.
-     * Reserved for future use.
-     */
-    public boolean fromCache()  { return false; }
 
     /**
      * Always empty — RAG retrieval is not applicable to vision calls.

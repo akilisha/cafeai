@@ -67,6 +67,31 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   setting for, so the API is removed instead of implying protection it didn't give.
   `req.range(size)` was declared to return an untyped `Object` and always returned
   `null`. ADR-005 marks all of these "Omitted".
+- **`GuardRail.bias()` and `GuardRail.hallucination()`** (and the same two methods on
+  the `GuardRailProvider` SPI). They were pass-through stubs even with
+  `cafeai-guardrails` on the classpath: `app.guard(GuardRail.bias())` returned a guardrail
+  that let everything through, so the app looked protected when it was not. Bias
+  detection needs a trained model that was never bundled; hallucination *scoring* exists
+  as `EvalHarness`'s heuristic faithfulness / relevance / groundedness scores, which score
+  rather than block.
+- **The semantic-cache remnants.** No semantic cache was ever built, yet:
+  `PromptResponse`/`VisionResponse`/`AudioResponse.fromCache()` was hard-wired to `false`
+  (and `PromptResponse.Builder.fromCache(boolean)`), observability branched on it and wrote
+  a `cafeai.cache_hit` span attribute that could only ever be `false`, and the security
+  module shipped `AiSecurity.semanticCachePoisoningDetector()` with a
+  `SecurityEvent.CachePoisoningAttempt` type. That detector was not inert: it answered
+  `400 "Potential cache poisoning attempt detected"` to any prompt under 200 characters
+  containing four of `always`, `never`, `respond`, `say`, `output`, `return`, `answer`,
+  `tell`, `write`, `pretend` — an ordinary short instruction — to protect a cache that does
+  not exist. All removed. `SecurityEvent` is a sealed interface, so an exhaustive `switch`
+  over it must drop its `CachePoisoningAttempt` case.
+- **Wrong module descriptions**, which are published to Maven Central: `cafeai-security`
+  claimed jailbreak detection, PII scrubbing and token-budget enforcement (none are in that
+  module; it has `promptInjectionDetector`, `ragDataLeakagePrevention` and `onEvent`),
+  `cafeai-guardrails` claimed bias and hallucination detection and "NLP" (it is all
+  pattern-based), and `cafeai-observability` claimed metrics and prompt versioning.
+  The README, GETTING-STARTED, SPEC and LC4J guide are corrected, and the SPEC's
+  `EvalStrategy.faithfulness()` (no such class) now reads `EvalHarness.defaults()`.
 
 ### Fixed
 

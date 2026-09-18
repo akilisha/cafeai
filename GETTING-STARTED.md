@@ -106,10 +106,10 @@ cafeai/
 ├── cafeai-config/          ← Application configuration — ConfigKey/AppConfig, Helidon Config-backed
 ├── cafeai-memory/          ← Tiered context memory
 ├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
-├── cafeai-guardrails/      ← PII, jailbreak, bias, hallucination, regulatory
+├── cafeai-guardrails/      ← PII, jailbreak, toxicity, regulatory
 ├── cafeai-observability/   ← OpenTelemetry tracing, console logging, eval harness
 ├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
-├── cafeai-security/        ← Prompt injection, data leakage, cache poisoning
+├── cafeai-security/        ← Prompt injection, data leakage
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
 ├── cafeai-sentinel/        ← AI cluster incident pipeline for Kubernetes / OpenShift

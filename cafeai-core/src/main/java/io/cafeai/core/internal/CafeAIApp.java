@@ -460,7 +460,6 @@ public final class CafeAIApp implements CafeAI {
                     .promptTokens(promptTokens)
                     .outputTokens(outputTokens)
                     .modelId(provider.modelId())
-                    .fromCache(false)
                     .ragDocuments(retrievedDocs)
                     .build()
                     : null;
@@ -495,7 +494,6 @@ public final class CafeAIApp implements CafeAI {
                 .promptTokens(promptTokens)
                 .outputTokens(outputTokens)
                 .modelId(provider.modelId())
-                .fromCache(false)
                 .ragDocuments(retrievedDocs)
                 .build();
     }
@@ -599,7 +597,6 @@ public final class CafeAIApp implements CafeAI {
                                         .promptTokens(promptTokens)
                                         .outputTokens(outputTokens)
                                         .modelId(provider.modelId())
-                                        .fromCache(false)
                                         .build();
                                 observeBridge.afterPrompt(observeCtx, request, pr, null);
                             }

@@ -174,13 +174,6 @@ class VisionPipelineTest {
         }
 
         @Test
-        @DisplayName("fromCache() always returns false")
-        void fromCache_alwaysFalse() {
-            var r = VisionResponse.builder().text("x").modelId("m").build();
-            assertThat(r.fromCache()).isFalse();
-        }
-
-        @Test
         @DisplayName("ragDocuments() always returns empty list")
         void ragDocuments_alwaysEmpty() {
             var r = VisionResponse.builder().text("x").modelId("m").build();

@@ -22,8 +22,6 @@ public interface GuardRailProvider {
     GuardRail pii();
     GuardRail jailbreak();
     GuardRail promptInjection();
-    GuardRail bias();
-    GuardRail hallucination();
     GuardRail toxicity();
     GuardRail regulatory();
     GuardRail topicBoundary();
