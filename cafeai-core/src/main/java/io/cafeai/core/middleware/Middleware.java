@@ -19,7 +19,7 @@ import io.cafeai.core.routing.Response;
  *   // Cross-cutting pre-processing -- runs before route dispatch (app.filter):
  *   app.filter(Middleware.requestLogger());
  *   app.filter(CafeAI.json());
- *   app.filter("/api", Middleware.auth());
+ *   app.filter("/api", Middleware.cors());
  *
  *   // Per-route inline pipeline (variadic handlers):
  *   app.get("/users/:id", authenticate, authorize("admin"),

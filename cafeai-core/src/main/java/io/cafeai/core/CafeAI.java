@@ -310,7 +310,7 @@ public interface CafeAI extends Router {
      * the given prefix.
      *
      * <pre>{@code
-     *   app.filter("/api", Middleware.auth());         // auth every /api/** request
+     *   app.filter("/api", Middleware.cors());         // CORS on every /api/** request
      *   app.filter("/api", Middleware.rateLimit(100)); // rate-limit /api/** only
      * }</pre>
      *

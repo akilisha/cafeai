@@ -1,88 +1,62 @@
-# The Capstone Series — What Four Applications Prove
+# The Capstone Series — Five Applications and What Each Found
 
 *Post 12 of 12 in the CafeAI series*
 
-> **Note (2026-09).** This post is written in the past tense as narrative. The four
-> apps now live in `capstones/` in the main repo, built against `project(':cafeai-*')`.
-> `support-agent` was renamed `support-desk`; `atlas-inbox` was renamed
-> `invoice-processor`. The tool-calling shown here as `app.tool()` / `@CafeAITool`
-> is now agent-only — `app.agent(name, Iface).tool(...)` with LangChain4j `@Tool`.
-> ROADMAP-16's named-provider registry — described below as a still-open gap —
-> has since shipped as `app.ai(name, provider)`; `nova-tutor` itself, the
-> capstone that would prove it under real use, is still unbuilt. See
-> `capstones/README.md`.
+---
+
+A framework's documentation says what it is meant to do. An application built with it finds out what it does. The capstones in `capstones/` are five runnable applications, each chosen to lean on a different part of CafeAI, and most of what is now in the framework (the multimodal entry points, structured output, the token budget, the engine-applied guardrails) is there because one of them ran into its absence.
+
+A note on what these applications are. Each consumes the framework as `project(':cafeai-*')`, so an API change that breaks a capstone breaks `./gradlew build`; CI compiles them. Their "test" classes are live-service harnesses (a real model, real Gmail, a real cluster), run by hand. They are not part of the automated suite, which lives in the framework modules (post 8 describes what it covers for guardrails). This post is about what the capstones showed, not a claim that they are regression tests.
 
 ---
 
-A framework is not proven by its documentation. It is proven by the applications built with it — specifically by the applications that hit the framework's limits, expose its gaps, and force the question: is this a framework that grows to meet real demands, or one that works until the problem gets hard?
+## Capstone 1 — `support-desk`: Everything at Once
 
-Four applications. Fourteen roadmap items. Three hundred and fifty-nine tests. This is what they proved.
+A Helidon-served support assistant for an imaginary connection pool library: RAG over its documentation, a GitHub-issue agent with two tools, session memory, guardrails, the security filter, observability and a WebSocket chat.
 
----
+The first application is the discovery pass. It wires the stack together for the first time and finds out what works and what was only assumed to. One lesson from that pass has held ever since: a module's own tests cannot find a missing connection *between* modules. A guardrail can be registered, correct and unit-tested, and still never be called by the pipeline. That is why `cafeai-core` now has tests that register a guardrail and assert the engine applies it to `app.prompt()`, `.vision()` and `.audio()`.
 
-## Capstone 1 — `support-agent`: Discovery
-
-The first application is always the discovery pass. You wire the stack together for the first time and find out what actually works versus what was assumed to work.
-
-`support-agent` found the most important bug in CafeAI's early architecture: `app.guard()` was not wired into the pipeline. Guardrails were registered. They were never called. The bug existed from the beginning and was invisible until a complete application tried to use them.
-
-This is the value of capstone projects. Unit tests cannot find a bug in the integration between two systems. An application finds it immediately.
-
-What `support-agent` proved:
-
-**RAG, memory, tools, guardrails, observability, and HTTP routing compose correctly.** The pipeline works end-to-end. A question reaches the HTTP handler, RAG retrieves relevant documentation, session memory threads the conversation history, the LLM answers using the retrieved context, guardrails check the response, observability traces the call, memory writes back the exchange. All of this is registered at startup in under 20 lines.
-
-**Local model + cloud fallback works as a deployment pattern.** Ollama runs locally in development with no API cost. OpenAI runs in production or environments where Ollama is unavailable. The same code, the same application, two different runtime profiles — switched by one line at startup.
+It also shows the local-model-with-cloud-fallback pattern: `app.connect(Ollama...)` probes Ollama at startup and registers OpenAI if it is not there. The choice is made once, at startup.
 
 ---
 
-## Capstone 2 — `meridian-qualify`: Stress Test
+## Capstone 2 — `meridian-qualify`: A Regulated Domain
 
-The second application was chosen to stress-test. A loan pre-qualification assistant in a regulated domain — FCRA, ECOA, fair lending. If CafeAI's primitives hold up under regulatory pressure, the framework is ready for serious work. If they feel forced, the framework needs to grow.
+A loan pre-qualification assistant, chosen because a regulated domain is where a framework's safety story either holds up or does not.
 
-What `meridian-qualify` proved:
-
-**Regulatory guardrails compose correctly with domain logic.** The FCRA and ECOA guardrails register alongside the jailbreak and PII guardrails without conflict. Each fires at its position in the pipeline. The model's outputs are checked against regulatory constraints before the caller receives them.
-
-**Structured output is a missing primitive.** Every qualification decision needed to be a typed `QualificationDecision` record — not free text. The boilerplate appeared the first time in `meridian-qualify`. It appeared three more times in `atlas-inbox`. By the fourth repetition, the primitive had been added to the framework.
-
-**Tool-as-policy-enforcer under adversarial testing.** Attempts to convince the model to approve a loan despite a tool returning `INSUFFICIENT_CREDIT` failed. The tool result was authoritative. The model respected it. This was meaningful validation — it is not obvious that a language model will consistently honour tool results as factual constraints rather than as one more piece of context to reason around.
+- **Regulatory guardrails compose.** ECOA, FCRA and Fair Housing checks register beside the jailbreak, injection and topic guardrails, each firing in registration order. Note that `regulatory()` screens the user's input only; it does not read the model's answer.
+- **Typed output.** Every qualification decision is a `QualificationDecision` record, not free text. The same boilerplate (ask for JSON, parse it, handle a bad reply) appeared here and again in `invoice-processor`, which is how `.call(Class)` came to exist (post 10).
+- **A tool that computes the verdict.** The footprint check returns `APPROVED` or `DECLINED`, and the system prompt says the tool's result is authoritative. That constrains what the model can honestly say, because the answer came from a method. It is a request to the model, though, not a guarantee (post 7 covers this).
 
 ---
 
-## Capstone 3 — `acme-claims`: Confirmation
+## Capstone 3 — `acme-claims`: A Second Domain
 
-The third application ran cleaner than the first two. The hard lessons had already been baked into the framework. The domain was new (insurance, not lending), the RAG corpus was different (policy documents, not API documentation), the memory strategy was upgraded (Redis instead of SSD), and the vector store was upgraded (Chroma instead of in-memory).
+Insurance claims intake: a claims-API agent, Redis session memory, Chroma for the policy documents, HIPAA and fraud-coaching guardrails.
 
-None of these changes required framework modifications. The one-line swap between memory strategies worked as specified. The vector store swap was one line. The new domain's guardrails composed with the existing ones without conflict.
-
-What `acme-claims` proved:
-
-**The framework transfers to new domains without modification.** The primitives are genuinely reusable. A developer building an insurance application uses the same `app.guard()`, `app.rag()`, and `app.memory()` as a developer building a lending application. The domain is in the configuration, not in the framework.
-
-**The tiered memory model works as specified.** `MemoryStrategy.redis()` is a drop-in replacement for `MemoryStrategy.mapped()`. Sessions persist across restarts. Multiple instances share the session store. One line changed.
-
-**This is what a maturing framework feels like.** The first capstone was about discovery. The second was about stress-testing. The third ran clean because the hard lessons were already fixed. The test suite that proved the fixes is the reason the third capstone could trust the framework.
+The point of the third application is transfer. The domain changed, the corpus changed, and the session memory and vector store are Redis and Chroma rather than the in-process options; each of those is a one-line choice at startup (`MemoryStrategy.redis(...)`, `VectorStore.chroma(...)`). The application code that calls `app.prompt()` did not change.
 
 ---
 
-## Capstone 4 — `atlas-inbox`: The Real Test
+## Capstone 4 — `invoice-processor`: The Gap Finder
 
-The fourth application was the hardest. It introduced three capabilities that had never been demonstrated — and exposing their absence was half the point.
+A batch application with no HTTP server: it reads vendor invoices from Gmail, extracts them with `app.vision()`, reconciles them with a reconciliation agent and classifies email sentiment. It found three gaps.
 
-**The multimodal gap.** `app.prompt()` accepts a string. There was no CafeAI-native path for binary content. The first version of `atlas-inbox` worked around this with `MultimodalChatService` — a raw LangChain4j wrapper that bypassed the entire CafeAI pipeline. Guardrails did not fire on those calls. Observability did not trace them. CafeAI was a satellite orbiting a sun that had nothing to do with the framework.
+**Multimodal.** `app.prompt()` took a string, so the first version routed PDFs through its own wrapper around LangChain4j. Guardrails did not fire on those calls and observability did not trace them; the framework was beside the hardest work rather than under it. `app.vision()` and `app.audio()` are now first-class entry points that run the same pipeline, and the wrapper is gone.
 
-The gap was closed. `app.vision()` and `app.audio()` are first-class entry points. Every call routes through the pipeline. `MultimodalChatService` was deleted.
+**Structured output.** The parse-the-JSON boilerplate appeared repeatedly and is now one call.
 
-**The structured output gap.** The boilerplate appeared four times. The primitive was added. The pattern became one line.
+**Token budget.** Application code carried `Thread.sleep` calls to stay under rate limits. The token budget replaced them.
 
-**The token budget gap.** `Thread.sleep` appeared twice in application code. The primitive was added. The sleeps were removed.
+The application also carries the clearest lesson about validation. A refactor was "complete" when it compiled; the real proof was running real PDFs through the real pipeline and recording every outcome in `capstones/invoice-processor/notes/VALIDATION.md`. That run found multi-page PDFs being misclassified (a prompt fix) and a sample invoice that was really from a different vendor (a stub-data fix). Neither was visible in the code.
 
-What `atlas-inbox` proved:
+---
 
-**The gravity of a framework is determined by what it can and cannot attract.** When a framework has gaps, the difficult work clusters around whatever can do the work — even if that thing has nothing to do with the framework. `MultimodalChatService` was the gravity well for the hardest work in `atlas-inbox`. When the framework grew to handle that work, gravity shifted. CafeAI became the sun.
+## Capstone 5 — `cluster-sentinel`: A Different Kind of Application
 
-**Correctness requires validation, not just compilation.** The ROADMAP-14 Phase 7 refactor was declared complete when the code compiled. The VALIDATION.md that Phase 8 produced — running real PDFs through the real pipeline and documenting every outcome — was the actual proof. Two things were discovered: multi-page PDFs were being misclassified (prompt fix), and the Heiden PDF was actually a Graybar Electric invoice (stub data fix). Neither was visible from the code. Both required running the application.
+`cafeai-sentinel` is a module that triages Kubernetes and OpenShift incidents: rule-based classification first, an agent that investigates, secret and PII redaction on the way out, and an SSE dashboard. The capstone runs it against a cluster, and all four of its demo scenarios were run on a real OpenShift cluster.
+
+It matters because it is not a chat application. It shows the same primitives (agents, guardrails, redaction, streaming) serving an operations workflow, and it is the one capstone that ships as a published module rather than only as an example.
 
 ---
 
@@ -90,65 +64,41 @@ What `atlas-inbox` proved:
 
 | Metric | Value |
 |--------|-------|
-| Total tests | 359 |
-| Test modules | cafeai-core (307), cafeai-guardrails (33), cafeai-memory (20), cafeai-rag (13), cafeai-security (14) |
-| Capstones | 4 complete, 1 specified (nova-tutor) |
-| Roadmap items | 15 complete |
-| Framework modules | 10 (core, memory, rag, agents, guardrails, observability, security, connect, views-mustache, sentinel) |
-| Modalities | 3 (prompt, vision, audio) |
-| Memory rungs | 4 (inMemory, mapped, redis, hybrid) |
-| Vector stores | 3 (inMemory, Chroma, PgVector) |
-| LLM providers | 5 (OpenAI, Anthropic, Gemini, Ollama, Jlama) |
+| Published modules | 11 (core, config, memory, rag, guardrails, observability, security, views-mustache, connect, agents, sentinel) |
+| Test methods | about 860 across those modules (core ~590, sentinel ~60, guardrails ~55, connect ~47, observability ~27, agents ~23, memory ~20, views-mustache ~17, security ~12, config ~8, rag ~4) |
+| Runnable capstones | 5 (plus `nova-tutor`, specified but not built) |
+| Entry points | `app.prompt()`, `app.vision()`, `app.audio()`, `app.synthesise()` |
+| Memory strategies | 4 (`inMemory`, `mapped`, `redis`, `hybrid`) |
+| Vector stores | 3 (in-memory, Chroma, PgVector) |
+| LLM providers | 6 (OpenAI, Anthropic, Gemini, Ollama, Jlama, NVIDIA) |
+
+Counts are `@Test` annotations, not executed cases, and a test count says how much is checked, not how well. Live tests exist for NVIDIA and Jlama only (`GETTING-STARTED.md` explains how to run them); the other providers are covered by mapping tests that do not call a model.
 
 ---
 
-## What Was Not Built
+## Known Limits
 
-Honesty about what is missing matters more than the feature list.
+The framework's limits are listed in its documentation rather than discovered in production. The ones worth having in mind:
 
-**Named provider registry.** `app.ai()` registers one provider. The `nova-tutor` capstone needs three simultaneously — transcription, reasoning, synthesis. The workaround is three separate CafeAI instances. The framework gap is documented. ROADMAP-16 closes it.
-
-**Audio output (TTS).** `AudioResponse` returns text. Speech synthesis produces audio bytes. The response type needs extension. The design decision (new field vs new entry point) is deferred to ROADMAP-16.
-
-**Streaming vision.** `app.vision().stream()` does not exist yet. Vision calls block until the full response arrives. For long classification calls, this means waiting 3-8 seconds for the first token. ROADMAP-15 Phase 6 specifies the fix; it was deferred in favour of completing the audio pipeline and validation.
-
-**Real-time audio.** Live transcription of a phone call in progress requires a fundamentally different pipeline model — WebSocket audio streaming, chunked transcription, real-time response generation. Not yet scoped.
-
-These are not failures. A framework that honestly documents its limits is more trustworthy than one that claims to do everything. The gaps are tracked, scoped, and addressed in order of actual demand.
+- **`.stream()` cannot take back tokens already sent.** A POST_LLM guardrail that flags a streamed answer can only report it afterwards.
+- **An agent's retrieved documents are not screened.** LangChain4j owns that path; only `app.prompt()` screens what RAG retrieves.
+- **`regulatory()` checks input only.**
+- **The semantic cache is in-memory only.** There is no store-backed cache.
+- **There is no per-user access control on documents**, so a knowledge base is readable by every caller of the application.
+- **Real-time audio** (live transcription of a call in progress) needs a different pipeline model and is not scoped.
+- **`nova-tutor`**, the AI tutor that would combine audio, vision, structured output and RAG under one application, exists as a specification (`docs/roadmap/CAPSTONE-5-nova-tutor.md`) and has not been built.
 
 ---
 
-## The Architecture That Emerged
+## What Emerged
 
-Looking across all four capstones, the architecture that emerged is not what was designed at the beginning. It is better.
+The middleware model is the right shape for the HTTP side of an AI application: a JSON parser, CORS, a rate limit and your own authentication compose in order, and any of them can be added or removed without touching the others. The AI pipeline behind `app.prompt()` follows a fixed order (guardrails, cache, history, retrieval, the model call, guardrails again, memory), and what keeps it honest is that the engine applies the registered guardrails, so a call site cannot forget them.
 
-The middleware model turned out to be exactly the right abstraction — not just for HTTP routing (where it was already proven), but for guardrails, memory management, token budgets, and observability. Every hard problem in AI application development is a middleware concern. The pipeline is the architecture.
+The tiered memory model matters more than it looks. A local memory-mapped file is enough for one node and needs no infrastructure; Redis is for the moment a second instance needs to share sessions.
 
-The tiered memory model turned out to be more important than anticipated. Most AI tutorials default to Redis before asking whether Redis is needed. The `mapped()` tier — SSD-backed, crash-safe, zero infrastructure — handles most production workloads. Redis is the right answer for multi-instance deployments, not the right default for all deployments.
+A tool that computes the answer beats a prompt that asks for it. Where the eligibility check, the arithmetic or the permission is a Java method, a unit test can pin it. Where it is a sentence in a system prompt, it is hoped for.
 
-The tool-as-enforcement pattern turned out to be the key insight in agent safety. A tool that returns authoritative data constrains what the model can honestly say. The model cannot invent a credit score, an issue status, or a contracted amount when a tool returns the real value. This is not a guardrail — it is a structural property of how the pipeline is built.
-
-The capstone development process turned out to be the right way to find gaps. Unit tests cannot find integration bugs. Integration tests cannot find architectural gaps. A complete application running against real infrastructure finds both. The capstones are the reason the framework is correct, not just the reason it is documented.
-
----
-
-## What Comes Next
-
-**nova-tutor** — the fifth capstone. An AI tutoring and presentation agent that combines `app.audio()` for speech recognition, `app.vision()` for curriculum reading, `app.prompt()` for reasoning, structured output for whiteboard commands, RAG for the curriculum corpus, and session memory for conversation continuity. The tldraw whiteboard integration lives in the application; CafeAI provides the AI layer. This boundary is held deliberately tight.
-
-**ROADMAP-16** — named provider registry, TTS audio output, streaming-to-voice coordination. Three framework gaps surfaced by nova-tutor. Each is a real problem with a real design decision. ROADMAP-16 will address them in the same way ROADMAP-14 and ROADMAP-15 addressed the multimodal gap: as first-class framework primitives, not workarounds.
-
-**The blog series as conference talks.** Each post in this series is also a conference talk. The posts are structured as self-contained arguments: here is the problem, here is the design decision, here is the running code that proves the decision was correct. That is the right structure for a 40-minute conference talk on a technical topic.
-
----
-
-## The Last Word
-
-CafeAI is not finished. No serious framework ever is. The gaps are real, the next roadmap is scoped, and the fifth capstone is specified.
-
-What is finished: a framework that can be used to build real AI applications in Java, today, without trading understanding for convenience. A framework that treats safety as infrastructure. A framework that honest about its limits. A framework whose architecture can be explained in a conference talk, debugged in a stack trace, and tested in a CI pipeline.
-
-That is what the four capstones prove. Not that CafeAI does everything — that it does what it claims, correctly, with evidence.
+And an application running against real infrastructure finds what unit tests and integration tests do not. The capstones are the reason the framework has the shape it has.
 
 ---
 
@@ -166,7 +116,7 @@ That is what the four capstones prove. Not that CafeAI does everything — that 
 | 4 | [Prompt Engineering in Java](04-prompt-engineering-in-java.md) |
 | 5 | [Context Memory Without the Cloud Tax](05-context-memory-without-cloud-tax.md) |
 | 6 | [Building a RAG Pipeline in Java](06-building-rag-pipeline-in-java.md) |
-| 7 | Tool Use in Java *(outline drafted, prose pending)* |
+| 7 | [Tool Use in Java](07-tool-use-in-java.md) |
 | 8 | [Ethical Guardrails as Middleware](08-ethical-guardrails-as-middleware.md) |
 | 9 | [Vision and Audio in Java](09-vision-and-audio-in-java.md) |
 | 10 | [Structured Output](10-structured-output.md) |

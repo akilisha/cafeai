@@ -35,24 +35,24 @@ Incoming Request
     ↓
 [ PRE_LLM guardrails ]      — jailbreak, PII, topic boundary, injection
     ↓
+[ Semantic cache ]          — if enabled
+    ↓
 [ Session memory read ]     — load conversation history for this session ID
     ↓
-[ RAG retrieval ]           — semantic search against registered vector store
+[ RAG retrieval ]           — semantic search against the registered vector store
     ↓
-[ Token budget check ]      — wait if TPM limit is approaching
-    ↓
-[ LLM call ]                — with retry on rate limit
+[ LLM call ]                — waits for the token budget, retries on rate limit, observed
     ↓
 [ POST_LLM guardrails ]     — PII, toxicity, secrets, prompt leaks
-    ↓
-[ Observability ]           — token counts, latency, RAG documents retrieved
     ↓
 [ Session memory write ]    — store prompt + response for next turn
     ↓
 Response
 ```
 
-Every layer is independent. The developer can inspect, replace, or remove any of them without touching the others. The LLM call does not know whether RAG ran before it. The guardrail does not know what the session history contains. The observability layer does not affect what the caller receives.
+Each layer is independent. Register it or leave it out and the others do not change. The LLM call does not know whether RAG ran before it. The guardrail does not know what the session history contains. The observability layer records the call and does not affect what the caller receives.
+
+`app.vision()` and `app.audio()` run the same guardrail, memory and observability steps around their own model call.
 
 ---
 
@@ -74,7 +74,7 @@ CafeAI's middleware follows the same contract in Java:
 // CafeAI middleware signature
 @FunctionalInterface
 public interface Middleware {
-    void handle(Request req, Response res, Next next) throws Exception;
+    void handle(Request req, Response res, Next next);
 }
 ```
 
@@ -89,7 +89,7 @@ app.use((req, res, next) => {
 
 // CafeAI (Java)
 app.filter((req, res, next) -> {
-    res.header("X-Powered-By", "CafeAI");
+    res.set("X-Powered-By", "CafeAI");
     next.run();
 });
 ```
@@ -100,21 +100,21 @@ A Java developer who has never written Express reads the CafeAI version and unde
 
 ## Post-Processing Middleware
 
-The Express mental model has one nuance that CafeAI preserves and extends: middleware can run both before and after the downstream handler.
+The Express mental model has one nuance that CafeAI preserves: middleware can run both before and after the downstream handler.
 
 ```java
-// Post-processing middleware — runs after the AI call returns
 app.filter((req, res, next) -> {
-    long start = System.currentTimeMillis();
+    long start = System.nanoTime();
 
     next.run();  // downstream runs here — including the LLM call
 
-    long elapsed = System.currentTimeMillis() - start;
-    res.header("X-Response-Time", elapsed + "ms");
+    log.info("{} took {} ms", req.path(), (System.nanoTime() - start) / 1_000_000);
 });
 ```
 
-The call to `next.run()` blocks until all downstream middleware and the final handler have completed. Everything before the call runs pre-processing. Everything after runs post-processing. This is how POST_LLM guardrails work — they are middleware that runs after the LLM response arrives but before the caller receives it.
+The call to `next.run()` blocks until all downstream middleware and the final handler have completed. Everything before it is pre-processing; everything after it is post-processing. By then the response has already gone to the client, so post-processing is for logging, metrics and cleanup — not for changing what the caller receives.
+
+POST_LLM guardrails are not built this way. They run inside `app.prompt()` on the model's answer, before it is returned to your handler, so they can replace or block it.
 
 ---
 
@@ -122,21 +122,21 @@ The call to `next.run()` blocks until all downstream middleware and the final ha
 
 The most important application of this pattern in CafeAI is guardrails. In most frameworks, safety checks are an afterthought — a library you call, a function you wrap around the LLM invocation, something that lives outside the pipeline and gets forgotten when deadlines arrive.
 
-In CafeAI, a guardrail is a middleware with a position:
+In CafeAI, a guardrail is registered once and has a position:
 
 ```java
-// Registered at startup — runs on every prompt call automatically
+// Registered at startup — applied by the engine on every prompt, vision and audio call
 app.guard(GuardRail.jailbreak());           // PRE_LLM — blocks before the call
 app.guard(GuardRail.pii());                 // BOTH — checks input and output
 app.guard(GuardRail.toxicity());            // BOTH — checks input and output
-app.guard(GuardRail.regulatory().gdpr());   // PRE_LLM — compliance check
+app.guard(GuardRail.regulatory().gdpr());   // PRE_LLM — screens the input only
 ```
 
 The developer never calls these explicitly. They are registered once and the pipeline executes them on every call. Removing a guardrail is removing one line from startup registration. Adding one is adding one line. The LLM call doesn't change. The routes don't change. The guardrails are the pipeline, not the wrapper around it.
 
 The PRE_LLM position runs before the LLM sees the prompt — blocking jailbreak attempts and PII before they are sent. The POST_LLM position runs after the response arrives — checking the response for PII, toxic content, or a leaked system prompt. The BOTH position runs in both places.
 
-This is why guardrails being middleware matters: they cannot be accidentally omitted. They are not a function call the developer remembers to make. They are a layer that fires whether the developer thinks about it or not.
+This is why guardrails being part of the pipeline matters: they are not a function call the developer has to remember to make. The engine applies them at every call site, and a test in the framework checks that it does.
 
 ---
 
@@ -153,7 +153,7 @@ app.use("/api", apiRouter);
 // CafeAI (Java)
 app.get("/health", (req, res, next) -> res.json(Map.of("status", "ok")));
 app.post("/chat", (req, res, next) -> { /* handler */ });
-app.filter("/api", apiMiddleware);
+app.use("/api", apiRouter);
 ```
 
 Path parameters, query strings, wildcard routes, sub-routers — the full Express routing model is present. A developer who knows Express knows CafeAI routing. A developer who knows CafeAI routing knows Express.
@@ -166,7 +166,7 @@ v1.post("/chat",  chatHandler);
 v1.post("/embed", embedHandler);
 v1.get("/health", healthHandler);
 
-app.filter("/api/v1", v1);
+app.use("/api/v1", v1);
 ```
 
 ---
@@ -200,7 +200,7 @@ Suppose you need to swap providers from OpenAI to Anthropic:
 app.ai(OpenAI.of("gpt-4o"));
 
 // After
-app.ai(Anthropic.of("claude-sonnet-4-5"));
+app.ai(Anthropic.of("claude-sonnet-5"));
 ```
 
 One line. The routes, the guardrails, the memory strategy, the RAG pipeline — unchanged.
@@ -213,7 +213,7 @@ This is the composability payoff. It is not a theoretical benefit. It is a pract
 
 Post 3 walks through the first real CafeAI application from scratch — a customer support assistant backed by a knowledge base, with session memory and guardrails. By the end, you will have made a real LLM call through the full CafeAI pipeline, without a Spring Boot dependency in sight.
 
-The code is in `capstones/support-desk`. The tests pass. The application runs.
+The code is in `capstones/support-desk`, and it runs as a normal Gradle application.
 
 ---
 

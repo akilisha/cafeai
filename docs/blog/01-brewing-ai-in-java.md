@@ -8,7 +8,7 @@ There is a conversation the Java ecosystem has been avoiding.
 
 Python got LangChain. JavaScript got Vercel AI SDK. Rust got Candle. Every major language community has produced at least one serious, opinionated answer to the question: how do we build AI-native applications in our ecosystem, for our developers, with our idioms?
 
-Java got Spring AI — which is fine, and useful, and also a perfect example of what happens when a framework solves a problem by burying it. Spring AI abstracts the LLM call behind annotations and autowired beans until the developer cannot explain what happens between `@AiService` and the response on their screen. The abstraction works until it doesn't, and when it doesn't, there is nothing to debug.
+Java got Spring AI — which is fine, and useful, and also a good example of what a framework can do when it solves a problem by hiding it. The LLM call disappears behind auto-configuration and injected beans, and a developer can end up unable to say what happens between the bean and the response on their screen. The abstraction works until it doesn't, and when it doesn't, there is little to debug.
 
 CafeAI is a different answer to the same question.
 
@@ -58,25 +58,27 @@ Every AI application has the same hard problems. Call a language model. Keep tra
 
 In most frameworks, these concerns live in different places. The LLM call is in one class, the memory management is in another, the guardrails are middleware bolted on afterward, the observability is a separate concern someone else configured. The developer assembles these pieces and calls the result "architecture."
 
-CafeAI treats every one of these as a middleware concern — a composable layer in a single pipeline. This is the lesson Express taught us about HTTP. CafeAI carries it to the AI age:
+CafeAI treats these as a pipeline of composable layers. The HTTP side is the Express model: middleware you register in order. The AI side is a fixed pipeline behind `app.prompt()`, `app.vision()` and `app.audio()`, and the layers in it are the ones you register with `app.guard(...)`, `app.rag(...)`, `app.memory(...)` and `app.observe(...)`:
 
 ```
-Incoming Request
+Incoming HTTP request
     ↓
-[ auth / JWT ]                  ← standard HTTP middleware
-[ PII scrubber ]                ← security middleware
-[ jailbreak detector ]          ← security middleware
-[ token budget enforcer ]       ← cost middleware
-[ RAG retrieval ]               ← knowledge middleware
-[ LLM call ]                    ← ai middleware
-[ guardrails POST ]             ← safety middleware
-[ observability ]               ← observe middleware
-[ memory write ]                ← memory middleware
+[ HTTP middleware ]         cors, rate limit, body parsing, your own authentication
+    ↓
+[ route handler ]           calls app.prompt(...), which runs:
+        ↓
+        [ PRE_LLM guardrails ]     jailbreak, injection, PII, topic boundary
+        [ semantic cache ]         if enabled
+        [ session memory read ]    history for this session ID
+        [ RAG retrieval ]          if a vector store is registered
+        [ LLM call ]               token budget, retry and observability wrap this step
+        [ POST_LLM guardrails ]    PII, toxicity, secrets, prompt leaks
+        [ session memory write ]
     ↓
 Response
 ```
 
-Every layer in that diagram is independently explainable, independently testable, and independently replaceable. You can remove the RAG layer and the rest still works. You can swap `ObserveStrategy.console()` for `ObserveStrategy.otel()` and nothing else changes. You can add a new guardrail without touching the LLM call.
+Every layer here is independently explainable, independently testable and independently replaceable. You can leave out RAG and the rest still works. You can swap `ObserveStrategy.console()` for `ObserveStrategy.otel()` and nothing else changes. You can add a guardrail without touching the LLM call.
 
 This is not a novel idea. It is the reason Express became the dominant Node.js framework a decade ago. The middleware pattern is the right abstraction for composable request processing — and AI requests are request processing, just with a language model in the middle.
 
@@ -92,19 +94,17 @@ It is also, less literally, where you go to think. Developers write code in cafe
 
 ---
 
-## The Three Java 21 Features That Matter
+## What Java Gives CafeAI
 
-CafeAI does not treat Java 21's new features as demos. They are load-bearing architecture.
+Three things in the modern JVM are load-bearing here, not demos.
 
-**Virtual Threads** handle every request. LLM calls are I/O-bound — they spend most of their time waiting for the API to respond. Virtual threads make this zero-cost at scale. A single JVM can hold thousands of in-flight LLM calls without a thread pool bottleneck.
+**Virtual threads** handle every request: Helidon SE runs each request on one. LLM calls are I/O-bound and spend most of their time waiting for the API, which is the case virtual threads make cheap. A JVM can hold thousands of in-flight calls without a thread-pool bottleneck, and the code stays plain blocking code.
 
-**The Foreign Function and Memory API (FFM)** backs the SSD-based session memory tier. Rather than serialising conversation history to Redis on every turn, CafeAI maps it to a memory segment backed by an SSD file. Sessions survive JVM restarts, cost nothing in network overhead, and require no infrastructure. FFM also enables direct binding to native ML libraries — ONNX models for local embeddings, llama.cpp for local inference — without JNI.
+**The Foreign Function and Memory API (FFM)** backs the `mapped()` session-memory tier. Rather than send conversation history to Redis on every turn, CafeAI keeps each session in a file under a directory you choose and maps it into off-heap memory. Sessions survive JVM restarts, cost no network round trip and need no infrastructure.
 
-**Structured Concurrency** is the foundation for multi-agent orchestration. When an agent spawns sub-tasks, structured concurrency ensures that failures in any branch are contained and reported cleanly. The agent either succeeds completely or fails with a precise, auditable error. No dangling threads, no silent failures.
+**The Vector API** is what lets `Jlama` run a model inside the JVM, with no server and no API key. It needs Java 23 or later and a few JVM flags (the `Jlama` Javadoc lists them), which is why CafeAI's toolchain floor is Java 23. CI builds and tests on Java 23.
 
-These are not features added for novelty. They are the reason CafeAI can offer a tiered memory model where the default is SSD-backed (not Redis), local embedding (not a cloud API), and concurrent agent execution (not sequential).
-
-These features shipped in Java 21, but CafeAI's own toolchain floor has since moved to **Java 23+** (needed for the Vector API that backs `Jlama`). If you're choosing a JDK to standardize on, **Java 25** — the current LTS release — is the recommended target.
+Local embeddings (`EmbeddingProvider.local()`) use LangChain4j's bundled all-MiniLM-L6-v2 model and run in-process the same way.
 
 ---
 
@@ -123,7 +123,7 @@ Rung 3 → redis(config)  Redis — distributed, multi-instance
 Rung 4 → hybrid()       Warm SSD + cold Redis — both
 ```
 
-The insight is that `mapped()` — the SSD-backed tier — handles most production workloads on a single node. It is faster than Redis (no network), cheaper (no infrastructure), and safer (sessions survive JVM restarts because they are on disk). Redis becomes the right choice only when you genuinely need state shared across multiple application instances. Not before.
+The insight is that `mapped()` — the SSD-backed tier — is enough for many single-node deployments. It avoids a network round trip, needs no infrastructure, and keeps sessions across JVM restarts because they are on disk. Redis becomes the right choice when you need state shared across multiple application instances.
 
 The swap between rungs is one line:
 
@@ -173,7 +173,7 @@ The same boundary that shapes the rest of this framework applies here too: confi
 
 ## What This Series Covers
 
-This is Post 1 of 12. Each subsequent post covers one capability of the framework, anchored to a working capstone application that proves the claim:
+This is Post 1 of 12. Each subsequent post covers one capability of the framework, anchored to a runnable capstone application:
 
 | Post | Topic | Capstone |
 |------|-------|----------|
@@ -182,14 +182,14 @@ This is Post 1 of 12. Each subsequent post covers one capability of the framewor
 | 4 | Prompt engineering in Java | support-desk, meridian-qualify |
 | 5 | Context memory without the cloud tax | meridian-qualify, acme-claims |
 | 6 | Building a RAG pipeline in Java | support-desk, acme-claims |
-| 7 | Tool use — giving the AI actions to take | all four capstones |
+| 7 | Tool use — giving the AI actions to take | support-desk, meridian-qualify, acme-claims |
 | 8 | Ethical guardrails as middleware | meridian-qualify, acme-claims |
 | 9 | Vision and audio in Java | invoice-processor |
 | 10 | Structured output — typed LLM responses | invoice-processor |
 | 11 | Production-grade AI — budgets, retries, observability, cluster incident response | invoice-processor, cluster-sentinel |
-| 12 | The capstone series — what four applications prove | all four capstones |
+| 12 | The capstone series — five applications and what each found | all five capstones |
 
-Every post links to running code. Every claim is backed by a test that passes. Nothing in this series is aspirational — it describes what the framework does today.
+Every post links to running code, and the code samples are checked against the real API. Where the framework has a limit, the post says so.
 
 ---
 
@@ -215,7 +215,7 @@ var response = app.prompt("What is the capital of France?").call();
 System.out.println(response.text());  // Paris
 ```
 
-That is it. No annotations. No configuration files. No dependency injection container. No abstractions between you and the HTTP call.
+That is it. No annotations. No configuration files. No dependency injection container. The call goes through LangChain4j to the provider's own client, and you can see every step of it.
 
 Post 2 explains why everything in CafeAI is a middleware — and why that turns out to be the right answer for AI applications, for the same reasons it was the right answer for HTTP applications a decade ago.
 
