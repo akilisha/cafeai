@@ -95,6 +95,29 @@ public interface GuardRail extends Middleware {
         return ModerationGuardRail.of(model);
     }
 
+    /**
+     * Credentials and secrets — API keys, tokens, private keys, connection strings — in what users
+     * send (they end up at a third-party model) and in what the model says. Never includes the
+     * secret itself in a report. Requires {@code cafeai-guardrails}.
+     */
+    static GuardRail secrets() {
+        return requireProvider("GuardRail.secrets()").secrets();
+    }
+
+    /**
+     * Stops the model repeating {@code systemPrompt} back to the user. Works without
+     * {@code cafeai-guardrails}. See {@link PromptLeakGuardRail} for how it decides and what it
+     * cannot catch.
+     *
+     * <pre>{@code
+     *   app.system(prompt);
+     *   app.guard(GuardRail.promptLeak(prompt));
+     * }</pre>
+     */
+    static PromptLeakGuardRail promptLeak(String systemPrompt) {
+        return PromptLeakGuardRail.of(systemPrompt);
+    }
+
     /** Toxic and harmful content filtering. */
     static GuardRail toxicity() {
         return requireProvider("GuardRail.toxicity()").toxicity();
@@ -188,6 +211,24 @@ public interface GuardRail extends Middleware {
      *         {@link OutputCheckResult#violation(String)} to flag a violation
      */
     default OutputCheckResult checkOutput(String output) {
+        return OutputCheckResult.pass();
+    }
+
+    /**
+     * Inspects one document retrieved for RAG before it is placed in the model's context — the
+     * <em>indirect</em> route for an injected instruction, where the text comes from your own
+     * knowledge base and so looks trusted.
+     *
+     * <p>Called by {@code CafeAIApp} for each retrieved document, for guardrails at
+     * {@link Position#PRE_LLM} or {@link Position#BOTH}. A {@code BLOCK} guardrail's violation
+     * <em>drops that document</em> (the request is still answered, from the rest); {@code WARN} and
+     * {@code LOG} keep it. The default passes: only a guardrail about instructions hidden in data
+     * (see {@code GuardRail.promptInjection()}) has anything to say here. A PII or topic check
+     * belongs on the user's message, not on your own documents.
+     *
+     * @param documentText the retrieved document as it would appear in the model's context
+     */
+    default OutputCheckResult checkRetrieved(String documentText) {
         return OutputCheckResult.pass();
     }
 

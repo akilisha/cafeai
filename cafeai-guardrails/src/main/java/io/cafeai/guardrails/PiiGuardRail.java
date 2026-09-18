@@ -1,6 +1,7 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,10 +9,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * PII detection and scrubbing guardrail.
+ * PII detection guardrail.
  *
- * <p>Detects and optionally scrubs personally identifiable information
- * from both the user's prompt (pre-LLM) and the model's response (post-LLM).
+ * <p>Detects personally identifiable information in both the user's prompt (pre-LLM) and the
+ * model's response (post-LLM). Text is {@linkplain TextNormalizer#canonical canonicalised} first,
+ * so full-width digits and zero-width characters do not hide a number.
  *
  * <p>Detected entities:
  * <ul>
@@ -22,22 +24,15 @@ import java.util.regex.Pattern;
  *   <li>IP addresses (IPv4)</li>
  * </ul>
  *
- * <p>Action options:
- * <ul>
- *   <li>{@link GuardRail.Action#BLOCK} -- reject the request immediately (default)</li>
- *   <li>{@link GuardRail.Action#WARN} -- log a warning but allow through</li>
- * </ul>
- *
- * <p>Use {@link #scrubbing()} to redact PII in-place rather than blocking:
+ * <p>Detection blocks: a request or response containing PII is refused. A guardrail cannot
+ * rewrite text in flight, so there is no "redact and continue" mode; to redact text you are about
+ * to log or forward, call {@link #scrub(String)} yourself.
  *
  * <pre>{@code
- *   app.guard(GuardRail.pii());                // block on PII detection
- *   app.guard(GuardRail.pii().scrubbing());    // redact PII, continue
+ *   app.guard(GuardRail.pii());
  * }</pre>
  */
 public final class PiiGuardRail extends AbstractGuardRail {
-
-    private boolean scrub = false;
 
     private static final List<PiiPattern> PATTERNS = List.of(
         new PiiPattern("EMAIL",
@@ -60,13 +55,6 @@ public final class PiiGuardRail extends AbstractGuardRail {
 
     PiiGuardRail(Action action) {
         super(action);
-    }
-
-    /** Returns a new PiiGuardRail that redacts PII in-place rather than blocking. */
-    public PiiGuardRail scrubbing() {
-        PiiGuardRail g = new PiiGuardRail(Action.LOG);
-        g.scrub = true;
-        return g;
     }
 
     @Override public String   name()     { return "pii"; }
@@ -101,8 +89,9 @@ public final class PiiGuardRail extends AbstractGuardRail {
 
     private static List<String> detect(String text) {
         List<String> found = new ArrayList<>();
+        String canonical = TextNormalizer.canonical(text);
         for (PiiPattern pp : PATTERNS) {
-            Matcher m = pp.pattern().matcher(text);
+            Matcher m = pp.pattern().matcher(canonical);
             if (m.find()) found.add(pp.label());
         }
         return found;

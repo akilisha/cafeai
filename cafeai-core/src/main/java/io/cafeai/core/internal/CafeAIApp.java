@@ -382,7 +382,8 @@ public final class CafeAIApp implements CafeAI {
                     ? observeBridge.beforeRetrieval(request.message()) : null;
             Throwable retrievalError = null;
             try {
-                retrievedDocs = retriever.retrieve(request.message(), embeddingModel, vectorStore);
+                retrievedDocs = screenRetrieved(
+                        retriever.retrieve(request.message(), embeddingModel, vectorStore));
 
                 if (!retrievedDocs.isEmpty()) {
                     // Build a context block from the retrieved documents.
@@ -1411,6 +1412,40 @@ public final class CafeAIApp implements CafeAI {
         return flagged;
     }
 
+    /**
+     * Screens retrieved RAG documents before they reach the model's context. A document that a
+     * {@code BLOCK} guardrail flags is dropped (the question is still answered from the rest);
+     * {@code WARN} and {@code LOG} keep it. A document is data the user did not write, so this is
+     * where an instruction planted in your own knowledge base is caught.
+     */
+    private List<RagDocument> screenRetrieved(List<RagDocument> docs) {
+        if (guardRails.isEmpty() || docs == null || docs.isEmpty()) return docs;
+        List<RagDocument> kept = new ArrayList<>(docs.size());
+        for (int i = 0; i < docs.size(); i++) {
+            RagDocument doc = docs.get(i);
+            String text = String.valueOf(doc);   // exactly what is placed in the context
+            boolean drop = false;
+            for (GuardRail rail : guardRails) {
+                if (rail.position() != GuardRail.Position.PRE_LLM
+                        && rail.position() != GuardRail.Position.BOTH) {
+                    continue;
+                }
+                GuardRail.OutputCheckResult result = rail.checkRetrieved(text);
+                if (result == null || !result.isViolation()) continue;
+                if (actionOf(rail) == GuardRail.Action.BLOCK) {
+                    log.warn("Guardrail '{}' dropped retrieved document #{} ({}); answering without it",
+                            rail.name(), i + 1, result.reason());
+                    drop = true;
+                    break;
+                }
+                log.warn("Guardrail '{}' flagged retrieved document #{} ({}); keeping it",
+                        rail.name(), i + 1, result.reason());
+            }
+            if (!drop) kept.add(doc);
+        }
+        return kept;
+    }
+
     /** A guardrail with no declared action blocks — the safe reading. */
     private static GuardRail.Action actionOf(GuardRail rail) {
         GuardRail.Action action = rail.action();
@@ -2034,8 +2069,9 @@ public final class CafeAIApp implements CafeAI {
         if (!res.headersSent()) {
             log.error("Unhandled request error", error);
             try {
-                res.status(500).json(Map.of("error", "Internal Server Error",
-                        "message", error.getMessage() != null ? error.getMessage() : ""));
+                // The message stays in the log. It can carry SQL, file paths, upstream URLs, even a
+                // credential; register an error handler (app.onError(...)) if you want it on the wire.
+                res.status(500).json(Map.of("error", "Internal Server Error"));
             } catch (Exception ignored) {
                 // Response may already be committed -- swallow
             }

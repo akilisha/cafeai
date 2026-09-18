@@ -29,6 +29,13 @@ class GuardRailFactoryTest {
     }
 
     @Test
+    @DisplayName("secrets() is a both-sided guardrail")
+    void secrets() {
+        assertThat(GuardRail.secrets()).isInstanceOf(SecretsGuardRail.class);
+        assertThat(GuardRail.secrets().position()).isEqualTo(GuardRail.Position.BOTH);
+    }
+
+    @Test
     @DisplayName("toxicity() is a both-sided guardrail")
     void toxicity() {
         assertThat(GuardRail.toxicity().position()).isEqualTo(GuardRail.Position.BOTH);
@@ -40,7 +47,7 @@ class GuardRailFactoryTest {
         var rail = GuardRail.regulatory().gdpr().hipaa();
         assertThat(rail).isInstanceOf(RegulatoryGuardRailImpl.class);
         assertThat(rail.name()).contains("gdpr").contains("hipaa");
-        assertThat(rail.position()).isEqualTo(GuardRail.Position.BOTH);
+        assertThat(rail.position()).isEqualTo(GuardRail.Position.PRE_LLM);
     }
 
     @Test

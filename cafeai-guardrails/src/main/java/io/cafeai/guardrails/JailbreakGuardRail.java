@@ -1,7 +1,8 @@
 package io.cafeai.guardrails;
 
+import io.cafeai.core.guardrails.TextNormalizer;
+
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -9,6 +10,9 @@ import java.util.regex.Pattern;
  *
  * <p>Detects attempts to bypass the system prompt, extract model internals,
  * or manipulate the model into ignoring its instructions.
+ *
+ * <p>Text is {@linkplain TextNormalizer#normalize normalised} first, so full-width letters,
+ * zero-width characters, homoglyphs and accents do not hide a phrase.
  *
  * <p>Detection strategy -- two layers, both must agree to block:
  * <ol>
@@ -38,7 +42,7 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
         wp(0.9, "ignore.{0,20}(previous|above|prior).{0,20}(instructions?|prompt|rules?)"),
         wp(0.9, "disregard.{0,20}(instructions?|prompt|rules?)"),
         wp(0.8, "you are now|pretend you are|act as if you are|roleplay as"),
-        wp(0.8, "DAN|do anything now|jailbreak|unrestricted mode"),
+        wp(0.8, "\\bdan\\b|do anything now|jailbreak|unrestricted mode"),
         wp(0.7, "forget.{0,10}(you are|your|the|all).{0,10}(ai|assistant|rules|guidelines)"),
 
         // System prompt extraction
@@ -82,14 +86,12 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
 
     @Override
     protected CheckResult screenInput(String input) {
-        String lower = input.toLowerCase(Locale.ROOT);
+        String normal = TextNormalizer.normalize(input);
         double maxHit = 0.0;
-        String topPattern = null;
 
         for (WeightedPattern wp : PATTERNS) {
-            if (wp.pattern().matcher(lower).find() && wp.weight() > maxHit) {
+            if (wp.pattern().matcher(normal).find() && wp.weight() > maxHit) {
                 maxHit = wp.weight();
-                topPattern = wp.pattern().pattern().substring(0, Math.min(40, wp.pattern().pattern().length()));
             }
         }
 
@@ -100,16 +102,6 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
                 maxHit);
         }
         return CheckResult.pass();
-    }
-
-    private static double score(String text) {
-        double max = 0.0;
-        for (WeightedPattern wp : PATTERNS) {
-            if (wp.pattern().matcher(text).find() && wp.weight() > max) {
-                max = wp.weight();
-            }
-        }
-        return max;
     }
 
     private static WeightedPattern wp(double weight, String regex) {

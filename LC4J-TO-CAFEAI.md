@@ -498,7 +498,7 @@ app.guard(GuardRail.topicBoundary().allow("insurance").deny("competitor pricing"
 ```
 
 `GuardRail` (`cafeai-guardrails`: PII via regex patterns, jailbreak,
-prompt-injection, toxicity, a GDPR/HIPAA/FCRA/CCPA/
+prompt-injection, secrets/credentials, toxicity, a GDPR/HIPAA/FCRA/CCPA/
 ECOA/fair-housing catalog, topic-boundary allow/deny) has **zero
 LangChain4j imports** — none of this exists in LangChain4j at all (§1.9);
 `InputGuardrail`/`OutputGuardrail` are an empty hook there. Two additional
@@ -510,6 +510,15 @@ things worth knowing:
   also `extends Middleware`, so it is registered as a Helidon HTTP filter too —
   but that form runs *after* the route handler and only sees the request body,
   so it cannot stop an output; the engine path is what enforces.
+- **What CafeAI adds that LangChain4j has no counterpart for:** text is
+  normalised (`TextNormalizer`) before a pattern sees it, so full-width,
+  zero-width, homoglyph and accent tricks do not hide a phrase;
+  `GuardRail.promptLeak(system)` checks the model's *response* for its own
+  system prompt (needs no module); `GuardRail.secrets()` finds credentials in
+  and out; and `promptInjection()` also screens each **retrieved RAG document**
+  before it enters the context — a hit is dropped, not the whole request. That
+  last one is `app.prompt()` only: an agent's retrieval belongs to
+  LangChain4j's `AiServices`, which CafeAI does not intercept.
 - **Inside `app.agent(...)`**, `GuardrailAdapters` (§2.3) wraps a `GuardRail` as
   LangChain4j's `InputGuardrail`/`OutputGuardrail` so `AiServices` applies it
   natively, before its own reasoning loop starts. Both paths honour the

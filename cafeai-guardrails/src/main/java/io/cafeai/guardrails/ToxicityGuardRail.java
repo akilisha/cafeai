@@ -1,7 +1,8 @@
 package io.cafeai.guardrails;
 
+import io.cafeai.core.guardrails.TextNormalizer;
+
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -69,7 +70,7 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
     }
 
     private static CheckResult check(String text) {
-        String lower = text.toLowerCase(Locale.ROOT);
+        String lower = TextNormalizer.normalize(text);
         double maxScore = 0.0;
         String triggeredCategory = null;
 

@@ -23,6 +23,7 @@ public interface GuardRailProvider {
     GuardRail jailbreak();
     GuardRail promptInjection();
     GuardRail toxicity();
+    GuardRail secrets();
     GuardRail regulatory();
     GuardRail topicBoundary();
 }

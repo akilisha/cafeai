@@ -19,6 +19,7 @@ public final class GuardRailProviderImpl implements GuardRailProvider {
     @Override public GuardRail jailbreak()        { return new JailbreakGuardRail(); }
     @Override public GuardRail promptInjection()  { return new PromptInjectionGuardRail(); }
     @Override public GuardRail toxicity()         { return new ToxicityGuardRail(); }
+    @Override public GuardRail secrets()          { return new SecretsGuardRail(); }
     @Override public GuardRail topicBoundary()    { return new TopicBoundaryGuardRailImpl(); }
     @Override public GuardRail regulatory()       { return new RegulatoryGuardRailImpl(); }
 }

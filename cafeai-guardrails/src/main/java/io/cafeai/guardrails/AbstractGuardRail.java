@@ -180,10 +180,11 @@ public abstract class AbstractGuardRail implements GuardRail {
         log.warn("Guardrail '{}' triggered: {}", name(), result.reason());
 
         switch (action) {
+            // The guardrail's name only. Its reason (logged above) can tell an attacker which
+            // pattern to rephrase around; the engine path answers the same way.
             case BLOCK -> res.status(400).json(Map.of(
                 "error",     "Request blocked by guardrail",
-                "guardrail", name(),
-                "reason",    result.reason()));
+                "guardrail", name()));
             case WARN -> log.warn("GUARDRAIL WARN [{}]: {}", name(), result.reason());
             case LOG  -> log.info("GUARDRAIL LOG [{}]: {}", name(), result.reason());
         }

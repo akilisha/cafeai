@@ -1,27 +1,27 @@
 package io.cafeai.guardrails;
 
-import io.cafeai.core.Attributes;
-import io.cafeai.core.middleware.Next;
-import io.cafeai.core.routing.Request;
-import io.cafeai.core.routing.Response;
+import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
  * Prompt injection detection guardrail.
  *
- * <p>Detects attempts to inject malicious instructions through:
+ * <p>Detects instructions smuggled to the model through:
  * <ul>
- *   <li><strong>User input</strong> -- direct injection in the user's message</li>
- *   <li><strong>RAG documents</strong> -- indirect injection via retrieved content
- *       (a document in the vector store contains hidden instructions)</li>
+ *   <li><strong>User input</strong> — direct injection in the user's message.</li>
+ *   <li><strong>RAG documents</strong> — indirect injection: a retrieved document contains hidden
+ *       instructions. The source is your own knowledge base, so it looks trusted, which is what
+ *       makes it dangerous. The engine screens each retrieved document with this guardrail
+ *       ({@code checkRetrieved}) and <em>drops</em> one that trips it; the question is still
+ *       answered from the rest.</li>
  * </ul>
  *
- * <p>Indirect injection via RAG is particularly dangerous because the source
- * is trusted infrastructure. This guardrail inspects both paths.
+ * <p>Text is {@linkplain TextNormalizer#normalize normalised} first, so full-width letters,
+ * zero-width characters, homoglyphs and accents do not hide a phrase. It is a pattern list, not a
+ * model: a rephrasing it does not know gets through. Pair it with
+ * {@code GuardRail.moderation(model)} where that matters.
  *
  * <pre>{@code
  *   app.guard(GuardRail.promptInjection());
@@ -29,106 +29,67 @@ import java.util.regex.Pattern;
  */
 public final class PromptInjectionGuardRail extends AbstractGuardRail {
 
-    private static final double DEFAULT_THRESHOLD = 0.65;
-    private final double threshold;
+    /** Instructions addressed to the model — suspicious in a user's message and in a document. */
+    private static final List<Pattern> INSTRUCTIONS = List.of(
+        p("\\b(?:ignore|disregard|forget|override)\\s+(?:all\\s+|any\\s+|the\\s+|your\\s+|my\\s+)*"
+            + "(?:previous\\s+|prior\\s+|above\\s+|earlier\\s+|preceding\\s+)*"
+            + "(?:instructions?|prompts?|rules?|guidelines?|directions?)"),
+        p("\\bnew\\s+(?:instructions?|task|objective|goal)\\s*:"),
+        // A role marker opening a sentence, as in a transcript: "System: do X". Mid-sentence
+        // ("operating system: linux") is ordinary text.
+        p("(?:^|[.!?>\\]])\\s*(?:system|assistant)\\s*:"),
+        p("\\[(?:system|inst|override)\\]|<\\|im_start\\|>|<<sys>>"),
+        p("\\b(?:the\\s+following|these)\\s+(?:instructions?\\s+|commands?\\s+)?(?:override|supersede|replace)"),
+        p("\\b(?:act|behave|respond)\\s+(?:as\\s+if|like)\\s+(?:you\\s+are|you're)")
+    );
 
-    private static final List<Pattern> INJECTION_PATTERNS = List.of(
-        // Classic direct injection
-        Pattern.compile("ignore (all |previous |the )?(instructions?|prompt|rules?|guidelines?)",
-            Pattern.CASE_INSENSITIVE),
-        Pattern.compile("new (instructions?|task|objective|goal)\\s*:",
-            Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(system|assistant|ai)\\s*:\\s*",
-            Pattern.CASE_INSENSITIVE),
-        // Hidden instruction markers
-        Pattern.compile("<!-{2,}.*?-{2,}>",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
-        Pattern.compile("\\[SYSTEM\\]|\\[INST\\]|\\[OVERRIDE\\]",
-            Pattern.CASE_INSENSITIVE),
-        // Indirect / document injection
-        Pattern.compile("when (you |the model )?(see|read|encounter|process) this",
-            Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(the following|these) (instructions? |commands? )?(override|supersede|replace)",
-            Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(act|behave|respond) (as if|like) (you are|you're) (now |a )?",
-            Pattern.CASE_INSENSITIVE)
+    /** Only meaningful in data: a document has no business addressing the model. */
+    private static final List<Pattern> DOCUMENT_ONLY = List.of(
+        p("<!--.{0,400}?(?:ignore|instruction|assistant|system|you\\s+must|you\\s+should|do\\s+not\\s+tell|reveal)"),
+        p("\\bwhen\\s+(?:you\\s+|the\\s+model\\s+|an?\\s+(?:ai|assistant|llm)\\s+)?(?:see|read|encounter|process)\\s+this"),
+        p("\\b(?:ai|assistant|llm|model|chatbot)[,\\s]+(?:you\\s+)?(?:must|should|will\\s+now|are\\s+to)\\b"),
+        p("\\bdo\\s+not\\s+(?:tell|inform|reveal\\s+to)\\s+the\\s+user")
     );
 
     public PromptInjectionGuardRail() {
         super(Action.BLOCK);
-        this.threshold = DEFAULT_THRESHOLD;
     }
 
-    PromptInjectionGuardRail(double threshold) {
-        super(Action.BLOCK);
-        this.threshold = threshold;
+    PromptInjectionGuardRail(Action action) {
+        super(action);
+    }
+
+    /** A copy that {@code BLOCK}s, or only {@code WARN}s / {@code LOG}s, on detection. */
+    public PromptInjectionGuardRail action(Action action) {
+        return new PromptInjectionGuardRail(action);
     }
 
     @Override public String   name()     { return "prompt-injection"; }
     @Override public Position position() { return Position.PRE_LLM; }
 
     @Override
-    public void handle(Request req, Response res, Next next) {
-        // Check user input
-        String input = extractText(req);
-        if (input != null && isInjection(input)) {
-            req.setAttribute(Attributes.GUARDRAIL_NAME, name());
-            req.setAttribute(Attributes.GUARDRAIL_SCORE, 1.0);
-            log.warn("Prompt injection detected in user input");
-            res.status(400).json(Map.of(
-                "error",     "Request blocked by guardrail",
-                "guardrail", name(),
-                "reason",    "Prompt injection detected in user input"));
-            return;
-        }
-
-        // Check RAG-retrieved documents for indirect injection
-        @SuppressWarnings("unchecked")
-        List<Object> ragDocs = (List<Object>) req.attribute(Attributes.RAG_DOCUMENTS);
-        if (ragDocs != null) {
-            for (Object doc : ragDocs) {
-                String content = doc.toString();
-                if (isInjection(content)) {
-                    req.setAttribute(Attributes.GUARDRAIL_NAME, name());
-                    req.setAttribute(Attributes.GUARDRAIL_SCORE, 1.0);
-                    log.warn("Prompt injection detected in RAG document");
-                    res.status(400).json(Map.of(
-                        "error",     "Request blocked by guardrail",
-                        "guardrail", name(),
-                        "reason",    "Prompt injection detected in retrieved document"));
-                    return;
-                }
-            }
-        }
-
-        next.run();
+    protected CheckResult screenInput(String input) {
+        return matches(INSTRUCTIONS, input)
+            ? CheckResult.block("Prompt injection detected in user input")
+            : CheckResult.pass();
     }
 
-    private boolean isInjection(String text) {
-        String lower = text.toLowerCase(Locale.ROOT);
-        for (Pattern p : INJECTION_PATTERNS) {
-            if (p.matcher(lower).find()) return true;
+    @Override
+    public OutputCheckResult checkRetrieved(String documentText) {
+        return matches(INSTRUCTIONS, documentText) || matches(DOCUMENT_ONLY, documentText)
+            ? OutputCheckResult.violation("Prompt injection detected in a retrieved document")
+            : OutputCheckResult.pass();
+    }
+
+    private static boolean matches(List<Pattern> patterns, String text) {
+        String normal = TextNormalizer.normalize(text);
+        for (Pattern p : patterns) {
+            if (p.matcher(normal).find()) return true;
         }
         return false;
     }
 
-    private static String extractText(Request req) {
-        // Try parsed body first (available after CafeAI.json() runs)
-        Object b = req.body("message");
-        if (b != null) return b.toString();
-        b = req.body("prompt");
-        if (b != null) return b.toString();
-        // Fall back to raw body — parse JSON field manually
-        String t = req.bodyText();
-        if (t != null && !t.isBlank()) {
-            String trimmed = t.trim();
-            if (trimmed.startsWith("{")) {
-                String extracted = AbstractGuardRail.extractJsonField(trimmed, "message");
-                if (extracted == null) extracted = AbstractGuardRail.extractJsonField(trimmed, "prompt");
-                if (extracted != null) return extracted;
-            }
-            return t;
-        }
-        return null;
+    private static Pattern p(String regex) {
+        return Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     }
 }

@@ -1,11 +1,7 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.guardrails.GuardRail;
-import io.cafeai.core.middleware.Next;
-import io.cafeai.core.routing.Request;
-import io.cafeai.core.routing.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -16,9 +12,7 @@ import java.util.regex.Pattern;
  * <p>Implements {@link GuardRail.RegulatoryGuardRail}, the type
  * {@link GuardRail#regulatory()} returns, so the fluent {@code .gdpr().hipaa()} API works.
  */
-public final class RegulatoryGuardRailImpl implements GuardRail.RegulatoryGuardRail {
-
-    private static final Logger log = LoggerFactory.getLogger(RegulatoryGuardRailImpl.class);
+public final class RegulatoryGuardRailImpl extends AbstractGuardRail implements GuardRail.RegulatoryGuardRail {
 
     private final Set<String>      activeRegs = new LinkedHashSet<>();
     private final List<RegPattern> patterns   = new ArrayList<>();
@@ -74,7 +68,9 @@ public final class RegulatoryGuardRailImpl implements GuardRail.RegulatoryGuardR
         rp("FairHousing", "(don.t|do not|avoid).{0,20}lend.{0,30}(area|neighborhood|zip|district|block)")
     );
 
-    public RegulatoryGuardRailImpl() {}
+    public RegulatoryGuardRailImpl() {
+        super(Action.BLOCK);
+    }
 
     @Override public GuardRail.RegulatoryGuardRail gdpr()        { return addReg("gdpr",        GDPR_PATTERNS);         }
     @Override public GuardRail.RegulatoryGuardRail hipaa()       { return addReg("hipaa",       HIPAA_PATTERNS);        }
@@ -90,46 +86,19 @@ public final class RegulatoryGuardRailImpl implements GuardRail.RegulatoryGuardR
     }
 
     @Override public String   name()     { return "regulatory[" + String.join(",", activeRegs) + "]"; }
-    @Override public Position position() { return Position.BOTH; }
-    @Override public Action   action()   { return Action.BLOCK; }
+    // Input only, as it always was. These patterns describe a discriminatory *request* ("deny the
+    // loan because of race"); run over a response they would flag the model correctly refusing one.
+    @Override public Position position() { return Position.PRE_LLM; }
 
     @Override
-    public void handle(Request req, Response res, Next next) {
-        // PRE_LLM: check input
-        String input = extractText(req);
-        if (input != null && !input.isBlank()) {
-            String violation = check(input);
-            if (violation != null) {
-                block(res, violation); return;
-            }
-        }
-
-        next.run();
-    }
-
-    private String check(String text) {
-        String lower = text.toLowerCase(Locale.ROOT);
+    protected CheckResult screenInput(String input) {
+        String normal = TextNormalizer.normalize(input);
         for (RegPattern rp : patterns) {
-            if (rp.pattern().matcher(lower).find()) {
-                return "Regulatory violation (" + rp.regulation() + ")";
+            if (rp.pattern().matcher(normal).find()) {
+                return CheckResult.block("Regulatory violation (" + rp.regulation() + ")");
             }
         }
-        return null;
-    }
-
-    private void block(Response res, String reason) {
-        log.warn("Regulatory guardrail triggered: {}", reason);
-        res.status(400).json(Map.of(
-            "error",     "Request blocked by guardrail",
-            "guardrail", name(),
-            "reason",    reason));
-    }
-
-    private static String extractText(Request req) {
-        String t = req.bodyText();
-        if (t != null && !t.isBlank()) return t;
-        Object b = req.body("message");
-        return b != null ? b.toString() : null;
+        return CheckResult.pass();
     }
 
     private static RegPattern rp(String regulation, String regex) {

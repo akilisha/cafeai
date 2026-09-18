@@ -237,9 +237,11 @@ app.rag(Retriever.hybrid(5))             // dense + sparse retrieval
 
 ### Guardrails
 ```java
-app.guard(GuardRail.pii())               // PII scrub — pre and post LLM
+app.guard(GuardRail.pii())               // PII detection — pre and post LLM
 app.guard(GuardRail.jailbreak())         // adversarial prompt detection
-app.guard(GuardRail.promptInjection())   // data-sourced injection detection
+app.guard(GuardRail.promptInjection())   // injected instructions — in input AND in retrieved RAG documents
+app.guard(GuardRail.secrets())           // API keys, tokens, private keys — in and out
+app.guard(GuardRail.promptLeak(system))  // the model repeating its own system prompt
 app.guard(GuardRail.toxicity())          // harmful content filtering
 app.guard(GuardRail.moderation(          // a moderation MODEL (LangChain4j's), not a pattern list
     OpenAI.moderation("omni-moderation-latest")))

@@ -161,6 +161,51 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   implement them). Guardrails that need no module still work: `GuardRail.moderation(model)` and any
   `GuardRail` you implement.
 
+### Security
+
+- **`GuardRail.promptInjection()`, `.regulatory()` and `.topicBoundary()` now actually run on
+  `app.prompt()`, `.vision()` and `.audio()` (BREAKING in effect).** They implemented only the HTTP
+  middleware form, so the engine's `checkInput` fell through to "pass": registered with
+  `app.guard(...)`, they protected nothing on the engine path, which is the path that matters.
+  Only `pii`, `jailbreak` and `toxicity` were enforced. Requests that used to pass may now be
+  refused with a 400.
+- **`GuardRail.promptLeak(systemPrompt)`** — stops the model repeating its own system prompt, by
+  checking the response for a run of the prompt's words. Needs no module. Catches verbatim and
+  near-verbatim disclosure; not paraphrase, translation or encoding.
+- **`GuardRail.secrets()`** (in `cafeai-guardrails`) — API keys, tokens, private keys, JWTs,
+  credentials in URLs, in what users send and in what the model says. Reports the kind, never the
+  value. `SecretsGuardRail.scrub(text)` redacts.
+- **Text normalisation.** `TextNormalizer` folds case, full-width letters, zero-width and other
+  invisible characters, accents and Cyrillic/Greek look-alikes before any pattern-based guardrail
+  matches, so "ignore" written in full-width letters, with a zero-width space inside, or with a
+  Cyrillic "o" no longer slips past. Public, for your own guardrails.
+- **RAG documents are screened.** `GuardRail.checkRetrieved(String)` lets a guardrail vet each
+  retrieved document before it enters the model's context; `promptInjection()` uses it. A document
+  a `BLOCK` guardrail flags is dropped and the question answered from the rest. (`app.prompt()`
+  only; an agent's retrieval belongs to LangChain4j.) Previously `promptInjection()` claimed to
+  check RAG documents but read an attribute the engine never set.
+- **The default 500 body no longer echoes the exception message** (`{"error": "Internal Server
+  Error"}`). Messages can carry SQL, paths, upstream URLs or credentials. They stay in the log;
+  register `app.onError(...)` to put one on the wire.
+- **An HTTP-path guardrail block no longer echoes the detector's `reason`** (the body was
+  `{error, guardrail, reason}`, now `{error, guardrail}`), matching the engine path. The reason
+  tells a caller which pattern to rephrase around; it is logged.
+
+### Fixed
+
+- **`GuardRail.jailbreak()` fired on any text containing "dan"** ("Daniel", "abundant",
+  "dangerous"): its `DAN` pattern had no word boundary. It matches the word only.
+- **`PiiGuardRail.scrubbing()` is removed.** It set a flag nothing read and logged instead of
+  redacting, while its Javadoc promised in-place redaction. A guardrail cannot rewrite text in
+  flight; use `PiiGuardRail.scrub(text)` on text you log or forward.
+- **`TopicBoundaryGuardRailImpl` returned the hard-coded reason "I can only help with Helios
+  connection pooling questions."** — demo text left in the framework.
+- `GuardRail.regulatory()` declared `Position.BOTH` but only ever inspected input; it now declares
+  `PRE_LLM`, which is what it does (run over a response, its patterns would flag the model
+  correctly refusing a discriminatory request).
+- Removed `PromptInjectionGuardRail`'s unused `threshold` and the unused `score()` in
+  `JailbreakGuardRail`.
+
 ### Housekeeping
 
 - Deleted `StreamingProbe` (a scratch file left in `cafeai-core`'s main source),

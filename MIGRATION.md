@@ -200,6 +200,21 @@ present. If you referenced `GuardRail.RegulatoryGuardRail` or `GuardRail.TopicBo
 classes (to extend them), they are now interfaces — `implements`, not `extends`. `StubGuardRail`
 is removed.
 
+**15. `promptInjection()`, `regulatory()` and `topicBoundary()` are now enforced on
+`app.prompt()`, `.vision()` and `.audio()`.** They were registered but did nothing on the engine
+path. If you had them registered, requests they would always have refused now get a `400` from
+`app.prompt()` — check your prompts and your thresholds for false positives before upgrading
+production. `regulatory()` now declares `Position.PRE_LLM` (it only ever screened input).
+
+**16. `PiiGuardRail.scrubbing()` is removed** (it never redacted anything). Use
+`PiiGuardRail.scrub(text)` on text you log or forward. Tuning methods (`threshold`, `action`)
+are on the concrete classes — `new JailbreakGuardRail().threshold(0.9)`, `new ToxicityGuardRail()
+.action(Action.WARN)` — not on what `GuardRail.xxx()` returns.
+
+**17. Error bodies are terser.** The default `500` no longer includes `"message"`, and a guardrail
+`400` no longer includes `"reason"`. If a client parsed either, register `app.onError(...)` and
+say what you want on the wire. If you implement `GuardRailProvider` yourself, add `secrets()`.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.
