@@ -363,14 +363,14 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 |---|---|---|---|
 | Runtime | Java | 23+ | FFM, Vector API (Jlama), Virtual Threads |
 | HTTP Server | Helidon SE | 4.4.0 | Pure SE (no injection framework), LTS release |
-| AI Framework | LangChain4j | 1.11.0 | `AiServices`, providers, `@Tool`, MCP, `ChatMemory` |
+| AI Framework | LangChain4j | 1.20.0 | `AiServices`, providers, `@Tool`, MCP, `ChatMemory` |
 | LLM Providers | OpenAI / Anthropic / Ollama / Jlama | — | Provider-agnostic — swap without changing app logic |
 | Memory Tier 1–2 | Java FFM `MemorySegment` | JDK 23 | Off-heap, SSD-backed, no GC pressure, no network |
 | Memory Tier 3 | Chronicle Map | 3.25 | Designed for off-heap key-value, high-throughput |
 | Memory Tier 4–5 | Redis via Lettuce | 6.3 | Reactive, non-blocking distributed cache |
 | Vector DB | PgVector / Chroma | — | PgVector for enterprise; Chroma for local |
 | Embeddings | ONNX via FFM / OpenAI | — | Local via FFM; remote via API |
-| MCP Server | Helidon `McpFeature` via `app.helidon()` | 4.4.0 | Helidon owns the protocol; CafeAI contributes the tools |
+| MCP Server | Helidon `McpFeature` via `app.helidon()` | 4.5.5 | Helidon owns the protocol; CafeAI contributes the tools |
 | Observability | OpenTelemetry | 1.40.0+ | Helidon SE has first-class OTel support |
 | Build | Gradle (Groovy DSL) | 9.7.1 | Standard Java toolchain |
 

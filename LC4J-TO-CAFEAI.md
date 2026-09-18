@@ -17,7 +17,7 @@ then how they compose, then the intent behind the composition, then the
 intuition to move fast. Applied twice here — once to LangChain4j on its own
 terms, then to CafeAI as a function of it.
 
-Versions: LangChain4j 1.11.0, Helidon SE 4.4.0. Code references are to
+Versions: LangChain4j 1.20.0, Helidon SE 4.5.5. Code references are to
 `cafeai-core`, `cafeai-agents`, `cafeai-rag`, and `cafeai-sentinel` as they
 exist on `main`.
 

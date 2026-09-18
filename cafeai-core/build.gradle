@@ -53,7 +53,12 @@ dependencies {
     // `api`: @JsonCreator/@JsonProperty annotate the public constructor and
     // accessors of memory/ConversationContext. databind + jsr310 are used only
     // in method bodies (ai/ResponseDeserializer) — they stay `implementation`.
-    api            "com.fasterxml.jackson.core:jackson-annotations:${rootProject.ext.jacksonVersion}"
+    //
+    // jackson-annotations is deliberately NOT on ${jacksonVersion}: since 2.20 it
+    // publishes only minor versions (2.20, 2.21, 2.22), never patches, while
+    // databind/jsr310 do. Feeding it databind's 2.22.2 fails to resolve. When
+    // bumping Jackson, set this to the same major.minor as ${jacksonVersion}.
+    api            "com.fasterxml.jackson.core:jackson-annotations:2.22"
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
 

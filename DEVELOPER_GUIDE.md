@@ -2,7 +2,7 @@
 
 **Version:** 0.4.0  
 **Java:** 23+  
-**Runtime:** Helidon SE 4.4  
+**Runtime:** Helidon SE 4.5  
 **Last updated:** September 2026
 
 ---

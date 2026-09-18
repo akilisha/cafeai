@@ -14,27 +14,21 @@ plugins {
 // ── Version Catalog ─────────────────────────────────────────
 ext {
     javaVersion             = 23
-    helidonVersion          = '4.4.0'
-    langchain4jVersion      = '1.11.0'
-    mcpSdkVersion           = '1.1.1'
-    pgvectorVersion         = '0.1.6'
-    chroma4jVersion         = '0.1.0'
+    helidonVersion          = '4.5.5'
+    langchain4jVersion      = '1.20.0'
     chronicleMapVersion     = '3.25ea0'
     opentelemetryVersion    = '1.40.0'
-    micronautTracingVersion = '1.3.3'
-    jacksonVersion          = '2.17.2'
-    flatbuffersVersion      = '24.3.25'
+    jacksonVersion          = '2.22.2'
     lettuceVersion          = '6.3.2.RELEASE'
-    spymemcachedVersion     = '2.12.3'
     hikariVersion           = '5.1.0'
-    postgresqlVersion       = '42.7.7'
+    postgresqlVersion       = '42.7.13'
     fabric8Version          = '6.13.4'   // ROADMAP-18 cafeai-sentinel; pin verified when P1 lands
-    junitVersion            = '5.11.2'
-    assertjVersion          = '3.26.3'
-    mockitoVersion          = '5.13.0'
+    junitVersion            = '5.14.4'
+    assertjVersion          = '3.27.7'
+    mockitoVersion          = '5.23.0'
     testcontainersVersion   = '1.20.2'
-    slf4jVersion            = '2.0.16'
-    logbackVersion          = '1.5.13'
+    slf4jVersion            = '2.0.19'
+    logbackVersion          = '1.5.38'
 }
 
 // ── Shared Config for All Subprojects ───────────────────────

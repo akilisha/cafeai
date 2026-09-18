@@ -1,7 +1,7 @@
 # CafeAI — What It Is
 
 > A Java framework for building AI-powered applications.
-> Built on Helidon 4 and LangChain4j 1.11. Production-ready today.
+> Built on Helidon 4 and LangChain4j 1.20. Production-ready today.
 
 ---
 
@@ -245,7 +245,7 @@ companion.
 
 - **Java 23+** — virtual threads, records, pattern matching, sealed classes, FFM, the Vector API (Java 25, the current LTS, is recommended)
 - **Helidon 4** — reactive HTTP server on virtual threads
-- **LangChain4j 1.11** — LLM provider abstraction
+- **LangChain4j 1.20** — LLM provider abstraction
 - **OpenAI** — any chat model by id (`gpt-4o`, ...), plus Whisper and TTS
 - **Anthropic** — any Claude model by id (`claude-sonnet-4-5`, ...)
 - **Gemini** — any Gemini model by id (`gemini-2.5-flash`, ...)
