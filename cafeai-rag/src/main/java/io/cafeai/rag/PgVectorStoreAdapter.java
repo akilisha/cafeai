@@ -29,8 +29,8 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
  * {@link VectorStore}, over a HikariCP pool.
  *
  * <p>Package-private — obtained via {@link PgVector#connect(PgVectorConfig)}.
- * {@code createTable(true)} + {@code useIndex(true)} give DDL auto-migration
- * (the chunk table and an {@code ivfflat} cosine index) on first connection.
+ * {@code createTable(true)} gives DDL auto-migration of the chunk table on first connection; the
+ * optional {@code ivfflat} cosine index is created only when {@code useIndex} is set.
  * {@code upsert} maps CafeAI's stable chunk id to a deterministic UUID primary
  * key, so re-ingesting a source overwrites rather than duplicates.
  */

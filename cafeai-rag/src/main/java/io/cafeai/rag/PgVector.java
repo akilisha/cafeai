@@ -21,8 +21,8 @@ import io.cafeai.core.rag.VectorStore;
  *           .build()));
  * }</pre>
  *
- * <p>On first connection the adapter creates the chunk table and an
- * {@code ivfflat} cosine index if they do not exist. Chunks survive restarts.
+ * <p>On first connection the adapter creates the chunk table if it does not exist. Search is exact;
+ * an {@code ivfflat} index is opt-in ({@code PgVectorConfig.Builder#useIndex}). Chunks survive restarts.
  */
 public final class PgVector {
 

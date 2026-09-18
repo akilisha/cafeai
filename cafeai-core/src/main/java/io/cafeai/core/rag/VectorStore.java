@@ -128,8 +128,9 @@ public interface VectorStore {
 
     /**
      * PostgreSQL/pgvector vector store — production single-node, on infrastructure
-     * you already run. ACID, SQL-queryable, restart-durable. The chunk table and
-     * an {@code ivfflat} cosine index are created on first connection.
+     * you already run. ACID, SQL-queryable, restart-durable. The chunk table is
+     * created on first connection; search is exact, and an approximate {@code ivfflat} index is
+     * opt-in for very large corpora ({@link PgVectorConfig}).
      *
      * <pre>{@code
      *   app.vectordb(VectorStore.pgVector(

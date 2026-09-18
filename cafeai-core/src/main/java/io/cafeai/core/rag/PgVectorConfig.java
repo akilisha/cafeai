@@ -20,6 +20,14 @@ import java.util.Objects;
  * {@code EmbeddingProvider} registered with {@code app.embed(...)} —
  * {@code EmbeddingProvider.local()} is 384, OpenAI's {@code text-embedding-3-small}
  * is 1536.
+ *
+ * <p><strong>Search is exact by default</strong>: every query compares against every row, so it
+ * always returns the true nearest neighbours, and that is fast enough into the hundreds of
+ * thousands of chunks. For a much larger corpus, {@link Builder#useIndex(boolean) useIndex(true)}
+ * adds an approximate {@code ivfflat} index. An approximate index trades recall for speed, and
+ * {@code ivfflat} chooses its centroids from the rows present when it is built, so build it
+ * <em>after</em> the corpus is loaded (for example with {@code REINDEX} once ingestion is done); an
+ * index built on an empty or tiny table can return fewer rows than exist.
  */
 public final class PgVectorConfig {
 
@@ -78,7 +86,7 @@ public final class PgVectorConfig {
         private String  password;
         private String  table         = "cafeai_chunks";
         private int     dimension;
-        private boolean useIndex      = true;
+        private boolean useIndex      = false;
         private int     indexListSize = 100;
         private int     maxPoolSize   = 8;
 

@@ -13,8 +13,7 @@ import java.util.Map;
  *
  * <p>The same pipeline as {@link ChromaVectorExample}, one line different:
  * {@code app.vectordb(VectorStore.pgVector(...))}. Chunks are stored in a
- * {@code cafeai_chunks} table (created on first connect, with an {@code ivfflat}
- * cosine index) and survive restarts. Ingestion is idempotent — the chunk id
+ * {@code cafeai_chunks} table (created on first connect) and survive restarts. Ingestion is idempotent — the chunk id
  * maps to a deterministic UUID primary key, so re-ingesting updates in place.
  *
  * <h2>Prerequisites</h2>

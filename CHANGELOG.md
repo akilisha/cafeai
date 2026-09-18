@@ -154,6 +154,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `name:modelId`, so two `Ollama.at(...)` providers on different base URLs no longer share a client.
 - `GuardRail.jailbreak()` matches `DAN` as a word, not as a substring of "Daniel" or "abundant".
 - `TopicBoundaryGuardRailImpl` no longer returns application-specific text as its reason.
+- **`PgVectorConfig` searches exactly by default** (`useIndex` is `false`). The `ivfflat` index it
+  used to create on an empty table with 100 lists could return fewer results than exist on a small
+  corpus. Set `useIndex(true)` for a very large corpus, and build the index after loading it; see
+  the `PgVectorConfig` Javadoc.
 
 ### Housekeeping
 
