@@ -35,7 +35,14 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build and test
-        run: ./gradlew build --console=plain --continue
+        shell: bash
+        run: ./gradlew build --console=plain --continue 2>&1 | tee build.log
+
+      # Turns failed tests and failed Gradle tasks into annotations, so a failure is readable
+      # on the run page and on the pull request without opening the raw log.
+      - name: Annotate failures
+        if: failure()
+        run: python3 .github/scripts/annotate_failures.py
 
       - name: Upload test reports
         if: failure()
