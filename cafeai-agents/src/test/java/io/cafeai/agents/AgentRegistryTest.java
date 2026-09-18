@@ -7,6 +7,12 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.moderation.Moderation;
+import dev.langchain4j.model.moderation.ModerationModel;
+import dev.langchain4j.model.moderation.ModerationRequest;
+import dev.langchain4j.model.moderation.ModerationResponse;
+import dev.langchain4j.service.Moderate;
+import dev.langchain4j.service.ModerationException;
 import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.guardrails.GuardRail;
@@ -189,6 +195,61 @@ class AgentRegistryTest {
         assertThat(agent.chat("hello there")).isEqualTo("should never be returned");
     }
 
+    // ── moderation: CafeAI's guardrail, and LangChain4j's own hook ────────────
+
+    interface ModeratedAssistant {
+        @Moderate
+        String chat(String message);
+    }
+
+    private static ModerationModel flagging(String needle, List<String> seen) {
+        return new ModerationModel() {
+            @Override public ModerationResponse doModerate(ModerationRequest request) {
+                seen.addAll(request.texts());
+                boolean flagged = request.texts().stream().anyMatch(t -> t.contains(needle));
+                return ModerationResponse.builder()
+                    .moderation(flagged ? Moderation.flagged(request.texts().get(0)) : Moderation.notFlagged())
+                    .build();
+            }
+        };
+    }
+
+    @Test
+    void moderationGuardRail_screensAnAgent_input_and_output() {
+        registry.init(support);
+        var model = fixedModel("here is a harmful reply");
+        support.model = model;
+        registry.register("assistant", Assistant.class)
+            .guard(GuardRail.moderation(flagging("harmful", new ArrayList<>())));
+
+        Assistant agent = registry.resolve("assistant", Assistant.class, null);
+
+        // flagged input never reaches the model
+        assertThatThrownBy(() -> agent.chat("say something harmful"))
+            .isInstanceOf(RuntimeException.class);
+        assertThat(model.received).isEmpty();
+        // clean input reaches the model, but its flagged output is blocked
+        assertThatThrownBy(() -> agent.chat("say something kind"))
+            .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void langChain4jModerationHook_isReachableThroughConfigure() {
+        // The escape hatch: CafeAI does not wrap this; LangChain4j's own AiServices hook works as-is.
+        registry.init(support);
+        var model = fixedModel("should never be returned");
+        support.model = model;
+        var seen = new ArrayList<String>();
+        registry.register("assistant", ModeratedAssistant.class)
+            .configure(builder -> builder.moderationModel(flagging("harmful", seen)));
+
+        ModeratedAssistant agent = registry.resolve("assistant", ModeratedAssistant.class, null);
+
+        assertThatThrownBy(() -> agent.chat("something harmful"))
+            .isInstanceOf(ModerationException.class);
+        assertThat(seen).contains("something harmful");
+        assertThat(agent.chat("something kind")).isEqualTo("should never be returned");
+    }
 
     @Test
     void observeBridge_bracketsTheInvocation() {

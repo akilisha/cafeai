@@ -84,6 +84,19 @@ public interface GuardRail extends Middleware {
             .orElseGet(() -> warnedStub("prompt-injection", Position.PRE_LLM));
     }
 
+    /**
+     * Content moderation by a LangChain4j {@code ModerationModel} — a model, not a pattern list.
+     * Works without {@code cafeai-guardrails}, since it needs no CafeAI implementation module.
+     * See {@link ModerationGuardRail}.
+     *
+     * <pre>{@code
+     *   app.guard(GuardRail.moderation(OpenAI.moderation("omni-moderation-latest")));
+     * }</pre>
+     */
+    static ModerationGuardRail moderation(dev.langchain4j.model.moderation.ModerationModel model) {
+        return ModerationGuardRail.of(model);
+    }
+
     /** Toxic and harmful content filtering. */
     static GuardRail toxicity() {
         return provider().map(p -> p.toxicity())

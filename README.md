@@ -225,6 +225,8 @@ app.guard(GuardRail.pii())               // PII scrub — pre and post LLM
 app.guard(GuardRail.jailbreak())         // adversarial prompt detection
 app.guard(GuardRail.promptInjection())   // data-sourced injection detection
 app.guard(GuardRail.toxicity())          // harmful content filtering
+app.guard(GuardRail.moderation(          // a moderation MODEL (LangChain4j's), not a pattern list
+    OpenAI.moderation("omni-moderation-latest")))
 app.guard(GuardRail.regulatory()         // GDPR, HIPAA, FCRA, CCPA
     .gdpr().hipaa())
 app.guard(GuardRail.topicBoundary()      // scope enforcement

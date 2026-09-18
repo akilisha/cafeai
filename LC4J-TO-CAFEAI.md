@@ -497,13 +497,23 @@ LangChain4j imports** — none of this exists in LangChain4j at all (§1.9);
 `InputGuardrail`/`OutputGuardrail` are an empty hook there. Two additional
 things worth knowing:
 
-- **`GuardRail extends Middleware`** — every guardrail is *also* a Helidon
-  HTTP filter (`toHelidonFilter(guardRail)` in `CafeAIApp`), so a guardrail
-  registered once protects both the low-level HTTP path and, via
-  `checkInput`/`checkOutput`, the imperative prompt pipeline (§2.2).
-- **Only inside `app.agent(...)`** does `GuardrailAdapters` (§2.3) wrap a
-  `GuardRail` as LangChain4j's `InputGuardrail`/`OutputGuardrail` so
-  `AiServices` applies it natively, before its own reasoning loop starts.
+- **The engine enforces, through `checkInput`/`checkOutput`.** A guardrail
+  registered once is applied by `CafeAIApp` to every `app.prompt()`, `.vision()`
+  and `.audio()` call (§2.2), on the text the model actually sees. `GuardRail`
+  also `extends Middleware`, so it is registered as a Helidon HTTP filter too —
+  but that form runs *after* the route handler and only sees the request body,
+  so it cannot stop an output; the engine path is what enforces.
+- **Inside `app.agent(...)`**, `GuardrailAdapters` (§2.3) wraps a `GuardRail` as
+  LangChain4j's `InputGuardrail`/`OutputGuardrail` so `AiServices` applies it
+  natively, before its own reasoning loop starts. Both paths honour the
+  guardrail's `Action` (`BLOCK` fails the call; `WARN`/`LOG` record and go on).
+- **One guardrail is a LangChain4j type on purpose.** `GuardRail.moderation(model)`
+  takes LangChain4j's own `ModerationModel` — any provider's — and adds no
+  wrapper: `OpenAI.moderation(id)` returns the LangChain4j type itself. A
+  moderation *model* is the answer to "the pattern list is always one rephrasing
+  behind", and it is the one place §2.6's "zero LangChain4j imports" is
+  deliberately not true. It fails closed if its API call fails, and reports only
+  what `Moderation` carries — flagged or not; no categories or scores.
 - **Graceful absence:** every `GuardRail.xxx()` factory checks
   `ServiceLoader` for a `GuardRailProvider` (from `cafeai-guardrails`) and
   falls back to a logged, pass-through `StubGuardRail` if the module isn't
@@ -580,6 +590,25 @@ wiring paths, both intentional:
   not an inconsistency, but the same "graceful, undiminished standalone
   mode" pattern described in §3.2, applied to a whole capstone-adjacent
   module rather than one config value.
+
+### 2.11 Reaching LangChain4j directly
+
+CafeAI does not try to re-expose LangChain4j's surface — it is large, it moves,
+and you are better served by its own documentation. Where a LangChain4j type is
+the natural currency, CafeAI accepts *that type* instead of a wrapper. Every
+place that happens:
+
+| You want to... | LangChain4j type | How |
+|---|---|---|
+| Use a model CafeAI has no provider for | `ChatModel`, `StreamingChatModel` | Implement `AiProvider` plus `LangchainBridge.ChatModelAccess` (and `StreamingChatModelAccess`). `Gemini` and `Nvidia` are built exactly this way, in one file each |
+| Moderate content with a model | `ModerationModel` | `GuardRail.moderation(model)` accepts any provider's; `OpenAI.moderation(id)` returns the LangChain4j type |
+| Tune an agent's builder | `AiServices<T>` | `app.agent(...).configure(b -> b.moderationModel(m))` hands you the live builder: `moderationModel`, `toolProvider`, and the rest of it |
+| Use the agent itself | LangChain4j's `AiService` proxy | `app.agent(...)` returns it unwrapped — no CafeAI type in between |
+| Run an investigation with no CafeAI app | `ChatModel` | `Investigator.using(chatModel, tools...)` |
+
+The agent-side moderation hook is tested, not just documented: LangChain4j's
+`@Moderate` on an agent method, with `configure(b -> b.moderationModel(m))`,
+throws LangChain4j's own `ModerationException` on a flagged input.
 
 ---
 

@@ -161,6 +161,18 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Content moderation by a model: `GuardRail.moderation(ModerationModel)`.** A guardrail
+  backed by LangChain4j's own `ModerationModel` — a model, not a pattern list, so it catches what
+  keyword rules cannot. CafeAI adds no wrapper: pass any provider's model, or use
+  `OpenAI.moderation("omni-moderation-latest")`, which returns the LangChain4j type. It applies to
+  `prompt`, `vision` and `audio` and, through the adapters, to `app.agent(...)`. Configure it with
+  `.at(Position)`, `.action(Action)`, `.named(...)` and `.failOpen()`. **It fails closed**: if the
+  moderation call itself fails, the text is blocked, because a safety control that quietly passes
+  everything when its dependency is down only looks protective (`failOpen()` opts out, logged at
+  WARN). LangChain4j's portable `Moderation` carries only a verdict, so that is all it reports.
+  LangChain4j's own agent hook is tested too: `configure(b -> b.moderationModel(m))` with
+  `@Moderate` throws its `ModerationException`. See `LC4J-TO-CAFEAI.md` §2.11 for every seam where
+  CafeAI accepts a LangChain4j type directly.
 - **NVIDIA provider** — `io.cafeai.core.ai.Nvidia`, for models on NVIDIA's hosted
   API catalog (`Nvidia.of("moonshotai/kimi-k3")`, key from `$NVIDIA_API_KEY`).
   The endpoint is OpenAI-compatible, so it is wired through `ChatModelAccess`
