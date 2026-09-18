@@ -167,11 +167,8 @@ class ApplicationTest {
         assertThat(app.setting(Setting.ENV,                 String.class))  .isEqualTo("development");
         assertThat(app.setting(Setting.X_POWERED_BY,        Boolean.class)) .isTrue();
         assertThat(app.setting(Setting.TRUST_PROXY,         Boolean.class)) .isFalse();
-        assertThat(app.setting(Setting.CASE_SENSITIVE_ROUTING, Boolean.class)).isFalse();
-        assertThat(app.setting(Setting.STRICT_ROUTING,      Boolean.class)) .isFalse();
         assertThat(app.setting(Setting.SUBDOMAIN_OFFSET,    Integer.class)) .isEqualTo(2);
         assertThat(app.setting(Setting.JSON_SPACES,         Integer.class)) .isEqualTo(0);
-        assertThat(app.setting(Setting.ETAG,                String.class))  .isEqualTo("weak");
         assertThat(app.setting(Setting.VIEWS,               String.class))  .isEqualTo("views");
         assertThat(app.setting(Setting.VIEW_ENGINE,         String.class))  .isNull();
     }
@@ -273,8 +270,7 @@ class ApplicationTest {
         assertThat(Setting.X_POWERED_BY.isBoolean()).isTrue();
         assertThat(Setting.TRUST_PROXY.isBoolean()).isFalse();   // Object type (bool OR hop count)
         assertThat(Setting.ENV.isBoolean()).isFalse();
-        assertThat(Setting.CASE_SENSITIVE_ROUTING.isBoolean()).isTrue();
-        assertThat(Setting.STRICT_ROUTING.isBoolean()).isTrue();
+        assertThat(Setting.JSON_SPACES.isBoolean()).isFalse();
     }
 
     @Test
@@ -282,7 +278,7 @@ class ApplicationTest {
     void setting_expressNames() {
         assertThat(Setting.ENV.expressName()).isEqualTo("env");
         assertThat(Setting.TRUST_PROXY.expressName()).isEqualTo("trust proxy");
-        assertThat(Setting.CASE_SENSITIVE_ROUTING.expressName()).isEqualTo("case sensitive routing");
+        assertThat(Setting.SUBDOMAIN_OFFSET.expressName()).isEqualTo("subdomain offset");
         assertThat(Setting.VIEW_ENGINE.expressName()).isEqualTo("view engine");
     }
 

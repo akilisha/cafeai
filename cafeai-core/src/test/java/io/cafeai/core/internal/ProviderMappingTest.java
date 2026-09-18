@@ -2,7 +2,6 @@ package io.cafeai.core.internal;
 
 import com.sun.net.httpserver.HttpServer;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;

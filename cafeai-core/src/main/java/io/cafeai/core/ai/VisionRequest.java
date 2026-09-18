@@ -52,7 +52,6 @@ public final class VisionRequest {
     private String sessionId;
     private String providerName;
     private String systemOverride;
-    private Class<?> returningType;
     private String schemaHint;
     private io.cafeai.core.routing.Request httpRequest;
     private final VisionExecutor executor;
@@ -119,16 +118,19 @@ public final class VisionRequest {
     }
 
     /**
-     * Declares the expected return type for structured output.
+     * Declares the expected return type for structured output: a JSON schema
+     * instruction is appended to the prompt so the model answers in that shape.
+     * {@link #call()} then returns the JSON as text; {@link #call(Class)} also
+     * deserialises it, and applies this instruction itself, so a separate
+     * {@code returning(...)} is only needed for the raw-text form.
      *
      * <pre>{@code
      *   InvoiceData invoice = app.vision(prompt, pdfBytes, "application/pdf")
-     *       .returning(InvoiceData.class)
      *       .call(InvoiceData.class);
      * }</pre>
      */
     public <T> VisionRequest returning(Class<T> type) {
-        this.returningType = type;
+        this.schemaHint = SchemaHintBuilder.instruction(type, SchemaHintBuilder.build(type));
         return this;
     }
 
@@ -192,9 +194,7 @@ public final class VisionRequest {
      * @throws ResponseDeserializer.StructuredOutputException if deserialisation fails
      */
     public <T> T call(Class<T> type) {
-        this.returningType = type;
-        String hint     = SchemaHintBuilder.build(type);
-        this.schemaHint = SchemaHintBuilder.instruction(type, hint);
+        returning(type);
         VisionResponse response = executor.execute(this);
         return ResponseDeserializer.deserialise(response.text(), type);
     }
@@ -212,7 +212,6 @@ public final class VisionRequest {
     public String  sessionId()      { return sessionId; }
     public String  providerName()   { return providerName; }
     public String  systemOverride() { return systemOverride; }
-    public Class<?> returningType() { return returningType; }
     public String  schemaHint()     { return schemaHint; }
     public Consumer<String> thinkingConsumer() { return thinkingConsumer; }
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }

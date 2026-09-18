@@ -18,6 +18,37 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   startup. External modules must delete their `register` method — see
   `MIGRATION.md` and the amendment to ADR-006. The startup DEBUG lines
   `CafeAI registry: … registered` are gone.
+- **Public API that did nothing.** A dead-code audit found declarations with no
+  reader or caller anywhere in the repo. Removed:
+  - `TextGuardRail` — an interface with no implementer and no caller; its
+    Javadoc described a use "in `AgentRegistry`" that never existed.
+  - Six `Setting` values that could be set but that nothing ever read:
+    `CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`, `JSON_ESCAPE_HTML`,
+    `QUERY_PARSER`, `VIEW_CACHE`. Setting them silently changed nothing.
+  - `AiProvider.ProviderType.AZURE_OPENAI` and `GOOGLE_VERTEX` — no provider
+    produced them, and the bridge throws for them.
+  - `Connection.ServiceType.MCP` and `EMBEDDING`.
+  - `returningType()` on `PromptRequest`, `VisionRequest` and `AudioRequest`
+    (see the fix below).
+  - `PodState.hasContainerTrouble()` and `hasWarningEvents()`.
+
+### Fixed
+
+- **`.returning(Class)` was a no-op.** It stored the type in a field nothing
+  read; the schema instruction reached the prompt only via `call(Class)`, so
+  `returning(X.class).call()` sent no instruction, and the documented
+  `.returning(X.class).call(X.class)` named the type twice for no reason.
+  `returning()` now appends the type's JSON schema instruction to the prompt, so
+  `.call()` returns JSON text in that shape; `.call(X.class)` is unchanged and
+  needs no separate `returning()`. Applies to `prompt`, `vision` and `audio`.
+
+### Housekeeping
+
+- Deleted `StreamingProbe` (a scratch file left in `cafeai-core`'s main source),
+  an unreachable `if (false)` branch in `CafeAIApp`, two unused loggers, three
+  unused imports, and `TokenBudgetTracker.currentWindowTokens()`.
+- `docs/adr/`: `ADR-010` and `ADR-008-connectivity-…` were byte-identical.
+  Kept `ADR-010`, corrected its title, and repointed `ROADMAP-09` at it.
 
 ### Added
 

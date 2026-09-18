@@ -3,7 +3,7 @@
 **Covers:** `app.ws()`, `app.sse()`, `app.grpc()`, `app.helidon()`,  
 `HelidonConfigurator`, `WebSocket`, `SseEmitter`, gRPC binding  
 **Modules:** `cafeai-core`, `cafeai-streaming` (extended)  
-**ADR Reference:** ADR-008  
+**ADR Reference:** ADR-010  
 **Depends On:** ROADMAP-01 Phase 1, ROADMAP-04 Phase 7 (`res.stream()`)  
 **Status:** 🟢 Complete (scoped) — see MILESTONE-09. `app.ws()` (+
 `WsSession.streamTokens`), `res.stream()` (SSE), and `app.helidon()` as a raw
@@ -17,7 +17,7 @@ roadmap phase bodies below are the original plan.
 
 ## Objective
 
-Implement the full connectivity layer defined in ADR-008. This covers three
+Implement the full connectivity layer defined in ADR-010. This covers three
 connectivity protocols (WebSockets, SSE persistent connections, gRPC) and the
 `app.helidon()` foundation gateway that exposes Helidon SE's operational
 capabilities without Express pretence.
@@ -469,7 +469,7 @@ understand immediately where to find each capability and why it is there.
   - `app.grpc()` — full guide including proto file setup
   - When to use each protocol (decision guide)
 - [ ] Write `docs/guide/HELIDON-FOUNDATION.md`:
-  - The two-layer model diagram (from ADR-008)
+  - The two-layer model diagram (from ADR-010)
   - `app.helidon()` — full reference for each subsystem
   - Health checks guide — Kubernetes integration
   - Metrics guide — Prometheus + Grafana setup

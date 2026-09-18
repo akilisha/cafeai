@@ -80,15 +80,6 @@ final class TokenBudgetTracker {
         resetWindow();
     }
 
-    /**
-     * Returns the number of tokens consumed in the current window.
-     * Useful for observability and logging.
-     */
-    long currentWindowTokens() {
-        resetWindowIfExpired();
-        return windowTokens.get();
-    }
-
     // ── Private ───────────────────────────────────────────────────────────────
 
     private void resetWindowIfExpired() {

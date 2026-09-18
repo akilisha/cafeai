@@ -1,4 +1,4 @@
-# ADR-008: Connectivity Protocols and the Helidon Foundation Layer
+# ADR-010: Connectivity Protocols and the Helidon Foundation Layer
 
 **Status:** Accepted  
 **Date:** March 2026
@@ -455,4 +455,4 @@ The developer can read any section and know exactly what world they are in.
 
 ---
 
-*ADR-008 — CafeAI v0.1.0-SNAPSHOT*
+*ADR-010 — CafeAI v0.1.0-SNAPSHOT*

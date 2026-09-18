@@ -2,8 +2,6 @@ package io.cafeai.observability;
 
 import io.cafeai.core.ai.PromptResponse;
 import io.cafeai.core.rag.RagDocument;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,7 +38,6 @@ import java.util.Map;
  */
 public final class EvalHarness {
 
-    private static final Logger log = LoggerFactory.getLogger(EvalHarness.class);
 
     /**
      * Default evaluation harness. Computes three scores for every

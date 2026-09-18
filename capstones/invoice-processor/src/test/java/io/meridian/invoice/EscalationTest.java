@@ -7,7 +7,6 @@ import io.meridian.invoice.billing.DiscrepancyRecorder;
 import io.meridian.invoice.billing.InvoiceApprover;
 import io.meridian.invoice.billing.VendorContractLookup;
 import io.meridian.invoice.escalation.EscalationNotifier;
-import io.meridian.invoice.gmail.GmailEmailBodyReader.AttachmentInfo;
 import io.meridian.invoice.gmail.GmailEmailBodyReader.EmailContent;
 import io.meridian.invoice.sentiment.EmailSentimentAnalyzer;
 import io.meridian.invoice.sentiment.SentimentResult;

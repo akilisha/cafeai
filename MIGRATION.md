@@ -89,6 +89,25 @@ public class PineconeModule implements CafeAIModule {
 
 See `docs/adr/ADR-006-di-cdi-service-loaders.md` (Amendment).
 
+**5. Declarations that nothing ever read are removed.** All of these could be
+referenced without doing anything, so removing them changes behaviour only if you
+were relying on a no-op:
+
+- `Setting.CASE_SENSITIVE_ROUTING`, `STRICT_ROUTING`, `ETAG`, `JSON_ESCAPE_HTML`,
+  `QUERY_PARSER`, `VIEW_CACHE` — settable, never honoured. Delete the
+  `app.set(...)` calls.
+- `AiProvider.ProviderType.AZURE_OPENAI` and `GOOGLE_VERTEX`, and
+  `Connection.ServiceType.MCP` and `EMBEDDING` — no code produced or consumed them.
+- `TextGuardRail` — no implementer, no caller.
+- `PromptRequest`/`VisionRequest`/`AudioRequest.returningType()`.
+
+**6. `.returning(X.class)` now does something.** It previously stored the type and
+did nothing, so structured output worked only through `.call(X.class)`. It now
+appends the schema instruction to the prompt. `.call(X.class)` behaves exactly as
+before, and you can drop the redundant `.returning(X.class)` in front of it. If
+you call `.returning(X.class).call()` (no argument) you now get JSON-shaped text
+where you previously got unconstrained text.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.

@@ -414,21 +414,11 @@ public final class CafeAIApp implements CafeAI {
             attemptsLeft--;
             lastRateLimitError = null;
             try {
-                if (false) { // placeholder — remove at next cleanup
-                    responseText = "";
-                    //
-                    // PRE_LLM guardrails already ran on the user's input. Now apply
-                    // POST_LLM and BOTH guardrails to the assembled tool-call output.
-                    // This ensures adversarial inputs that influence the tool-calling
-                    // loop cannot produce harmful final responses undetected.
-                    responseText = applyPostLlmGuardrails(responseText);
-                } else {
-                    ChatResponse response = model.chat(messages);
-                    responseText = response.aiMessage().text();
-                    TokenUsage usage = response.tokenUsage();
-                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
-                }
+                ChatResponse response = model.chat(messages);
+                responseText = response.aiMessage().text();
+                TokenUsage usage = response.tokenUsage();
+                promptTokens = usage != null ? usage.inputTokenCount() : 0;
+                outputTokens = usage != null ? usage.outputTokenCount() : 0;
                 // -- Token budget: record actual usage after successful call -------
                 if (budgetTracker != null) {
                     budgetTracker.recordUsage(promptTokens + outputTokens);

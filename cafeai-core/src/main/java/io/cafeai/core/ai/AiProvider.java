@@ -131,8 +131,6 @@ public interface AiProvider {
         ANTHROPIC,
         OLLAMA,
         JLAMA,
-        AZURE_OPENAI,
-        GOOGLE_VERTEX,
         CUSTOM
     }
 }

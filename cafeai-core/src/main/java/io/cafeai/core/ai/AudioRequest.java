@@ -68,7 +68,6 @@ public final class AudioRequest {
     private String sessionId;
     private String providerName;
     private String systemOverride;
-    private Class<?> returningType;
     private String schemaHint;
     private io.cafeai.core.routing.Request httpRequest;
     private final AudioExecutor executor;
@@ -133,16 +132,19 @@ public final class AudioRequest {
     }
 
     /**
-     * Declares the expected return type for structured output.
+     * Declares the expected return type for structured output: a JSON schema
+     * instruction is appended to the prompt so the model answers in that shape.
+     * {@link #call()} then returns the JSON as text; {@link #call(Class)} also
+     * deserialises it, and applies this instruction itself, so a separate
+     * {@code returning(...)} is only needed for the raw-text form.
      *
      * <pre>{@code
      *   CallSummary summary = app.audio(prompt, audioBytes, "audio/wav")
-     *       .returning(CallSummary.class)
      *       .call(CallSummary.class);
      * }</pre>
      */
     public <T> AudioRequest returning(Class<T> type) {
-        this.returningType = type;
+        this.schemaHint = SchemaHintBuilder.instruction(type, SchemaHintBuilder.build(type));
         return this;
     }
 
@@ -157,9 +159,7 @@ public final class AudioRequest {
      * @throws ResponseDeserializer.StructuredOutputException if deserialisation fails
      */
     public <T> T call(Class<T> type) {
-        this.returningType = type;
-        String hint     = SchemaHintBuilder.build(type);
-        this.schemaHint = SchemaHintBuilder.instruction(type, hint);
+        returning(type);
         AudioResponse response = executor.execute(this);
         return ResponseDeserializer.deserialise(response.text(), type);
     }
@@ -171,7 +171,6 @@ public final class AudioRequest {
     public String   sessionId()      { return sessionId; }
     public String   providerName()  { return providerName; }
     public String   systemOverride() { return systemOverride; }
-    public Class<?> returningType()  { return returningType; }
     public String   schemaHint()     { return schemaHint; }
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
 

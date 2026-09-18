@@ -52,22 +52,6 @@ public enum Setting {
     // ── Routing ───────────────────────────────────────────────────────────────
 
     /**
-     * When {@code true}, routing is case-sensitive ({@code /Foo} ≠ {@code /foo}).
-     * Mirrors Express: {@code app.set('case sensitive routing', false)}
-     * Default: {@code false}
-     * Type: {@code Boolean}
-     */
-    CASE_SENSITIVE_ROUTING("case sensitive routing", false, Boolean.class),
-
-    /**
-     * When {@code true}, trailing slashes are significant ({@code /foo/} ≠ {@code /foo}).
-     * Mirrors Express: {@code app.set('strict routing', false)}
-     * Default: {@code false}
-     * Type: {@code Boolean}
-     */
-    STRICT_ROUTING("strict routing", false, Boolean.class),
-
-    /**
      * Number of subdomain segments to remove when calculating {@code req.subdomains()}.
      * Mirrors Express: {@code app.set('subdomain offset', 2)}
      * Default: {@code 2}
@@ -78,37 +62,12 @@ public enum Setting {
     // ── Response ──────────────────────────────────────────────────────────────
 
     /**
-     * ETag generation strategy for responses: {@code "weak"}, {@code "strong"},
-     * or {@code false} to disable.
-     * Mirrors Express: {@code app.set('etag', 'weak')}
-     * Default: {@code "weak"}
-     * Type: {@code Object} (String or Boolean)
-     */
-    ETAG("etag", "weak", Object.class),
-
-    /**
-     * When {@code true}, HTML characters in {@code res.json()} output are escaped.
-     * Mirrors Express: {@code app.set('json escape html', true)}
-     * Default: {@code true}
-     * Type: {@code Boolean}
-     */
-    JSON_ESCAPE_HTML("json escape html", true, Boolean.class),
-
-    /**
      * Number of spaces for JSON pretty-printing. {@code 0} disables pretty-printing.
      * Mirrors Express: {@code app.set('json spaces', 0)}
      * Default: {@code 0}
      * Type: {@code Integer}
      */
     JSON_SPACES("json spaces", 0, Integer.class),
-
-    /**
-     * Query string parser: {@code "simple"} (built-in) or {@code "extended"} (qs-style).
-     * Mirrors Express: {@code app.set('query parser', 'simple')}
-     * Default: {@code "simple"}
-     * Type: {@code String}
-     */
-    QUERY_PARSER("query parser", "simple", String.class),
 
     // ── Views ─────────────────────────────────────────────────────────────────
 
@@ -127,15 +86,7 @@ public enum Setting {
      * Default: {@code null} (must be set explicitly)
      * Type: {@code String}
      */
-    VIEW_ENGINE("view engine", null, String.class),
-
-    /**
-     * When {@code true}, compiled view templates are cached after first render.
-     * Mirrors Express: {@code app.set('view cache', false)}
-     * Default: {@code false} in development, {@code true} in production
-     * Type: {@code Boolean}
-     */
-    VIEW_CACHE("view cache", false, Boolean.class);
+    VIEW_ENGINE("view engine", null, String.class);
 
     // ── Metadata ──────────────────────────────────────────────────────────────
 

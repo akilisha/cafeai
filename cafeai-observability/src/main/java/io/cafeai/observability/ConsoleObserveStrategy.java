@@ -1,7 +1,5 @@
 package io.cafeai.observability;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Observation strategy that writes structured, human-readable output
@@ -13,7 +11,6 @@ import org.slf4j.LoggerFactory;
  */
 final class ConsoleObserveStrategy implements ObserveStrategy {
 
-    private static final Logger log = LoggerFactory.getLogger(ConsoleObserveStrategy.class);
 
     @Override
     public String toString() { return "ConsoleObserveStrategy"; }

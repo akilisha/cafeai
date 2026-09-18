@@ -43,14 +43,4 @@ public record PodState(
         containers = List.copyOf(containers);
         recentEvents = List.copyOf(recentEvents);
     }
-
-    /** True when any container is not running healthy. */
-    public boolean hasContainerTrouble() {
-        return containers.stream().anyMatch(ContainerState::troubled);
-    }
-
-    /** True when any recent Event is a {@code Warning}. */
-    public boolean hasWarningEvents() {
-        return recentEvents.stream().anyMatch(PodEvent::warning);
-    }
 }

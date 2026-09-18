@@ -1,6 +1,5 @@
 package io.cafeai.core.rag;
 
-import io.cafeai.core.Attributes;
 
 import java.util.List;
 

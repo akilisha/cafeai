@@ -39,7 +39,6 @@ public final class PromptRequest {
     private String providerName;
     private String systemOverride;
     private Request httpRequest;
-    private Class<?> returningType;
     private String schemaHint;
     private Consumer<String> thinkingConsumer;
     private final PromptExecutor executor;
@@ -107,22 +106,24 @@ public final class PromptRequest {
     }
 
     /**
-     * Declares the expected return type for structured output.
+     * Declares the expected return type for structured output: a JSON schema
+     * instruction, generated from the class fields via reflection, is appended to
+     * the prompt so the model answers in that shape.
      *
-     * <p>When set, {@link #call(Class)} appends a JSON schema hint to the
-     * prompt and deserialises the response to the target type automatically.
-     * The schema hint is generated from the class fields via reflection.
+     * <p>{@link #call()} then returns the model's JSON as text;
+     * {@link #call(Class)} also deserialises it, and applies this same instruction
+     * itself, so a separate {@code returning(...)} is only needed for the raw-text
+     * form:
      *
      * <pre>{@code
-     *   SentimentResult result = app.prompt(prompt)
-     *       .returning(SentimentResult.class)
-     *       .call(SentimentResult.class);
+     *   SentimentResult result = app.prompt(prompt).call(SentimentResult.class);
+     *   String json            = app.prompt(prompt).returning(SentimentResult.class).call().text();
      * }</pre>
      *
      * @param type the target class — must be a Java record or POJO with public fields
      */
     public <T> PromptRequest returning(Class<T> type) {
-        this.returningType = type;
+        this.schemaHint = SchemaHintBuilder.instruction(type, SchemaHintBuilder.build(type));
         return this;
     }
 
@@ -226,18 +227,14 @@ public final class PromptRequest {
      *
      * <pre>{@code
      *   SentimentResult result = app.prompt(sentimentPrompt)
-     *       .returning(SentimentResult.class)
      *       .call(SentimentResult.class);
      * }</pre>
      *
-     * @param type the target class — must match the type passed to {@link #returning(Class)}
+     * @param type the target class to deserialise into
      * @throws ResponseDeserializer.StructuredOutputException if deserialisation fails
      */
     public <T> T call(Class<T> type) {
-        // Inject schema hint into the message before executing
-        this.returningType = type;
-        String hint        = SchemaHintBuilder.build(type);
-        this.schemaHint    = SchemaHintBuilder.instruction(type, hint);
+        returning(type);
         PromptResponse response = executor.execute(this);
         return ResponseDeserializer.deserialise(response.text(), type);
     }
@@ -248,7 +245,6 @@ public final class PromptRequest {
     public String providerName()    { return providerName; }
     public String systemOverride() { return systemOverride; }
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
-    public Class<?> returningType()  { return returningType; }
     public String schemaHint()       { return schemaHint; }
     public Consumer<String> thinkingConsumer() { return thinkingConsumer; }
 

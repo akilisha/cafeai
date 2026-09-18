@@ -124,14 +124,10 @@ public interface Connection {
     enum ServiceType {
         /** A language model (Ollama, OpenAI-compatible, etc.) */
         LLM,
-        /** A distributed memory / session store (Redis, Memcached) */
+        /** A distributed memory / session store (Redis) */
         MEMORY,
         /** A vector database (pgvector, Chroma, Pinecone, Weaviate, etc.) */
         VECTOR_DB,
-        /** An MCP protocol server */
-        MCP,
-        /** An embedding model service */
-        EMBEDDING,
         /**
          * Any other service. Use for custom connections.
          * {@link #register(CafeAI)} is called but type-based routing does not apply.
