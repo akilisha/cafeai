@@ -120,7 +120,7 @@ graph TD
             RAG["RAG Retrieval\n(Embed · Search · Rerank)"]
             LLM["LLM Call\nModel Router"]
             GuardPost["Guardrails POST\n(Toxicity)"]
-            Observe["Observability\n(OTel · Evals · Prompts)"]
+            Observe["Observability\n(OTel · console)"]
             MemWrite["Memory Write"]
             Stream["Streaming Response\n(SSE / WebSocket)"]
         end
@@ -250,7 +250,6 @@ AiSecurity.onEvent(event -> { ... })              // typed audit event listener
 ```java
 app.observe(ObserveStrategy.console())    // development console traces
 app.observe(ObserveStrategy.otel())       // OpenTelemetry export
-app.eval(EvalHarness.defaults())         // heuristic faithfulness / relevance / groundedness scores
 ```
 
 ### 3.8 Agent Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
@@ -345,7 +344,7 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | 3 | Context memory | `core` + `memory` | Conversation state, FFM memory API |
 | 4 | RAG | `core` + `memory` + `rag` | Ingestion, embeddings, retrieval |
 | 5 | Guardrails | `core` + `guardrails` | Safety, ethics, compliance as middleware |
-| 6 | Observability + Evals | `core` + `observability` | Production measurement |
+| 6 | Observability | `core` + `observability` | Production measurement |
 | 7 | Security | `core` + `security` | Prompt-injection blocking with audit events |
 | 8 | Out-of-process services | `core` + `connect` | Redis, Ollama, pgvector with fallback policy |
 | 9 | Agents, tools, MCP | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
@@ -422,7 +421,7 @@ cafeai/
 ├── cafeai-memory/                      ← Tiered context memory
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
 ├── cafeai-guardrails/                  ← PII, jailbreak, toxicity, regulatory compliance
-├── cafeai-observability/               ← OpenTelemetry tracing, console logging, evals
+├── cafeai-observability/               ← OpenTelemetry tracing, console logging
 ├── cafeai-security/                    ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
@@ -756,7 +755,7 @@ Each module is a self-contained teachable unit. The project structure **is** the
 | 6 | **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval |
 | 7 | **Tool Use and MCP in Java** — The Difference Between a Tool and an MCP Server |
 | 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, and Regulatory Compliance |
-| 9 | **Production-Grade AI Observability** — OpenTelemetry and Evals |
+| 9 | **Production-Grade AI Observability** — OpenTelemetry Tracing |
 | 10 | **AI Security Beyond Guardrails** — Prompt Injection and Audit Events |
 | 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities via `app.helidon()` |
 | 12 | **Agents Without Magic** — Giving LangChain4j AiServices an HTTP Identity |

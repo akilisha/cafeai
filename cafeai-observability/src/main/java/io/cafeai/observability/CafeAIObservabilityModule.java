@@ -5,8 +5,7 @@ import io.cafeai.core.spi.CafeAIModule;
 /**
  * Announces {@code cafeai-observability} at startup.
  *
- * <p>Signals that observability is available via {@code app.observe()}
- * and {@code app.eval()}.
+ * <p>Signals that observability is available via {@code app.observe()}.
  */
 public final class CafeAIObservabilityModule implements CafeAIModule {
 

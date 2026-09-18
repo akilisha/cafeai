@@ -9,11 +9,11 @@ package io.cafeai.core;
  * <p>These constants eliminate magic strings in middleware chains:
  *
  * <pre>{@code
- *   // RAG middleware stores retrieved documents:
- *   req.setAttribute(Attributes.RAG_DOCUMENTS, retrievedChunks);
+ *   // Authentication middleware stores the principal:
+ *   req.setAttribute(Attributes.AUTH_PRINCIPAL, principal);
  *
- *   // Handler reads them:
- *   List<RagDocument> docs = req.attribute(Attributes.RAG_DOCUMENTS, List.class);
+ *   // A handler reads it:
+ *   Principal p = req.attribute(Attributes.AUTH_PRINCIPAL, Principal.class);
  * }</pre>
  */
 public final class Attributes {
@@ -29,22 +29,6 @@ public final class Attributes {
      * Type: application-defined principal object.
      */
     public static final String AUTH_PRINCIPAL   = "cafeai.auth.principal";
-
-    // -- RAG -------------------------------------------------------------------
-
-    /**
-     * List of documents retrieved by the RAG pipeline for the current request.
-     * Set by the RAG retrieval middleware before the LLM call.
-     * Type: {@code List<io.cafeai.rag.RagDocument>}
-     */
-    public static final String RAG_DOCUMENTS    = "cafeai.rag.documents";
-
-    /**
-     * The rendered RAG context string injected into the LLM prompt.
-     * Contains the concatenated content of retrieved documents.
-     * Type: {@code String}
-     */
-    public static final String RAG_CONTEXT      = "cafeai.rag.context";
 
     // -- Guardrails ------------------------------------------------------------
 
@@ -73,13 +57,4 @@ public final class Attributes {
      * <p>Type: {@code String}
      */
     public static final String LLM_RESPONSE_TEXT = "cafeai.llm.responseText";
-
-    // -- Observability ---------------------------------------------------------
-
-    /**
-     * Evaluation scores computed for the current RAG response.
-     * Attached by the observability layer.
-     * Type: {@code Map<String, Double>} keyed by metric name.
-     */
-    public static final String EVAL_SCORES      = "cafeai.eval.scores";
 }

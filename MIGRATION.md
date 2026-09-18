@@ -149,8 +149,7 @@ removed. If you implement `GuardRailProvider` yourself, add `secrets()` and drop
 `hallucination()`.
 
 **14. `GuardRail.bias()` and `GuardRail.hallucination()` are removed.** Delete the `app.guard(...)`
-calls; they had no effect. For scoring an answer against its sources (not blocking) use
-`app.eval(EvalHarness.defaults())`.
+calls; they had no effect.
 
 **15. The semantic-cache surface changed.** `AiSecurity.semanticCachePoisoningDetector()` and
 `SecurityEvent.CachePoisoningAttempt` are removed, as is `fromCache()` on `VisionResponse` and
@@ -181,6 +180,13 @@ on every call.
 and in order. An allowed multi-word topic requires all of its words, so `allow("customer service")`
 is no longer satisfied by "customer" alone; list the words separately
 (`allow("customer", "service")`) to keep that leniency. Single-word topics are unchanged.
+
+**20. `app.eval(...)`, `EvalHarness`, and three `Attributes` constants are removed.** `app.eval(harness)`
+stored its argument and nothing used it, so no scores were ever computed, and no `Attributes.EVAL_SCORES`
+value or `cafeai.eval.*` span attribute was ever produced; delete the `app.eval(...)` call. The
+constants `Attributes.EVAL_SCORES`, `Attributes.RAG_DOCUMENTS` and `Attributes.RAG_CONTEXT` are removed
+for the same reason: nothing set them, so a handler that read them got `null`. To cite the documents
+behind an answer, use `PromptResponse.ragDocuments()`.
 
 ### Not breaking, but new
 

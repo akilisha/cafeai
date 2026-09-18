@@ -21,11 +21,8 @@ import java.util.List;
  * }</pre>
  *
  * <p>Retrieved documents are automatically injected into every
- * {@code app.prompt().call()} as context before the user's message.
- * They are also stored in {@code req.attribute(Attributes.RAG_DOCUMENTS)}
- * for access in route handlers.
- *
- * @see Attributes#RAG_DOCUMENTS
+ * {@code app.prompt().call()} as context before the user's message, and are returned on
+ * {@code PromptResponse.ragDocuments()}.
  */
 public interface Retriever {
 

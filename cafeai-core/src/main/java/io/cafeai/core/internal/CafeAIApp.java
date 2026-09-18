@@ -96,7 +96,6 @@ public final class CafeAIApp implements CafeAI {
     // Token budget and retry (ROADMAP-14 Phase 10)
     private TokenBudgetTracker budgetTracker;
     private RetryPolicy retryPolicy;
-    private Object evalHarness;
     private final Map<String, String> templates = new ConcurrentHashMap<>();
 
     // ROADMAP-02: Application settings
@@ -1605,15 +1604,6 @@ public final class CafeAIApp implements CafeAI {
         this.observeBridge.setStrategy(strategy);
         locals.put(Locals.OBSERVE_STRATEGY, strategy);
         log.info("Observability registered: {}", strategy.getClass().getSimpleName());
-        return this;
-    }
-
-    @Override
-    public CafeAI eval(Object harness) {
-        assertNotStarted("eval()");
-        Objects.requireNonNull(harness, "EvalHarness must not be null");
-        this.evalHarness = harness;
-        log.info("Eval harness registered: {}", harness.getClass().getSimpleName());
         return this;
     }
 

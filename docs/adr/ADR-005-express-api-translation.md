@@ -839,7 +839,6 @@ They are AI-native extensions that follow the same design philosophy.
 | `app.guard(guardRail)` | Attach guardrail middleware |
 | `app.agent(name, Interface.class)` | Register a LangChain4j `AiService` agent (ROADMAP-12) |
 | `app.observe(strategy)` | Attach observability |
-| `app.eval(harness)` | Attach eval harness |
 | `req.stream()` | Detect SSE streaming client |
 | `req.attribute(key, type)` | Typed request attribute carrier |
 | `res.stream(publisher)` | Stream LLM tokens as SSE |

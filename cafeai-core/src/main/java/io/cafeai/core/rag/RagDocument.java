@@ -3,17 +3,15 @@ package io.cafeai.core.rag;
 /**
  * A single document chunk retrieved from the vector store.
  *
- * <p>Retrieved documents are stored in
- * {@code req.attribute(Attributes.RAG_DOCUMENTS)} as a
- * {@code List<RagDocument>} and injected into the LLM context
- * before the user's message.
+ * <p>Retrieved documents are injected into the LLM context before the user's message, and are
+ * returned on {@code PromptResponse.ragDocuments()}.
  *
  * <pre>{@code
  *   app.post("/ask", (req, res, next) -> {
  *       PromptResponse response = app.prompt(req.body("question")).call();
  *
- *       // Access the documents that informed the answer
- *       List<RagDocument> docs = req.attribute(Attributes.RAG_DOCUMENTS, List.class);
+ *       // The documents that informed the answer
+ *       List<RagDocument> docs = response.ragDocuments();
  *       res.json(Map.of(
  *           "answer",  response.text(),
  *           "sources", docs.stream().map(RagDocument::sourceId).toList()

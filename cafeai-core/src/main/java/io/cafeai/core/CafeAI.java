@@ -718,8 +718,8 @@ public interface CafeAI extends Router {
      *
      * <p>Once registered, every {@code app.prompt().call()} automatically
      * retrieves the top-K most relevant chunks and injects them into the
-     * LLM context before the user's message. Retrieved documents are also
-     * stored in {@code req.attribute(Attributes.RAG_DOCUMENTS)}.
+     * LLM context before the user's message. The documents that informed an
+     * answer are on {@code PromptResponse.ragDocuments()}.
      *
      * <pre>{@code
      *   app.rag(Retriever.semantic(5));   // top 5 by cosine similarity
@@ -969,21 +969,6 @@ public interface CafeAI extends Router {
      * @throws IllegalStateException if called after {@link #listen(int)}
      */
     CafeAI observe(Object strategy);
-
-    /**
-     * Registers an evaluation harness — every RAG response is automatically
-     * scored for faithfulness, relevance, and groundedness.
-     *
-     * <p>Eval scores are attached to OTel spans and stored in
-     * {@code req.attribute(Attributes.EVAL_SCORES)}.
-     *
-     * <pre>{@code
-     *   app.eval(EvalHarness.defaults());
-     * }</pre>
-     *
-     * @throws IllegalStateException if called after {@link #listen(int)}
-     */
-    CafeAI eval(Object harness);
 
     // ── Out-of-process Connections (cafeai-connect) ───────────────────────────
 

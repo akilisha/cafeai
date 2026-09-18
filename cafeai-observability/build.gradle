@@ -1,12 +1,12 @@
 // ============================================================
 //  cafeai-observability
-//  Tracing and an eval harness.
-//  Every LLM call is a traced, scored event.
+//  Tracing.
+//  Every LLM call is a traced event.
 //  OpenTelemetry is the primary integration; a console
 //  strategy covers local development.
 // ============================================================
 
-description = 'Tracing and an eval harness for CafeAI, built on OpenTelemetry, ' +
+description = 'Tracing for CafeAI, built on OpenTelemetry, ' +
     'with a console strategy for local development.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"

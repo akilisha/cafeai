@@ -90,13 +90,12 @@ without a version — pin them to `0.4.0` (or import a version catalog).
     - [19.4 Guardrail position](#194-guardrail-position)
     - [19.5 Guardrail violations](#195-guardrail-violations)
     - [19.6 Composing guardrails](#196-composing-guardrails)
-20. [Observability — Tracing, Metrics, and Eval](#20-observability--tracing-metrics-and-eval)
+20. [Observability — Tracing](#20-observability--tracing)
     - [20.1 Why observability matters](#201-why-observability-matters-for-llm-applications)
     - [20.2 Adding cafeai-observability](#202-adding-cafeai-observability)
     - [20.3 Console strategy](#203-console-strategy--development)
     - [20.4 OpenTelemetry strategy](#204-opentelemetry-strategy--production)
-    - [20.5 Eval harness](#205-eval-harness--automatic-quality-scoring)
-    - [20.6 Combining observation and eval](#206-combining-observation-and-eval)
+    - [20.5 A fully observed application](#205-a-fully-observed-application)
 21. [The Helidon Foundation — `app.helidon()`](#21-the-helidon-foundation--apphelidon)
 22. [Extending CafeAI — writing a module](#22-extending-cafeai--writing-a-module)
 23. [cafeai-sentinel — AI Cluster Incident Pipeline](#23-cafeai-sentinel--ai-cluster-incident-pipeline)
@@ -407,7 +406,6 @@ Pre-defined attribute key constants avoid magic strings:
 ```java
 req.setAttribute(Attributes.AUTH_PRINCIPAL, principal);
 req.setAttribute(Attributes.GUARDRAIL_SCORE, score);
-req.setAttribute(Attributes.RAG_DOCUMENTS, docs);
 
 Principal p = req.attribute(Attributes.AUTH_PRINCIPAL, Principal.class);
 ```
@@ -1107,7 +1105,7 @@ The capability modules build on them:
 - **Guardrails** — `cafeai-guardrails` turns the `GuardRail.*()` factories from
   logged pass-throughs into real PII / jailbreak / injection / toxicity /
   regulatory checks. Register them now; adding the module makes them live. See §19.
-- **Observability** — `cafeai-observability` traces and scores every LLM call. See §20.
+- **Observability** — `cafeai-observability` traces every LLM call. See §20.
 
 **Agents and tool use** are the remaining frontier, and the design changed course.
 Rather than a bespoke ReAct loop, CafeAI binds LangChain4j `AiServices` — which
@@ -1571,21 +1569,15 @@ Retriever.hybrid(5)      // dense + BM25 keyword — better for exact terms and 
 
 ### 15.5 Accessing retrieved documents in handlers
 
-Retrieved documents are stored in `req.attribute(Attributes.RAG_DOCUMENTS)` so
-handlers can reference them:
+The documents that informed an answer are on the response, so handlers can cite them:
 
 ```java
 app.post("/ask", (req, res, next) -> {
     PromptResponse response = app.prompt(req.body("question")).call();
 
-    @SuppressWarnings("unchecked")
-    List<RagDocument> sources = (List<RagDocument>)
-        req.attribute(Attributes.RAG_DOCUMENTS);
-
     res.json(Map.of(
         "answer",  response.text(),
-        "sources", sources == null ? List.of()
-                   : sources.stream().map(RagDocument::sourceId).toList()
+        "sources", response.ragDocuments().stream().map(RagDocument::sourceId).toList()
     ));
 });
 ```
@@ -2237,7 +2229,7 @@ app.post("/chat", safetyStack, myHandler);
 
 ---
 
-## 20. Observability — Tracing, Metrics, and Eval
+## 20. Observability — Tracing
 
 ### 20.1 Why observability matters for LLM applications
 
@@ -2318,50 +2310,7 @@ Span attributes recorded per call:
 | `cafeai.cache_hit` | boolean | Whether the semantic cache answered |
 | `cafeai.error` | string | Error class name if the call failed |
 
-### 20.5 Eval harness — automatic quality scoring
-
-`EvalHarness.defaults()` automatically scores every RAG-augmented response on three dimensions. Register it alongside an observation strategy:
-
-```java
-app.observe(ObserveStrategy.otel());
-app.eval(EvalHarness.defaults());
-```
-
-After each call, scores are available in `req.attribute(Attributes.EVAL_SCORES)`:
-
-```java
-app.post("/ask", (req, res, next) -> {
-    PromptResponse response = app.prompt(req.body("question")).call();
-
-    @SuppressWarnings("unchecked")
-    Map<String, Double> scores = (Map<String, Double>)
-        req.attribute(Attributes.EVAL_SCORES);
-
-    res.json(Map.of(
-        "answer",       response.text(),
-        "faithfulness", scores != null ? scores.get("faithfulness") : null,
-        "relevance",    scores != null ? scores.get("relevance")    : null,
-        "groundedness", scores != null ? scores.get("groundedness") : null
-    ));
-});
-```
-
-The three scores:
-
-| Score | Range | Meaning |
-|---|---|---|
-| `faithfulness` | 0.0–1.0 | Does the answer stay within the retrieved context? High = no hallucination relative to documents |
-| `relevance` | 0.0–1.0 | Does the answer address the question? Measured by keyword overlap |
-| `groundedness` | 0.0–1.0 | Is the answer content supported by retrieved documents? |
-
-These are heuristic scores — fast, zero-cost, and suitable for continuous production monitoring. They use word-overlap approximations, not a second LLM call. For rigorous offline evaluation, run a dedicated eval pipeline against a labelled dataset.
-
-When `app.observe(ObserveStrategy.otel())` is also active, eval scores are attached to the span as additional attributes:
-- `cafeai.eval.faithfulness`
-- `cafeai.eval.relevance`
-- `cafeai.eval.groundedness`
-
-### 20.6 Combining observation and eval
+### 20.5 A fully observed application
 
 ```java
 var app = CafeAI.create();
@@ -2373,9 +2322,8 @@ app.embed(EmbeddingProvider.local());
 app.rag(Retriever.semantic(5));
 app.ingest(Source.pdf("docs/handbook.pdf"));
 
-// Observability — every call traced and scored
+// Observability — every call traced
 app.observe(ObserveStrategy.otel());
-app.eval(EvalHarness.defaults());
 
 app.get("/health", Connect.healthCheck(app));
 app.post("/ask", (req, res, next) -> {
@@ -2386,7 +2334,7 @@ app.post("/ask", (req, res, next) -> {
 app.listen(8080);
 ```
 
-That is a fully observable, RAG-augmented LLM application. Every call produces an OTel span with token counts, latency, retrieved document count, and quality scores. Zero instrumentation code in the handler.
+That is a fully observable, RAG-augmented LLM application. Every call produces an OTel span with token counts, latency and retrieved document count. Zero instrumentation code in the handler.
 
 ---
 

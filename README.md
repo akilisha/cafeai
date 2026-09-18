@@ -58,7 +58,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // tiered context memory
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, toxicity, regulatory
-    implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry, evals
+    implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry tracing
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // audit events for blocked prompt injection
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0' // Mustache view engine
@@ -274,7 +274,6 @@ calling sub-agents as tools, or a middleware chain — not bespoke primitives.
 ```java
 app.observe(ObserveStrategy.otel())       // OpenTelemetry — production
 app.observe(ObserveStrategy.console())    // console — development
-app.eval(EvalHarness.defaults())          // retrieval + response quality scoring
 ```
 
 ### Configuration
@@ -337,7 +336,7 @@ cafeai/
 ├── cafeai-memory         ← Tiered context memory (in-memory, FFM/SSD, Redis)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
 ├── cafeai-guardrails     ← PII, jailbreak, toxicity, regulatory compliance
-├── cafeai-observability  ← OpenTelemetry tracing, console logging, eval harness
+├── cafeai-observability  ← OpenTelemetry tracing, console logging
 ├── cafeai-security       ← Blocks prompt injection, raises audit events
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
@@ -362,7 +361,7 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 | 5    | Tool use / MCP        | Giving the AI actions to take                      |
 | 6    | Guardrails            | Safety, ethics, compliance as middleware           |
 | 7    | Agents                | Typed agent interfaces, tool-call loops via LangChain4j |
-| 8    | Observability + Evals | Production measurement, eval harness               |
+| 8    | Observability         | Production measurement, OpenTelemetry traces       |
 | 9    | Streaming             | SSE, backpressure, real-time UX                    |
 | 10   | Security              | Prompt-injection blocking with audit events        |
 

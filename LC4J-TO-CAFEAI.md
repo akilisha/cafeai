@@ -745,7 +745,7 @@ alone does *not* hand you at this rung":
 | 3 | Memory | Tiered storage (FFM/Redis) — no LC4J equivalent |
 | 4 | RAG | `VectorStore`/`EmbeddingProvider` factory ergonomics + bespoke hybrid retrieval |
 | 5–7 | Tools, guardrails, agents | A guardrail *catalog*; one config honored by both call styles (§3.3) |
-| 8 | Observability + evals | `ObserveBridge` dual-wiring; `EvalHarness` (no LC4J equivalent) |
+| 8 | Observability | `ObserveBridge` dual-wiring: one config honored by both call styles (§3.3) |
 | 9–10 | Streaming, security | SSE/WebSocket backpressure; injection checks (no LC4J equivalent) |
 
 ---

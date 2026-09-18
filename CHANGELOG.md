@@ -57,11 +57,13 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   provider and `helidon-metrics`, and a duplicate `langchain4j-core`; `helidon-config-yaml` now
   lives only in `cafeai-config`. A consumer of the full stack goes from 373 to 293 runtime artifacts.
 - **Guardrails.** `GuardRail.bias()`, `GuardRail.hallucination()` (and the same methods on
-  `GuardRailProvider`), `PiiGuardRail.scrubbing()` and `StubGuardRail`. For scoring an answer against
-  its sources use `EvalHarness`.
+  `GuardRailProvider`), `PiiGuardRail.scrubbing()` and `StubGuardRail`.
 - **Security.** `AiSecurity.ragDataLeakagePrevention()`, `AiSecurity.semanticCachePoisoningDetector()`,
   `SecurityEvent.DataLeakageAttempt`, `SecurityEvent.CachePoisoningAttempt` and
   `SecurityEvent.InjectionAttempt.source()`. CafeAI has no per-user document access control.
+- **Observability.** `app.eval(...)` and `EvalHarness`; the `Attributes` constants `EVAL_SCORES`,
+  `RAG_DOCUMENTS` and `RAG_CONTEXT`. The documents behind an answer are on
+  `PromptResponse.ragDocuments()`.
 - **Memory and connectivity.** `MemoryStrategy.chronicle()`; `CAFEAI_MCP_SERVERS` handling in
   `Connect.fromEnv()`; `Connection.ServiceType.MCP` and `EMBEDDING`.
 - **HTTP.** `CookieOptions.signed(...)`, `req.signedCookies()`, `req.signedCookie(...)` and
