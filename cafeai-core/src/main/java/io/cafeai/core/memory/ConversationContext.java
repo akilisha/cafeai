@@ -1,6 +1,7 @@
 package io.cafeai.core.memory;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
@@ -14,36 +15,29 @@ import java.util.List;
  * <p>Stored and retrieved by {@link MemoryStrategy} implementations.
  * Thread-safe: all mutating methods are synchronized.
  *
- * <p>Context window trimming: when {@code maxTokens > 0} and
- * {@code totalTokens} exceeds that limit, the oldest messages are
- * pruned first -- always preserving at least the most recent exchange.
+ * <p>The history is stored whole. What is sent to the model, and whether old messages are folded
+ * into a {@link #summary()}, is decided by the {@link HistoryPolicy} in force.
  *
  * <p>Jackson-serializable via {@link JsonCreator} constructor -- all fields
  * annotated so {@link com.fasterxml.jackson.databind.ObjectMapper} can
  * round-trip instances to/from JSON without a no-arg constructor.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)   // sessions stored by an earlier version carry fields since removed
 public final class ConversationContext {
-
-    public static final int DEFAULT_MAX_TOKENS = 0;
 
     private final String        sessionId;
     private final List<Message> messages;
     private final Instant       createdAt;
     private volatile Instant    lastAccessedAt;
     private volatile int        totalTokens;
-    private final int           maxTokens;
+    private volatile String     summary;
 
     public ConversationContext(String sessionId) {
-        this(sessionId, DEFAULT_MAX_TOKENS);
-    }
-
-    public ConversationContext(String sessionId, int maxTokens) {
         this.sessionId      = sessionId;
         this.messages       = new ArrayList<>();
         this.createdAt      = Instant.now();
         this.lastAccessedAt = Instant.now();
         this.totalTokens    = 0;
-        this.maxTokens      = maxTokens;
     }
 
     /** Jackson deserialization constructor. */
@@ -54,13 +48,13 @@ public final class ConversationContext {
             @JsonProperty("createdAt")      Instant       createdAt,
             @JsonProperty("lastAccessedAt") Instant       lastAccessedAt,
             @JsonProperty("totalTokens")    int           totalTokens,
-            @JsonProperty("maxTokens")      int           maxTokens) {
+            @JsonProperty("summary")        String        summary) {
         this.sessionId      = sessionId;
         this.messages       = messages != null ? new ArrayList<>(messages) : new ArrayList<>();
         this.createdAt      = createdAt  != null ? createdAt  : Instant.now();
         this.lastAccessedAt = lastAccessedAt != null ? lastAccessedAt : Instant.now();
         this.totalTokens    = totalTokens;
-        this.maxTokens      = maxTokens;
+        this.summary        = summary;
     }
 
     public synchronized void addMessage(String role, String content) {
@@ -68,28 +62,22 @@ public final class ConversationContext {
         lastAccessedAt = Instant.now();
     }
 
-    /**
-     * Adds to the running token count and trims when over the limit.
-     * After trimming, resets totalTokens to 0 -- the count is advisory
-     * (used only to trigger pruning) not a billing-precise counter.
-     */
+    /** Adds to the running total of tokens the session has used, as reported by the provider. */
     public synchronized void addTokens(int count) {
         this.totalTokens += count;
-        if (maxTokens > 0 && totalTokens > maxTokens) {
-            trimToWindow();
-        }
     }
 
     /**
-     * Removes the oldest messages until only the last 2 remain,
-     * then resets the token counter so the trim guard resets cleanly.
+     * Replaces the oldest {@code olderCount} messages with {@code summary}, which takes the place
+     * of any earlier summary. Used by {@link HistoryPolicy#summarise()}.
      */
-    private void trimToWindow() {
-        while (messages.size() > 2) {
-            messages.remove(0);
+    public synchronized void compact(int olderCount, String summary) {
+        if (olderCount < 0 || olderCount > messages.size()) {
+            throw new IllegalArgumentException(
+                "Cannot fold " + olderCount + " messages of " + messages.size());
         }
-        // Reset to 0 after trim -- next actual token additions will re-accumulate
-        totalTokens = 0;
+        messages.subList(0, olderCount).clear();
+        this.summary = summary;
     }
 
     @JsonProperty public String           sessionId()      { return sessionId; }
@@ -99,7 +87,8 @@ public final class ConversationContext {
     @JsonProperty public Instant          createdAt()      { return createdAt; }
     @JsonProperty public Instant          lastAccessedAt() { return lastAccessedAt; }
     @JsonProperty public int              totalTokens()    { return totalTokens; }
-    @JsonProperty public int              maxTokens()      { return maxTokens; }
+    /** A summary of the messages folded away by {@link HistoryPolicy#summarise()}, or {@code null}. */
+    @JsonProperty public String           summary()        { return summary; }
 
     /** An individual message in the conversation. */
     public record Message(

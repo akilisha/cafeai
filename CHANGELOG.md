@@ -48,6 +48,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **`.returning(X.class)` appends the type's JSON schema instruction to the prompt**, so
   `.returning(X.class).call()` returns JSON text in that shape. `.call(X.class)` is unchanged.
   Applies to `prompt`, `vision` and `audio`.
+- **A session's history is no longer sent whole: the default is the newest 20 messages.** Every
+  `app.prompt()`, `.vision()` and `.audio()` call that used `.session(...)` resent the entire
+  conversation, so each call cost more than the last and the session eventually overflowed the
+  model's context window. Set `cafeai.memory.window` (0 sends everything, as before) or choose a
+  policy with `app.history(...)` (below). What is stored is unchanged; only what is sent is limited.
+- **`ConversationContext` no longer trims itself.** `new ConversationContext(id, maxTokens)`,
+  `maxTokens()` and `DEFAULT_MAX_TOKENS` are removed. The engine never enabled that trimming, and
+  when enabled it cut the history to two messages and counted cumulative tokens rather than the
+  size of the context; use a `HistoryPolicy` instead. Sessions stored with the old `maxTokens`
+  field still load.
 
 ### Removed
 
@@ -77,6 +87,21 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **History policies: `app.history(HistoryPolicy...)`.** Three ways to keep a long conversation
+  affordable, and one to turn the limit off:
+  `HistoryPolicy.lastMessages(n)` sends the newest `n` messages;
+  `HistoryPolicy.tokenBudget(n)` sends as many of the newest as fit in `n` estimated tokens (pass
+  your own counter, such as a LangChain4j `TokenCountEstimator`, as the second argument);
+  `HistoryPolicy.summarise().keepRecent(6).after(20)` folds the older turns into a running summary
+  that is sent with the system prompt, written by the model that answered or by one you name with
+  `.model(...)`; `HistoryPolicy.all()` sends everything. The first two only choose what to send.
+  Summarising rewrites the stored history and costs an extra model call on the turn that triggers
+  it; if that call fails, or an input guardrail blocks the summary, the history is left as it is and
+  the user's call still succeeds. The policy applies to prompt, vision and audio calls, streamed or
+  not, but not to agents (their memory is a window of `cafeai.agent.memory.window` messages).
+  Settings: `cafeai.memory.window` (20), `cafeai.memory.budget` (4000), `cafeai.memory.summary.after`
+  (20) and `cafeai.memory.summary.keep` (6). They supply numbers only; a setting never switches a
+  policy on.
 - **Semantic cache: `app.cache(SemanticCache...)`.** Repeat `app.prompt()` questions are answered
   from a cache matched by meaning, skipping the model call. `response.fromCache()` and the
   `cafeai.cache_hit` span attribute report it. A cache shared between users can let one user's

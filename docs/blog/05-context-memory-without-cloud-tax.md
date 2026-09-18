@@ -26,6 +26,30 @@ CafeAI handles all of this automatically when `.session(sessionId)` is called on
 
 ---
 
+## How Much of the History Is Sent
+
+Storing a conversation is one question. Sending it is another. If every turn resent everything, each call would cost more than the last, and a long session would eventually outgrow the model's context window and start failing. So CafeAI stores the whole conversation and lets a `HistoryPolicy` decide how much of it the model sees:
+
+```java
+app.history(HistoryPolicy.lastMessages(20));    // the default: the newest 20 messages
+app.history(HistoryPolicy.tokenBudget(4000));   // as much recent history as fits in ~4000 tokens
+app.history(HistoryPolicy.summarise()           // older turns become a running summary
+                .keepRecent(6).after(20));
+app.history(HistoryPolicy.all());               // send everything; the limit is yours to manage
+```
+
+**`lastMessages`** is the simplest and the default (`cafeai.memory.window`, 20). It is predictable and free. Its weakness is that the model forgets whatever fell out of the window.
+
+**`tokenBudget`** limits by size instead of count, which is what you are billed for and what the context window is measured in. A few long messages and many short ones cost very differently. The count is an estimate (about four characters to a token) unless you give it a counter for your model, and it covers the history only: not the system prompt, retrieved documents or the new message. The latest exchange is always sent.
+
+**`summarise`** is the one that remembers. Once a session holds more than `after` messages, the oldest are replaced by a summary written by a model, and the summary travels with the system prompt from then on, so a fact from turn 3 is still there at turn 300 in fewer tokens. It costs an extra model call on the turn that triggers it (you can point `.model(...)` at a cheaper model), and it changes what is stored: the summary replaces the messages it covers. If the summary call fails, the history is left as it is and the user's call is unaffected. The summary is checked by your input guardrails before it is kept, because it is text a model wrote from what users typed and it ends up in the system prompt.
+
+The four `cafeai.memory.*` settings only supply the numbers. Choosing a policy is done in code with `app.history(...)`.
+
+The policy applies to `app.prompt()`, `.vision()` and `.audio()` calls that use `.session(...)`. Agents have their own window (`cafeai.agent.memory.window`, 20 messages).
+
+---
+
 ## The Four Rungs
 
 CafeAI's memory model is a deliberate ladder. Start at the lowest rung that meets your requirements. Graduate only when a rung genuinely falls short.

@@ -194,8 +194,18 @@ never called by anything: delete the override from any `ViewEngineProvider` you 
 `res.render(name)` now refuses a view that resolves outside `Setting.VIEWS` (`../x.html`, an absolute path)
 with a `RenderException`; keep view files under the views directory.
 
+**22. A session's history is windowed, and `ConversationContext` no longer trims.** Calls that use
+`.session(...)` now send the newest 20 messages instead of the whole history. If your prompts depend
+on older turns, choose a policy that keeps them: `app.history(HistoryPolicy.all())` restores the old
+behaviour, `HistoryPolicy.summarise()` keeps their substance in fewer tokens, and
+`cafeai.memory.window=0` does the same from configuration. If you called
+`new ConversationContext(id, maxTokens)`, `maxTokens()` or used `ConversationContext.DEFAULT_MAX_TOKENS`,
+remove those; they trimmed nothing in the engine.
+
 ### Not breaking, but new
 
+- **`app.history(HistoryPolicy...)`** — `lastMessages`, `tokenBudget`, `summarise` and `all`; see
+  `CHANGELOG.md`. Keys: `cafeai.memory.window`, `.budget`, `.summary.after`, `.summary.keep`.
 - **`cafeai-config`** — an optional module for application configuration. A `ConfigKey` declares a
   tunable value where it is used; `AppConfig.load().get(key)` resolves it from a system property, an
   environment variable, an external file, or `application.yaml`/`.properties` with profile overlays.

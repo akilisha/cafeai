@@ -635,6 +635,21 @@ public interface CafeAI extends Router {
      */
     CafeAI memory(MemoryStrategy strategy);
 
+    /**
+     * Chooses how much of a session's stored history is sent with each call. Without this, the
+     * newest {@code cafeai.memory.window} messages (default 20) are sent; see
+     * {@link io.cafeai.core.memory.HistoryPolicy} for the three policies, and for the setting that
+     * supplies each one's numbers.
+     *
+     * <pre>{@code
+     *   app.history(HistoryPolicy.tokenBudget(4000));
+     *   app.history(HistoryPolicy.summarise().keepRecent(6).after(20));
+     * }</pre>
+     *
+     * @throws IllegalStateException if called after {@link #listen(int)}
+     */
+    CafeAI history(io.cafeai.core.memory.HistoryPolicy policy);
+
     // ── Semantic cache ────────────────────────────────────────────────────────
 
     /**

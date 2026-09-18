@@ -299,7 +299,7 @@ just makes it consistently and wraps the plumbing around it.
 `CafeAIApp`, against CafeAI's own interfaces (not LangChain4j's):
 
 1. `GuardRail`s at `PRE_LLM`/`BOTH` position checked against the raw prompt text.
-2. Session history loaded from the registered `MemoryStrategy`, if a session id is present.
+2. Session history loaded from the registered `MemoryStrategy`, if a session id is present, as the `HistoryPolicy` selects it (§2.4).
 3. RAG retrieval run — `Retriever.retrieve(query, embeddingModel, vectorStore)` — and the result spliced into context, bracketed by `ObserveBridge.beforeRetrieval`/`afterRetrieval`.
 4. The LLM call itself, bracketed by `ObserveBridge.beforePrompt`/`afterPrompt`.
 5. `GuardRail`s at `POST_LLM`/`BOTH` checked against the assembled response text.
@@ -440,6 +440,18 @@ delegate to (§1.9). LangChain4j only enters the picture when a
 backs a `MessageWindowChatMemory` with a `CafeAiChatMemoryStore` wrapping it
 (§2.3). The plain `app.prompt()` path (§2.2) calls `MemoryStrategy` directly
 and never touches `ChatMemory`/`ChatMemoryStore` at all.
+
+**Choosing how much history is sent — `app.history(...)`.** `MemoryStrategy` says where a
+conversation is kept; a `HistoryPolicy` says how much of it the plain call path sends. The two
+windowing policies have LangChain4j counterparts: `lastMessages(n)` is the idea behind
+`MessageWindowChatMemory.withMaxMessages(n)` and `tokenBudget(n)` the idea behind
+`TokenWindowChatMemory` (which needs a `TokenCountEstimator`; CafeAI estimates by default and takes
+a counter as an option). The difference is that CafeAI applies the window when history is *read*
+and keeps the stored conversation whole, where LangChain4j's chat memory evicts from what it stores.
+`summarise()` has no LangChain4j equivalent: it asks a model (the one that answered, or one you
+name) to fold the older turns into a running summary that is sent as part of the system prompt, and
+it stores the result. None of this touches agents, which use `MessageWindowChatMemory`
+(§2.3, `cafeai.agent.memory.window`).
 
 **Why it exists:** the tiered ladder (heap → FFM/SSD → Redis →
 hybrid) is a genuine capability gap in LangChain4j, not a rename of

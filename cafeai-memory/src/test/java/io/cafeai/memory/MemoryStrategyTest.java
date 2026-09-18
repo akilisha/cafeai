@@ -255,57 +255,55 @@ class MemoryStrategyTest {
             .withMessageContaining("cold");
     }
 
-    // ── Context Window Trimming ───────────────────────────────────────────────
+    // ── Summary of folded-away messages ───────────────────────────────────────
 
     @Test
-    @DisplayName("ConversationContext: trimming removes oldest messages when over limit")
-    void context_trimming_removesOldest() {
-        // maxTokens = 50 — third addTokens(20) pushes to 60, triggering trim
-        var ctx = new ConversationContext("trim-test", 50);
-        ctx.addMessage("user",      "Message 1 — this is the oldest");
-        ctx.addMessage("assistant", "Response 1");
-        ctx.addMessage("user",      "Message 2");
-        ctx.addMessage("assistant", "Response 2");
+    @DisplayName("ConversationContext: compact() replaces the oldest messages with a summary")
+    void context_compact_replacesOldestWithSummary() {
+        var ctx = ctx("compact-test");
+        ctx.addMessage("user", "one");
+        ctx.addMessage("assistant", "two");
+        ctx.addMessage("user", "three");
+        ctx.addMessage("assistant", "four");
 
-        ctx.addTokens(20); // 20 — no trim
-        ctx.addTokens(20); // 40 — no trim
-        ctx.addTokens(20); // 60 — over limit, trim fires
+        ctx.compact(2, "they said one and two");
 
-        // After trim, token counter resets to 0 and messages are pruned to 2
-        assertThat(ctx.totalTokens()).isLessThanOrEqualTo(50);
-        assertThat(ctx.messages().size()).isEqualTo(2);
-        // The last 2 messages are preserved — oldest are gone
-        assertThat(ctx.messages().get(1).content()).isEqualTo("Response 2");
+        assertThat(ctx.summary()).isEqualTo("they said one and two");
+        assertThat(ctx.messages()).extracting(m -> m.content()).containsExactly("three", "four");
     }
 
     @Test
-    @DisplayName("ConversationContext: trimming always preserves last 2 messages")
-    void context_trimming_preservesLastTwo() {
-        var ctx = new ConversationContext("preserve-test", 1); // tiny limit
-        ctx.addMessage("user",      "First");
-        ctx.addMessage("assistant", "Second");
-        ctx.addMessage("user",      "Third");
-        ctx.addMessage("assistant", "Fourth — most recent");
+    @DisplayName("ConversationContext: a session with a summary survives a restart (mapped)")
+    void context_summary_survivesRestart(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        var first = MemoryStrategy.mapped(dir);
+        var ctx = ctx("summary-restart");
+        ctx.addMessage("user", "one");
+        ctx.addMessage("assistant", "two");
+        ctx.compact(2, "earlier facts");
+        ctx.addMessage("user", "three");
+        first.store("summary-restart", ctx);
 
-        ctx.addTokens(100_000); // massive — forces trim
+        var restored = MemoryStrategy.mapped(dir).retrieve("summary-restart");
 
-        // Must always keep at least 2
-        assertThat(ctx.messages().size()).isGreaterThanOrEqualTo(2);
-        // Most recent messages should be preserved
-        var msgs = ctx.messages();
-        assertThat(msgs.get(msgs.size() - 1).content())
-            .isEqualTo("Fourth — most recent");
+        assertThat(restored.summary()).isEqualTo("earlier facts");
+        assertThat(restored.messages()).extracting(m -> m.content()).containsExactly("three");
     }
 
     @Test
-    @DisplayName("ConversationContext: no trimming when maxTokens = 0 (unlimited)")
-    void context_noTrimming_whenUnlimited() {
-        var ctx = new ConversationContext("unlimited", 0);
-        for (int i = 0; i < 100; i++) {
-            ctx.addMessage("user", "Message " + i);
-        }
-        ctx.addTokens(1_000_000);
-        assertThat(ctx.messages()).hasSize(100);
+    @DisplayName("ConversationContext: a session stored by an earlier version (with maxTokens) still loads")
+    void context_oldStoredSession_stillLoads(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws java.io.IOException {
+        java.nio.file.Files.writeString(dir.resolve("legacy.json"), """
+            {"sessionId":"legacy","messages":[{"role":"user","content":"hi","timestamp":"2026-01-01T00:00:00Z"}],
+             "createdAt":"2026-01-01T00:00:00Z","lastAccessedAt":"2026-01-01T00:00:00Z",
+             "totalTokens":12,"maxTokens":0}
+            """);
+
+        var restored = MemoryStrategy.mapped(dir).retrieve("legacy");
+
+        assertThat(restored).isNotNull();
+        assertThat(restored.messages()).extracting(m -> m.content()).containsExactly("hi");
+        assertThat(restored.summary()).isNull();
     }
 
     @Test
