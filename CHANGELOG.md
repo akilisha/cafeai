@@ -106,6 +106,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **`GuardRail.Action` is honoured by the engine.** `BLOCK` / `WARN` / `LOG` worked on the
   HTTP path but the engine ignored it and always blocked, so a `LOG`-only guardrail still
   blocked a vision call. `WARN` and `LOG` now record the violation and let the call proceed.
+- **Agents (`app.agent(...)`) get the same treatment.** `GuardrailAdapters`, which applies a
+  CafeAI guardrail through LangChain4j's `AiServices`, had no tests and ignored `Action` (every
+  violation was a hard failure), threw on a multimodal user message (`singleText()`), would NPE on
+  a guardrail that returned `null`, and put the guardrail's *reason* into the exception
+  LangChain4j throws to the caller. It now honours `Action`, screens a multimodal message on its
+  text, treats `null` as a pass, and names the guardrail without the reason (which is logged).
+  The default error handler maps LangChain4j's `InputGuardrailException` to `400` and
+  `OutputGuardrailException` to `500`, with a generic body.
 - **A blocked request is a typed exception and a 400, not a 500.** Blocked input throws the new
   `GuardRailViolationException` (a `RuntimeException`, so existing catches still work) instead of
   a bare `RuntimeException`. With no error handler that claims it, the default handler answers

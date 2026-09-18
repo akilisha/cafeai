@@ -1887,6 +1887,18 @@ public final class CafeAIApp implements CafeAI {
             }
             return;
         }
+        // An agent call (AiServices) reports a guardrail failure as LangChain4j's own exception.
+        if (!res.headersSent() && error instanceof dev.langchain4j.guardrail.GuardrailException blocked) {
+            boolean input = blocked instanceof dev.langchain4j.guardrail.InputGuardrailException;
+            log.warn("Agent {} blocked by guardrail: {}", input ? "request" : "response", blocked.getMessage());
+            try {
+                res.status(input ? 400 : 500).json(Map.of("error",
+                        input ? "Request blocked by guardrail" : "Response blocked by guardrail"));
+            } catch (Exception ignored) {
+                // Response may already be committed -- swallow
+            }
+            return;
+        }
         if (!res.headersSent()) {
             log.error("Unhandled request error", error);
             try {

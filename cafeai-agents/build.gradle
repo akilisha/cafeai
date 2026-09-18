@@ -22,7 +22,7 @@ dependencies {
     api project(':cafeai-core')
 
     // AiServices, InputGuardrail/OutputGuardrail, AiServiceListener,
-    // ChatMemoryProvider, ToolProvider — all from LangChain4j 1.11.
+    // ChatMemoryProvider, ToolProvider — all from LangChain4j.
     // Exported: using app.agent() means writing LangChain4j-annotated agent
     // interfaces (@SystemMessage, @UserMessage, @Tool) and receiving its raw
     // AiService proxy, so consumers need these types on their compile classpath.

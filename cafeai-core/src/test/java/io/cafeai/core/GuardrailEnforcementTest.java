@@ -288,6 +288,36 @@ class GuardrailEnforcementTest {
 
     // ── over HTTP ─────────────────────────────────────────────────────────────
 
+    @Test @DisplayName("an agent's LangChain4j guardrail exception is a generic 400/500 — its message is not echoed")
+    void httpAgentGuardrailExceptionsDoNotLeak() throws Exception {
+        int port;
+        try (var s = new ServerSocket(0)) { port = s.getLocalPort(); }
+        var app = CafeAI.create();
+        app.get("/in",  (req, res, next) -> {
+            throw new dev.langchain4j.guardrail.InputGuardrailException("SECRET-REASON-DETAIL");
+        });
+        app.get("/out", (req, res, next) -> {
+            throw new dev.langchain4j.guardrail.OutputGuardrailException("SECRET-REASON-DETAIL");
+        });
+        var latch = new CountDownLatch(1);
+        app.listen(port, latch::countDown);
+        assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+        try {
+            var http = HttpClient.newHttpClient();
+            var in  = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/in")).build(),
+                HttpResponse.BodyHandlers.ofString());
+            var out = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/out")).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+            assertThat(in.statusCode()).isEqualTo(400);
+            assertThat(in.body()).contains("Request blocked by guardrail").doesNotContain("SECRET-REASON-DETAIL");
+            assertThat(out.statusCode()).isEqualTo(500);
+            assertThat(out.body()).contains("Response blocked by guardrail").doesNotContain("SECRET-REASON-DETAIL");
+        } finally {
+            app.stop();
+        }
+    }
+
     @Test @DisplayName("a blocked prompt in a route is a 400 naming the guardrail — and never its reason")
     void httpBlockedIs400WithoutReason() throws Exception {
         int port;
