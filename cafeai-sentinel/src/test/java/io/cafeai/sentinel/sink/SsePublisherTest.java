@@ -30,7 +30,9 @@ class SsePublisherTest {
     void aCancelledClientIsDropped() {
         try (SsePublisher sse = new SsePublisher()) {
             CollectingSubscriber sub = subscribe(sse);
-            awaitTrue(() -> sse.clientCount() == 1);
+            // The client is counted when registered, which can be just before onSubscribe hands
+            // this subscriber its subscription.
+            awaitTrue(() -> sse.clientCount() == 1 && sub.subscription != null);
 
             sub.subscription.cancel();
             sse.publish(SinkTestSupport.event(IncidentEvent.Type.RESOLVED));
