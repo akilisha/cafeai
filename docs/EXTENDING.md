@@ -176,5 +176,5 @@ the startup log; it is not required for a Level-1 or Level-2 extension.
   `CafeAIConfigurer` with plain constructors. Helidon SE has no CDI container and
   CafeAI deliberately follows suit.
 - **Don't wrap the escape hatch.** For app-specific Helidon wiring use
-  `app.helidon()` (DEVELOPER_GUIDE §21). Build an SPI/module only for capabilities
+  `app.helidon()` (DEVELOPER_GUIDE §20). Build an SPI/module only for capabilities
   other apps would reuse.

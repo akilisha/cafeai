@@ -250,7 +250,6 @@ AiSecurity.onEvent(event -> { ... })              // typed audit event listener
 ```java
 app.observe(ObserveStrategy.console())    // development console traces
 app.observe(ObserveStrategy.otel())       // OpenTelemetry export
-app.eval(EvalStrategy.relevance())        // RAG relevance scoring
 app.eval(EvalHarness.defaults())         // heuristic faithfulness / relevance / groundedness scores
 ```
 
@@ -281,7 +280,7 @@ app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — extern
 
 MCP splits three ways: **serve** CafeAI as an MCP server → `app.helidon()` (§12); **reach**
 an external MCP server → the `McpEndpoint` connection above; **give** its tools to an agent →
-`cafeai-agents` (ROADMAP-12). No `cafeai-mcp` module in any of them.
+`cafeai-agents` (ROADMAP-12).
 
 ### 3.10 Configuration Primitives &nbsp;<sub>✅ shipped — `cafeai-config` (ADR-012)</sub>
 
@@ -433,7 +432,7 @@ cafeai/
 └── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
 ```
 
-There is no `cafeai-mcp` module. Exposing CafeAI capabilities as an MCP server is
+Exposing CafeAI capabilities as an MCP server is
 the `app.helidon()` escape-hatch pattern (§12); MCP *client* use is part of the
 agent layer via LangChain4j.
 
@@ -465,12 +464,7 @@ the position it does — and why that position is both distinct and durable.
 
 The question started simply: what should `cafeai-agents` look like?
 
-The first instinct was to build something. Chains, ChainStep, Steps — a named pipeline
-abstraction that would let developers compose multi-step LLM workflows. Those were built,
-used in a capstone application, and then removed. The removal was the insight. The chains
-duplicated what middleware already did. They added ceremony without capability.
-
-The second instinct was to look at what langchain4j-agentic was building. The Quarkus workshop
+The first instinct was to look at what langchain4j-agentic was building. The Quarkus workshop
 against that library showed the full picture: `@SequenceAgent`, `@ParallelAgent`, `AgenticScope`,
 `@HumanInTheLoop`, `MonitoredAgent`. A complete workflow vocabulary. Quarkus was already
 integrating it through CDI. Helidon 4.4 was integrating it through its own declarative model.
@@ -578,12 +572,8 @@ outward so an external orchestrator (n8n, Claude Desktop, Temporal) drives the g
 JVM does all the AI work.
 
 Helidon 4.4 already ships a full MCP 1.1 server (`McpFeature`). CafeAI sits on Helidon and has
-a tool/agent registry. The bridge between them was the only missing piece — and it did **not**
-need to be a new module. A first plan (`cafeai-mcp`) was abandoned: Helidon's MCP feature is
-wired through Helidon Inject, and forcing an injection framework into CafeAI's pure SE model to
-reconcile one capability was the wrong trade. ROADMAP-11's answer was the **`app.helidon()`
-escape hatch** (§12) — reach Helidon's `McpFeature` directly, register CafeAI's tools with it,
-keep the SE model intact.
+a tool/agent registry. The bridge between them is the **`app.helidon()` escape hatch** (§12)
+— reach Helidon's `McpFeature` directly, register CafeAI's tools with it, keep the SE model intact.
 
 #### What It Means
 
@@ -606,14 +596,8 @@ a module.
 
 #### The Journey
 
-The agent question was the most difficult. Three ideas were explored and rejected before
+The agent question was the most difficult. Two ideas were explored and rejected before
 arriving at the right answer.
-
-**Rejected: Chains and Steps.** `Chain`, `ChainStep`, and `Steps` were built, used in the
-capstone support assistant, and removed. The removal reason: they duplicated what middleware
-already does but added a new vocabulary the developer had to learn. Every new primitive has
-a learning cost. If that cost is not paid back in clear, immediate value, the developer stops.
-Chains did not pay back.
 
 **Rejected: Building a workflow orchestrator.** The analysis of langchain4j-agentic and the
 Quarkus workshop showed how much work a real agentic workflow system requires — `AgenticScope`,

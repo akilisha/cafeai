@@ -152,7 +152,7 @@ The Express.js middleware pattern has been battle-tested for over a decade acros
 production applications. It survives because:
 
 1. **Mental model simplicity.** Every developer understands `(req, res, next)`.
-2. **Composability is recursive.** Middleware can wrap middleware. Chains can contain chains.
+2. **Composability is recursive.** Middleware can wrap middleware.
 3. **Order is explicit.** The sequence of registrations IS the architecture. It's readable.
 4. **Independent testability.** Every middleware is a function. Every function is unit-testable
    in isolation with no framework setup.

@@ -836,7 +836,6 @@ They are AI-native extensions that follow the same design philosophy.
 | `app.embed(model)` | Register embedding model |
 | `app.ingest(source)` | Ingest knowledge sources |
 | `app.rag(retriever)` | Attach retrieval pipeline |
-| `app.chain(name, steps)` | Named composable pipeline |
 | `app.guard(guardRail)` | Attach guardrail middleware |
 | `app.agent(name, Interface.class)` | Register a LangChain4j `AiService` agent (ROADMAP-12) |
 | `app.observe(strategy)` | Attach observability |

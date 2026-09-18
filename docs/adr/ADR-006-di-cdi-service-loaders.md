@@ -98,7 +98,6 @@ The bridge between Tier 1 and Tier 2 is a single interface:
  * Implement this interface to configure a CafeAI application with
  * injected dependencies. CafeAI discovers implementations via:
  *   - Java Service Loader (META-INF/services)
- *   - CDI bean discovery (when cafeai-cdi is on the classpath)
  *   - Direct registration: CafeAI.create().configure(myConfigurer)
  */
 public interface CafeAIConfigurer {
@@ -213,73 +212,9 @@ The combination: CDI manages *your* object graph. Service Loaders manage
 
 ---
 
-## The Optional `cafeai-cdi` Module
-
-CDI support is not in `cafeai-core`. It lives in an optional `cafeai-cdi`
-module. This keeps the core dependency-free and ensures that a developer
-who does not want CDI never pays the cost of it.
-
-`cafeai-cdi` provides:
-
-### 1. `CafeAI` as an injectable bean:
-
-```java
-@Inject
-CafeAI app; // available anywhere in your CDI application
-```
-
-### 2. Automatic `CafeAIConfigurer` discovery:
-
-CDI bean discovery automatically finds all `@ApplicationScoped` beans that
-implement `CafeAIConfigurer` and calls `configure(app)` on them during
-application startup.
-
-### 3. Optional declarative routing (additive, not replacing):
-
-```java
-// For developers who prefer annotation-style — entirely optional
-// Produces the same app.get() registration under the hood
-@CafeAIRoute(method = HttpMethod.GET, path = "/users/:id")
-@ApplicationScoped
-public class GetUserHandler implements RouteHandler {
-    @Inject UserService userService;
-
-    @Override
-    public void handle(Request req, Response res) {
-        res.json(userService.find(req.params("id")));
-    }
-}
-```
-
-Critically: `@CafeAIRoute` is purely additive. It is a convenience. It does
-not replace `app.get()`. It does not change the runtime model. It registers
-a handler via `app.get()` internally. The two styles are interchangeable and
-composable.
-
----
-
-## Zero-DI as a First-Class Path
-
-This must be stated explicitly and permanently:
-
-**Zero-DI usage is a first-class, fully supported, never-deprecated path in CafeAI.**
-
-A developer who wants to wire their application manually — passing dependencies
-through constructors, using factory methods, managing lifecycles explicitly —
-is not a second-class CafeAI citizen. They are using the framework exactly as
-designed. The three-tier model works identically with or without DI in Tier 1.
-
-This is the correct position because:
-1. It keeps the entry barrier low — no container required to learn CafeAI
-2. It keeps tests simple — no CDI harness needed for unit tests
-3. It respects developer autonomy — CafeAI should not prescribe how you wire your app
-
----
-
 ## Consequences
 
 - `cafeai-core` has zero DI dependencies (no CDI, no Spring, no Guice)
-- `cafeai-cdi` is a new optional module providing CDI integration
 - `CafeAIConfigurer` interface lives in `cafeai-core` (the seam must be in core)
 - `CafeAIModule` SPI lives in `cafeai-core` (discovery is a core concern)
 - Service Loader descriptors provided by each CafeAI module for self-registration
@@ -291,7 +226,7 @@ This is the correct position because:
 
 | Concern | Mechanism | Where |
 |---|---|---|
-| Your object graph | CDI (optional) or manual | Your code + `cafeai-cdi` |
+| Your object graph | CDI (optional) or manual | Your code |
 | Module self-registration | Service Loader | Each `cafeai-*` module |
 | CafeAI configuration | `CafeAIConfigurer` seam | `cafeai-core` SPI |
 | Route handling | Express API (Tier 3) | `cafeai-core` |

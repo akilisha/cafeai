@@ -341,7 +341,6 @@ expressive about what Helidon offers.
 | Fault tolerance | `app.helidon().faultTolerance()` | Helidon-native |
 | Config sources | `app.helidon().config()` | Helidon-native |
 | Security providers | `app.helidon().security()` | Helidon-native |
-| CDI / DI | `cafeai-cdi` module | Java/CDI-native (ADR-006) |
 
 ---
 

@@ -47,7 +47,7 @@ without a version — pin them to `0.4.0` (or import a version catalog).
     - [11.4 Prompt Templates](#114-prompt-templates--separating-engineering-from-execution)
     - [11.5 Conversation Memory](#115-conversation-memory--sessions-that-remember)
     - [11.6 Putting It All Together](#116-putting-it-all-together)
-    - [11.7 What's Coming Next](#117-whats-coming-next)
+    - [11.7 Beyond the Core AI Layer](#117-beyond-the-core-ai-layer)
 12. [File Uploads, Downloads, and SSE](#12-file-uploads-downloads-and-sse)
     - [12.1 Body handler registration](#121-body-handler-registration)
     - [12.2 Multipart file upload](#122-multipart-file-upload)
@@ -77,39 +77,33 @@ without a version — pin them to `0.4.0` (or import a version catalog).
 18. [cafeai-connect — Out-of-Process Service Connectivity](#18-cafeai-connect--out-of-process-service-connectivity)
     - [18.1 Two kinds of extension](#181-two-kinds-of-extension)
     - [18.2 Adding cafeai-connect](#182-adding-cafeai-connect)
-    - [18.3 The four built-in connectors](#183-the-four-built-in-connectors)
+    - [18.3 The three built-in connectors](#183-the-three-built-in-connectors)
     - [18.4 Fallback policies](#184-fallback-policies--operational-intelligence-at-the-connection-level)
     - [18.5 Environment-driven configuration](#185-environment-driven-configuration)
     - [18.6 Health checks](#186-health-checks)
     - [18.7 Custom connections](#187-implementing-a-custom-connection)
     - [18.8 Why this boundary matters](#188-why-this-boundary-matters)
-19. [Chains — Composable AI Processing Pipelines](#19-chains--composable-ai-processing-pipelines)
-    - [19.1 What a chain is](#191-what-a-chain-is)
-    - [19.2 Registering and invoking a chain](#192-registering-and-invoking-a-chain)
-    - [19.3 Built-in steps](#193-built-in-steps)
-    - [19.4 Chains are immutable and composable](#194-chains-are-immutable-and-composable)
-    - [19.5 Accessing chain results](#195-accessing-chain-results-in-the-final-handler)
-20. [Guardrails — Ethical and Safety Middleware](#20-guardrails--ethical-and-safety-middleware)
-    - [20.1 Guardrails are middleware](#201-guardrails-are-middleware)
-    - [20.2 Activating real implementations](#202-activating-real-implementations)
-    - [20.3 Available guardrails](#203-available-guardrails)
-    - [20.4 Guardrail position](#204-guardrail-position)
-    - [20.5 Guardrail violations](#205-guardrail-violations)
-    - [20.6 Composing guardrails](#206-composing-guardrails)
-21. [Observability — Tracing, Metrics, and Eval](#21-observability--tracing-metrics-and-eval)
-    - [21.1 Why observability matters](#211-why-observability-matters-for-llm-applications)
-    - [21.2 Adding cafeai-observability](#212-adding-cafeai-observability)
-    - [21.3 Console strategy](#213-console-strategy--development)
-    - [21.4 OpenTelemetry strategy](#214-opentelemetry-strategy--production)
-    - [21.5 Eval harness](#215-eval-harness--automatic-quality-scoring)
-    - [21.6 Combining observation and eval](#216-combining-observation-and-eval)
-22. [The Helidon Foundation — `app.helidon()`](#22-the-helidon-foundation--apphelidon)
-23. [Extending CafeAI — writing a module](#23-extending-cafeai--writing-a-module)
-24. [cafeai-sentinel — AI Cluster Incident Pipeline](#24-cafeai-sentinel--ai-cluster-incident-pipeline)
-    - [24.1 Assembling a pipeline](#241-assembling-a-pipeline)
-    - [24.2 Investigation and redaction](#242-investigation-and-redaction)
-    - [24.3 Sinks](#243-sinks)
-    - [24.4 Connecting to a cluster](#244-connecting-to-a-cluster)
+19. [Guardrails — Ethical and Safety Middleware](#19-guardrails--ethical-and-safety-middleware)
+    - [19.1 Guardrails are middleware](#191-guardrails-are-middleware)
+    - [19.2 Activating real implementations](#192-activating-real-implementations)
+    - [19.3 Available guardrails](#193-available-guardrails)
+    - [19.4 Guardrail position](#194-guardrail-position)
+    - [19.5 Guardrail violations](#195-guardrail-violations)
+    - [19.6 Composing guardrails](#196-composing-guardrails)
+20. [Observability — Tracing, Metrics, and Eval](#20-observability--tracing-metrics-and-eval)
+    - [20.1 Why observability matters](#201-why-observability-matters-for-llm-applications)
+    - [20.2 Adding cafeai-observability](#202-adding-cafeai-observability)
+    - [20.3 Console strategy](#203-console-strategy--development)
+    - [20.4 OpenTelemetry strategy](#204-opentelemetry-strategy--production)
+    - [20.5 Eval harness](#205-eval-harness--automatic-quality-scoring)
+    - [20.6 Combining observation and eval](#206-combining-observation-and-eval)
+21. [The Helidon Foundation — `app.helidon()`](#21-the-helidon-foundation--apphelidon)
+22. [Extending CafeAI — writing a module](#22-extending-cafeai--writing-a-module)
+23. [cafeai-sentinel — AI Cluster Incident Pipeline](#23-cafeai-sentinel--ai-cluster-incident-pipeline)
+    - [23.1 Assembling a pipeline](#231-assembling-a-pipeline)
+    - [23.2 Investigation and redaction](#232-investigation-and-redaction)
+    - [23.3 Sinks](#233-sinks)
+    - [23.4 Connecting to a cluster](#234-connecting-to-a-cluster)
 
 ---
 
@@ -649,7 +643,7 @@ app.post("/chat",
     Middleware.rateLimit(60),         // HTTP concern — same shape
     GuardRail.pii(),                  // AI concern — same shape
     GuardRail.jailbreak(),            // AI concern — same shape
-    Rag.retrieve(vectorStore),        // AI concern — same shape
+    GuardRail.promptInjection(),      // AI concern — same shape
     (req, res, next) ->               // terminates
         res.stream(llm.stream(req.body("message"))));
 ```
@@ -1112,8 +1106,8 @@ The capability modules build on them:
   `app.rag()` — prompts grounded in your own documents. See §15.
 - **Guardrails** — `cafeai-guardrails` turns the `GuardRail.*()` factories from
   logged pass-throughs into real PII / jailbreak / injection / toxicity /
-  regulatory checks. Register them now; adding the module makes them live. See §20.
-- **Observability** — `cafeai-observability` traces and scores every LLM call. See §21.
+  regulatory checks. Register them now; adding the module makes them live. See §19.
+- **Observability** — `cafeai-observability` traces and scores every LLM call. See §20.
 
 **Agents and tool use** are the remaining frontier, and the design changed course.
 Rather than a bespoke ReAct loop, CafeAI binds LangChain4j `AiServices` — which
@@ -2065,138 +2059,12 @@ implementations without any changes to the core framework.
 
 ---
 
-## 19. Chains — Composable AI Processing Pipelines
+## 19. Guardrails — Ethical and Safety Middleware
 
-### 19.1 What a chain is
-
-A chain is a named sequence of steps that processes a request through a defined
-pipeline. Chains are middleware — they implement `Middleware` and can be used
-anywhere middleware is accepted: as route handlers, as filters, and as steps
-inside other chains.
-
-The mental model: if a middleware is a single transformation, a chain is a named,
-reusable pipeline of transformations. You register the pipeline once and invoke
-it by name from any handler.
-
-### 19.2 Registering and invoking a chain
-
-```java
-// Registration at startup
-app.chain("classify-and-route",
-    Steps.guard(GuardRail.pii()),          // block PII before anything runs
-    Steps.prompt("classify"),              // run the "classify" template
-    Steps.branch(
-        req -> "billing".equals(req.attribute(Attributes.LAST_RESPONSE_TEXT)),
-        Steps.chain("billing-handler"),    // true branch — forward reference, fine
-        Steps.chain("general-handler")     // false branch
-    ));
-
-app.chain("billing-handler",
-    Steps.guard(GuardRail.regulatory().hipaa()),
-    Steps.prompt("billing-response"));
-
-app.chain("general-handler",
-    Steps.prompt("general-response"));
-
-// Invocation from a handler
-app.post("/support", (req, res, next) ->
-    app.chain("classify-and-route").run(req, res, next));
-
-// A chain is also middleware — use it directly in route arrays
-app.post("/support", app.chain("classify-and-route"), myFinalHandler);
-```
-
-### 19.3 Built-in steps
-
-**`Steps.prompt(templateName)`** — renders a named template with `req.body()` as
-the variable map, calls the LLM, and stores the result:
-- `req.attribute(Attributes.PROMPT_RESPONSE)` — the full `PromptResponse` object
-- `req.attribute(Attributes.LAST_RESPONSE_TEXT)` — just the text, for use in predicates
-
-**`Steps.prompt(Function<Request, String>)`** — for inline prompts that need
-request data:
-```java
-Steps.prompt(req -> "Summarise in one sentence: " + req.bodyText())
-```
-
-**`Steps.guard(GuardRail...)`** — wraps guardrails as a step. Multiple guardrails
-compose in order:
-```java
-Steps.guard(GuardRail.pii(), GuardRail.jailbreak(), GuardRail.toxicity())
-```
-
-**`Steps.branch(predicate, trueBranch, falseBranch)`** — conditional routing. The
-chosen branch continues the chain; the other is skipped:
-```java
-Steps.branch(
-    req -> req.header("X-Premium") != null,
-    Steps.prompt("premium-response"),
-    Steps.prompt("standard-response")
-)
-```
-
-**`Steps.when(predicate, step)`** — one-sided branch. Executes the step only when
-the predicate matches; otherwise passes through:
-```java
-Steps.when(
-    req -> req.attribute("flagged") != null,
-    Steps.guard(GuardRail.jailbreak())
-)
-```
-
-**`Steps.chain(name)`** — lazy forward reference to another chain. Resolved at
-execution time, so chains can reference each other and themselves:
-```java
-Steps.chain("billing-handler")   // billing-handler registered after this chain — fine
-```
-
-**`Steps.transform(Function<String, String>)`** — post-processes the last LLM
-response text before the next step sees it:
-```java
-Steps.transform(text -> text.trim().toLowerCase())
-```
-
-### 19.4 Chains are immutable and composable
-
-`Chain` is immutable — `app.chain()` creates a fixed pipeline. The `use()` method
-returns a new chain with the step appended:
-
-```java
-// Extend a chain programmatically
-Chain base    = app.chain("base-pipeline");
-Chain premium = base.use(Steps.prompt("premium-addon"));
-// base is unchanged; premium is a new chain
-```
-
-### 19.5 Accessing chain results in the final handler
-
-Steps communicate via request attributes. After a chain runs, the handler
-reads what was set:
-
-```java
-app.post("/support", (req, res, next) -> {
-    app.chain("triage").run(req, res, next);
-
-    // After the chain, read what was set by Steps.prompt()
-    var response = (PromptResponse) req.attribute(Attributes.PROMPT_RESPONSE);
-    var text     = (String)         req.attribute(Attributes.LAST_RESPONSE_TEXT);
-
-    res.json(Map.of(
-        "answer",  text,
-        "tokens",  response.totalTokens(),
-        "sources", response.ragDocuments().size()
-    ));
-});
-```
-
----
-
-## 20. Guardrails — Ethical and Safety Middleware
-
-### 20.1 Guardrails are middleware
+### 19.1 Guardrails are middleware
 
 Every guardrail implements `Middleware`. There is no special guardrail pipeline —
-they compose with everything else: filters, route arrays, chain steps.
+they compose with everything else: filters and route arrays.
 
 ```java
 // Global filter — applies to every request
@@ -2205,14 +2073,9 @@ app.filter(GuardRail.jailbreak());
 
 // Route-scoped — applies only to this endpoint
 app.post("/chat", GuardRail.toxicity(), myHandler);
-
-// Chain step — applies at a specific point in a pipeline
-app.chain("support",
-    Steps.guard(GuardRail.pii(), GuardRail.jailbreak()),
-    Steps.prompt("respond"));
 ```
 
-### 20.2 Activating real implementations
+### 19.2 Activating real implementations
 
 The pattern-based guardrails (`pii`, `jailbreak`, `promptInjection`, `toxicity`, `regulatory`,
 `topicBoundary`) live in `cafeai-guardrails`. Add it to use them:
@@ -2229,7 +2092,7 @@ dependency to add. They do not return a guardrail that passes everything through
 look like protection and be none. `GuardRail.moderation(model)` and any guardrail you implement
 need no module.
 
-### 20.3 Available guardrails
+### 19.3 Available guardrails
 
 **`GuardRail.pii()`** — detects personally identifiable information in both
 the user's prompt (pre-LLM) and the model's response (post-LLM). Detects emails,
@@ -2314,7 +2177,7 @@ app.guard(GuardRail.regulatory().hipaa().gdpr());
 app.guard(GuardRail.regulatory().hipaa().fcra().ccpa());
 ```
 
-### 20.4 Guardrail position
+### 19.4 Guardrail position
 
 Each guardrail has a `Position` that determines when it runs relative to the LLM call:
 
@@ -2326,7 +2189,7 @@ Each guardrail has a `Position` that determines when it runs relative to the LLM
 
 Position is determined by the guardrail implementation — you don't set it manually.
 
-### 20.4a What pattern guardrails can and cannot do
+### 19.4a What pattern guardrails can and cannot do
 
 `pii`, `jailbreak`, `promptInjection`, `secrets`, `toxicity`, `regulatory` and `topicBoundary` match
 patterns. Text is normalised first (`TextNormalizer`): case, full-width letters, zero-width
@@ -2337,7 +2200,7 @@ pattern list cannot see, add a model: `GuardRail.moderation(OpenAI.moderation("o
 (LC4J guide §2.11). `regulatory()` checks input only: its patterns describe a discriminatory
 *request*, and run over a response they would flag the model correctly refusing one.
 
-### 20.5 Guardrail violations
+### 19.5 Guardrail violations
 
 When a guardrail triggers, by default it responds with HTTP 400:
 
@@ -2355,7 +2218,7 @@ The violation is also recorded in request attributes for observability:
 - `req.attribute(Attributes.GUARDRAIL_NAME)` — which guardrail triggered
 - `req.attribute(Attributes.GUARDRAIL_SCORE)` — confidence score (0.0–1.0)
 
-### 20.6 Composing guardrails
+### 19.6 Composing guardrails
 
 Guardrails compose naturally because they're middleware:
 
@@ -2363,12 +2226,6 @@ Guardrails compose naturally because they're middleware:
 // Via app.guard() — registered as global filters
 app.guard(GuardRail.pii());
 app.guard(GuardRail.jailbreak());
-
-// Via Steps.guard() in a chain — applied at a specific pipeline stage
-app.chain("secure-chat",
-    Steps.guard(GuardRail.pii(), GuardRail.jailbreak(), GuardRail.toxicity()),
-    Steps.prompt("respond"),
-    Steps.guard(GuardRail.pii())); // check output too
 
 // Via Middleware.then() — inline composition
 Middleware safetyStack = GuardRail.pii()
@@ -2380,15 +2237,15 @@ app.post("/chat", safetyStack, myHandler);
 
 ---
 
-## 21. Observability — Tracing, Metrics, and Eval
+## 20. Observability — Tracing, Metrics, and Eval
 
-### 21.1 Why observability matters for LLM applications
+### 20.1 Why observability matters for LLM applications
 
 An LLM call is not like a database query. The response is non-deterministic. Token costs vary per call. Retrieval quality affects answer quality. Guardrails may or may not trigger. Without instrumentation, you are running blind in production.
 
 `cafeai-observability` makes every `app.prompt().call()` a first-class observed event — zero application code changes required.
 
-### 21.2 Adding cafeai-observability
+### 20.2 Adding cafeai-observability
 
 ```groovy
 dependencies {
@@ -2399,7 +2256,7 @@ dependencies {
 
 Without the module, `app.observe()` throws `IllegalStateException` with the exact dependency to add. Nothing else changes.
 
-### 21.3 Console strategy — development
+### 20.3 Console strategy — development
 
 `ObserveStrategy.console()` writes structured output per LLM call. Use it locally and in CI where you want readable traces without running an observability stack.
 
@@ -2418,7 +2275,7 @@ Output per call:
 ──────────────────────────────────────────────
 ```
 
-### 21.4 OpenTelemetry strategy — production
+### 20.4 OpenTelemetry strategy — production
 
 `ObserveStrategy.otel()` creates an OpenTelemetry span per LLM call, exported to whatever backend you configure — Jaeger, Zipkin, Grafana Tempo, Honeycomb, Datadog, or any OTLP-compatible collector.
 
@@ -2461,7 +2318,7 @@ Span attributes recorded per call:
 | `cafeai.cache_hit` | boolean | Whether the semantic cache answered |
 | `cafeai.error` | string | Error class name if the call failed |
 
-### 21.5 Eval harness — automatic quality scoring
+### 20.5 Eval harness — automatic quality scoring
 
 `EvalHarness.defaults()` automatically scores every RAG-augmented response on three dimensions. Register it alongside an observation strategy:
 
@@ -2504,7 +2361,7 @@ When `app.observe(ObserveStrategy.otel())` is also active, eval scores are attac
 - `cafeai.eval.relevance`
 - `cafeai.eval.groundedness`
 
-### 21.6 Combining observation and eval
+### 20.6 Combining observation and eval
 
 ```java
 var app = CafeAI.create();
@@ -2533,7 +2390,7 @@ That is a fully observable, RAG-augmented LLM application. Every call produces a
 
 ---
 
-## 22. The Helidon Foundation — `app.helidon()`
+## 21. The Helidon Foundation — `app.helidon()`
 
 CafeAI is a thin binding over Helidon SE. When you need something Helidon offers
 that the Express-style API doesn't cover — TLS, HTTP/2 tuning, connection limits,
@@ -2541,7 +2398,7 @@ health-check endpoints, Prometheus metrics, OpenAPI, raw routing, gRPC — you
 reach through `app.helidon()` and use Helidon's own builders directly. CafeAI
 does not re-wrap these; the escape hatch *is* the API.
 
-### 22.1 The two hooks
+### 21.1 The two hooks
 
 ```java
 app.helidon()
@@ -2563,7 +2420,7 @@ app.helidon()
 
 Both are fluent, applied in registration order, and may be called more than once.
 
-### 22.2 Health, metrics, OpenAPI — via Helidon features
+### 21.2 Health, metrics, OpenAPI — via Helidon features
 
 Helidon ships these as `HttpFeature`s. Add the dependency, register the feature
 through `.routing()`, and the endpoint appears next to your CafeAI routes:
@@ -2597,23 +2454,23 @@ keep in sync with every Helidon release. Kubernetes probes point at
 `/observe/health/live` and `/observe/health/ready`; Prometheus scrapes
 `/observe/metrics`.
 
-### 22.3 gRPC
+### 21.3 gRPC
 
 Not wired into the CafeAI API (no demand surfaced across the capstone series). If
 you need it, add `io.helidon.webserver:helidon-webserver-grpc` and register the
 `GrpcRouting` through a Helidon feature in `.routing()`. It runs on the same
 server.
 
-### 22.4 When to use the escape hatch vs. an extension module
+### 21.4 When to use the escape hatch vs. an extension module
 
 `app.helidon()` is for *this application's* infrastructure needs — one-off,
 deployment-specific wiring. If you're adding a **reusable capability** (a new
 vector store, a new guardrail, a new memory tier) that other apps would want,
-write a module instead — see §23.
+write a module instead — see §22.
 
 ---
 
-## 23. Extending CafeAI — writing a module
+## 22. Extending CafeAI — writing a module
 
 Custom guardrails, providers, and shared configuration jars all plug in through
 plain interfaces and `ServiceLoader` — no annotation scanner, no container. The
@@ -2632,7 +2489,7 @@ patterns: **[docs/EXTENDING.md](docs/EXTENDING.md)**.
 
 ---
 
-## 24. cafeai-sentinel — AI Cluster Incident Pipeline
+## 23. cafeai-sentinel — AI Cluster Incident Pipeline
 
 `cafeai-sentinel` watches a single Kubernetes/OpenShift namespace, triages pod
 failures with rules (no model — cheap, runs on every event), coalesces
@@ -2645,7 +2502,7 @@ no dashboard, incident store, or remediation baked in. See
 `capstones/cluster-sentinel` companion for a complete HTTP + dashboard app
 built on top of it.
 
-### 24.1 Assembling a pipeline
+### 23.1 Assembling a pipeline
 
 ```java
 SentinelConfig config = SentinelConfig.create()
@@ -2684,7 +2541,7 @@ incident sink deliberately live outside `SentinelConfig` — they already have
 their own fluent surface (`app.agent(...)` and
 `IncidentTracker.onIncident(...)`), so the config doesn't duplicate them.
 
-### 24.2 Investigation and redaction
+### 23.2 Investigation and redaction
 
 A confirmed incident triggers `ClusterInvestigator` — an ordinary
 `app.agent(...)` bound to `KubeTools`, a read-only tool bundle (pod logs,
@@ -2695,7 +2552,7 @@ Investigations are gated by a `TokenBudget` — a rolling per-minute ceiling;
 when the next investigation would exceed it, `IncidentTracker` defers it to
 the next sweep rather than skipping it outright.
 
-### 24.3 Sinks
+### 23.3 Sinks
 
 Incident lifecycle events (`OPENED`, `INVESTIGATED`, `UPDATED`, `RESOLVED`)
 fan out to one or more `IncidentSink`s: `LogSink` (structured log lines),
@@ -2706,7 +2563,7 @@ fan out to one or more `IncidentSink`s: `LogSink` (structured log lines),
 functional interface. `IncidentSink.of(...)` fans one event out to several
 sinks at once.
 
-### 24.4 Connecting to a cluster
+### 23.4 Connecting to a cluster
 
 `ClusterConnection.ambient()` (the default) uses the current kubeconfig
 context, or the in-cluster ServiceAccount token when running inside the

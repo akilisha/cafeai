@@ -129,7 +129,12 @@ app.vectordb(VectorStore.chroma("http://localhost:8000"));
 app.vectordb(VectorStore.chroma("http://localhost:8000", "collection-name"));
 
 // PgVector — PostgreSQL with vector extension, production-grade
-app.vectordb(VectorStore.pgVector(PgVectorConfig.of("localhost", 5432, "cafeai")));
+app.vectordb(VectorStore.pgVector(
+    PgVectorConfig.builder()
+        .host("localhost").port(5432).database("cafeai")
+        .user("cafeai").password(System.getenv("PGPASSWORD"))
+        .dimension(384)               // must match the registered EmbeddingProvider
+        .build()));
 ```
 
 The `support-desk` capstone uses `VectorStore.inMemory()` — the knowledge base is small (six documentation pages), ingested at startup, and does not need persistence. Restarting the application re-ingests in under a second.
