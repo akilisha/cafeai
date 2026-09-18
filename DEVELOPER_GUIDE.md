@@ -2296,19 +2296,28 @@ var app = CafeAI.create();
 app.observe(ObserveStrategy.otel());
 ```
 
-Span attributes recorded per call:
+Each call is a span, named for its operation: `chat` (prompt and vision), `transcribe` (audio),
+`retrieve` (a RAG lookup) and `invoke_agent <name>` (an agent). Attributes follow the OpenTelemetry
+GenAI conventions, with `cafeai.*` for what they do not cover:
 
 | Attribute | Type | Description |
 |---|---|---|
-| `cafeai.model` | string | Model ID that generated the response |
-| `cafeai.prompt_tokens` | int | Tokens in the prompt |
-| `cafeai.completion_tokens` | int | Tokens in the response |
-| `cafeai.total_tokens` | int | Sum of prompt + completion tokens |
+| `gen_ai.operation.name` | string | `chat`, `transcribe`, `retrieve` or `invoke_agent` |
+| `gen_ai.response.model` | string | Model ID that generated the response |
+| `gen_ai.system` | string | `openai`, `anthropic` or `ollama`, inferred from the model ID; absent when not recognised |
+| `gen_ai.usage.input_tokens` | int | Tokens in the prompt |
+| `gen_ai.usage.output_tokens` | int | Tokens in the response |
+| `cafeai.usage.total_tokens` | int | Sum of input and output tokens |
 | `cafeai.latency_ms` | long | Wall-clock latency in milliseconds |
-| `cafeai.session_id` | string | Session ID if present |
-| `cafeai.rag_docs_retrieved` | int | Number of RAG documents retrieved |
-| `cafeai.cache_hit` | boolean | Whether the semantic cache answered |
-| `cafeai.error` | string | Error class name if the call failed |
+| `cafeai.session.id` | string | Session ID if present |
+| `cafeai.rag.documents_retrieved` | int | Number of RAG documents retrieved |
+| `cafeai.cache_hit` | boolean | Whether the semantic cache answered (`chat` spans) |
+| `cafeai.input.type`, `cafeai.input.mime_type`, `cafeai.input.content_bytes` | string, string, int | Vision and audio inputs |
+| `gen_ai.agent.name` | string | The agent's name (`invoke_agent` spans) |
+| `db.system`, `cafeai.rag.query_length` | string, int | `retrieve` spans |
+| `error.type` | string | Exception class name if the call failed; the span status is also `ERROR` |
+
+A call that throws is still recorded: its span ends with `ERROR` status and no token counts.
 
 ### 20.5 A fully observed application
 

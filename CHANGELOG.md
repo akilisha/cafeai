@@ -154,6 +154,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 - The chat-model cache is keyed on the provider itself (a value-comparing record) rather than
   `name:modelId`, so two `Ollama.at(...)` providers on different base URLs no longer share a client.
+- **A failed prompt, vision or audio call is now traced.** When the model call threw, the engine
+  rethrew before telling the observe bridge, so an OpenTelemetry span was started and never ended
+  (never exported) and the console strategy logged nothing. The call now ends its span with `ERROR`
+  status and `error.type`, or logs the error. The documented span attributes are corrected to the names
+  recorded (`gen_ai.*`, `cafeai.session.id`, `cafeai.rag.documents_retrieved`, `error.type`); the
+  listed `cafeai.guardrail_triggered` was never recorded.
 - `GuardRail.jailbreak()` matches `DAN` as a word, not as a substring of "Daniel" or "abundant".
 - `TopicBoundaryGuardRailImpl` no longer returns application-specific text as its reason.
 - **`PgVectorConfig` searches exactly by default** (`useIndex` is `false`). The `ivfflat` index it

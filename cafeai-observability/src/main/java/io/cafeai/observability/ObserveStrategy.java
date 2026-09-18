@@ -29,7 +29,6 @@ public interface ObserveStrategy {
      *   tokens:     241 prompt + 87 completion = 328 total
      *   latency:    1,243ms
      *   rag docs:   3 retrieved
-     *   guardrail:  none triggered
      * ----------------------------------------------
      * </pre>
      */
@@ -41,18 +40,19 @@ public interface ObserveStrategy {
      * OpenTelemetry observation strategy -- exports a span per LLM call
      * with standardised attributes.
      *
-     * <p>Span attributes:
+     * <p>Spans are named for the operation ({@code chat}, {@code transcribe}, {@code retrieve},
+     * {@code invoke_agent <name>}). Span attributes follow the OpenTelemetry GenAI conventions:
      * <ul>
-     *   <li>{@code cafeai.model} -- model ID</li>
-     *   <li>{@code cafeai.prompt_tokens} -- tokens in the prompt</li>
-     *   <li>{@code cafeai.completion_tokens} -- tokens in the response</li>
-     *   <li>{@code cafeai.total_tokens} -- total tokens consumed</li>
+     *   <li>{@code gen_ai.operation.name} -- the operation</li>
+     *   <li>{@code gen_ai.response.model} -- model ID</li>
+     *   <li>{@code gen_ai.system} -- provider, inferred from the model ID when recognised</li>
+     *   <li>{@code gen_ai.usage.input_tokens}, {@code gen_ai.usage.output_tokens} -- token usage</li>
+     *   <li>{@code cafeai.usage.total_tokens} -- total tokens consumed</li>
      *   <li>{@code cafeai.latency_ms} -- wall-clock latency</li>
-     *   <li>{@code cafeai.session_id} -- session ID if present</li>
-     *   <li>{@code cafeai.rag_docs_retrieved} -- number of RAG documents</li>
-     *   <li>{@code cafeai.guardrail_triggered} -- guardrail name if triggered</li>
+     *   <li>{@code cafeai.session.id} -- session ID if present</li>
+     *   <li>{@code cafeai.rag.documents_retrieved} -- number of RAG documents</li>
      *   <li>{@code cafeai.cache_hit} -- whether the semantic cache answered</li>
-     *   <li>{@code cafeai.error} -- error class name if the call failed</li>
+     *   <li>{@code error.type} -- exception class name if the call failed (status is also ERROR)</li>
      * </ul>
      *
      * <p>Uses the global {@code OpenTelemetry} instance. Configure your

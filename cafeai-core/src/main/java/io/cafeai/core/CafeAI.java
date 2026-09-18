@@ -946,10 +946,10 @@ public interface CafeAI extends Router {
      *   app.observe(ObserveStrategy.otel());       // production — OpenTelemetry spans
      * }</pre>
      *
-     * <p>Span attributes recorded per LLM call:
-     * {@code model}, {@code prompt_tokens}, {@code completion_tokens},
-     * {@code latency_ms}, {@code rag_documents_retrieved},
-     * {@code guardrail_triggered}, {@code cache_hit}, {@code session_id}.
+     * <p>Each call is a span named for its operation, with OpenTelemetry GenAI attributes (model,
+     * token usage, {@code error.type}) and {@code cafeai.*} ones (latency, session, retrieved
+     * documents, cache hit). A call that throws is recorded with {@code ERROR} status. The full list
+     * is on {@code ObserveStrategy.otel()}.
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */

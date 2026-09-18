@@ -56,7 +56,6 @@ public final class ObserveBridgeImpl implements ObserveBridge {
     private static final class Sem {
         static final String OP        = "gen_ai.operation.name";
         static final String SYSTEM    = "gen_ai.system";
-        static final String REQ_MODEL = "gen_ai.request.model";
         static final String RES_MODEL = "gen_ai.response.model";
         static final String IN_TOKENS = "gen_ai.usage.input_tokens";
         static final String OUT_TOKENS = "gen_ai.usage.output_tokens";

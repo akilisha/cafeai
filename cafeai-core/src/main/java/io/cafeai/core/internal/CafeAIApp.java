@@ -418,77 +418,79 @@ public final class CafeAIApp implements CafeAI {
 
         Object observeCtx = observeBridge != null
                 ? observeBridge.beforePrompt(request) : null;
+        try {
 
-        // -- Token budget: wait if current window is exhausted ----------------
-        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+            // -- Token budget: wait if current window is exhausted ----------------
+            if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
-        Throwable observeError = null;
-        int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
-        Throwable lastRateLimitError = null;
+            int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+            Throwable lastRateLimitError = null;
 
-        while (attemptsLeft > 0) {
-            attemptsLeft--;
-            lastRateLimitError = null;
-            try {
-                ChatResponse response = model.chat(messages);
-                responseText = response.aiMessage().text();
-                TokenUsage usage = response.tokenUsage();
-                promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                outputTokens = usage != null ? usage.outputTokenCount() : 0;
-                // -- Token budget: record actual usage after successful call -------
-                if (budgetTracker != null) {
-                    budgetTracker.recordUsage(promptTokens + outputTokens);
-                }
-                break; // success — exit retry loop
-            } catch (RuntimeException e) {
-                // Retry on rate limit if policy is configured and attempts remain
-                if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
-                        && isRateLimitException(e) && attemptsLeft > 0) {
-                    int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
-                    long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
-                    log.warn("Rate limit hit — retrying in {}ms (attempt {}/{})",
-                            waitMs, attemptNum, retryPolicy.maxAttempts());
-                    lastRateLimitError = e;
-                    try {
-                        Thread.sleep(waitMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Interrupted during rate limit backoff", ie);
+            while (attemptsLeft > 0) {
+                attemptsLeft--;
+                lastRateLimitError = null;
+                try {
+                    ChatResponse response = model.chat(messages);
+                    responseText = response.aiMessage().text();
+                    TokenUsage usage = response.tokenUsage();
+                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
+                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                    // -- Token budget: record actual usage after successful call -------
+                    if (budgetTracker != null) {
+                        budgetTracker.recordUsage(promptTokens + outputTokens);
                     }
-                } else {
-                    observeError = e;
-                    throw e;
+                    break; // success — exit retry loop
+                } catch (RuntimeException e) {
+                    // Retry on rate limit if policy is configured and attempts remain
+                    if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                            && isRateLimitException(e) && attemptsLeft > 0) {
+                        int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                        long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                        log.warn("Rate limit hit — retrying in {}ms (attempt {}/{})",
+                                waitMs, attemptNum, retryPolicy.maxAttempts());
+                        lastRateLimitError = e;
+                        try {
+                            Thread.sleep(waitMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted during rate limit backoff", ie);
+                        }
+                    } else {
+                        throw e;
+                    }
                 }
             }
-        }
 
-        if (lastRateLimitError != null) {
-            throw new RetryPolicy.RateLimitExceededException(
-                    "Rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                    lastRateLimitError);
-        }
+            if (lastRateLimitError != null) {
+                throw new RetryPolicy.RateLimitExceededException(
+                        "Rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                        lastRateLimitError);
+            }
 
-        // -- 4a. POST_LLM guardrails on the assembled response ----------------
-        // Before observability and memory, so neither records blocked content.
-        Screened screened = screenOutput(responseText);
-        responseText = screened.text();
-        // Only a clean interaction — nothing flagged on the way in or out — may be shared.
-        if (cacheNamespace != null && !preFlagged && !screened.flagged()) {
-            storeInCache(cacheNamespace, effectiveMessage, responseText);
-        }
+            // -- 4a. POST_LLM guardrails on the assembled response ----------------
+            // Before observability and memory, so neither records blocked content.
+            Screened screened = screenOutput(responseText);
+            responseText = screened.text();
+            // Only a clean interaction — nothing flagged on the way in or out — may be shared.
+            if (cacheNamespace != null && !preFlagged && !screened.flagged()) {
+                storeInCache(cacheNamespace, effectiveMessage, responseText);
+            }
 
-        // -- Observability: fire afterPrompt with final response ---------------
-        if (observeBridge != null) {
-            PromptResponse partial = observeError == null
-                    ? PromptResponse.builder()
-                    .text(responseText)
-                    .promptTokens(promptTokens)
-                    .outputTokens(outputTokens)
-                    .modelId(provider.modelId())
-                    .ragDocuments(retrievedDocs)
-                    .build()
-                    : null;
-            observeBridge.afterPrompt(observeCtx, request, partial, observeError);
+            // -- Observability: fire afterPrompt with final response ---------------
+            if (observeBridge != null) {
+                PromptResponse partial = PromptResponse.builder()
+                        .text(responseText)
+                        .promptTokens(promptTokens)
+                        .outputTokens(outputTokens)
+                        .modelId(provider.modelId())
+                        .ragDocuments(retrievedDocs)
+                        .build();
+                observeBridge.afterPrompt(observeCtx, request, partial, null);
+            }
+        } catch (RuntimeException e) {
+            // The call failed before it could be reported: end the span / log the error, then rethrow.
+            if (observeBridge != null) observeBridge.afterPrompt(observeCtx, request, null, e);
+            throw e;
         }
 
         // -- 4b. Set LLM_RESPONSE_TEXT for POST_LLM HTTP middleware guardrails --
@@ -749,57 +751,63 @@ public final class CafeAIApp implements CafeAI {
 
         Object observeCtx = observeBridge != null
                 ? observeBridge.beforeVision(request) : null;
+        try {
 
-        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+            if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
-        int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
-        Throwable lastRateLimitError = null;
+            int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+            Throwable lastRateLimitError = null;
 
-        while (attemptsLeft > 0) {
-            attemptsLeft--;
-            lastRateLimitError = null;
-            try {
-                ChatResponse response = model.chat(messages);
-                responseText = response.aiMessage().text();
-                TokenUsage usage = response.tokenUsage();
-                promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                outputTokens = usage != null ? usage.outputTokenCount() : 0;
-                if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
-                break;
-            } catch (RuntimeException e) {
-                if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
-                        && isRateLimitException(e) && attemptsLeft > 0) {
-                    int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
-                    long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
-                    log.warn("Vision rate limit hit — retrying in {}ms", waitMs);
-                    lastRateLimitError = e;
-                    try {
-                        Thread.sleep(waitMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Interrupted during vision retry", ie);
+            while (attemptsLeft > 0) {
+                attemptsLeft--;
+                lastRateLimitError = null;
+                try {
+                    ChatResponse response = model.chat(messages);
+                    responseText = response.aiMessage().text();
+                    TokenUsage usage = response.tokenUsage();
+                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
+                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                    if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+                    break;
+                } catch (RuntimeException e) {
+                    if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                            && isRateLimitException(e) && attemptsLeft > 0) {
+                        int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                        long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                        log.warn("Vision rate limit hit — retrying in {}ms", waitMs);
+                        lastRateLimitError = e;
+                        try {
+                            Thread.sleep(waitMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted during vision retry", ie);
+                        }
+                    } else {
+                        throw e;
                     }
-                } else {
-                    throw e;
                 }
             }
-        }
 
-        if (lastRateLimitError != null) {
-            throw new RetryPolicy.RateLimitExceededException(
-                    "Vision rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                    lastRateLimitError);
-        }
+            if (lastRateLimitError != null) {
+                throw new RetryPolicy.RateLimitExceededException(
+                        "Vision rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                        lastRateLimitError);
+            }
 
-        // -- 6b. Observability: afterVision ------------------------------------
-        if (observeBridge != null) {
-            VisionResponse partial = VisionResponse.builder()
-                    .text(responseText)
-                    .promptTokens(promptTokens)
-                    .outputTokens(outputTokens)
-                    .modelId(provider.modelId())
-                    .build();
-            observeBridge.afterVision(observeCtx, request, partial, null);
+            // -- 6b. Observability: afterVision ------------------------------------
+            if (observeBridge != null) {
+                VisionResponse partial = VisionResponse.builder()
+                        .text(responseText)
+                        .promptTokens(promptTokens)
+                        .outputTokens(outputTokens)
+                        .modelId(provider.modelId())
+                        .build();
+                observeBridge.afterVision(observeCtx, request, partial, null);
+            }
+        } catch (RuntimeException e) {
+            // The call failed before it could be reported: end the span / log the error, then rethrow.
+            if (observeBridge != null) observeBridge.afterVision(observeCtx, request, null, e);
+            throw e;
         }
 
         // -- 7. POST_LLM guardrail check on the response ----------------------
@@ -1054,26 +1062,74 @@ public final class CafeAIApp implements CafeAI {
 
         Object observeCtx = observeBridge != null
                 ? observeBridge.beforeAudio(request) : null;
+        try {
 
-        if (budgetTracker != null) budgetTracker.waitIfNeeded();
+            if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
-        if (AudioMessageBuilder.requiresWhisperEndpoint(provider)) {
-            // -- OpenAI path: Whisper transcription endpoint ------------------
-            String transcript = AudioMessageBuilder.transcribeViaWhisper(
-                    request.content(), request.mimeType(), request.prompt());
+            if (AudioMessageBuilder.requiresWhisperEndpoint(provider)) {
+                // -- OpenAI path: Whisper transcription endpoint ------------------
+                String transcript = AudioMessageBuilder.transcribeViaWhisper(
+                        request.content(), request.mimeType(), request.prompt());
 
-            // If the prompt asks for more than transcription, send transcript
-            // back through the text model for reasoning/extraction
-            boolean wantsReasoning = request.schemaHint() != null
-                    || !request.prompt().toLowerCase().contains("transcribe");
+                // If the prompt asks for more than transcription, send transcript
+                // back through the text model for reasoning/extraction
+                boolean wantsReasoning = request.schemaHint() != null
+                        || !request.prompt().toLowerCase().contains("transcribe");
 
-            if (wantsReasoning) {
-                String followUp = effectivePrompt +
-                        "\n\nTranscript:\n---\n" + transcript + "\n---";
-                List<ChatMessage> textMessages = new ArrayList<>(history);
-                if (systemPrompt != null && !systemPrompt.isBlank())
-                    textMessages.add(0, dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
-                textMessages.add(dev.langchain4j.data.message.UserMessage.from(followUp));
+                if (wantsReasoning) {
+                    String followUp = effectivePrompt +
+                            "\n\nTranscript:\n---\n" + transcript + "\n---";
+                    List<ChatMessage> textMessages = new ArrayList<>(history);
+                    if (systemPrompt != null && !systemPrompt.isBlank())
+                        textMessages.add(0, dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
+                    textMessages.add(dev.langchain4j.data.message.UserMessage.from(followUp));
+
+                    int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
+                    Throwable lastRateLimitError = null;
+                    while (attemptsLeft > 0) {
+                        attemptsLeft--;
+                        lastRateLimitError = null;
+                        try {
+                            ChatResponse cr = model.chat(textMessages);
+                            responseText = cr.aiMessage().text();
+                            TokenUsage usage = cr.tokenUsage();
+                            promptTokens = usage != null ? usage.inputTokenCount() : 0;
+                            outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                            if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
+                            break;
+                        } catch (RuntimeException e) {
+                            if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
+                                    && isRateLimitException(e) && attemptsLeft > 0) {
+                                int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
+                                long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
+                                log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
+                                lastRateLimitError = e;
+                                try {
+                                    Thread.sleep(waitMs);
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                    throw new RuntimeException("Interrupted during audio retry", ie);
+                                }
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }
+                    if (lastRateLimitError != null) {
+                        throw new RetryPolicy.RateLimitExceededException(
+                                "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
+                                lastRateLimitError);
+                    }
+                } else {
+                    // Pure transcription — return transcript directly
+                    responseText = transcript;
+                }
+
+            } else {
+                // -- Gemini path: AudioContent via chat completions ---------------
+                List<ChatMessage> messages = AudioMessageBuilder.buildForGemini(
+                        effectivePrompt, request.content(), request.mimeType(),
+                        systemPrompt, history);
 
                 int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
                 Throwable lastRateLimitError = null;
@@ -1081,9 +1137,9 @@ public final class CafeAIApp implements CafeAI {
                     attemptsLeft--;
                     lastRateLimitError = null;
                     try {
-                        ChatResponse cr = model.chat(textMessages);
-                        responseText = cr.aiMessage().text();
-                        TokenUsage usage = cr.tokenUsage();
+                        ChatResponse response = model.chat(messages);
+                        responseText = response.aiMessage().text();
+                        TokenUsage usage = response.tokenUsage();
                         promptTokens = usage != null ? usage.inputTokenCount() : 0;
                         outputTokens = usage != null ? usage.outputTokenCount() : 0;
                         if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
@@ -1111,64 +1167,22 @@ public final class CafeAIApp implements CafeAI {
                             "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
                             lastRateLimitError);
                 }
-            } else {
-                // Pure transcription — return transcript directly
-                responseText = transcript;
             }
 
-        } else {
-            // -- Gemini path: AudioContent via chat completions ---------------
-            List<ChatMessage> messages = AudioMessageBuilder.buildForGemini(
-                    effectivePrompt, request.content(), request.mimeType(),
-                    systemPrompt, history);
-
-            int attemptsLeft = retryPolicy != null ? retryPolicy.maxAttempts() : 1;
-            Throwable lastRateLimitError = null;
-            while (attemptsLeft > 0) {
-                attemptsLeft--;
-                lastRateLimitError = null;
-                try {
-                    ChatResponse response = model.chat(messages);
-                    responseText = response.aiMessage().text();
-                    TokenUsage usage = response.tokenUsage();
-                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
-                    if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
-                    break;
-                } catch (RuntimeException e) {
-                    if (retryPolicy != null && retryPolicy.retriesOnRateLimit()
-                            && isRateLimitException(e) && attemptsLeft > 0) {
-                        int attemptNum = retryPolicy.maxAttempts() - attemptsLeft;
-                        long waitMs = retryPolicy.backoff().toMillis() * attemptNum;
-                        log.warn("Audio rate limit hit — retrying in {}ms", waitMs);
-                        lastRateLimitError = e;
-                        try {
-                            Thread.sleep(waitMs);
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException("Interrupted during audio retry", ie);
-                        }
-                    } else {
-                        throw e;
-                    }
-                }
+            // -- 6b. Observability: afterAudio ------------------------------------
+            if (observeBridge != null) {
+                AudioResponse partial = AudioResponse.builder()
+                        .text(responseText)
+                        .promptTokens(promptTokens)
+                        .outputTokens(outputTokens)
+                        .modelId(provider.modelId())
+                        .build();
+                observeBridge.afterAudio(observeCtx, request, partial, null);
             }
-            if (lastRateLimitError != null) {
-                throw new RetryPolicy.RateLimitExceededException(
-                        "Audio rate limit exceeded after " + retryPolicy.maxAttempts() + " attempts",
-                        lastRateLimitError);
-            }
-        }
-
-        // -- 6b. Observability: afterAudio ------------------------------------
-        if (observeBridge != null) {
-            AudioResponse partial = AudioResponse.builder()
-                    .text(responseText)
-                    .promptTokens(promptTokens)
-                    .outputTokens(outputTokens)
-                    .modelId(provider.modelId())
-                    .build();
-            observeBridge.afterAudio(observeCtx, request, partial, null);
+        } catch (RuntimeException e) {
+            // The call failed before it could be reported: end the span / log the error, then rethrow.
+            if (observeBridge != null) observeBridge.afterAudio(observeCtx, request, null, e);
+            throw e;
         }
 
         // -- 7. POST_LLM guardrail check on the response ----------------------

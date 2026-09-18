@@ -19,4 +19,8 @@ dependencies {
     implementation "io.opentelemetry:opentelemetry-api:${rootProject.ext.opentelemetryVersion}"
     implementation "io.opentelemetry:opentelemetry-sdk:${rootProject.ext.opentelemetryVersion}"
     implementation "io.opentelemetry:opentelemetry-exporter-otlp:${rootProject.ext.opentelemetryVersion}"
+
+    // Tests record real spans in memory and capture the console strategy's log output.
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${rootProject.ext.opentelemetryVersion}"
+    testImplementation "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
 }
