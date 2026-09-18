@@ -53,21 +53,6 @@ import java.util.function.Consumer;
  *
  *   app.listen(8080);
  * }</pre>
- *
- * <p>Quick start — with CDI ({@code cafeai-cdi} on classpath):
- * <pre>{@code
- *   @ApplicationScoped
- *   public class AppConfig implements CafeAIConfigurer {
- *       @Inject UserService userService;
- *
- *       public void configure(CafeAI app) {
- *           app.ai(OpenAI.of("gpt-4o"));
- *           app.get("/users/:id", (req, res, next) ->
- *               res.json(userService.find(req.params("id"))));
- *           app.listen(8080);
- *       }
- *   }
- * }</pre>
  */
 public interface CafeAI extends Router {
 
@@ -79,7 +64,7 @@ public interface CafeAI extends Router {
      * <p>On creation, CafeAI automatically:
      * <ol>
      *   <li>Discovers all {@link io.cafeai.core.spi.CafeAIModule} implementations
-     *       via {@link java.util.ServiceLoader} and registers their capabilities</li>
+     *       via {@link java.util.ServiceLoader} and logs each at startup</li>
      *   <li>Discovers all {@link CafeAIConfigurer} implementations via
      *       {@link java.util.ServiceLoader} and applies them in {@code order()} sequence</li>
      * </ol>
