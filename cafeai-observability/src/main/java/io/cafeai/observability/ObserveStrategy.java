@@ -51,6 +51,7 @@ public interface ObserveStrategy {
      *   <li>{@code cafeai.session_id} -- session ID if present</li>
      *   <li>{@code cafeai.rag_docs_retrieved} -- number of RAG documents</li>
      *   <li>{@code cafeai.guardrail_triggered} -- guardrail name if triggered</li>
+     *   <li>{@code cafeai.cache_hit} -- whether the semantic cache answered</li>
      *   <li>{@code cafeai.error} -- error class name if the call failed</li>
      * </ul>
      *

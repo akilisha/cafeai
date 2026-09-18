@@ -323,6 +323,13 @@ they're `AiServices`-only concerns there. CafeAI's value here is applying
 them to a *single free-form call*, which is most of what a production prompt
 pipeline actually is (see the middleware diagram in `README.md`).
 
+**The semantic cache** (`app.cache(...)`) has no LangChain4j equivalent either. It builds on
+CafeAI's own `EmbeddingProvider` (so any LangChain4j `EmbeddingModel` works through
+`EmbeddingProvider.of(model)`), and sits in the pipeline *after* step 1 and *before* RAG: a request a
+guardrail blocked never reaches it, only clean, prompt-only answers (no session, no RAG) are stored,
+and a hit is re-screened by step 5 before it is served. The reasoning, and what it does not
+protect against, is in `docs/adr/ADR-013-semantic-cache-and-poisoning-defences.md`.
+
 Also here, and genuinely without an LC4J equivalent: **structured output**
 via `.returning(Class)` — a JSON-schema hint built from the target record
 (`SchemaHintBuilder`) is appended to the prompt, and the response is
@@ -601,6 +608,7 @@ place that happens:
 | You want to... | LangChain4j type | How |
 |---|---|---|
 | Use a model CafeAI has no provider for | `ChatModel`, `StreamingChatModel` | Implement `AiProvider` plus `LangchainBridge.ChatModelAccess` (and `StreamingChatModelAccess`). `Gemini` and `Nvidia` are built exactly this way, in one file each |
+| Embed with any model (for RAG, or the semantic cache) | `EmbeddingModel` | `EmbeddingProvider.of(model)` wraps any LangChain4j embedding model — Ollama, Bedrock, Vertex, ONNX — without an adapter of yours |
 | Moderate content with a model | `ModerationModel` | `GuardRail.moderation(model)` accepts any provider's; `OpenAI.moderation(id)` returns the LangChain4j type |
 | Tune an agent's builder | `AiServices<T>` | `app.agent(...).configure(b -> b.moderationModel(m))` hands you the live builder: `moderationModel`, `toolProvider`, and the rest of it |
 | Use the agent itself | LangChain4j's `AiService` proxy | `app.agent(...)` returns it unwrapped — no CafeAI type in between |

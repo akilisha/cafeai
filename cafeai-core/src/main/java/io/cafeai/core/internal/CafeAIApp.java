@@ -16,6 +16,8 @@ import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.connect.Connection;
 import io.cafeai.core.connect.HealthStatus;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.cache.CachedResponse;
+import io.cafeai.core.cache.SemanticCache;
 import io.cafeai.core.guardrails.GuardRailViolationException;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -75,6 +77,7 @@ public final class CafeAIApp implements CafeAI {
     private final Map<String, AiProvider> namedProviders = new ConcurrentHashMap<>();
     private String systemPrompt;
     private MemoryStrategy memoryStrategy;
+    private SemanticCache semanticCache;
     private final List<GuardRail> guardRails = new ArrayList<>();
 
     // RAG pipeline state (ROADMAP-07 Phase 4)
@@ -321,7 +324,7 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 1b. PRE_LLM guardrails on the text the model will see ------------
         // Before RAG retrieval and the model call, so a blocked request costs nothing.
-        applyPreLlmGuardrails(request.message(), "Prompt");
+        boolean preFlagged = applyPreLlmGuardrails(request.message(), "Prompt");
 
         // -- 2. Get the Langchain4j ChatModel --------------------------
         ChatModel model =
@@ -334,6 +337,14 @@ public final class CafeAIApp implements CafeAI {
         String effectiveMessage = request.schemaHint() != null
                 ? request.message() + request.schemaHint()
                 : request.message();
+
+        // -- 2c. Semantic cache lookup ----------------------------------------
+        // After PRE_LLM guardrails: a request that was blocked never reaches the cache.
+        String cacheNamespace = cacheable(request) ? cacheNamespace(provider, request) : null;
+        if (cacheNamespace != null) {
+            PromptResponse cached = cachedResponse(cacheNamespace, effectiveMessage, request, provider);
+            if (cached != null) return cached;
+        }
 
         // -- 3. Build message list ---------------------------------------------
         List<ChatMessage> messages = new ArrayList<>();
@@ -459,7 +470,12 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 4a. POST_LLM guardrails on the assembled response ----------------
         // Before observability and memory, so neither records blocked content.
-        responseText = applyPostLlmGuardrails(responseText);
+        Screened screened = screenOutput(responseText);
+        responseText = screened.text();
+        // Only a clean interaction — nothing flagged on the way in or out — may be shared.
+        if (cacheNamespace != null && !preFlagged && !screened.flagged()) {
+            storeInCache(cacheNamespace, effectiveMessage, responseText);
+        }
 
         // -- Observability: fire afterPrompt with final response ---------------
         if (observeBridge != null) {
@@ -524,7 +540,12 @@ public final class CafeAIApp implements CafeAI {
     private Flow.Publisher<String> executePromptStream(PromptRequest request) {
         AiProvider provider = resolveProvider(request);
         // Eager, so a blocked prompt fails at .stream(), before anything is subscribed.
-        applyPreLlmGuardrails(request.message(), "Prompt");
+        boolean preFlagged = applyPreLlmGuardrails(request.message(), "Prompt");
+        String cacheNamespace = cacheable(request) ? cacheNamespace(provider, request) : null;
+        if (cacheNamespace != null) {
+            PromptResponse cached = cachedResponse(cacheNamespace, request.message(), request, provider);
+            if (cached != null) return emitOnce(cached.text());
+        }
         StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
 
         // -- Build message list: system + history + user ---------------------
@@ -583,8 +604,12 @@ public final class CafeAIApp implements CafeAI {
                         @Override
                         public void onCompleteResponse(ChatResponse response) {
                             // Tokens have already reached the subscriber, so POST_LLM cannot
-                            // retract them; it gates what is remembered and exposed.
-                            String full = applyPostLlmGuardrails(assembled.toString());
+                            // retract them; it gates what is remembered, exposed and cached.
+                            Screened screened = screenOutput(assembled.toString());
+                            String full = screened.text();
+                            if (cacheNamespace != null && !preFlagged && !screened.flagged()) {
+                                storeInCache(cacheNamespace, request.message(), full);
+                            }
                             TokenUsage usage = response.tokenUsage();
                             int promptTokens = usage != null ? usage.inputTokenCount() : 0;
                             int outputTokens = usage != null ? usage.outputTokenCount() : 0;
@@ -1315,9 +1340,17 @@ public final class CafeAIApp implements CafeAI {
      * @return the (possibly modified) response text after POST_LLM checks
      */
     private String applyPostLlmGuardrails(String responseText) {
+        return screenOutput(responseText).text();
+    }
+
+    /** The response after POST_LLM guardrails, and whether any guardrail flagged it at all. */
+    private record Screened(String text, boolean flagged) {}
+
+    private Screened screenOutput(String responseText) {
         if (guardRails.isEmpty() || responseText == null || responseText.isBlank()) {
-            return responseText;
+            return new Screened(responseText, false);
         }
+        boolean flagged = false;
         for (GuardRail rail : guardRails) {
             if (rail.position() != GuardRail.Position.POST_LLM
                     && rail.position() != GuardRail.Position.BOTH) {
@@ -1325,12 +1358,13 @@ public final class CafeAIApp implements CafeAI {
             }
             GuardRail.OutputCheckResult result = rail.checkOutput(responseText);
             if (result == null || !result.isViolation()) continue;
+            flagged = true;
             switch (actionOf(rail)) {
                 case BLOCK -> {
                     log.warn("POST_LLM guardrail '{}' blocked the response: {}",
                             rail.name(), result.reason());
                     // A refusal, not the violating content
-                    return "[Response blocked by guardrail: " + rail.name() + "]";
+                    return new Screened("[Response blocked by guardrail: " + rail.name() + "]", true);
                 }
                 case WARN -> log.warn("POST_LLM guardrail '{}' flagged the response (WARN): {}",
                         rail.name(), result.reason());
@@ -1338,7 +1372,7 @@ public final class CafeAIApp implements CafeAI {
                         rail.name(), result.reason());
             }
         }
-        return responseText;
+        return new Screened(responseText, flagged);
     }
 
     /**
@@ -1346,9 +1380,13 @@ public final class CafeAIApp implements CafeAI {
      * {@code BLOCK} throws {@link GuardRailViolationException} (no model call is made);
      * {@code WARN} and {@code LOG} record the violation and let the call proceed — the
      * same meaning {@code GuardRail.Action} already had on the HTTP-middleware path.
+     *
+     * @return {@code true} if a {@code WARN}/{@code LOG} guardrail flagged the text — the call
+     *         proceeds, but the interaction is not clean enough to enter the semantic cache
      */
-    private void applyPreLlmGuardrails(String text, String call) {
-        if (guardRails.isEmpty() || text == null || text.isBlank()) return;
+    private boolean applyPreLlmGuardrails(String text, String call) {
+        if (guardRails.isEmpty() || text == null || text.isBlank()) return false;
+        boolean flagged = false;
         for (GuardRail rail : guardRails) {
             if (rail.position() != GuardRail.Position.PRE_LLM
                     && rail.position() != GuardRail.Position.BOTH) {
@@ -1356,6 +1394,7 @@ public final class CafeAIApp implements CafeAI {
             }
             GuardRail.OutputCheckResult result = rail.checkInput(text);
             if (result == null || !result.isViolation()) continue;
+            flagged = true;
             switch (actionOf(rail)) {
                 case BLOCK -> {
                     log.warn("{} PRE_LLM guardrail '{}' blocked the request: {}",
@@ -1369,12 +1408,97 @@ public final class CafeAIApp implements CafeAI {
                         call, rail.name(), result.reason());
             }
         }
+        return flagged;
     }
 
     /** A guardrail with no declared action blocks — the safe reading. */
     private static GuardRail.Action actionOf(GuardRail rail) {
         GuardRail.Action action = rail.action();
         return action != null ? action : GuardRail.Action.BLOCK;
+    }
+
+    // -- Semantic cache ---------------------------------------------------------
+    // The cache lets one caller's request decide what another is told, so a call is eligible
+    // only when its answer depends on nothing but the prompt (see SemanticCache).
+
+    private boolean cacheable(PromptRequest request) {
+        return semanticCache != null
+                && !request.cacheBypassed()
+                && request.sessionId() == null                                 // conversation-dependent
+                && !(retriever != null && vectorStore != null && embeddingModel != null); // RAG-dependent
+    }
+
+    /**
+     * Isolates entries by everything besides the prompt that shapes the answer: the model, its
+     * settings, and the system prompt. A different persona or model never shares an answer.
+     */
+    private String cacheNamespace(AiProvider provider, PromptRequest request) {
+        String system = request.systemOverride() != null ? request.systemOverride() : systemPrompt;
+        String identity = String.join("\u0001",
+                String.valueOf(provider.name()), String.valueOf(provider.modelId()),
+                String.valueOf(provider.temperature()), String.valueOf(provider.maxTokens()),
+                system == null ? "" : system);
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);   // every JVM has it
+        }
+    }
+
+    /**
+     * A cached answer as a {@link PromptResponse}, or {@code null} to proceed to the model.
+     * The hit is re-screened by the POST_LLM guardrails <em>as they are now</em>: one that fails
+     * (a guardrail was added or tightened, or the entry was bad all along) is evicted.
+     */
+    private PromptResponse cachedResponse(String namespace, String key,
+                                          PromptRequest request, AiProvider provider) {
+        java.util.Optional<CachedResponse> hit;
+        try {
+            hit = semanticCache.lookup(namespace, key);
+        } catch (RuntimeException e) {
+            log.warn("Semantic cache lookup failed; calling the model: {}", e.toString());
+            return null;
+        }
+        if (hit.isEmpty()) return null;
+
+        CachedResponse cached = hit.get();
+        if (screenOutput(cached.text()).flagged()) {
+            log.warn("Cached response {} failed re-screening by the current guardrails; "
+                    + "evicting it and calling the model", cached.id());
+            try { semanticCache.evict(cached.id()); } catch (RuntimeException ignored) { /* best effort */ }
+            return null;
+        }
+        log.info("Semantic cache hit (entry {}, stored {})", cached.id(), cached.storedAt());
+
+        Object observeCtx = observeBridge != null ? observeBridge.beforePrompt(request) : null;
+        PromptResponse response = PromptResponse.builder()
+                .text(cached.text()).modelId(provider.modelId()).fromCache(true).build();
+        if (observeBridge != null) observeBridge.afterPrompt(observeCtx, request, response, null);
+        if (request.httpRequest() != null) {
+            request.httpRequest().setAttribute(Attributes.LLM_RESPONSE_TEXT, cached.text());
+        }
+        return response;
+    }
+
+    /** Offers a clean answer to the cache. A cache failure never fails the call. */
+    private void storeInCache(String namespace, String key, String responseText) {
+        try {
+            semanticCache.store(namespace, key, responseText);
+        } catch (RuntimeException e) {
+            log.warn("Semantic cache store failed; the answer is simply not cached: {}", e.toString());
+        }
+    }
+
+    /** A cached answer as a one-token stream. */
+    private static Flow.Publisher<String> emitOnce(String text) {
+        return subscriber -> {
+            var publisher = new SubmissionPublisher<String>();
+            publisher.subscribe(subscriber);
+            publisher.submit(text);
+            publisher.close();
+        };
     }
 
     /**
@@ -1421,6 +1545,14 @@ public final class CafeAIApp implements CafeAI {
         this.memoryStrategy = Objects.requireNonNull(strategy, "MemoryStrategy must not be null");
         locals.put(Locals.MEMORY_STRATEGY, strategy);
         log.info("Memory strategy registered: {}", strategy.getClass().getSimpleName());
+        return this;
+    }
+
+    @Override
+    public CafeAI cache(SemanticCache cache) {
+        assertNotStarted("cache()");
+        this.semanticCache = Objects.requireNonNull(cache, "SemanticCache must not be null");
+        log.info("Semantic cache registered: {}", cache.getClass().getSimpleName());
         return this;
     }
 

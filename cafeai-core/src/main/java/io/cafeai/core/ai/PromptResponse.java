@@ -18,6 +18,7 @@ import java.util.List;
  *   int outputToks  = response.outputTokens();  // tokens in the response
  *   int totalToks   = response.totalTokens();   // promptToks + outputToks
  *   String model    = response.modelId();       // which model answered
+ *   boolean cached  = response.fromCache();     // true if the SemanticCache answered
  * }</pre>
  */
 public final class PromptResponse {
@@ -26,6 +27,7 @@ public final class PromptResponse {
     private final int     promptTokens;
     private final int     outputTokens;
     private final String  modelId;
+    private final boolean fromCache;
     private final List<RagDocument> ragDocuments;
 
     private PromptResponse(Builder b) {
@@ -33,6 +35,7 @@ public final class PromptResponse {
         this.promptTokens = b.promptTokens;
         this.outputTokens = b.outputTokens;
         this.modelId      = b.modelId;
+        this.fromCache    = b.fromCache;
         this.ragDocuments = b.ragDocuments != null
             ? Collections.unmodifiableList(b.ragDocuments)
             : List.of();
@@ -54,6 +57,12 @@ public final class PromptResponse {
     public String modelId()      { return modelId; }
 
     /**
+     * {@code true} if this answer came from the {@link io.cafeai.core.cache.SemanticCache} rather
+     * than a model call — in which case it cost no tokens and its token counts are 0.
+     */
+    public boolean fromCache()   { return fromCache; }
+
+    /**
      * Documents retrieved by the RAG pipeline for this prompt.
      * Empty list if RAG is not configured or no documents were retrieved.
      */
@@ -70,12 +79,14 @@ public final class PromptResponse {
         private int     promptTokens;
         private int     outputTokens;
         private String  modelId;
+        private boolean fromCache;
         private List<RagDocument> ragDocuments;
 
         public Builder text(String t)                         { this.text         = t; return this; }
         public Builder promptTokens(int n)                    { this.promptTokens = n; return this; }
         public Builder outputTokens(int n)                    { this.outputTokens = n; return this; }
         public Builder modelId(String m)                      { this.modelId      = m; return this; }
+        public Builder fromCache(boolean c)                   { this.fromCache    = c; return this; }
         public Builder ragDocuments(List<RagDocument> d)      { this.ragDocuments = d; return this; }
 
         public PromptResponse build()                         { return new PromptResponse(this); }

@@ -91,6 +91,7 @@ Incoming Request
    ├─► [ prompt injection guard ]      ← security middleware
    ├─► [ guardrails PRE ]              ← ethical / regulatory middleware
    ├─► [ token budget enforcer ]       ← cost middleware
+   ├─► [ semantic cache lookup ]       ← memory middleware
    ├─► [ RAG retrieval ]               ← rag middleware
    ├─► [ LLM call / model router ]     ← ai middleware
    ├─► [ guardrails POST ]             ← ethical / regulatory middleware
@@ -115,7 +116,7 @@ graph TD
             Auth["Auth / Rate Limit"]
             Security["Security Layer\n(PII · Jailbreak · Injection)"]
             GuardPre["Guardrails PRE\n(Regulatory · Topic)"]
-            Cost["Token Budget"]
+            Cost["Token Budget\nSemantic Cache"]
             RAG["RAG Retrieval\n(Embed · Search · Rerank)"]
             LLM["LLM Call\nModel Router"]
             GuardPost["Guardrails POST\n(Toxicity)"]

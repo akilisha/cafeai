@@ -151,6 +151,8 @@ Incoming Request
    ↓
 [ token budget enforcer ]       ← cost middleware
    ↓
+[ semantic cache lookup ]       ← memory middleware (clean, prompt-only answers only)
+   ↓
 [ RAG retrieval ]               ← rag middleware
    ↓
 [ LLM call / model router ]     ← ai middleware
@@ -207,6 +209,20 @@ app.memory(MemoryStrategy.mapped())      // Rung 2: SSD-backed via Java FFM
 app.memory(MemoryStrategy.redis(config)) // Rung 4: Redis — the escape valve
 app.memory(MemoryStrategy.hybrid())      // Rung 5: warm SSD + cold Redis
 ```
+
+### Semantic cache
+```java
+app.cache(SemanticCache.inMemory(EmbeddingProvider.local()).build());
+```
+Repeat questions are answered from a cache matched by *meaning*, skipping the model call. A cache
+shared between users is also an attack surface — coax the model into a bad answer, get it stored,
+and it is served to everyone whose question lands nearby — so the defences are built in, not
+optional: only **clean, prompt-only** answers are stored (nothing a guardrail flagged; nothing with
+a session or RAG); entries are isolated per model and system prompt; a hit needs high embedding
+similarity **and** high word overlap **and** similar length (so a popular question with instructions
+appended does not match); every hit is **re-screened** by the current guardrails; and entries expire.
+`.noCache()` opts a call out. It is heuristic, not a guarantee — see
+`docs/adr/ADR-013-semantic-cache-and-poisoning-defences.md` for the threat model and its limits.
 
 ### RAG
 ```java

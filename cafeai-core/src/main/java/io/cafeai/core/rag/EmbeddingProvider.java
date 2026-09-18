@@ -99,6 +99,20 @@ public interface EmbeddingProvider {
         return openAi(modelId);
     }
 
+    /**
+     * Any LangChain4j {@code EmbeddingModel} as a CafeAI embedding provider — Ollama, Bedrock,
+     * Vertex, an in-process ONNX model, or anything else in LangChain4j's catalogue — with no
+     * adapter for you to write. CafeAI takes LangChain4j's own type rather than wrapping its surface.
+     *
+     * <pre>{@code
+     *   app.embed(EmbeddingProvider.of(OllamaEmbeddingModel.builder()
+     *       .baseUrl("http://localhost:11434").modelName("nomic-embed-text").build()));
+     * }</pre>
+     */
+    static EmbeddingProvider of(dev.langchain4j.model.embedding.EmbeddingModel model) {
+        return new LangChain4jEmbeddingProvider(model);
+    }
+
     // ── ServiceLoader discovery ──────────────────────────────────────────────
 
     private static RagProvider loadProvider() {

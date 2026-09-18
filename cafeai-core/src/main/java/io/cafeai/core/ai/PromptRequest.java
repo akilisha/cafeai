@@ -41,6 +41,7 @@ public final class PromptRequest {
     private Request httpRequest;
     private String schemaHint;
     private Consumer<String> thinkingConsumer;
+    private boolean cacheBypassed;
     private final PromptExecutor executor;
     private final PromptStreamExecutor streamExecutor;
 
@@ -148,6 +149,16 @@ public final class PromptRequest {
         return this;
     }
 
+    /**
+     * Skips the {@link io.cafeai.core.cache.SemanticCache} for this call — no lookup, and the
+     * answer is not stored. Use it for a prompt whose answer changes with time or with who is
+     * asking ("what's on my calendar today?"), which no similarity match can recognise.
+     */
+    public PromptRequest noCache() {
+        this.cacheBypassed = true;
+        return this;
+    }
+
     /** Executes the prompt synchronously and returns the response. */
     public PromptResponse call() {
         return executor.execute(this);
@@ -247,6 +258,7 @@ public final class PromptRequest {
     public io.cafeai.core.routing.Request httpRequest() { return httpRequest; }
     public String schemaHint()       { return schemaHint; }
     public Consumer<String> thinkingConsumer() { return thinkingConsumer; }
+    public boolean cacheBypassed()             { return cacheBypassed; }
 
     /**
      * Internal executor interface -- implemented by CafeAIApp.

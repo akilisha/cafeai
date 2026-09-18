@@ -790,6 +790,7 @@ response.promptTokens()  // → 12   (tokens you paid for the input)
 response.outputTokens()  // → 23   (tokens you paid for the output)
 response.totalTokens()   // → 35   (promptTokens + outputTokens)
 response.modelId()       // → "gpt-4o"   (which model actually answered)
+response.fromCache()     // → false  (true when the SemanticCache answered; then tokens are 0)
 response.toString()      // → same as .text() — usable directly as a String
 ```
 
@@ -2414,6 +2415,7 @@ Span attributes recorded per call:
 | `cafeai.latency_ms` | long | Wall-clock latency in milliseconds |
 | `cafeai.session_id` | string | Session ID if present |
 | `cafeai.rag_docs_retrieved` | int | Number of RAG documents retrieved |
+| `cafeai.cache_hit` | boolean | Whether the semantic cache answered |
 | `cafeai.error` | string | Error class name if the call failed |
 
 ### 21.5 Eval harness — automatic quality scoring

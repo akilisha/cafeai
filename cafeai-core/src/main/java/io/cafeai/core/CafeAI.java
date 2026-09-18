@@ -650,6 +650,23 @@ public interface CafeAI extends Router {
      */
     CafeAI memory(MemoryStrategy strategy);
 
+    // ── Semantic cache ────────────────────────────────────────────────────────
+
+    /**
+     * Serves {@code app.prompt()} calls from a cache matched by <em>meaning</em>, and fills it.
+     * A shared cache lets one user's request decide what another is told, so the cache only ever
+     * admits clean, prompt-only answers and re-screens what it serves — see
+     * {@link io.cafeai.core.cache.SemanticCache} for the poisoning defences and their limits.
+     *
+     * <pre>{@code
+     *   app.cache(SemanticCache.inMemory(EmbeddingProvider.local()).build());
+     * }</pre>
+     *
+     * <p>Calls with a session, calls when RAG is configured, {@code .noCache()} calls, and all
+     * vision and audio calls bypass it.
+     */
+    CafeAI cache(io.cafeai.core.cache.SemanticCache cache);
+
     // ── RAG Pipeline (ROADMAP-07 Phase 4) ─────────────────────────────────────
 
     /**
@@ -947,7 +964,7 @@ public interface CafeAI extends Router {
      * <p>Span attributes recorded per LLM call:
      * {@code model}, {@code prompt_tokens}, {@code completion_tokens},
      * {@code latency_ms}, {@code rag_documents_retrieved},
-     * {@code guardrail_triggered}, {@code session_id}.
+     * {@code guardrail_triggered}, {@code cache_hit}, {@code session_id}.
      *
      * @throws IllegalStateException if called after {@link #listen(int)}
      */

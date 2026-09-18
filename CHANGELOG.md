@@ -161,6 +161,25 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Semantic cache, with cache-poisoning defences: `app.cache(SemanticCache...)`.** Repeat
+  `app.prompt()` questions are answered from a cache matched by meaning, skipping the model call;
+  `response.fromCache()` (and the `cafeai.cache_hit` span attribute) report it, truthfully this
+  time. A cache shared between users is an attack surface — one user's request can decide what
+  another is told — so the defences are the design: only **clean, prompt-only** answers are stored
+  (nothing any guardrail flagged, even a `WARN`; nothing with a `session()` or with RAG configured;
+  nothing over a size limit); entries are namespaced by model, its settings and the system prompt; a
+  hit requires high embedding similarity **and** high word overlap **and** similar length, so a
+  victim's question with instructions appended does not match it; every hit is **re-screened** by the
+  current `POST_LLM` guardrails and evicted if it fails; and entries expire and are size-bounded. A
+  request blocked by a guardrail never reaches the cache, and a cache or embedding failure never
+  fails the call. `.noCache()` opts a call out; vision and audio are never cached. `SemanticCache` is
+  an interface to back with your own store; `SemanticCache.inMemory(embedder)` is per-process and
+  scans linearly. The end-to-end test runs the attack itself and shows the victim is not served the
+  poisoned entry; a control test shows it *would* be with the word-overlap and length guards off.
+  See ADR-013 for the threat model and its limits. This replaces the removed
+  `semanticCachePoisoningDetector()`, which guarded a cache that did not exist.
+- **`EmbeddingProvider.of(EmbeddingModel)`** — any LangChain4j embedding model as a CafeAI
+  embedding provider, without an adapter of yours.
 - **Content moderation by a model: `GuardRail.moderation(ModerationModel)`.** A guardrail
   backed by LangChain4j's own `ModerationModel` — a model, not a pattern list, so it catches what
   keyword rules cannot. CafeAI adds no wrapper: pass any provider's model, or use

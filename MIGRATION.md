@@ -180,10 +180,12 @@ because it never was. For hallucination *scoring* (not blocking) use
 `app.eval(EvalHarness.defaults())`. If you implement `GuardRailProvider` yourself,
 delete the two `@Override` methods.
 
-**13. `fromCache()` and `AiSecurity.semanticCachePoisoningDetector()` are removed —
-there is no semantic cache.** `response.fromCache()` (on `PromptResponse`,
-`VisionResponse` and `AudioResponse`) always returned `false`; drop any branch on it.
-The `cafeai.cache_hit` OpenTelemetry span attribute is gone with it. If you registered
+**13. `AiSecurity.semanticCachePoisoningDetector()`, and `fromCache()` on `VisionResponse` and
+`AudioResponse`, are removed — and a real semantic cache replaces them.** They were built for a
+cache that did not exist: `fromCache()` always returned `false`. `PromptResponse.fromCache()` and
+the `cafeai.cache_hit` span attribute **come back, and are now true when they say so**, because
+`app.cache(SemanticCache...)` is real (see `docs/adr/ADR-013-semantic-cache-and-poisoning-defences.md`).
+Vision and audio are never cached, so their `fromCache()` stays gone. If you registered
 `semanticCachePoisoningDetector()`, remove it: besides guarding nothing, it rejected
 short prompts containing several imperative words with a 400. `SecurityEvent` is a
 sealed interface whose `CachePoisoningAttempt` subtype is removed, so delete that case
