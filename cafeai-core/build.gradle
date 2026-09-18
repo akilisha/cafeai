@@ -60,3 +60,15 @@ dependencies {
     // ── Logging ──────────────────────────────────────────────
     implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
 }
+
+// Placeholder keys for the test JVM only. The bridge and the Gemini/Nvidia providers
+// read their key from the environment when they build a model, so without these a
+// test can't construct one offline. Building a model makes no network call, so nothing
+// here can authenticate against anything; setting them here (not inheriting the shell's)
+// also means a developer's real key can never reach a test.
+tasks.named('test') {
+    environment 'OPENAI_API_KEY',    'test-key-not-real'
+    environment 'ANTHROPIC_API_KEY', 'test-key-not-real'
+    environment 'GEMINI_API_KEY',    'test-key-not-real'
+    environment 'NVIDIA_API_KEY',    'test-key-not-real'
+}

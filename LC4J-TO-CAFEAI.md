@@ -762,8 +762,16 @@ their own model outside the bridge (`Gemini`, `Nvidia`) — the same "did I
 update every side" shape as the duality above, with no compiler help, since
 the interface default compiles fine when a provider is skipped.
 `ProviderOptionsTest` loops over every built-in provider, so extending it for
-a new knob is one assertion and will catch a provider that was missed. One
-gap is real: that test proves the mapping for `Ollama` through the bridge, but
-the `OpenAI`, `Anthropic`, `Gemini` and `Jlama` mappings need credentials or a
-model download to build, so nothing exercises them. They compile against
-verified LangChain4j 1.11 builder signatures; they have not been run.
+a new knob is one assertion and will catch a provider that was missed.
+`ProviderMappingTest` covers what each provider does with the settings: it
+builds every model offline (placeholder keys, set for the `cafeai-core` test JVM
+only, since building a model makes no network call) and reads the result back
+through `defaultRequestParameters()`, including that OpenAI's `maxTokens` lands
+on `max_completion_tokens` and not `max_tokens`. `withTimeout` isn't readable off
+a model, so it is proven on the wire against a local server standing in for
+Ollama, the one provider with a configurable base URL; the other providers share
+the bridge's one-line `timeout(provider)` call but are not independently timed.
+Both were mutation-checked — breaking the OpenAI mapping, or ignoring the
+per-provider timeout, fails the tests. One gap remains: **`Jlama`**. Building a
+Jlama model downloads it, so its mapping, including the `Double`→`Float`
+temperature conversion, has no offline test and has not been run.
