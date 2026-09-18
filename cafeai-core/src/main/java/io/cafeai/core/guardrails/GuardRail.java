@@ -1,12 +1,6 @@
 package io.cafeai.core.guardrails;
 
 import io.cafeai.core.middleware.Middleware;
-import io.cafeai.core.middleware.Next;
-import io.cafeai.core.routing.Request;
-import io.cafeai.core.routing.Response;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Ethical, regulatory, and safety guardrails for CafeAI.
