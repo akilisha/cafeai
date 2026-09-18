@@ -726,7 +726,24 @@ execution surfaces (§2.6), or the ServiceLoader-degradation pattern (§3.1)
 turned out to be accidental duplication on closer reading — each is
 documented, at the point of definition, as a deliberate choice.
 
-**The one thing worth a standing decision, not a cut:** the duality in §3.3
+**One qualification, added with §2.1's `with...` methods:** they are partly a
+rename layer, and it is worth being exact about which part.
+`withTemperature` and `withTimeout` are near pass-throughs — every builder
+already spells them `temperature` and `timeout(Duration)` (Jlama takes a
+`Float` and has no timeout at all). Only `withMaxTokens` unifies real naming
+drift (`maxTokens`, `maxCompletionTokens`, `numPredict`, `maxOutputTokens`).
+If vocabulary were the whole case, two of the three would be cut. They stay
+for reasons that aren't naming. CafeAI never exposes the builder, so before
+them a provider could not be tuned at all — `of(modelId)` and nothing more.
+An unset value is never passed to the builder, so an untuned provider builds
+exactly as before. And `withTimeout` is a per-model override of an
+application-wide key, which no single builder call expresses. The payoff is
+*access* and precedence, not vocabulary. The cost is boilerplate — three
+overrides in each of six provider records — plus an interface default that
+throws, which turns "this provider ignores your setting" into a runtime
+`UnsupportedOperationException` where a compile error would have been better.
+
+**Two things worth a standing decision, not a cut. The first:** the duality in §3.3
 means the four cross-cutting concerns each have their behavior expressed
 twice — once in `CafeAIApp`'s imperative pipeline, once in an
 `AiServices`-facing adapter. A semantic change to, say, what `POST_LLM`
@@ -734,6 +751,19 @@ guardrail position means has to be reasoned about at both
 `CafeAIApp.applyPostLlmGuardrails()` *and* `GuardrailAdapters.asOutput()`
 together, or the two calling styles drift apart in behavior. That's not fat
 — removing either engine would remove a capability (§3.3 explains why
-neither can absorb the other) — but it is the one place in this codebase
-where "did I update both sides" deserves to be a checklist item, not an
+neither can absorb the other) — but it is a place in this codebase where
+"did I update both sides" deserves to be a checklist item, not an
 assumption. If a future audit finds drift, it will be here.
+
+**The second:** the provider knobs. Adding a fourth (say `withTopP`) means
+touching every provider record, both `LangchainBridge` switches
+(`createModel` and `createStreamingModel`), and the two providers that build
+their own model outside the bridge (`Gemini`, `Nvidia`) — the same "did I
+update every side" shape as the duality above, with no compiler help, since
+the interface default compiles fine when a provider is skipped.
+`ProviderOptionsTest` loops over every built-in provider, so extending it for
+a new knob is one assertion and will catch a provider that was missed. One
+gap is real: that test proves the mapping for `Ollama` through the bridge, but
+the `OpenAI`, `Anthropic`, `Gemini` and `Jlama` mappings need credentials or a
+model download to build, so nothing exercises them. They compile against
+verified LangChain4j 1.11 builder signatures; they have not been run.
