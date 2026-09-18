@@ -16,6 +16,7 @@ import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.connect.Connection;
 import io.cafeai.core.connect.HealthStatus;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.guardrails.GuardRailViolationException;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.ErrorMiddleware;
@@ -318,6 +319,10 @@ public final class CafeAIApp implements CafeAI {
         // -- 1. Resolve provider -----------------------------------------------
         AiProvider provider = resolveProvider(request);
 
+        // -- 1b. PRE_LLM guardrails on the text the model will see ------------
+        // Before RAG retrieval and the model call, so a blocked request costs nothing.
+        applyPreLlmGuardrails(request.message(), "Prompt");
+
         // -- 2. Get the Langchain4j ChatModel --------------------------
         ChatModel model =
                 LangchainBridge.INSTANCE.modelFor(provider);
@@ -452,6 +457,10 @@ public final class CafeAIApp implements CafeAI {
                     lastRateLimitError);
         }
 
+        // -- 4a. POST_LLM guardrails on the assembled response ----------------
+        // Before observability and memory, so neither records blocked content.
+        responseText = applyPostLlmGuardrails(responseText);
+
         // -- Observability: fire afterPrompt with final response ---------------
         if (observeBridge != null) {
             PromptResponse partial = observeError == null
@@ -514,6 +523,8 @@ public final class CafeAIApp implements CafeAI {
      */
     private Flow.Publisher<String> executePromptStream(PromptRequest request) {
         AiProvider provider = resolveProvider(request);
+        // Eager, so a blocked prompt fails at .stream(), before anything is subscribed.
+        applyPreLlmGuardrails(request.message(), "Prompt");
         StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
 
         // -- Build message list: system + history + user ---------------------
@@ -571,7 +582,9 @@ public final class CafeAIApp implements CafeAI {
 
                         @Override
                         public void onCompleteResponse(ChatResponse response) {
-                            String full = assembled.toString();
+                            // Tokens have already reached the subscriber, so POST_LLM cannot
+                            // retract them; it gates what is remembered and exposed.
+                            String full = applyPostLlmGuardrails(assembled.toString());
                             TokenUsage usage = response.tokenUsage();
                             int promptTokens = usage != null ? usage.inputTokenCount() : 0;
                             int outputTokens = usage != null ? usage.outputTokenCount() : 0;
@@ -671,20 +684,7 @@ public final class CafeAIApp implements CafeAI {
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
-        for (GuardRail rail : guardRails) {
-            if (rail.position() == GuardRail.Position.PRE_LLM
-                    || rail.position() == GuardRail.Position.BOTH) {
-                GuardRail.OutputCheckResult result =
-                        rail.checkInput(request.prompt());
-                if (result.isViolation()) {
-                    log.warn("Vision PRE_LLM guardrail '{}' triggered: {}",
-                            rail.name(), result.reason());
-                    throw new RuntimeException(
-                            "Vision prompt blocked by guardrail '" + rail.name() +
-                                    "': " + result.reason());
-                }
-            }
-        }
+        applyPreLlmGuardrails(request.prompt(), "Vision");
 
         // -- 3. Build session history (text messages only) --------------------
         List<ChatMessage> history = new ArrayList<>();
@@ -851,18 +851,7 @@ public final class CafeAIApp implements CafeAI {
         }
 
         // -- PRE_LLM guardrails on the prompt text --------------------------
-        for (GuardRail rail : guardRails) {
-            if (rail.position() == GuardRail.Position.PRE_LLM
-                    || rail.position() == GuardRail.Position.BOTH) {
-                GuardRail.OutputCheckResult result =
-                        rail.checkInput(request.prompt());
-                if (result.isViolation()) {
-                    throw new RuntimeException(
-                            "Vision prompt blocked by guardrail '" + rail.name() +
-                                    "': " + result.reason());
-                }
-            }
-        }
+        applyPreLlmGuardrails(request.prompt(), "Vision");
 
         // -- Build history + system + multimodal message list --------------
         List<ChatMessage> history = new ArrayList<>();
@@ -1002,20 +991,7 @@ public final class CafeAIApp implements CafeAI {
         ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
-        for (GuardRail rail : guardRails) {
-            if (rail.position() == GuardRail.Position.PRE_LLM
-                    || rail.position() == GuardRail.Position.BOTH) {
-                GuardRail.OutputCheckResult result =
-                        rail.checkInput(request.prompt());
-                if (result.isViolation()) {
-                    log.warn("Audio PRE_LLM guardrail '{}' triggered: {}",
-                            rail.name(), result.reason());
-                    throw new RuntimeException(
-                            "Audio prompt blocked by guardrail '" + rail.name() +
-                                    "': " + result.reason());
-                }
-            }
-        }
+        applyPreLlmGuardrails(request.prompt(), "Audio");
 
         // -- 3. Build session history (text messages only) --------------------
         List<ChatMessage> history = new ArrayList<>();
@@ -1343,19 +1319,62 @@ public final class CafeAIApp implements CafeAI {
             return responseText;
         }
         for (GuardRail rail : guardRails) {
-            if (rail.position() == GuardRail.Position.POST_LLM
-                    || rail.position() == GuardRail.Position.BOTH) {
-                GuardRail.OutputCheckResult result =
-                        rail.checkOutput(responseText);
-                if (result != null && result.isViolation()) {
-                    log.warn("POST_LLM guardrail '{}' triggered on tool-call response: {}",
+            if (rail.position() != GuardRail.Position.POST_LLM
+                    && rail.position() != GuardRail.Position.BOTH) {
+                continue;
+            }
+            GuardRail.OutputCheckResult result = rail.checkOutput(responseText);
+            if (result == null || !result.isViolation()) continue;
+            switch (actionOf(rail)) {
+                case BLOCK -> {
+                    log.warn("POST_LLM guardrail '{}' blocked the response: {}",
                             rail.name(), result.reason());
-                    // Replace with a safe refusal rather than propagating the violating content
+                    // A refusal, not the violating content
                     return "[Response blocked by guardrail: " + rail.name() + "]";
                 }
+                case WARN -> log.warn("POST_LLM guardrail '{}' flagged the response (WARN): {}",
+                        rail.name(), result.reason());
+                case LOG  -> log.info("POST_LLM guardrail '{}' flagged the response (LOG): {}",
+                        rail.name(), result.reason());
             }
         }
         return responseText;
+    }
+
+    /**
+     * Runs every PRE_LLM / BOTH guardrail over the text the model is about to see.
+     * {@code BLOCK} throws {@link GuardRailViolationException} (no model call is made);
+     * {@code WARN} and {@code LOG} record the violation and let the call proceed — the
+     * same meaning {@code GuardRail.Action} already had on the HTTP-middleware path.
+     */
+    private void applyPreLlmGuardrails(String text, String call) {
+        if (guardRails.isEmpty() || text == null || text.isBlank()) return;
+        for (GuardRail rail : guardRails) {
+            if (rail.position() != GuardRail.Position.PRE_LLM
+                    && rail.position() != GuardRail.Position.BOTH) {
+                continue;
+            }
+            GuardRail.OutputCheckResult result = rail.checkInput(text);
+            if (result == null || !result.isViolation()) continue;
+            switch (actionOf(rail)) {
+                case BLOCK -> {
+                    log.warn("{} PRE_LLM guardrail '{}' blocked the request: {}",
+                            call, rail.name(), result.reason());
+                    throw new GuardRailViolationException(
+                            rail.name(), GuardRail.Position.PRE_LLM, result.reason());
+                }
+                case WARN -> log.warn("{} PRE_LLM guardrail '{}' flagged the request (WARN): {}",
+                        call, rail.name(), result.reason());
+                case LOG  -> log.info("{} PRE_LLM guardrail '{}' flagged the request (LOG): {}",
+                        call, rail.name(), result.reason());
+            }
+        }
+    }
+
+    /** A guardrail with no declared action blocks — the safe reading. */
+    private static GuardRail.Action actionOf(GuardRail rail) {
+        GuardRail.Action action = rail.action();
+        return action != null ? action : GuardRail.Action.BLOCK;
     }
 
     /**
@@ -1857,6 +1876,17 @@ public final class CafeAIApp implements CafeAI {
     }
 
     private void defaultErrorHandler(Throwable error, Response res) {
+        if (!res.headersSent() && error instanceof GuardRailViolationException violation) {
+            log.warn("Request blocked: {}", violation.getMessage());
+            try {
+                // The guardrail's name only. Its reason can reveal how the detector works.
+                res.status(400).json(Map.of("error", "Request blocked by guardrail",
+                        "guardrail", violation.guardrail()));
+            } catch (Exception ignored) {
+                // Response may already be committed -- swallow
+            }
+            return;
+        }
         if (!res.headersSent()) {
             log.error("Unhandled request error", error);
             try {

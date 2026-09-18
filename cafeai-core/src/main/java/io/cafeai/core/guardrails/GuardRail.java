@@ -16,6 +16,22 @@ import java.util.List;
  * In regulated industries, guardrails are first-class architectural requirements.
  * CafeAI treats them as such (ADR-002).
  *
+ * <p><strong>Enforcement.</strong> A guardrail registered with {@code app.guard(...)} is applied
+ * by the engine to every {@code app.prompt()}, {@code .vision()} and {@code .audio()} call —
+ * streamed or not — using {@link #checkInput(String)} on the text the model is about to see and
+ * {@link #checkOutput(String)} on what it returned, and to {@code app.agent(...)} through the
+ * LangChain4j guardrail adapters. Its {@link Action} decides what a violation does:
+ * <ul>
+ *   <li>{@code BLOCK} — input throws {@link GuardRailViolationException} and <em>no model call is
+ *       made</em>; output is replaced with a refusal.</li>
+ *   <li>{@code WARN} / {@code LOG} — the violation is logged and the call proceeds.</li>
+ * </ul>
+ * A streamed response cannot be retracted once tokens are sent, so for {@code .stream()} a
+ * {@code POST_LLM} guardrail gates what is remembered and exposed, not the tokens themselves. Use
+ * {@code .call()} when output must be screened before anything is released. The
+ * {@link #handle} middleware form only screens the HTTP body; it runs after the route handler, so
+ * it cannot stop a response that handler has already sent — the engine path is what enforces.
+ *
  * <p>Real implementations are provided by {@code cafeai-guardrails}. Without
  * that module on the classpath, every factory method returns a pass-through
  * stub and logs a one-time warning. Add the dependency to activate enforcement:

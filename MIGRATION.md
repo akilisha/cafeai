@@ -161,6 +161,17 @@ objects instead of `null`. If you had written around any of these — for exampl
 reading cookies from the raw `Cookie` header, or catching the `UnsupportedOperationException`
 from `res.render()` — you can delete the workaround.
 
+**11a. Guardrails now actually run on `app.prompt()` — expect blocks you did not see before.**
+If you registered guardrails (`app.guard(GuardRail.pii())`, `.jailbreak()`, …) and called
+`app.prompt(...)`, those guardrails were **not applied to that call** (only `vision`/`audio`
+enforced them). They are now, so a request that was silently let through can be blocked, and a
+response that was silently let through can be replaced with `[Response blocked by guardrail: …]`.
+Blocked input throws `GuardRailViolationException` (a `RuntimeException`); in an HTTP route with no
+error handler for it, CafeAI answers `400` naming the guardrail — not its reason. Catch it with
+`app.onError(...)` to shape the reply. Audit anything that relied on the old, unguarded behaviour,
+and review your guardrail `Action`s: `WARN` and `LOG` now proceed on `vision` and `audio` too,
+where they previously always blocked.
+
 **12. `GuardRail.bias()` and `GuardRail.hallucination()` are removed — they never
 guarded anything.** Both returned a pass-through guardrail, so a request was never
 blocked or flagged by them. Remove the `app.guard(...)` calls; nothing about your

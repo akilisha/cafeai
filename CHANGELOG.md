@@ -95,6 +95,23 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **Guardrails were not enforced on `app.prompt()` — security.** `app.prompt(...).call()` and
+  `.stream()` ran no guardrail at all: PRE_LLM and POST_LLM checks existed only on `vision`
+  and `audio`. The HTTP-middleware form of a guardrail could not fill the gap — it runs after
+  the route handler, which has already sent the response, so it could never stop an output —
+  and it did nothing for programmatic (non-HTTP) calls. An app that registered
+  `app.guard(GuardRail.pii())` and called `app.prompt(userText)` had no guardrail on that call.
+  The engine now applies every registered guardrail to `prompt`, streamed `prompt`, `vision` and
+  `audio` through one shared path, on the text the model actually sees.
+- **`GuardRail.Action` is honoured by the engine.** `BLOCK` / `WARN` / `LOG` worked on the
+  HTTP path but the engine ignored it and always blocked, so a `LOG`-only guardrail still
+  blocked a vision call. `WARN` and `LOG` now record the violation and let the call proceed.
+- **A blocked request is a typed exception and a 400, not a 500.** Blocked input throws the new
+  `GuardRailViolationException` (a `RuntimeException`, so existing catches still work) instead of
+  a bare `RuntimeException`. With no error handler that claims it, the default handler answers
+  `400` with the guardrail's *name only*; the reason (a matched pattern, a moderation verdict)
+  stays in the logs, because it tells an attacker how the detector works. The old path returned
+  a 500 that echoed the exception message.
 - **The request/response pair was never wired.** `res.request()`, `req.response()`
   and `res.app()` returned `null` (nothing set them), so `res.format()` never saw the
   request's `Accept` header and always chose the first handler. They are now paired

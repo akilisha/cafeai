@@ -309,6 +309,15 @@ just makes it consistently and wraps the plumbing around it.
 5. `GuardRail`s at `POST_LLM`/`BOTH` checked against the assembled response text.
 6. The exchange persisted back to `MemoryStrategy`, if a session id is present.
 
+Steps 1 and 5 are enforced *by the engine*, on the text the model actually sees — not by
+HTTP middleware. (An earlier version of this guide, and the code, applied them on `vision` and
+`audio` but not on `app.prompt()`; the middleware form of a guardrail runs after the route
+handler has already responded, so it could never stop an output.) A guardrail's `Action`
+decides the outcome: `BLOCK` throws `GuardRailViolationException` before any model call is made
+(and replaces a bad *output* with a refusal), `WARN`/`LOG` record and continue. A streamed
+response can't be retracted once tokens are sent, so for `.stream()` step 5 gates what is
+remembered, not what the client already received.
+
 None of steps 1, 2, 3, or 6 exist in LangChain4j at the `ChatModel` level —
 they're `AiServices`-only concerns there. CafeAI's value here is applying
 them to a *single free-form call*, which is most of what a production prompt
