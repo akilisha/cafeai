@@ -11,6 +11,7 @@ description = 'The Express-inspired foundation of CafeAI — app bootstrap, rout
     'the middleware chain, and the AI primitives over Helidon SE.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
+apply from: "$rootDir/gradle/live-tests.gradle"
 
 dependencies {
 

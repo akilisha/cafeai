@@ -424,7 +424,13 @@ cd cafeai
 
 # Run a specific example
 ./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.JlamaStreamingExample
+
+# Smoke-test a real provider with your own key (skips itself without one)
+./gradlew :cafeai-core:liveTest
 ```
+
+Live tests, the keys they read and the model variables are described in
+[GETTING-STARTED.md](GETTING-STARTED.md#live-tests-against-real-providers).
 
 ## Capstones
 

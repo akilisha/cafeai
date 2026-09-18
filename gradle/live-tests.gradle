@@ -1,0 +1,41 @@
+// ============================================================
+//  Live tests — real network calls with real API keys.
+//
+//  Apply per module:  apply from: "$rootDir/gradle/live-tests.gradle"
+//
+//  A live test is tagged @Tag("live"). It is excluded from `test`, so a normal build
+//  never touches the network or needs a key, and it skips itself when its provider's
+//  key is absent. Run them with:
+//
+//      ./gradlew :cafeai-core:liveTest
+//
+//  Keys come from the environment (NVIDIA_API_KEY, OPENAI_API_KEY, ...), never from
+//  the repo. The `test` task overrides them with placeholders; this one does not.
+// ============================================================
+
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'live'
+    }
+}
+
+tasks.register('liveTest', Test) {
+    group       = 'verification'
+    description = 'Runs @Tag("live") tests against real providers. Needs the provider API keys in the environment.'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath       = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags 'live'
+    }
+
+    // Network results are never up to date.
+    outputs.upToDateWhen { false }
+
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+        exceptionFormat     = 'short'
+    }
+}

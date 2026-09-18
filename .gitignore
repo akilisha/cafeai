@@ -49,3 +49,7 @@ capstones/*/src/main/resources/credentials/
 capstones/**/client_secret*.json
 capstones/**/application-local.*
 
+# Local secrets — API keys for live tests belong in the environment, never in the repo
+.env
+*.env
+smoke.env

@@ -133,6 +133,63 @@ The `docs/roadmap/` `ROADMAP-*` / `MILESTONE-*` documents track what's been buil
 and what's planned; each has explicit acceptance criteria. Publishing to Maven
 Central is covered in `distribution.md`.
 
+### Live tests against real providers
+
+`./gradlew build` and `test` never touch the network. A separate task runs a smoke test against a
+real provider, so you can check the whole path — CafeAI provider, LangChain4j bridge, the wire —
+with your own key:
+
+```bash
+./gradlew :cafeai-core:liveTest
+```
+
+Live tests are tagged `@Tag("live")`, excluded from `test`, and skip themselves when the provider's
+key is absent. The key comes from the environment only; it is never read from a file in the repo.
+
+```powershell
+# PowerShell — this window only
+$env:NVIDIA_API_KEY = "nvapi-..."
+# or for your user account (open a new terminal afterwards)
+[Environment]::SetEnvironmentVariable("NVIDIA_API_KEY", "nvapi-...", "User")
+```
+
+```bash
+# bash / zsh
+export NVIDIA_API_KEY=nvapi-...
+```
+
+The NVIDIA suite (`cafeai-core/src/test/java/io/cafeai/core/live/NvidiaLiveTest.java`) proves:
+
+| Test | What it proves |
+|---|---|
+| plain call | `app.prompt(...).call()` returns text, token usage and the model id |
+| streamed call | `.stream(...)` delivers several chunks that add up to the answer |
+| structured output | `.call(Class)` returns a typed object parsed from the model's JSON |
+| system prompt | `app.system(...)` shapes the reply |
+| session memory | a fact given in one turn is recalled in the next (`MemoryStrategy` + `.session(...)`) |
+| `withMaxTokens` | a 16-token cap truncates a long answer (the setting reaches the vendor parameter) |
+| `withTemperature` | the endpoint accepts the setting |
+| `withTimeout` | an impossible timeout fails within seconds instead of waiting for a reply |
+| thinking stream *(opt-in)* | `.onThinking(...)` receives reasoning tokens apart from the answer text |
+| vision *(opt-in)* | `app.vision(...)` sends an image and the model describes it |
+
+Two of them run only when you name a model for them:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `NVIDIA_LIVE_MODEL` | text model for the main tests | `nvidia/nemotron-3.5-lightning-30b-a3b` |
+| `NVIDIA_LIVE_REASONING_MODEL` | enables the thinking-stream test (`.onThinking(...)`); slow | *(skipped)* |
+| `NVIDIA_LIVE_VISION_MODEL` | enables the vision test | *(skipped)* |
+
+Model ids are provider data and change: NVIDIA retires models, and a model in its catalog may not be
+enabled for your account (HTTP `410` and `404` respectively). List what your key can see with
+`curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`, and
+point the variables above at one that answers.
+
+To add a live test for another provider: tag the class `@Tag("live")`, skip it with
+`Assumptions.assumeTrue(...)` when the key is missing, and make sure the module applies
+`gradle/live-tests.gradle` (`cafeai-core` already does).
+
 ## JVM Flags for Local Models (Jlama)
 
 CafeAI itself needs no special JVM flags — it targets stable Java 23. The one

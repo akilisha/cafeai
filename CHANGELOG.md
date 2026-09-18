@@ -128,6 +128,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `cafeai.chat.timeout` for one provider. A custom `AiProvider` that does not override them, and
   `ModelRouter`, throw `UnsupportedOperationException`; `Jlama` refuses a timeout, since it runs
   in-process.
+- **Live provider tests: `./gradlew :cafeai-core:liveTest`.** Tests tagged `@Tag("live")` call a real
+  provider with your own key from the environment (`NVIDIA_API_KEY`), are excluded from `test`, and
+  skip themselves when the key is absent. `NvidiaLiveTest` covers a plain and a streamed call,
+  structured output, a system prompt, session memory, and the `withMaxTokens` / `withTemperature` /
+  `withTimeout` settings, plus opt-in thinking-stream and vision tests. Apply
+  `gradle/live-tests.gradle` in a module to add more. See GETTING-STARTED.md.
 - **`.onThinking(Consumer<String>)`** on `PromptRequest` and `VisionRequest` — receives a reasoning
   model's thinking tokens during `.stream(...)`, apart from the answer text, session memory and
   guardrails. `Nvidia` enables it.
