@@ -157,6 +157,8 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Housekeeping
 
+- CI: `.github/workflows/ci.yml` builds and tests every module, and compiles every capstone, on each
+  push to `main` and each pull request. It needs no API keys; live provider tests are excluded.
 - Deleted `StreamingProbe`, an unreachable `if (false)` branch in `CafeAIApp`, two unused loggers,
   three unused imports and `TokenBudgetTracker.currentWindowTokens()`.
 - `docs/adr/`: `ADR-010` and `ADR-008-connectivity-…` were byte-identical; kept `ADR-010`, corrected
