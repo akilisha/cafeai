@@ -272,10 +272,21 @@ public interface Response {
 
     /**
      * Sends the file at the given path inline (not as a download).
-     * Terminates the response.
+     * Terminates the response. The file is streamed from disk in blocks, so its size
+     * does not have to fit in memory; {@code Content-Length} is set from the file.
+     * Answers 404 if the file does not exist or is not a regular file.
      * Mirrors Express {@code res.sendFile(path)} — uses {@code java.nio.file.Path}.
      */
     void sendFile(Path file);
+
+    /**
+     * Sends {@code length} bytes of the file starting at {@code offset}, streamed like
+     * {@link #sendFile(Path)}. {@code Content-Length} is {@code length}. The caller sets the
+     * status and any {@code Content-Range} header, which is how a byte-range response is built.
+     *
+     * @throws IllegalArgumentException if the range is not inside the file
+     */
+    void sendFile(Path file, long offset, long length);
 
     // ── Request-Scoped Locals ─────────────────────────────────────────────────
 

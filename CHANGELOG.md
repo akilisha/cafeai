@@ -164,6 +164,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **`serveStatic` streams files from disk** instead of reading each one into memory, so a large
+  video or download no longer costs its size in heap per request; byte-range responses stream the
+  requested slice the same way. `res.sendFile` and `res.download` stream too, and a new
+  `res.sendFile(path, offset, length)` sends part of a file. A response streamed from middleware
+  (`res.stream(...)` or a streamed file under `app.use`) is now accepted by Helidon's filter check;
+  before, it could end with the client waiting on a stream that was never finished.
 - **Agents apply the guardrails registered with `app.guard(...)`.** Only guardrails added with an
   agent's own `.guard(...)` reached it, though the documentation said the app's did too. An agent now
   applies both. As with `app.prompt()`, retrieved documents on the agent path are not screened.

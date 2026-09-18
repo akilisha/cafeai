@@ -15,14 +15,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLDecoder;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -788,16 +785,15 @@ public final class BuiltInMiddleware {
                         case PARTIAL -> {
                             res.status(206);
                             res.set("Content-Range", "bytes " + range.start() + "-" + range.end() + "/" + fileSize);
-                            res.send(readRange(target, range.start(), range.end()));
+                            res.sendFile(target, range.start(), range.end() - range.start() + 1);
                             return;
                         }
                         case IGNORE -> { /* not a usable range: fall through to the whole file */ }
                     }
                 }
 
-                // GET -- send file bytes
-                byte[] bytes = Files.readAllBytes(target);
-                res.send(bytes);
+                // GET -- stream the file
+                res.sendFile(target);
 
             } catch (IOException e) {
                 log.warn("Static file serve error for {}: {}", target, e.getMessage());
@@ -854,20 +850,6 @@ public final class BuiltInMiddleware {
         if (ifRange == null || ifRange.isBlank()) return true;
         String v = ifRange.trim();
         return v.equals(etag) || v.equals(lastModified);
-    }
-
-    private static byte[] readRange(Path file, long start, long end) throws IOException {
-        int length = Math.toIntExact(end - start + 1);
-        ByteBuffer buffer = ByteBuffer.allocate(length);
-        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
-            long position = start;
-            while (buffer.hasRemaining()) {
-                int read = channel.read(buffer, position);
-                if (read < 0) break;
-                position += read;
-            }
-        }
-        return buffer.array();
     }
 
     /**

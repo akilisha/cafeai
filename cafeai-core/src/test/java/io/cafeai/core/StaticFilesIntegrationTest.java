@@ -73,7 +73,8 @@ class StaticFilesIntegrationTest {
         var b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
             .method(method, HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(10));
         for (int i = 0; i < headers.length; i += 2) b.header(headers[i], headers[i + 1]);
-        return http.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+        // Bounded: HttpRequest.timeout covers the headers, not a body that never finishes.
+        return http.sendAsync(b.build(), HttpResponse.BodyHandlers.ofByteArray()).get(15, TimeUnit.SECONDS);
     }
 
     private HttpResponse<byte[]> get(String path, String... headers) throws Exception {
@@ -377,5 +378,90 @@ class StaticFilesIntegrationTest {
         assertThat(r.statusCode()).isEqualTo(200);
         assertThat(text(r)).isEqualTo(TEN);
         assertThat(Arrays.equals(r.body(), TEN.getBytes())).isTrue();
+    }
+
+    // -- streaming: a file is copied from disk in blocks, not held in memory ---------------------------
+
+    @Nested @DisplayName("large files")
+    class LargeFiles {
+
+        /** Not a multiple of the 64 KiB block, so the last block is short. */
+        private static final int SIZE = 9 * 1024 * 1024 + 12_345;
+        private byte[] content;
+
+        @BeforeEach
+        void bigFile() throws Exception {
+            content = new byte[SIZE];
+            new java.util.Random(42).nextBytes(content);
+            Files.write(pub.resolve("big.bin"), content);
+            Files.write(pub.resolve("empty.bin"), new byte[0]);
+            serve(StaticOptions.defaults());
+        }
+
+        @Test @DisplayName("the whole file arrives intact, with its Content-Length")
+        void whole() throws Exception {
+            var r = get("/big.bin");
+
+            assertThat(r.statusCode()).isEqualTo(200);
+            assertThat(r.headers().firstValue("Content-Length")).hasValue(String.valueOf(SIZE));
+            assertThat(Arrays.equals(r.body(), content)).isTrue();
+        }
+
+        @Test @DisplayName("a range across several blocks is sliced exactly")
+        void rangeAcrossBlocks() throws Exception {
+            int start = 65_530, end = 3 * 65_536 + 9;
+            var r = get("/big.bin", "Range", "bytes=" + start + "-" + end);
+
+            assertThat(r.statusCode()).isEqualTo(206);
+            assertThat(r.headers().firstValue("Content-Length")).hasValue(String.valueOf(end - start + 1));
+            assertThat(Arrays.equals(r.body(), Arrays.copyOfRange(content, start, end + 1))).isTrue();
+        }
+
+        @Test @DisplayName("an open-ended range from the middle runs to the last byte")
+        void openEndedFromMiddle() throws Exception {
+            int start = SIZE - 200_000;
+            var r = get("/big.bin", "Range", "bytes=" + start + "-");
+
+            assertThat(r.statusCode()).isEqualTo(206);
+            assertThat(Arrays.equals(r.body(), Arrays.copyOfRange(content, start, SIZE))).isTrue();
+        }
+
+        @Test @DisplayName("an empty file is a 200 with no body")
+        void empty() throws Exception {
+            var r = get("/empty.bin");
+
+            assertThat(r.statusCode()).isEqualTo(200);
+            assertThat(r.body()).isEmpty();
+        }
+    }
+
+    // -- res.sendFile / res.download use the same streaming ---------------------------------------------
+
+    @Test @DisplayName("res.sendFile streams a file, res.download adds Content-Disposition, a missing file is a 404")
+    void sendFileAndDownload() throws Exception {
+        byte[] content = new byte[300_000];
+        new java.util.Random(7).nextBytes(content);
+        Path file = pub.resolve("report.bin");
+        Files.write(file, content);
+
+        app = CafeAI.create();
+        app.get("/file", (req, res, next) -> res.sendFile(file));
+        app.get("/download", (req, res, next) -> res.download(file, "r.bin"));
+        app.get("/missing", (req, res, next) -> res.sendFile(pub.resolve("nope.bin")));
+        try (var s = new ServerSocket(0)) { port = s.getLocalPort(); }
+        var started = new CountDownLatch(1);
+        app.listen(port, started::countDown);
+        assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+
+        var f = get("/file");
+        assertThat(f.statusCode()).isEqualTo(200);
+        assertThat(f.headers().firstValue("Content-Length")).hasValue("300000");
+        assertThat(Arrays.equals(f.body(), content)).isTrue();
+
+        var d = get("/download");
+        assertThat(d.headers().firstValue("Content-Disposition")).hasValue("attachment; filename=\"r.bin\"");
+        assertThat(Arrays.equals(d.body(), content)).isTrue();
+
+        assertThat(get("/missing").statusCode()).isEqualTo(404);
     }
 }

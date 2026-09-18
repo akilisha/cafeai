@@ -9,6 +9,8 @@ import io.helidon.http.HeaderNames;
 import io.helidon.http.HeaderValues;
 import io.helidon.http.Status;
 import io.helidon.webserver.http.ServerResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class HelidonResponse implements Response {
 
+    private static final Logger log = LoggerFactory.getLogger(HelidonResponse.class);
+
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
         new com.fasterxml.jackson.databind.ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
@@ -52,9 +56,18 @@ public final class HelidonResponse implements Response {
     private CafeAI  app;
     private boolean committed = false;
 
+    /**
+     * True once the body is being written to Helidon's output stream (a streamed file, SSE).
+     * Helidon does not treat such a response as "sent" when a filter returns, so the filter
+     * wrappers in {@code CafeAIApp} check this and tell Helidon the filter is finished.
+     */
+    private boolean streaming = false;
+
     public HelidonResponse(ServerResponse helidonRes) {
         this.helidonRes = helidonRes;
     }
+
+    boolean isStreaming() { return streaming; }
 
     void setPairedRequest(Request req) { this.pairedRequest = req; }
     void setApp(CafeAI app)            { this.app = app; }
@@ -344,15 +357,82 @@ public final class HelidonResponse implements Response {
         return this;
     }
 
+    /** Bytes copied per write when a file is streamed. */
+    private static final int FILE_BLOCK = 64 * 1024;
+
     @Override
     public void sendFile(Path file) {
         assertNotCommitted();
+        if (!Files.isRegularFile(file)) {
+            status(404).send("Not Found: " + file.getFileName());
+            return;
+        }
+        long size;
         try {
-            byte[] bytes = Files.readAllBytes(file);
-            commit();
-            helidonRes.send(bytes);
+            size = Files.size(file);
         } catch (IOException e) {
             status(404).send("Not Found: " + file.getFileName());
+            return;
+        }
+        streamFile(file, 0, size);
+    }
+
+    @Override
+    public void sendFile(Path file, long offset, long length) {
+        assertNotCommitted();
+        long size;
+        try {
+            size = Files.size(file);
+        } catch (IOException e) {
+            status(404).send("Not Found: " + file.getFileName());
+            return;
+        }
+        if (offset < 0 || length < 0 || offset + length > size) {
+            throw new IllegalArgumentException(
+                "Range " + offset + "+" + length + " is outside " + file.getFileName()
+                + " (" + size + " bytes)");
+        }
+        streamFile(file, offset, length);
+    }
+
+    /**
+     * Writes {@code length} bytes from {@code offset} in {@code FILE_BLOCK} pieces.
+     * The file is opened before the response is committed, so a file that cannot be read
+     * still gets a 404. Once bytes are on the wire an error can only end the connection.
+     */
+    private void streamFile(Path file, long offset, long length) {
+        try (java.nio.channels.FileChannel in =
+                 java.nio.channels.FileChannel.open(file, java.nio.file.StandardOpenOption.READ)) {
+            commit();
+            if (length == 0) {
+                helidonRes.send();
+                return;
+            }
+            helidonRes.contentLength(length);
+            streaming = true;
+            try (java.io.OutputStream out = helidonRes.outputStream()) {
+                java.nio.ByteBuffer block = java.nio.ByteBuffer.allocate((int) Math.min(FILE_BLOCK, Math.max(length, 1)));
+                long position = offset;
+                long remaining = length;
+                while (remaining > 0) {
+                    block.clear();
+                    if (remaining < block.capacity()) block.limit((int) remaining);
+                    int read = in.read(block, position);
+                    if (read < 0) break;
+                    out.write(block.array(), 0, read);
+                    position += read;
+                    remaining -= read;
+                }
+            } catch (IOException e) {
+                // Client went away, or the file shrank under us: the connection is all that is left to end.
+                log.debug("Streaming {} stopped early: {}", file.getFileName(), e.getMessage());
+            }
+        } catch (IOException e) {
+            if (committed) {
+                log.debug("Streaming {} ended with an error: {}", file.getFileName(), e.getMessage());
+            } else {
+                status(404).send("Not Found: " + file.getFileName());
+            }
         }
     }
 
@@ -392,6 +472,7 @@ public final class HelidonResponse implements Response {
         // output stream here (on the request thread) and block until the publisher
         // completes, writing SSE frames as tokens arrive. A blocked virtual thread
         // is cheap — this is the idiomatic Helidon SE streaming shape.
+        streaming = true;
         final java.io.OutputStream out = helidonRes.outputStream();
         final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
 

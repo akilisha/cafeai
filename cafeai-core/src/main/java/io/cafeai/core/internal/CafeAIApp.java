@@ -2425,7 +2425,20 @@ public final class CafeAIApp implements CafeAI {
             } catch (Exception e) {
                 dispatchError(e, ctx.req(), ctx.res());
             }
+            finishIfStreamed(chain, ctx);
         };
+    }
+
+    /**
+     * A response written to Helidon's output stream (a streamed file, SSE) is not "sent" as
+     * far as Helidon's filter check goes, and it fails a filter that returns without proceeding
+     * or sending. {@code proceed()} does nothing once a response has an entity, so calling it
+     * here only tells Helidon this filter is finished.
+     */
+    private static void finishIfStreamed(io.helidon.webserver.http.FilterChain chain, RequestContext ctx) {
+        if (ctx.res().isStreaming()) {
+            chain.proceed();
+        }
     }
 
     /**
@@ -2448,6 +2461,7 @@ public final class CafeAIApp implements CafeAI {
                 } catch (Exception e) {
                     dispatchError(e, ctx.req(), ctx.res());
                 }
+                finishIfStreamed(chain, ctx);
             } else {
                 chain.proceed();
             }
