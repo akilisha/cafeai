@@ -255,7 +255,7 @@ intercepts first.
   | `Ollama` | `.temperature(Double)` | `.numPredict(Integer)` | `.timeout(Duration)` |
   | `Gemini` | `.temperature(Double)` | `.maxOutputTokens(Integer)` | `.timeout(Duration)` |
   | `Nvidia` | `.temperature(Double)` | `.maxCompletionTokens(Integer)` | `.timeout(Duration)` |
-  | `Jlama` | `.temperature(Float)` | `.maxTokens(Integer)` | refused — in-process, no call to time out |
+  | `Jlama` | `.temperature(Float)` | `.maxTokens(Integer)` (prompt **and** answer) | refused — in-process, no call to time out |
 
   `withTimeout` overrides `cafeai.chat.timeout` (§2.8) for that one provider,
   which is the right granularity: a classifier and a reasoning model that takes

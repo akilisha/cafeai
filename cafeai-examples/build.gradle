@@ -26,11 +26,6 @@ dependencies {
 
     // Concrete SLF4J binding for the runnable app (the library modules ship none)
     runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
-
-    // Test containers for realistic integration examples
-    testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
-    testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
-    testImplementation "org.testcontainers:postgresql:${rootProject.ext.testcontainersVersion}"
 }
 
 // Jlama (in-process inference) requires the incubating Vector API module and
@@ -50,6 +45,3 @@ application {
     applicationDefaultJvmArgs = jlamaJvmArgs
 }
 
-tasks.named('test') {
-    jvmArgs jlamaJvmArgs
-}

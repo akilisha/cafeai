@@ -33,9 +33,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * it is proven on the wire against a local server standing in for Ollama, the one
  * provider whose base URL is configurable.
  *
- * <p><strong>Not covered: Jlama.</strong> Building a Jlama model downloads the model, so
- * its mapping (including the {@code Double}→{@code Float} temperature conversion) has
- * no offline test.
+ * <p><strong>Jlama is covered elsewhere.</strong> Building a Jlama model loads (and first downloads) the
+ * model, so it cannot be built here: {@code JlamaMappingTest} checks the settings it is given, and
+ * {@code JlamaLiveTest} runs a real model.
  */
 class ProviderMappingTest {
 

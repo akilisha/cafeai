@@ -63,7 +63,8 @@ public interface AiProvider {
     /**
      * A copy of this provider that caps generation at {@code maxTokens} tokens.
      * For a reasoning model the cap includes its thinking, so a low value can
-     * leave nothing for the answer.
+     * leave nothing for the answer. For {@link Jlama} the cap counts the prompt
+     * as well as the answer (Jlama's own meaning), so it must exceed the prompt's length.
      *
      * @throws UnsupportedOperationException if this provider does not support it
      *         (the default — the built-in providers all override it)

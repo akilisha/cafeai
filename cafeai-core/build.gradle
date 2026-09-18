@@ -78,3 +78,10 @@ tasks.named('test') {
     environment 'GEMINI_API_KEY',    'test-key-not-real'
     environment 'NVIDIA_API_KEY',    'test-key-not-real'
 }
+
+// The live tests include Jlama (in-process inference): it needs the incubating Vector API and native
+// access, and a heap big enough to hold a small model.
+tasks.named('liveTest') {
+    jvmArgs '--add-modules', 'jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
+    maxHeapSize = '2g'
+}

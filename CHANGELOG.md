@@ -144,6 +144,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   structured output, a system prompt, session memory, and the `withMaxTokens` / `withTemperature` /
   `withTimeout` settings, plus opt-in thinking-stream and vision tests. Apply
   `gradle/live-tests.gradle` in a module to add more. See GETTING-STARTED.md.
+- **Jlama is tested against a real model** (`JlamaLiveTest`, opt-in with `JLAMA_LIVE_MODEL`; plus
+  `JlamaMappingTest` for the settings mapping, which needs no model). Jlama's `withMaxTokens` limits the
+  prompt *and* the answer, unlike the other providers; a limit smaller than the prompt fails with
+  `Prompt exceeds max tokens`. This is documented on `AiProvider.withMaxTokens` and `Jlama`.
 - **`.onThinking(Consumer<String>)`** on `PromptRequest` and `VisionRequest` — receives a reasoning
   model's thinking tokens during `.stream(...)`, apart from the answer text, session memory and
   guardrails. `Nvidia` enables it.

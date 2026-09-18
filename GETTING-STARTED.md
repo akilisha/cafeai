@@ -186,6 +186,16 @@ enabled for your account (HTTP `410` and `404` respectively). List what your key
 `curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`, and
 point the variables above at one that answers.
 
+Jlama runs in-process and needs no key, only a model on disk, so its live tests run when you name one:
+
+```bash
+JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'
+```
+
+The first run downloads the model (about 300 MB) into `~/.jlama/models`; `liveTest` already passes the
+Vector API flags Jlama needs. They cover a plain and a streamed call, `withMaxTokens` (which for Jlama
+counts the prompt too), `withTemperature(0)` repeatability, and `Jlama.cachedIn(...)`.
+
 To add a live test for another provider: tag the class `@Tag("live")`, skip it with
 `Assumptions.assumeTrue(...)` when the key is missing, and make sure the module applies
 `gradle/live-tests.gradle` (`cafeai-core` already does).

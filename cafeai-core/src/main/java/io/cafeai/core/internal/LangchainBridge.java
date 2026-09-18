@@ -133,12 +133,11 @@ public final class LangchainBridge {
             }
 
             case JLAMA -> {
-                var builder = JlamaStreamingChatModel.builder().modelName(provider.modelId());
-                if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
-                    builder.modelCachePath(Path.of(jpa.modelCachePath()));
-                }
-                if (provider.temperature() != null) builder.temperature(provider.temperature().floatValue());
-                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
+                var jlama = JlamaSettings.of(provider);
+                var builder = JlamaStreamingChatModel.builder().modelName(jlama.modelName());
+                if (jlama.modelCachePath() != null) builder.modelCachePath(jlama.modelCachePath());
+                if (jlama.temperature() != null)    builder.temperature(jlama.temperature());
+                if (jlama.maxTokens() != null)      builder.maxTokens(jlama.maxTokens());
                 yield builder.build();
             }
 
@@ -188,12 +187,11 @@ public final class LangchainBridge {
             }
 
             case JLAMA -> {
-                var builder = JlamaChatModel.builder().modelName(provider.modelId());
-                if (provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null) {
-                    builder.modelCachePath(Path.of(jpa.modelCachePath()));
-                }
-                if (provider.temperature() != null) builder.temperature(provider.temperature().floatValue());
-                if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
+                var jlama = JlamaSettings.of(provider);
+                var builder = JlamaChatModel.builder().modelName(jlama.modelName());
+                if (jlama.modelCachePath() != null) builder.modelCachePath(jlama.modelCachePath());
+                if (jlama.temperature() != null)    builder.temperature(jlama.temperature());
+                if (jlama.maxTokens() != null)      builder.maxTokens(jlama.maxTokens());
                 yield builder.build();
             }
 
@@ -229,6 +227,21 @@ public final class LangchainBridge {
      */
     public interface OllamaProviderAccess {
         String baseUrl();
+    }
+
+    /**
+     * What a Jlama provider asks LangChain4j's builders for. Applying it needs a model (building one
+     * loads it, and downloads it the first time), so the mapping is kept apart where it can be tested
+     * without one: an unset value stays {@code null} and is never passed on, {@code 0.0} is a value,
+     * and the temperature narrows to the {@code Float} Jlama takes.
+     */
+    record JlamaSettings(String modelName, Path modelCachePath, Float temperature, Integer maxTokens) {
+        static JlamaSettings of(AiProvider provider) {
+            Path cache = provider instanceof JlamaProviderAccess jpa && jpa.modelCachePath() != null
+                ? Path.of(jpa.modelCachePath()) : null;
+            Float temperature = provider.temperature() != null ? provider.temperature().floatValue() : null;
+            return new JlamaSettings(provider.modelId(), cache, temperature, provider.maxTokens());
+        }
     }
 
     /**

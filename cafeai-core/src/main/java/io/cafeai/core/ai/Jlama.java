@@ -21,6 +21,11 @@ import io.cafeai.core.internal.LangchainBridge;
  * The pre-quantized {@code tjake/*-JQ4} repos load fastest; any safetensors model
  * Jlama supports also works and is quantized on the fly.
  *
+ * <p><strong>{@code withMaxTokens} counts the prompt too.</strong> For the other providers the cap
+ * limits the answer; Jlama's limit is the prompt plus the answer, and a call fails with
+ * {@code Prompt exceeds max tokens} if the prompt alone is longer. The chat template adds dozens of
+ * tokens, so leave room: {@code Jlama.of(id).withMaxTokens(256)} is a short prompt and a short answer.
+ *
  * <p><strong>Required JVM flags.</strong> Jlama loads model classes that import
  * the incubating Vector API, so your app must run with
  * {@code --add-modules jdk.incubator.vector} (Java 20–23) — without it, model
