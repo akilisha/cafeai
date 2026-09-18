@@ -42,6 +42,17 @@ The lowest-level abstraction: one interface per provider capability.
 builder (`OpenAiChatModel.builder().apiKey(...).modelName(...).build()`).
 Swap providers by swapping the builder; the calling code doesn't change.
 
+Three builder facts matter later. The sampling and limit settings share
+concepts but not names: every builder has `temperature`, but the token cap is
+`maxTokens` on Anthropic and Jlama, `maxCompletionTokens` on OpenAI (newer
+OpenAI models reject `max_tokens`), `numPredict` on Ollama, and
+`maxOutputTokens` on Gemini. `OpenAiChatModel` also takes a `baseUrl(...)`,
+which is how any OpenAI-compatible endpoint is reached without a new
+integration. And a `StreamingChatResponseHandler` has an
+`onPartialThinking(PartialThinking)` callback beside `onPartialResponse(String)`,
+fed when the builder sets `returnThinking(true)` and the model sends a separate
+reasoning channel.
+
 This is the primitive you reach for when you want a single request/response
 turn and full control over the message list. It knows nothing about
 sessions, memory, or tools — those are all built on top, not inside it.
@@ -175,6 +186,8 @@ app.ai(OpenAI.of("gpt-4o"));
 app.ai(Anthropic.of("claude-sonnet-4-5"));
 app.ai(Ollama.of("llama3.3"));
 app.ai(Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4"));
+app.ai(Nvidia.of("moonshotai/kimi-k3").withReasoningEffort("max"));
+app.ai(Anthropic.of("claude-sonnet-4-5").withTemperature(0).withMaxTokens(1024));
 app.ai(ModelRouter.smart().simple(OpenAI.of("gpt-4o-mini")).complex(OpenAI.of("gpt-4o")));
 ```
 
@@ -187,31 +200,84 @@ more happens in the `default` case; unsupported providers throw and tell you
 to "implement `AiProvider` and wire Langchain4j manually" — the door is
 explicitly left open rather than papered over.
 
+`Gemini` and `Nvidia` are not in that switch. Both reach LangChain4j through
+the `ChatModelAccess` seam described below: `Gemini` builds a
+`GoogleAiGeminiChatModel`, and `Nvidia` builds an `OpenAiChatModel` /
+`OpenAiStreamingChatModel` with `baseUrl("https://integrate.api.nvidia.com/v1")`,
+because NVIDIA's hosted catalog speaks the OpenAI wire protocol. That is the
+whole integration — no new dependency, no new LangChain4j module. Both are
+tagged `ProviderType.CUSTOM`, a value the bridge never sees because the seam
+intercepts first.
+
 **Why the indirection exists, beyond "use LangChain4j directly":**
 
-- **One `AiProvider` vocabulary across five backends** (`OpenAI`,
-  `Anthropic`, `Ollama`, `Jlama`, `Gemini` via `ChatModelAccess`), so
-  application code names a model once and swaps providers by changing one
-  line — this is genuinely what LangChain4j already gives you at the
-  builder level; CafeAI's contribution is collapsing five different builder
-  shapes into one factory-method shape (`Provider.of(id)`).
+- **One `AiProvider` vocabulary across six backends** (`OpenAI`,
+  `Anthropic`, `Ollama`, `Jlama`, and `Gemini` and `Nvidia` via
+  `ChatModelAccess`), so application code names a model once and swaps
+  providers by changing one line — this is genuinely what LangChain4j already
+  gives you at the builder level; CafeAI's contribution is collapsing six
+  different builder shapes into one factory-method shape (`Provider.of(id)`).
 - **Actionable failure on a missing API key.** `resolveApiKey` throws a
   message naming the exact environment variable and offering the two local
   no-key alternatives (Ollama, Jlama) — LangChain4j's builders throw
   whatever the HTTP client throws.
-- **Caching per provider identity.** `modelFor()` caches by
-  `name + ":" + modelId`, since LangChain4j model objects are thread-safe
-  but non-trivial to construct — a concrete, unglamorous but load-bearing
-  addition.
+- **Caching per provider.** `modelFor()` caches the built model keyed on the
+  provider *itself*, since LangChain4j model objects are thread-safe but
+  non-trivial to construct — a concrete, unglamorous but load-bearing
+  addition. The built-in providers are records, so two providers compare equal
+  only if every field does: the same model at two temperatures, on two base
+  URLs, or with two timeouts are distinct cache entries. (The key used to be
+  `name + ":" + modelId`, which silently shared one client between all of
+  those. It only became easy to hit once providers could carry settings, but
+  it was already latent for two `Ollama.at(...)` instances on different hosts
+  serving the same model id.)
 - **`ModelRouter`** — cost-based routing by input length — **has no
   LangChain4j equivalent at all.** `ModelRouter implements AiProvider` and
   presents as its `complexModel` for capability checks; the actual routing
   decision happens in `CafeAIApp` when it detects a `ModelRouter` instance.
   This is pure CafeAI, filling a gap LangChain4j leaves open by design.
-- **Two test seams** (`ChatModelAccess`, `StreamingChatModelAccess`) let a
+- **Two seams** (`ChatModelAccess`, `StreamingChatModelAccess`) let a
   provider hand back a pre-built model directly, bypassing environment
-  lookups — this is how CafeAI's own test suite (and yours) mocks a model
-  without touching real credentials.
+  lookups. They are how CafeAI's own test suite (and yours) mocks a model
+  without touching real credentials, and — not just a test hook — how `Gemini`
+  and `Nvidia` reach LangChain4j at all. `Nvidia` implements both, because a
+  streamed vision call asks the bridge for a `StreamingChatModel`.
+- **Per-provider tuning: `withTemperature`, `withMaxTokens`, `withTimeout`.**
+  Each returns an immutable copy of the provider
+  (`Anthropic.of(id).withTemperature(0)`), and lives on the `AiProvider`
+  interface with a default that throws `UnsupportedOperationException` — so a
+  custom provider that doesn't implement it fails loudly instead of silently
+  ignoring your setting, and so does `ModelRouter` (set them on the models it
+  routes between). An unset value is never passed to the builder, so a provider
+  you don't tune builds exactly as it always did. What CafeAI adds over the
+  builders is one name for what they spell differently:
+
+  | Provider | `withTemperature` | `withMaxTokens` | `withTimeout` |
+  |---|---|---|---|
+  | `OpenAI` | `.temperature(Double)` | `.maxCompletionTokens(Integer)` | `.timeout(Duration)` |
+  | `Anthropic` | `.temperature(Double)` | `.maxTokens(Integer)` | `.timeout(Duration)` |
+  | `Ollama` | `.temperature(Double)` | `.numPredict(Integer)` | `.timeout(Duration)` |
+  | `Gemini` | `.temperature(Double)` | `.maxOutputTokens(Integer)` | `.timeout(Duration)` |
+  | `Nvidia` | `.temperature(Double)` | `.maxCompletionTokens(Integer)` | `.timeout(Duration)` |
+  | `Jlama` | `.temperature(Float)` | `.maxTokens(Integer)` | refused — in-process, no call to time out |
+
+  `withTimeout` overrides `cafeai.chat.timeout` (§2.8) for that one provider,
+  which is the right granularity: a classifier and a reasoning model that takes
+  minutes to respond do not share a sensible limit. For a streamed call the
+  limit covers the wait for the response to *start*, not the gap between tokens
+  once it has: LangChain4j's JDK HTTP client sends a streamed request with
+  `sendAsync` and an `InputStream` body handler, so the JDK's request timeout
+  fires when the response headers haven't arrived. That is exactly how the
+  60-second default failed on a slow reasoning model before this existed. `Nvidia` alone falls back to five minutes when unset rather than
+  to `cafeai.chat.timeout` — a hosted reasoning model took about two minutes to
+  begin responding in `NvidiaVisionExample`, well past the 60-second default.
+- **Provider-specific settings stay provider-specific.** `Nvidia` also has
+  `withReasoningEffort("max")`, which maps to `.reasoningEffort(String)` on the
+  OpenAI builder; Anthropic expresses "how hard to think" as
+  `thinkingType(...)` plus `thinkingBudgetTokens(...)`, a different mechanism,
+  so it is not on `AiProvider`. Its return type is the
+  public `Nvidia.NvidiaProvider` rather than `AiProvider`, and it overrides the
+  three shared `with...` methods covariantly, so they chain in any order.
 
 ### 2.2 The plain call — `app.prompt()` / `.vision()` / `.audio()` / `.synthesise()`
 
@@ -254,6 +320,31 @@ via `.returning(Class)` — a JSON-schema hint built from the target record
 deserialized (`ResponseDeserializer`) — LangChain4j has no analogous
 "structured output for a raw `ChatModel` call" feature; its structured
 output story is tied to `AiServices` return types.
+
+**Reasoning tokens — `.onThinking(...)`.** A reasoning model can stream its
+thinking in a channel separate from its answer, and for a long request that is
+the only sign of life. `PromptRequest` and `VisionRequest` take
+`.onThinking(Consumer<String>)`:
+
+```java
+app.vision("What is in this image?", bytes, "image/jpeg")
+   .onThinking(System.err::print)
+   .stream(System.out::print);
+```
+
+Underneath, this is the LangChain4j hook from §1.1 and nothing more: the two
+streaming executors (`executePromptStream`, `executeVisionStream`) override
+`StreamingChatResponseHandler.onPartialThinking(PartialThinking)` beside
+`onPartialResponse` and forward `thinking.text()` to your consumer. It is a
+side channel *by construction* — the assembled text that feeds POST_LLM
+guardrails, session memory, and `LLM_RESPONSE_TEXT` is built only from
+`onPartialResponse`, so reasoning can't leak into any of them. The
+`stream(Consumer<String>)` and `Flow.Publisher<String>` signatures are
+unchanged, which is why it is a fluent setter and not a second consumer
+argument. Two limits: only `Nvidia` builds its streaming model with
+`returnThinking(true)`, so the callback never fires for the other built-ins
+(their builders support it; CafeAI simply doesn't request it yet), and it
+applies to `.stream(...)` only, not `.call()`.
 
 ### 2.3 Agents — `app.agent(...)`
 
@@ -440,7 +531,8 @@ layer. This is CafeAI infrastructure end to end, resolved via Helidon Config
 when `cafeai-config` is present and coded defaults otherwise. Notably, this
 *is* how `LangchainBridge.CHAT_TIMEOUT` and `AgentRegistry.MEMORY_WINDOW`
 make the LangChain4j builder calls in §2.1/§2.3 configurable instead of
-hardcoded.
+hardcoded. A provider's own `withTimeout(Duration)` (§2.1) wins over
+`CHAT_TIMEOUT` for that model; the key is the application-wide fallback.
 
 ### 2.9 The HTTP layer — `app.get/.post/.use/.listen`
 
@@ -580,6 +672,9 @@ concern is enforced, never *whether* it is.
 | If you'd write this in bare LangChain4j... | ...write this in CafeAI |
 |---|---|
 | `OpenAiChatModel.builder().apiKey(k).modelName(id).build()` | `app.ai(OpenAI.of(id))` |
+| `OpenAiChatModel.builder().baseUrl("https://integrate.api.nvidia.com/v1").apiKey(k)...` (any OpenAI-compatible endpoint) | `app.ai(Nvidia.of("vendor/model"))` for NVIDIA's catalog |
+| `.temperature(0.2).maxTokens(1024).timeout(d)` — names differ per provider (§2.1 table) | `provider.withTemperature(0.2).withMaxTokens(1024).withTimeout(d)`, same names everywhere |
+| Overriding `onPartialThinking` on a `StreamingChatResponseHandler` | `.onThinking(consumer)` on `app.prompt(...)` / `app.vision(...)`, before `.stream(...)` |
 | `AiServices.builder(X.class).chatModel(m).build()` | `app.agent("x", X.class).model(provider)` then `app.agent("x", X.class, sessionId)` |
 | `.chatMemoryProvider(id -> MessageWindowChatMemory.withMaxMessages(20))` | `app.agent(...).memory(MemoryStrategy.inMemory())` (or `.mapped()`/`.redis(cfg)` for persistence LC4J doesn't offer) |
 | Writing your own `InputGuardrail` for PII | `app.guard(GuardRail.pii())` (real enforcement needs `cafeai-guardrails`) |
