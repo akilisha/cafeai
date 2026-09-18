@@ -242,7 +242,7 @@ app.guard(GuardRail.topicBoundary()       // enforce topic scope
 app.guard(GuardRail.regulatory()          // GDPR, HIPAA, FCRA, CCPA
     .gdpr().hipaa())
 
-app.filter(AiSecurity.promptInjectionDetector())  // strict injection detection
+app.filter(AiSecurity.promptInjectionDetector())  // injection blocking + audit events
 AiSecurity.onEvent(event -> { ... })              // typed audit event listener
 ```
 
@@ -426,7 +426,7 @@ cafeai/
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
 ├── cafeai-guardrails/                  ← PII, jailbreak, toxicity, regulatory compliance
 ├── cafeai-observability/               ← OpenTelemetry tracing, console logging, evals
-├── cafeai-security/                    ← Prompt injection, data leakage
+├── cafeai-security/                    ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
 ├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity

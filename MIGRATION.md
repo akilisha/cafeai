@@ -215,6 +215,16 @@ are on the concrete classes — `new JailbreakGuardRail().threshold(0.9)`, `new 
 `400` no longer includes `"reason"`. If a client parsed either, register `app.onError(...)` and
 say what you want on the wire. If you implement `GuardRailProvider` yourself, add `secrets()`.
 
+**18. `AiSecurity.ragDataLeakagePrevention()` and `SecurityEvent.DataLeakageAttempt` are removed —
+the feature never worked; do not rely on it for per-user document access.** If you registered it,
+delete the line: it was already doing nothing, so nothing you depended on stops. If you need to
+keep one user's documents from another, that has to be enforced where documents are stored or
+retrieved (separate indexes per tenant, or filtering by an owner id at query time) — CafeAI does not
+do it. `SecurityEvent` is now a sealed interface with one permit, so drop the `DataLeakageAttempt`
+case from any exhaustive `switch`. `SecurityEvent.InjectionAttempt` no longer has `source()` (it
+could only be `"user_input"`), and `AiSecurity.promptInjectionDetector()`'s `400` body is
+`{error, eventId}` — the `reason` is gone.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.

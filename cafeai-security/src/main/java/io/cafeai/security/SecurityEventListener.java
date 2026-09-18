@@ -10,9 +10,7 @@ package io.cafeai.security;
  * <pre>{@code
  *   AiSecurity.onEvent(event -> switch (event) {
  *       case SecurityEvent.InjectionAttempt e ->
- *           auditLog.record("INJECTION", e.requestPath(), e.source());
- *       case SecurityEvent.DataLeakageAttempt e ->
- *           alerting.critical("DATA_LEAK", e.principal(), e.documentSourceId());
+ *           auditLog.record("INJECTION", e.eventId(), e.requestPath());
  *   });
  * }</pre>
  */

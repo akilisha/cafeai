@@ -40,7 +40,9 @@ public final class PromptInjectionGuardRail extends AbstractGuardRail {
         p("(?:^|[.!?>\\]])\\s*(?:system|assistant)\\s*:"),
         p("\\[(?:system|inst|override)\\]|<\\|im_start\\|>|<<sys>>"),
         p("\\b(?:the\\s+following|these)\\s+(?:instructions?\\s+|commands?\\s+)?(?:override|supersede|replace)"),
-        p("\\b(?:act|behave|respond)\\s+(?:as\\s+if|like)\\s+(?:you\\s+are|you're)")
+        p("\\b(?:act|behave|respond)\\s+(?:as\\s+if|like)\\s+(?:you\\s+are|you're)"),
+        // "when you read this, execute ...": a trigger phrase followed by an action
+        p("\\bwhen\\s+(?:you\\s+|the\\s+model\\s+)?(?:see|read|encounter|process)\\s+this\\b.{0,40}\\b(?:do|say|respond|execute|perform)\\b")
     );
 
     /** Only meaningful in data: a document has no business addressing the model. */

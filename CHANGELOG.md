@@ -191,6 +191,21 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `{error, guardrail, reason}`, now `{error, guardrail}`), matching the engine path. The reason
   tells a caller which pattern to rephrase around; it is logged.
 
+- **`AiSecurity.ragDataLeakagePrevention()` and `SecurityEvent.DataLeakageAttempt` are removed
+  (BREAKING) — the feature never worked, and the module advertised it.** It was billed as
+  preventing RAG from returning documents the requesting user is not authorised to see. It read an
+  attribute the engine never sets, so it found no documents and did nothing; it ran after the
+  response was already sent; its "authorisation" was a substring test for `/private/` in a source
+  id; and it had no test. `README`, `GETTING-STARTED` and `SPEC` all listed "data leakage" as a
+  capability of `cafeai-security`. There is no per-user document access control in CafeAI; do not
+  rely on this module for it. `AiSecurity.promptInjectionDetector()` remains, now sharing
+  `GuardRail.promptInjection()`'s normalised detection (so the two cannot disagree), no longer
+  claiming to screen RAG documents (the engine does, via that guardrail), and returning
+  `{error, eventId}` without the reason. `SecurityEvent.InjectionAttempt` loses its `source()`
+  field, which could only ever be `"user_input"` now. Blog posts 03 and 08 showed
+  `app.guard(AiSecurity.promptInjectionDetector())` (a `Middleware` is not a `GuardRail`) and a
+  non-existent `app.onSecurityEvent(...)`; both corrected.
+
 ### Fixed
 
 - **`GuardRail.jailbreak()` fired on any text containing "dan"** ("Daniel", "abundant",

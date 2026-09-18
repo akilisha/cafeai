@@ -109,7 +109,7 @@ cafeai/
 ├── cafeai-guardrails/      ← PII, jailbreak, toxicity, regulatory
 ├── cafeai-observability/   ← OpenTelemetry tracing, console logging, eval harness
 ├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
-├── cafeai-security/        ← Prompt injection, data leakage
+├── cafeai-security/        ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
 ├── cafeai-sentinel/        ← AI cluster incident pipeline for Kubernetes / OpenShift

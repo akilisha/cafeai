@@ -1,13 +1,13 @@
 // ============================================================
 //  cafeai-security
 //  AI-specific security layer — beyond traditional guardrails.
-//  Covers: prompt injection detection and RAG data leakage
-//  prevention, with security events for audit.
+//  Covers: an audit trail for blocked prompt injection -- typed
+//  security events with a unique id, delivered to your listener.
 //  This is a middleware layer. Everything is composable.
 // ============================================================
 
-description = 'AI-specific security layer for CafeAI — prompt-injection detection and ' +
-    'RAG data-leakage prevention, with security events for audit.'
+description = 'AI security layer for CafeAI — blocks prompt injection and raises typed, ' +
+    'auditable security events.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 

@@ -4,18 +4,16 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A security event raised when the AI security layer detects a threat.
+ * A security event raised when the security layer blocks a request.
  *
- * <p>Every event carries a unique ID, timestamp, event type, the triggering
- * input, and the request ID for correlation with access logs and OTel traces.
+ * <p>Every event carries a unique ID, a timestamp, the request path, and the triggering input.
+ * Wire a {@link SecurityEventListener} via {@link AiSecurity#onEvent(SecurityEventListener)} to
+ * forward them to a SIEM, audit database, or alerting system.
  *
- * <p>Events are emitted to SLF4J at WARN level by default. Wire a
- * {@link SecurityEventListener} via {@link AiSecurity#onEvent(SecurityEventListener)}
- * to forward them to a SIEM, audit database, or alerting system.
+ * <p>Sealed, so an exhaustive {@code switch} over it stays exhaustive as event types are added
+ * deliberately; today there is one.
  */
-public sealed interface SecurityEvent
-        permits SecurityEvent.InjectionAttempt,
-                SecurityEvent.DataLeakageAttempt {
+public sealed interface SecurityEvent permits SecurityEvent.InjectionAttempt {
 
     /** Unique event ID -- use for deduplication in audit systems. */
     String eventId();
@@ -26,47 +24,22 @@ public sealed interface SecurityEvent
     /** The request path that triggered the event. */
     String requestPath();
 
-    /** The input text that triggered detection. */
+    /** The input text that triggered detection (truncated). */
     String triggeringInput();
 
     // -- Concrete event types --------------------------------------------------
 
-    /**
-     * Raised when a prompt injection attempt is detected in user input or
-     * RAG-retrieved content. More strictly enforced than the guardrail version --
-     * all injection signals are blocked regardless of confidence threshold.
-     */
+    /** Raised when a prompt injection attempt is detected in a user's message and blocked. */
     record InjectionAttempt(
             String eventId,
             Instant timestamp,
             String requestPath,
-            String triggeringInput,
-            String source          // "user_input" | "rag_document"
-    ) implements SecurityEvent {}
-
-    /**
-     * Raised when a user attempts to access a RAG document they are not
-     * authorised to see. Requires an {@code AUTH_PRINCIPAL} attribute on the request.
-     */
-    record DataLeakageAttempt(
-            String eventId,
-            Instant timestamp,
-            String requestPath,
-            String triggeringInput,
-            String documentSourceId,
-            String principal
+            String triggeringInput
     ) implements SecurityEvent {}
 
     // -- Factory helpers -------------------------------------------------------
 
-    static InjectionAttempt injection(String path, String input, String source) {
-        return new InjectionAttempt(UUID.randomUUID().toString(),
-            Instant.now(), path, input, source);
-    }
-
-    static DataLeakageAttempt dataLeakage(String path, String input,
-                                           String docId, String principal) {
-        return new DataLeakageAttempt(UUID.randomUUID().toString(),
-            Instant.now(), path, input, docId, principal);
+    static InjectionAttempt injection(String path, String input) {
+        return new InjectionAttempt(UUID.randomUUID().toString(), Instant.now(), path, input);
     }
 }

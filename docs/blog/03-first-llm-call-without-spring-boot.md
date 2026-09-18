@@ -236,7 +236,7 @@ app.guard(GuardRail.topicBoundary()
     .allow("helios api", "github issues", "authentication",
            "rate limits", "webhooks", "sdk", "integration"));
 app.guard(GuardRail.jailbreak());
-app.guard(AiSecurity.promptInjectionDetector());
+app.filter(AiSecurity.promptInjectionDetector());
 ```
 
 The topic boundary guard blocks questions unrelated to Helios. The jailbreak guard detects adversarial prompts. The injection detector catches prompt injection attempts in both user input and retrieved RAG documents.
@@ -310,7 +310,7 @@ public class SupportAgent {
         // Safety
         app.guard(GuardRail.topicBoundary().allow(HELIOS_TOPICS));
         app.guard(GuardRail.jailbreak());
-        app.guard(AiSecurity.promptInjectionDetector());
+        app.filter(AiSecurity.promptInjectionDetector());
 
         // Observability
         app.observe(ObserveStrategy.console());

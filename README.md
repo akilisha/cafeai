@@ -59,7 +59,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, toxicity, regulatory
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry, evals
-    implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // prompt injection, data leakage
+    implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // audit events for blocked prompt injection
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0' // Mustache view engine
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'       // AI Kubernetes/OpenShift incident pipeline
@@ -338,7 +338,7 @@ cafeai/
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
 ├── cafeai-guardrails     ← PII, jailbreak, toxicity, regulatory compliance
 ├── cafeai-observability  ← OpenTelemetry tracing, console logging, eval harness
-├── cafeai-security       ← Prompt injection, data leakage
+├── cafeai-security       ← Blocks prompt injection, raises audit events
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
