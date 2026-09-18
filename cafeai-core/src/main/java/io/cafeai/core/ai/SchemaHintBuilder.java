@@ -4,7 +4,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -39,10 +41,24 @@ final class SchemaHintBuilder {
      * @return a compact JSON example string
      */
     static String build(Class<?> type) {
-        if (type.isRecord()) {
-            return buildFromRecord(type);
+        return build(type, new ArrayDeque<>());
+    }
+
+    /**
+     * {@code path} holds the types being described, outermost first. A type that contains itself (a tree of
+     * categories, a linked node) is described once and then shown as {@code {}} where it recurs, so the hint
+     * is always finite.
+     */
+    private static String build(Class<?> type, Deque<Class<?>> path) {
+        if (path.contains(type)) {
+            return "{}";
         }
-        return buildFromFields(type);
+        path.push(type);
+        try {
+            return type.isRecord() ? buildFromRecord(type, path) : buildFromFields(type, path);
+        } finally {
+            path.pop();
+        }
     }
 
     /**
@@ -62,35 +78,35 @@ final class SchemaHintBuilder {
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    private static String buildFromRecord(Class<?> type) {
+    private static String buildFromRecord(Class<?> type, Deque<Class<?>> path) {
         RecordComponent[] components = type.getRecordComponents();
         if (components == null || components.length == 0) {
             return "{}";
         }
         List<String> fields = new ArrayList<>();
         for (RecordComponent rc : components) {
-            fields.add("\"" + rc.getName() + "\":" + exampleValue(rc.getType(), rc.getGenericType()));
+            fields.add("\"" + rc.getName() + "\":" + exampleValue(rc.getType(), rc.getGenericType(), path));
         }
         return "{" + String.join(",", fields) + "}";
     }
 
-    private static String buildFromFields(Class<?> type) {
+    private static String buildFromFields(Class<?> type, Deque<Class<?>> path) {
         List<String> fields = new ArrayList<>();
         for (Field f : type.getFields()) {
             if (Modifier.isStatic(f.getModifiers())) continue;
-            fields.add("\"" + f.getName() + "\":" + exampleValue(f.getType(), f.getGenericType()));
+            fields.add("\"" + f.getName() + "\":" + exampleValue(f.getType(), f.getGenericType(), path));
         }
         if (fields.isEmpty()) {
             // Fall back to declared fields if no public fields
             for (Field f : type.getDeclaredFields()) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
-                fields.add("\"" + f.getName() + "\":" + exampleValue(f.getType(), f.getGenericType()));
+                fields.add("\"" + f.getName() + "\":" + exampleValue(f.getType(), f.getGenericType(), path));
             }
         }
         return "{" + String.join(",", fields) + "}";
     }
 
-    private static String exampleValue(Class<?> type, java.lang.reflect.Type genericType) {
+    private static String exampleValue(Class<?> type, java.lang.reflect.Type genericType, Deque<Class<?>> path) {
         if (type == String.class)                          return "\"string\"";
         if (type == boolean.class || type == Boolean.class) return "false";
         if (type == int.class || type == Integer.class
@@ -102,7 +118,7 @@ final class SchemaHintBuilder {
             if (genericType instanceof ParameterizedType pt) {
                 java.lang.reflect.Type[] args = pt.getActualTypeArguments();
                 if (args.length > 0 && args[0] instanceof Class<?> elementType) {
-                    return "[" + exampleValue(elementType, elementType) + "]";
+                    return "[" + exampleValue(elementType, elementType, path) + "]";
                 }
             }
             return "[\"string\"]";
@@ -119,9 +135,9 @@ final class SchemaHintBuilder {
         }
         if (type == java.time.LocalDate.class
                 || type == java.time.LocalDateTime.class) return "\"YYYY-MM-DD\"";
-        // Nested object — recurse one level
+        // Nested object: describe it in turn (a type already being described shows as {})
         if (!type.isPrimitive() && !type.getName().startsWith("java.")) {
-            try { return build(type); } catch (Exception e) { /* fall through */ }
+            try { return build(type, path); } catch (Exception e) { /* fall through */ }
         }
         return "\"string\"";
     }

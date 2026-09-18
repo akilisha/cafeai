@@ -164,6 +164,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **Agents apply the guardrails registered with `app.guard(...)`.** Only guardrails added with an
+  agent's own `.guard(...)` reached it, though the documentation said the app's did too. An agent now
+  applies both. As with `app.prompt()`, retrieved documents on the agent path are not screened.
+- **`OpenAI.of(...)` supports `app.audio()` again.** An earlier capability check made every
+  `OpenAI` provider refuse audio; audio goes to OpenAI's transcription endpoint whatever the chat
+  model is.
+- **`app.prompt(...).call(Type.class)` no longer overflows the stack on a self-referencing type**
+  (a `Node` with a `Node` field, or two records that reference each other). The schema hint stops
+  descending at a type it is already inside.
 - The chat-model cache is keyed on the provider itself (a value-comparing record) rather than
   `name:modelId`, so two `Ollama.at(...)` providers on different base URLs no longer share a client.
 - **A failed prompt, vision or audio call is now traced.** When the model call threw, the engine

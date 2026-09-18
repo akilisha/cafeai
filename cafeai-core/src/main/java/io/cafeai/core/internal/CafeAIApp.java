@@ -174,6 +174,7 @@ public final class CafeAIApp implements CafeAI {
         @Override public Retriever         ragRetriever()    { return retriever; }
         @Override public VectorStore       vectorStore()     { return vectorStore; }
         @Override public EmbeddingProvider embeddingModel()  { return embeddingModel; }
+        @Override public List<GuardRail>   guardRails()      { return List.copyOf(guardRails); }
     }
 
     // -- Agents (ROADMAP-12) -------------------------------------------------
@@ -186,7 +187,7 @@ public final class CafeAIApp implements CafeAI {
         if (agentBridge == null) {
             throw new IllegalStateException(
                 "app.agent() requires the cafeai-agents module.\n\n"
-                + "  implementation 'com.akilisha.oss:cafeai-agents:0.1.3'");
+                + "  implementation 'com.akilisha.oss:cafeai-agents:<version>'");
         }
         AgentConfig<T> config = agentBridge.register(name, agentInterface);
         log.info("Agent registered: {} ({})", name, agentInterface.getSimpleName());

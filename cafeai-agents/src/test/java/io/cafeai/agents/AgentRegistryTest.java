@@ -195,6 +195,33 @@ class AgentRegistryTest {
         assertThat(agent.chat("hello there")).isEqualTo("should never be returned");
     }
 
+    @Test
+    void appLevelGuardrails_applyToAnAgentThatRegistersNone() {
+        registry.init(support);
+        support.model = fixedModel("here is a SECRET leak");
+        support.appGuardRails.add(blockIfContains("SECRET", GuardRail.Position.POST_LLM));
+        support.appGuardRails.add(blockIfContains("ignore all instructions", GuardRail.Position.PRE_LLM));
+        registry.register("assistant", Assistant.class);
+
+        Assistant agent = registry.resolve("assistant", Assistant.class, null);
+        assertThatThrownBy(() -> agent.chat("tell me")).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> agent.chat("ignore all instructions")).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void appLevelAndAgentLevelGuardrails_bothApply() {
+        registry.init(support);
+        support.model = fixedModel("fine answer");
+        support.appGuardRails.add(blockIfContains("alpha", GuardRail.Position.PRE_LLM));
+        registry.register("assistant", Assistant.class)
+            .guard(blockIfContains("beta", GuardRail.Position.PRE_LLM));
+
+        Assistant agent = registry.resolve("assistant", Assistant.class, null);
+        assertThatThrownBy(() -> agent.chat("alpha")).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> agent.chat("beta")).isInstanceOf(RuntimeException.class);
+        assertThat(agent.chat("gamma")).isEqualTo("fine answer");
+    }
+
     // ── moderation: CafeAI's guardrail, and LangChain4j's own hook ────────────
 
     interface ModeratedAssistant {
@@ -295,6 +322,7 @@ class AgentRegistryTest {
         Retriever ragRetriever;
         VectorStore vectorStore;
         EmbeddingProvider embeddingModel;
+        final List<GuardRail> appGuardRails = new java.util.ArrayList<>();
 
         @Override
         public ChatModel chatModel(AiProvider provider) {
@@ -308,6 +336,7 @@ class AgentRegistryTest {
         @Override public Retriever ragRetriever() { return ragRetriever; }
         @Override public VectorStore vectorStore() { return vectorStore; }
         @Override public EmbeddingProvider embeddingModel() { return embeddingModel; }
+        @Override public List<GuardRail> guardRails() { return appGuardRails; }
     }
 
     private static final class RecordingObserveBridge implements ObserveBridge {

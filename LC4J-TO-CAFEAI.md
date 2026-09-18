@@ -517,7 +517,8 @@ things worth knowing:
   LangChain4j's `AiServices`, which CafeAI does not intercept.
 - **Inside `app.agent(...)`**, `GuardrailAdapters` (§2.3) wraps a `GuardRail` as
   LangChain4j's `InputGuardrail`/`OutputGuardrail` so `AiServices` applies it
-  natively, before its own reasoning loop starts. Both paths honour the
+  natively, before its own reasoning loop starts. An agent applies every guardrail
+  registered with `app.guard(...)` plus any added with the agent's own `.guard(...)`. Both paths honour the
   guardrail's `Action` (`BLOCK` fails the call; `WARN`/`LOG` record and go on).
 - **One guardrail is a LangChain4j type on purpose.** `GuardRail.moderation(model)`
   takes LangChain4j's own `ModerationModel` — any provider's — and adds no

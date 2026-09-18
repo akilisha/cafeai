@@ -25,8 +25,9 @@ import java.util.Set;
  *       {@code /v1/audio/transcriptions} endpoint directly via {@code java.net.http}
  *       (multipart/form-data). The transcript is then optionally sent back through
  *       {@code app.prompt()} for further reasoning.</li>
- *   <li><strong>Gemini</strong> — {@code AudioContent} is supported natively
- *       via the chat completions path.</li>
+ *   <li><strong>Any other provider that declares {@code supportsAudio()}</strong> — the audio is sent as
+ *       LangChain4j {@code AudioContent} through the chat path. None of the built-in providers other
+ *       than OpenAI declares it; a custom {@code AiProvider} can.</li>
  * </ul>
  *
  * <p>Package-private — internal to {@code CafeAIApp}.

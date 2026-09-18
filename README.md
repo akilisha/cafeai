@@ -252,7 +252,7 @@ app.guard(GuardRail.topicBoundary()      // scope enforcement
     .deny("politics", "medical advice"))
 ```
 
-### Agents, Tools & MCP &nbsp;<sub>🚧 planned — see ROADMAP-12</sub>
+### Agents & Tools
 ```java
 // You define a typed interface; CafeAI binds it to a LangChain4j AiService —
 // which owns the reasoning loop, tool dispatch, and chat memory — and gives it

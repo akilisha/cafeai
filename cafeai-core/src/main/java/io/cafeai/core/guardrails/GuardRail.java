@@ -14,7 +14,7 @@ import io.cafeai.core.middleware.Middleware;
  * by the engine to every {@code app.prompt()}, {@code .vision()} and {@code .audio()} call —
  * streamed or not — using {@link #checkInput(String)} on the text the model is about to see and
  * {@link #checkOutput(String)} on what it returned, and to {@code app.agent(...)} through the
- * LangChain4j guardrail adapters. Its {@link Action} decides what a violation does:
+ * LangChain4j guardrail adapters (an agent applies the app's guardrails plus its own). Its {@link Action} decides what a violation does:
  * <ul>
  *   <li>{@code BLOCK} — input throws {@link GuardRailViolationException} and <em>no model call is
  *       made</em>; output is replaced with a refusal.</li>

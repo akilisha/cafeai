@@ -3,10 +3,13 @@ package io.cafeai.core.spi;
 import dev.langchain4j.model.chat.ChatModel;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.agents.AgentConfig;
+import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.rag.EmbeddingProvider;
 import io.cafeai.core.rag.Retriever;
 import io.cafeai.core.rag.VectorStore;
+
+import java.util.List;
 
 /**
  * SPI that lets {@code cafeai-agents} provide agent registration and resolution
@@ -83,5 +86,11 @@ public interface AgentBridge {
 
         /** The application-level embedding model from {@code app.embed(...)}, or {@code null}. */
         default EmbeddingProvider embeddingModel() { return null; }
+
+        /**
+         * The guardrails registered with {@code app.guard(...)}. An agent applies these
+         * together with any it registers itself.
+         */
+        default List<GuardRail> guardRails() { return List.of(); }
     }
 }

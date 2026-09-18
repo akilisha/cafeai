@@ -76,8 +76,9 @@ public final class AgentConfig<T> {
     }
 
     /**
-     * Adds guardrails to this agent. Applied before the reasoning loop begins —
-     * the LLM is never called if a guardrail fires.
+     * Adds guardrails to this agent, on top of the ones registered with
+     * {@code app.guard(...)}, which every agent already applies. Input guardrails run
+     * before the reasoning loop begins — the LLM is never called if one fires.
      */
     public AgentConfig<T> guard(GuardRail... rails) {
         for (GuardRail r : rails) guardRails.add(r);

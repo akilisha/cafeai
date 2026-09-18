@@ -103,6 +103,9 @@ public final class OpenAI {
         @Override public ProviderType type()          { return ProviderType.OPENAI; }
         // Modern OpenAI chat models are broadly multimodal; let the API reject the exception.
         @Override public boolean      supportsVision() { return true; }
+        // Audio goes to OpenAI's transcription endpoint whatever the chat model is, and the transcript
+        // is then reasoned over by this model, so every OpenAI chat provider can take audio.
+        @Override public boolean      supportsAudio()  { return true; }
     }
 
     /**

@@ -119,10 +119,14 @@ public final class AgentRegistry implements AgentBridge {
             builder.tools(new ArrayList<>(tools));
         }
 
-        // -- guardrails ----------------------------------------------------
+        // -- guardrails: the app's, then the agent's own ----------------------
         List<InputGuardrail>  inputRails  = new ArrayList<>();
         List<OutputGuardrail> outputRails = new ArrayList<>();
+        List<GuardRail> rails = new ArrayList<>(support.guardRails());
         for (GuardRail rail : config.guardRails()) {
+            if (!rails.contains(rail)) rails.add(rail);
+        }
+        for (GuardRail rail : rails) {
             GuardRail.Position pos = rail.position();
             if (pos == GuardRail.Position.PRE_LLM || pos == GuardRail.Position.BOTH) {
                 inputRails.add(GuardrailAdapters.asInput(rail));
