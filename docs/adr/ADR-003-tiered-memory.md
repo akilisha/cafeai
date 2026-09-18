@@ -1,7 +1,8 @@
 # ADR-003: Tiered Memory Architecture
 
-**Status:** Accepted  
-**Date:** March 2026
+**Status:** Accepted — Amended September 2026  
+**Date:** March 2026  
+**Amended:** September 2026 (rungs 3 and 5 were never built and are removed — see "Amendment" below)
 
 ## Context
 
@@ -55,6 +56,29 @@ Redis is excellent. But it introduces:
 These are reasonable tradeoffs when you genuinely need distributed state. They are
 unreasonable defaults for single-node deployments. CafeAI's architecture makes the
 tradeoff explicit and deliberate.
+
+## Amendment — September 2026: rungs 3 and 5 were never built
+
+The ladder above names six rungs. Two of them never existed:
+
+- **Rung 3, Chronicle Map.** `MemoryStrategy.chronicle()` was a stub that threw
+  `UnsupportedOperationException("not yet implemented")`, while `cafeai-memory`
+  shipped the Chronicle Map jar (an early-access build) on every consumer's runtime
+  classpath "for a future impl" — and nothing imported it. The README advertised
+  `app.memory(MemoryStrategy.chronicle())` as a working option.
+- **Rung 5, Memcached.** There was no code at all — only a dependency-version pin
+  that nothing used, and README lines describing it as a distributed tier.
+
+**Decision:** remove both. Delete `MemoryStrategy.chronicle()`, the Chronicle Map
+dependency and its version pin, the unused Memcached pin, and the docs that
+advertised either. The decision this ADR exists to record is unchanged: start on
+the heap, use SSD-backed FFM for single-node production, and treat Redis as the
+escape valve. What is actually built is rung 1 (`inMemory()`), rung 2 (`mapped()`),
+rung 4 (`redis(...)`) and the hybrid tier (`hybrid()`). Rung numbers elsewhere
+are historical and were left as they were, so the ladder skips 3.
+
+If a single-node off-heap tier beyond FFM is ever needed, it should be proposed
+afresh — with an implementation — rather than reserved as a stub.
 
 ## Consequences
 

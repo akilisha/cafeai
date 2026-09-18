@@ -208,7 +208,6 @@ app.template("name", "{{variable}}")     // named prompt templates
 ```java
 app.memory(MemoryStrategy.inMemory())     // Rung 1: JVM HashMap — prototype
 app.memory(MemoryStrategy.mapped())      // Rung 2: SSD-backed via Java FFM
-app.memory(MemoryStrategy.chronicle())   // Rung 3: Chronicle Map off-heap
 app.memory(MemoryStrategy.redis(config)) // Rung 4: Redis — the escape valve
 app.memory(MemoryStrategy.hybrid())      // Rung 5: warm SSD + cold Redis
 ```
@@ -321,10 +320,10 @@ cafeai/
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-config         ← File-based config (application.properties/.yaml + profiles) for AppConfig
 ├── cafeai-agents         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
-├── cafeai-memory         ← Tiered context memory (FFM, Chronicle, Redis, Memcached)
+├── cafeai-memory         ← Tiered context memory (in-memory, FFM/SSD, Redis)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
 ├── cafeai-guardrails     ← PII, jailbreak, bias, hallucination, regulatory compliance
-├── cafeai-observability  ← OpenTelemetry, metrics, eval harness, prompt versioning
+├── cafeai-observability  ← OpenTelemetry tracing, console logging, eval harness
 ├── cafeai-security       ← Prompt injection, data leakage, semantic cache poisoning
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
@@ -349,7 +348,7 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 | 5    | Tool use / MCP        | Giving the AI actions to take                      |
 | 6    | Guardrails            | Safety, ethics, compliance as middleware           |
 | 7    | Agents                | Typed agent interfaces, tool-call loops via LangChain4j |
-| 8    | Observability + Evals | Production measurement, prompt versioning          |
+| 8    | Observability + Evals | Production measurement, eval harness               |
 | 9    | Streaming             | SSE, backpressure, real-time UX                    |
 | 10   | Security              | Injection, leakage, adversarial robustness         |
 
@@ -374,8 +373,7 @@ CafeAI treats modern Java (21–23) features as load-bearing architecture — no
 ```
 Hot    →  JVM Heap           (active conversation turn)
 Warm   →  FFM MemorySegment  (recent sessions — SSD-backed, no network)
-Cool   →  Chronicle Map      (high-throughput off-heap, single node)
-Cold   →  Redis / Memcached  (distributed — the escape valve)
+Cold   →  Redis               (distributed — the escape valve)
 Frozen →  Vector DB          (semantic long-term memory, RAG corpus)
 ```
 
@@ -388,14 +386,14 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 | Concern           | Technology                        | Version        |
 |-------------------|-----------------------------------|----------------|
 | Runtime           | Java                              | 23+            |
-| HTTP Server       | Helidon SE                        | 4.4.0          |
-| AI Framework      | LangChain4j                       | 1.11.0         |
-| LLM Providers     | OpenAI, Anthropic, Ollama, Jlama  | —              |
-| Off-heap Memory   | Java FFM / Chronicle Map          | JDK 23 / 3.25  |
-| Distributed Cache | Redis (Lettuce) / Memcached       | 6.3 / 2.12     |
+| HTTP Server       | Helidon SE                        | 4.5.5          |
+| AI Framework      | LangChain4j                       | 1.20.0         |
+| LLM Providers     | OpenAI, Anthropic, Gemini, NVIDIA, Ollama, Jlama | —  |
+| Off-heap Memory   | Java FFM                          | JDK 23         |
+| Distributed Cache | Redis (Lettuce)                   | 6.3.2          |
 | Vector DB         | PgVector / Chroma                 | —              |
 | Observability     | OpenTelemetry                     | 1.40.0         |
-| PII Detection     | Apache OpenNLP                    | 2.3.3          |
+| PII Detection     | Built-in regex patterns           | —              |
 | Build             | Gradle (Groovy DSL)               | 9.7.1          |
 
 ---

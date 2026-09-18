@@ -107,7 +107,7 @@ cafeai/
 ├── cafeai-memory/          ← Tiered context memory
 ├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
 ├── cafeai-guardrails/      ← PII, jailbreak, bias, hallucination, regulatory
-├── cafeai-observability/   ← OpenTelemetry, metrics, eval harness
+├── cafeai-observability/   ← OpenTelemetry tracing, console logging, eval harness
 ├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
 ├── cafeai-security/        ← Prompt injection, data leakage, cache poisoning
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector

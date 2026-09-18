@@ -134,7 +134,7 @@ graph TD
     end
 
     subgraph Infra["Infrastructure"]
-        MemTier["Tiered Memory\nFFM · Chronicle · Redis"]
+        MemTier["Tiered Memory\nFFM · Redis"]
         VectorDB["Vector DB\nPgVector · Chroma"]
         Providers["LLM Providers\nOpenAI · Anthropic · Ollama"]
         OTel["OpenTelemetry\nCollector"]
@@ -362,11 +362,10 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | Concern | Technology | Version | Rationale |
 |---|---|---|---|
 | Runtime | Java | 23+ | FFM, Vector API (Jlama), Virtual Threads |
-| HTTP Server | Helidon SE | 4.4.0 | Pure SE (no injection framework), LTS release |
+| HTTP Server | Helidon SE | 4.5.5 | Pure SE (no injection framework), LTS release |
 | AI Framework | LangChain4j | 1.20.0 | `AiServices`, providers, `@Tool`, MCP, `ChatMemory` |
 | LLM Providers | OpenAI / Anthropic / Ollama / Jlama | — | Provider-agnostic — swap without changing app logic |
 | Memory Tier 1–2 | Java FFM `MemorySegment` | JDK 23 | Off-heap, SSD-backed, no GC pressure, no network |
-| Memory Tier 3 | Chronicle Map | 3.25 | Designed for off-heap key-value, high-throughput |
 | Memory Tier 4–5 | Redis via Lettuce | 6.3 | Reactive, non-blocking distributed cache |
 | Vector DB | PgVector / Chroma | — | PgVector for enterprise; Chroma for local |
 | Embeddings | ONNX via FFM / OpenAI | — | Local via FFM; remote via API |
@@ -397,8 +396,7 @@ and escalating only when the problem demands it.
 ```
 Hot    →  JVM Heap            (active conversation turn — current request)
 Warm   →  FFM MemorySegment   (recent sessions — SSD-backed, OS page cache managed)
-Cool   →  Chronicle Map       (high-throughput off-heap, single node)
-Cold   →  Redis / Memcached   (distributed — the escape valve)
+Cold   →  Redis               (distributed — the escape valve)
 Frozen →  Vector DB           (semantic long-term memory, RAG corpus)
 ```
 
@@ -428,7 +426,7 @@ cafeai/
 ├── cafeai-memory/                      ← Tiered context memory
 ├── cafeai-rag/                         ← RAG pipeline, vector stores, ingestion
 ├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
-├── cafeai-observability/               ← OTel, metrics, evals, prompt versioning
+├── cafeai-observability/               ← OpenTelemetry tracing, console logging, evals
 ├── cafeai-security/                    ← Prompt injection, data leakage, cache poisoning
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine

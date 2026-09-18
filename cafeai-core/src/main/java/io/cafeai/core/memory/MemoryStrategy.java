@@ -16,10 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <pre>
  *   Rung 1 -> inMemory()    JVM HashMap -- zero deps, prototype/dev
  *   Rung 2 -> mapped()      SSD-backed via Java FFM MemorySegment   (cafeai-memory)
- *   Rung 3 -> chronicle()   Chronicle Map off-heap                  (cafeai-memory, stub)
  *   Rung 4 -> redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
  *   Rung 5 -> hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
  * </pre>
+ *
+ * <p>Rung numbers are historical: rung 3 (Chronicle Map) was never built and was
+ * removed, so the ladder skips it.
  *
  * <p>Rungs 2-5 require {@code com.akilisha.oss:cafeai-memory} on the classpath.
  * Adding the JAR is the only configuration needed -- no code changes required.
@@ -84,17 +86,6 @@ public interface MemoryStrategy {
      */
     static MemoryStrategy mapped(Path storageDir) {
         return loadProvider().mapped(storageDir);
-    }
-
-    /**
-     * Rung 3: Chronicle Map off-heap key-value store.
-     * Stub -- full implementation in a future release.
-     */
-    static MemoryStrategy chronicle() {
-        throw new UnsupportedOperationException(
-            "Chronicle Map memory strategy not yet implemented. " +
-            "Use MemoryStrategy.mapped() for SSD-backed off-heap storage, " +
-            "or MemoryStrategy.redis(config) for distributed storage.");
     }
 
     /**

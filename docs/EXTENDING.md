@@ -50,7 +50,7 @@ from the factory class named in the last column.
 
 | SPI | Unlocks | Implemented today by | Loaded from |
 |---|---|---|---|
-| `MemoryStrategyProvider` | `MemoryStrategy.mapped()/redis()/chronicle()/hybrid()` | `cafeai-memory` | `MemoryStrategy` |
+| `MemoryStrategyProvider` | `MemoryStrategy.mapped()/redis()/hybrid()` | `cafeai-memory` | `MemoryStrategy` |
 | `RagProvider` | `VectorStore.chroma()/pgVector()`, `EmbeddingProvider.local()/openAi()`, `Source.pdf()/file()/directory()/url()` | `cafeai-rag` | `VectorStore`, `EmbeddingProvider`, `Source` |
 | `ConfigProvider` | `AppConfig.load()` reading `application.properties`/`.yaml` + profile overlays | `cafeai-config` | `AppConfig` |
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (stubs without it) | `cafeai-guardrails` | `GuardRail` |

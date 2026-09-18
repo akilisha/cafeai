@@ -124,6 +124,17 @@ implementation 'com.akilisha.oss:cafeai-streaming:0.3.2'   // an empty jar
 variable, parsed it, then did nothing with the URLs. `McpEndpoint` was never built,
 so there is nothing to connect to; remove the variable from your environment.
 
+**9. `MemoryStrategy.chronicle()` is removed, and eight unused libraries are no
+longer on your runtime classpath.** `chronicle()` always threw
+`UnsupportedOperationException`, so no working code calls it. Separately,
+`cafeai-guardrails`, `cafeai-security`, `cafeai-observability` and `cafeai-memory`
+stopped shipping libraries none of their code used: `opennlp-tools`,
+`chronicle-map`, `helidon-security` (+ JWT provider), `helidon-tracing` (+ its
+OpenTelemetry provider), `helidon-metrics`, and a duplicate `langchain4j-core`.
+They were `implementation` dependencies, so they were never on your *compile*
+classpath; only if your own code reached for one at runtime through CafeAI's
+transitive dependencies do you now need to declare it yourself.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.

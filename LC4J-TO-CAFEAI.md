@@ -421,7 +421,7 @@ app.memory(MemoryStrategy.redis(cfg));   // Rung 4 — Lettuce (cafeai-memory)
 
 `MemoryStrategy` (`store`/`retrieve`/`evict`/`exists` against a
 `ConversationContext`) has **zero LangChain4j imports anywhere in its
-implementation** — `cafeai-memory`'s FFM/Chronicle/Redis/hybrid tiers are
+implementation** — `cafeai-memory`'s FFM/Redis/hybrid tiers are
 entirely bespoke, because LangChain4j has no tiered-storage story to
 delegate to (§1.9). LangChain4j only enters the picture when a
 `MemoryStrategy` is handed to an *agent* — at that point `cafeai-agents`
@@ -429,7 +429,7 @@ backs a `MessageWindowChatMemory` with a `CafeAiChatMemoryStore` wrapping it
 (§2.3). The plain `app.prompt()` path (§2.2) calls `MemoryStrategy` directly
 and never touches `ChatMemory`/`ChatMemoryStore` at all.
 
-**Why it exists:** the tiered ladder (heap → FFM/SSD → Chronicle → Redis →
+**Why it exists:** the tiered ladder (heap → FFM/SSD → Redis →
 hybrid) is a genuine capability gap in LangChain4j, not a rename of
 something it already provides. The one thing CafeAI guarantees is that
 *whichever tier you pick, both a plain prompt and an agent see the same
@@ -481,7 +481,7 @@ app.guard(GuardRail.regulatory().gdpr().hipaa());
 app.guard(GuardRail.topicBoundary().allow("insurance").deny("competitor pricing"));
 ```
 
-`GuardRail` (`cafeai-guardrails`: PII via Apache OpenNLP, jailbreak,
+`GuardRail` (`cafeai-guardrails`: PII via regex patterns, jailbreak,
 prompt-injection, bias, hallucination, toxicity, a GDPR/HIPAA/FCRA/CCPA/
 ECOA/fair-housing catalog, topic-boundary allow/deny) has **zero
 LangChain4j imports** — none of this exists in LangChain4j at all (§1.9);
@@ -691,7 +691,7 @@ alone does *not* hand you at this rung":
 | Rung | CafeAI capability | Gap filled beyond bare LangChain4j |
 |---|---|---|
 | 1–2 | Plain call, templates | HTTP identity, config-driven timeouts, actionable key errors |
-| 3 | Memory | Tiered storage (FFM/Chronicle/Redis) — no LC4J equivalent |
+| 3 | Memory | Tiered storage (FFM/Redis) — no LC4J equivalent |
 | 4 | RAG | `VectorStore`/`EmbeddingProvider` factory ergonomics + bespoke hybrid retrieval |
 | 5–7 | Tools, guardrails, agents | A guardrail *catalog*; one config honored by both call styles (§3.3) |
 | 8 | Observability + evals | `ObserveBridge` dual-wiring; `EvalHarness` (no LC4J equivalent) |

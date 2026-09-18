@@ -1,24 +1,19 @@
 // ============================================================
 //  cafeai-observability
-//  Tracing, metrics, eval harness, and prompt versioning.
-//  Every LLM call is a traced, measured, scored event.
-//  OpenTelemetry is the primary integration — Helidon SE
-//  has first-class OTel support built in.
+//  Tracing and an eval harness.
+//  Every LLM call is a traced, scored event.
+//  OpenTelemetry is the primary integration; a console
+//  strategy covers local development.
 // ============================================================
 
-description = 'Tracing, metrics, an eval harness, and prompt versioning for CafeAI, ' +
-    'built on OpenTelemetry.'
+description = 'Tracing and an eval harness for CafeAI, built on OpenTelemetry, ' +
+    'with a console strategy for local development.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 
 dependencies {
 
     api project(':cafeai-core')
-
-    // ── Helidon OTel integration ─────────────────────────────
-    implementation 'io.helidon.tracing:helidon-tracing'
-    implementation 'io.helidon.tracing.providers:helidon-tracing-providers-opentelemetry'
-    implementation 'io.helidon.metrics:helidon-metrics'
 
     // ── OpenTelemetry ────────────────────────────────────────
     implementation "io.opentelemetry:opentelemetry-api:${rootProject.ext.opentelemetryVersion}"

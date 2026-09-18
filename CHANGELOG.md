@@ -41,6 +41,25 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   variable and then did nothing with it (an empty loop body). `McpEndpoint` was
   never built. Also dropped "MCP" from the `cafeai-connect` description and the
   docs that claimed it.
+- **`MemoryStrategy.chronicle()`**, a stub that threw "not yet implemented" while
+  the README advertised `app.memory(MemoryStrategy.chronicle())` as a working
+  option. Its Chronicle Map dependency (an early-access build, imported by
+  nothing) rode along on every `cafeai-memory` consumer's runtime classpath.
+  ADR-003 is amended: rungs 3 (Chronicle Map) and 5 (Memcached — which had no
+  code at all) were never built.
+- **Eight unused dependencies**, none referenced by any source or resource file,
+  all `implementation` scope and so shipped to consumers' runtime classpaths:
+  `opennlp-tools` (`cafeai-guardrails` — PII detection is regex), `chronicle-map`
+  (`cafeai-memory`), `helidon-security` and its JWT provider (`cafeai-security`),
+  `helidon-tracing`, its OpenTelemetry provider and `helidon-metrics`
+  (`cafeai-observability` — it calls the OpenTelemetry API directly), plus a
+  redundant `langchain4j-core` in guardrails and security. A consumer of the full
+  stack goes from 373 to 293 runtime artifacts.
+- **Documentation claims with nothing behind them**, corrected in the README,
+  GETTING-STARTED, SPEC, EXTENDING and the LC4J guide: `MemoryStrategy.chronicle()`,
+  Memcached, "PII detection: Apache OpenNLP", observability "metrics" and "prompt
+  versioning" (neither exists), and stale Helidon / LangChain4j versions and
+  provider list in the README's technology table.
 
 ### Fixed
 
