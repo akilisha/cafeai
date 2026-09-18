@@ -2168,6 +2168,11 @@ public final class CafeAIApp implements CafeAI {
             return requestContexts.computeIfAbsent(helidonReq, k -> {
                 var req = new HelidonRequest(helidonReq, this);
                 var res = new HelidonResponse(helidonRes);
+                // Pair them: res.request(), req.response(), res.app() and res.format()
+                // (which reads the request's Accept header) all depend on this.
+                req.setPairedResponse(res);
+                res.setPairedRequest(req);
+                res.setApp(this);
                 return new RequestContext(req, res);
             });
         }

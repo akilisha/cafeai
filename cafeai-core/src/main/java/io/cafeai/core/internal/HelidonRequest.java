@@ -26,6 +26,7 @@ final class HelidonRequest implements Request {
     private final ServerRequest helidonReq;
     private final CafeAI app;
     private final Map<String, Object> attributes = new ConcurrentHashMap<>();
+    private Response pairedResponse;
 
     // Body parsed by middleware -- set lazily
     private Map<String, Object> parsedBody;
@@ -238,33 +239,78 @@ final class HelidonRequest implements Request {
         return contentType.contains(type);
     }
 
+    @Override public String accepts(String... types)          { return Negotiation.media(header("Accept"), types); }
+    @Override public String acceptsCharsets(String... c)      { return Negotiation.charset(header("Accept-Charset"), c); }
+    @Override public String acceptsEncodings(String... e)     { return Negotiation.encoding(header("Accept-Encoding"), e); }
+    @Override public String acceptsLanguages(String... l)     { return Negotiation.language(header("Accept-Language"), l); }
+
+    private Map<String, String> parsedCookies;
+
     @Override
-    public String accepts(String... types) {
-        String accept = header("Accept");
-        if (accept == null) return types.length > 0 ? types[0] : null;
-        for (String type : types) {
-            if (accept.contains(type) || accept.contains("*/*")) return type;
-        }
-        return null;
+    public Map<String, String> cookies() {
+        if (parsedCookies == null) parsedCookies = CookieHeader.parse(header("Cookie"));
+        return parsedCookies;
     }
 
-    @Override public String acceptsCharsets(String... c)  { return c.length > 0 ? c[0] : null; }
-    @Override public String acceptsEncodings(String... e) { return e.length > 0 ? e[0] : null; }
-    @Override public String acceptsLanguages(String... l) { return l.length > 0 ? l[0] : null; }
+    @Override public String cookie(String name) { return cookies().get(name); }
 
-    @Override public Map<String, String> cookies()         { return Map.of(); }
-    @Override public String cookie(String name)            { return null; }
-    @Override public Map<String, String> signedCookies()   { return Map.of(); }
-    @Override public String signedCookie(String name)      { return null; }
+    @Override
+    public boolean fresh() {
+        String method = method();
+        if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) return false;
+        if (pairedResponse == null) return false;
+        if (pairedResponse instanceof HelidonResponse hr) {
+            int status = hr.statusCode();
+            if ((status < 200 || status >= 300) && status != 304) return false;
+        }
+        String cacheControl = header("Cache-Control");
+        if (cacheControl != null && cacheControl.toLowerCase(java.util.Locale.ROOT).contains("no-cache")) {
+            return false;
+        }
 
-    @Override public boolean fresh()          { return false; }
-    @Override public boolean stale()          { return true; }
-    @Override public Object range(long size)  { return null; }
+        // RFC 9110 §13.1.3: If-None-Match takes precedence over If-Modified-Since.
+        String noneMatch = header("If-None-Match");
+        if (noneMatch != null) {
+            if (noneMatch.trim().equals("*")) return true;
+            String etag = pairedResponse.header("ETag");
+            return etag != null && etagMatches(noneMatch, etag);
+        }
+        String modifiedSince = header("If-Modified-Since");
+        if (modifiedSince == null) return false;
+        java.time.Instant since   = httpDate(modifiedSince);
+        java.time.Instant changed = httpDate(pairedResponse.header("Last-Modified"));
+        return since != null && changed != null && !changed.isAfter(since);
+    }
+
+    @Override public boolean stale() { return !fresh(); }
+
+    /** Weak comparison (RFC 9110 §8.8.3.2): {@code W/"x"} and {@code "x"} match. */
+    private static boolean etagMatches(String ifNoneMatch, String etag) {
+        String target = etag.trim().replaceFirst("^W/", "");
+        for (String candidate : ifNoneMatch.split(",")) {
+            if (candidate.trim().replaceFirst("^W/", "").equals(target)) return true;
+        }
+        return false;
+    }
+
+    private static java.time.Instant httpDate(String value) {
+        if (value == null) return null;
+        try {
+            return java.time.ZonedDateTime
+                .parse(value.trim(), java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+                .toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
 
     @Override
     public Response response() {
-        return (Response) attributes.get("_response");
+        return pairedResponse;
     }
+
+    /** Set once by {@code CafeAIApp} when it pairs this request with its response. */
+    void setPairedResponse(Response res) { this.pairedResponse = res; }
 
     @Override
     public boolean stream() {

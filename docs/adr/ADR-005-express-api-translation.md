@@ -11,6 +11,17 @@ That design was dropped — CafeAI binds LangChain4j `AiServices`. See
 [ROADMAP-12](../roadmap/ROADMAP-12-agents.md). The table below reflects the
 current shape.
 
+**Amendment (2026-09, verdicts corrected):** several rows below read "✅ Adopted" for
+members whose implementation was a stub returning a fixed value — `req.cookies()` was
+`Map.of()`, `req.fresh()` was `false`, `req.acceptsCharsets/Encodings/Languages()` returned
+the first offer whatever the client sent, and `res.render()` threw. A verdict of
+"Adopted" now means the behaviour exists and is tested. `req.cookies()`, `req.cookie()`,
+`req.accepts*()` (with `q`-value negotiation), `req.fresh()` / `req.stale()` and
+`res.render()` were implemented. `req.signedCookies` / `req.signedCookie` and
+`req.range` are now **Omitted**: signing needs an application secret CafeAI has no
+configuration for (and `CookieOptions.signed(true)` silently sent an unsigned cookie),
+and `range` returned an untyped `Object`. Add them back only with a design and tests.
+
 ---
 
 ## Purpose
@@ -578,7 +589,7 @@ See ADR-009 §2 for the full rationale.
 | `req.res` | `req.response()` | 🔄 Translated | `res` is too terse as a Java method name |
 | `req.route` | `req.route()` | ✅ Adopted | |
 | `req.secure` | `req.secure()` | ✅ Adopted | Shorthand for `req.protocol().equals("https")` |
-| `req.signedCookies` | `req.signedCookies()` / `req.signedCookie(String)` | ✅ Adopted | |
+| `req.signedCookies` | ❌ Omitted | Signing needs an application secret CafeAI has no setting for. The old `CookieOptions.signed(true)` flag was never honoured — it sent an unsigned cookie — so it was removed rather than left to imply protection. |
 | `req.stale` | `req.stale()` | ✅ Adopted | Opposite of `req.fresh()` |
 | `req.subdomains` | `req.subdomains()` | 🔄 Translated | Returns `List<String>` |
 | `req.xhr` | `req.xhr()` | ✅ Adopted | Detects `X-Requested-With: XMLHttpRequest` |
@@ -606,7 +617,7 @@ Detected via `Accept: text/event-stream` header. The AI-native companion to `req
 | `req.get(headerName)` | `req.header(String)` | 🔄 Translated | `req.get()` conflicts with getter convention in Java beans. `req.header("Authorization")` is clearer and matches HTTP semantics |
 | `req.is(type)` | `req.is(String)` | ✅ Adopted | Content-type check |
 | `req.param(name)` | ❌ Omitted | Express deprecated this in 4.x — use `req.params()`, `req.body()`, `req.query()` explicitly. CafeAI does not resurrect deprecated APIs. |
-| `req.range(size)` | `req.range(long size)` | ✅ Adopted | Returns `List<Range>` |
+| `req.range(size)` | ❌ Omitted | Was declared to return an untyped `Object` and always returned `null`. Not built. |
 
 **AI Extension — `req.attribute()`:**
 

@@ -272,52 +272,52 @@ public interface Request {
     boolean is(String type);
 
     /**
-     * Returns the best {@code Accept} match for the given content types.
-     * Returns {@code null} if no match is found.
+     * Returns the offered content type the client prefers, per its {@code Accept} header:
+     * highest {@code q} first, then the most specific range, then the order you listed.
+     * A type with {@code q=0} is refused. Accepts full MIME types or the short names
+     * {@code json}, {@code html}, {@code text}, {@code xml}, {@code css}, {@code js}; the
+     * value returned is the one you passed in. With no {@code Accept} header the first offer
+     * wins. Returns {@code null} if none is acceptable.
      * Mirrors Express {@code req.accepts()}.
      */
     String accepts(String... types);
 
-    /** Returns the best {@code Accept-Charset} match. Mirrors Express {@code req.acceptsCharsets()}. */
+    /** Best {@code Accept-Charset} match (same rules as {@link #accepts}), or {@code null}. Mirrors Express {@code req.acceptsCharsets()}. */
     String acceptsCharsets(String... charsets);
 
-    /** Returns the best {@code Accept-Encoding} match. Mirrors Express {@code req.acceptsEncodings()}. */
+    /** Best {@code Accept-Encoding} match (same rules as {@link #accepts}), or {@code null}. Mirrors Express {@code req.acceptsEncodings()}. */
     String acceptsEncodings(String... encodings);
 
-    /** Returns the best {@code Accept-Language} match. Mirrors Express {@code req.acceptsLanguages()}. */
+    /**
+     * Best {@code Accept-Language} match (same rules as {@link #accepts}), or {@code null}.
+     * A range matches more specific tags, so {@code en} accepts an offered {@code en-US}.
+     * Mirrors Express {@code req.acceptsLanguages()}.
+     */
     String acceptsLanguages(String... languages);
 
     // ── Cookies ───────────────────────────────────────────────────────────────
 
     /**
-     * Returns all cookies as an unmodifiable map.
-     * Requires {@code Middleware.cookieParser()} to be registered.
-     * Returns an empty map if cookie middleware is absent.
+     * The request's cookies, parsed from the {@code Cookie} header, as an unmodifiable
+     * map (empty if there are none). No middleware is needed. Values are percent-decoded
+     * when validly encoded, and the first occurrence of a repeated name wins.
      * Mirrors Express {@code req.cookies}.
      */
     Map<String, String> cookies();
 
-    /**
-     * Returns the value of a named cookie.
-     * Returns {@code null} if absent or cookie middleware not registered.
-     */
+    /** The value of a named cookie, or {@code null} if the request did not send it. */
     String cookie(String name);
-
-    /**
-     * Returns verified signed cookies.
-     * Requires {@code Middleware.cookieParser(secret)} to be registered.
-     * Mirrors Express {@code req.signedCookies}.
-     */
-    Map<String, String> signedCookies();
-
-    /** Returns a single verified signed cookie value. */
-    String signedCookie(String name);
 
     // ── Cache Freshness ───────────────────────────────────────────────────────
 
     /**
-     * {@code true} if the request is "fresh" — ETag or Last-Modified matches
-     * the cached version. Mirrors Express {@code req.fresh}.
+     * {@code true} if the client's cached copy is still current, so a {@code 304 Not Modified}
+     * is appropriate. Compares {@code If-None-Match} to the response's {@code ETag} (weak
+     * comparison), or, when that header is absent, {@code If-Modified-Since} to its
+     * {@code Last-Modified}. Only {@code GET}/{@code HEAD} with a 2xx or 304 response can be
+     * fresh, and {@code Cache-Control: no-cache} forces stale. <strong>Set the response's
+     * {@code ETag} / {@code Last-Modified} before calling this</strong> — it reads them.
+     * Mirrors Express {@code req.fresh}.
      */
     boolean fresh();
 
@@ -326,18 +326,6 @@ public interface Request {
      * Mirrors Express {@code req.stale}.
      */
     boolean stale();
-
-    // ── Range ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Parses the {@code Range} header for the given content size.
-     * Returns a list of byte range objects.
-     * Returns {@code null} if no Range header is present.
-     * Returns {@code -1} for an unsatisfiable range.
-     * Returns {@code -2} for a malformed Range header.
-     * Mirrors Express {@code req.range(size)}.
-     */
-    Object range(long size);
 
     // ── Paired Response ───────────────────────────────────────────────────────
 

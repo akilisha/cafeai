@@ -16,7 +16,6 @@ public final class CookieOptions {
     private SameSite sameSite = SameSite.LAX;
     private String domain;
     private String path = "/";
-    private boolean signed = false;
 
     private CookieOptions() {}
 
@@ -29,7 +28,6 @@ public final class CookieOptions {
     public SameSite sameSite()    { return sameSite; }
     public String domain()        { return domain; }
     public String path()          { return path; }
-    public boolean signed()       { return signed; }
 
     /** SameSite cookie attribute values. */
     public enum SameSite { STRICT, LAX, NONE }
@@ -44,7 +42,6 @@ public final class CookieOptions {
         public Builder sameSite(SameSite sameSite) { opts.sameSite = sameSite; return this; }
         public Builder domain(String domain)       { opts.domain = domain; return this; }
         public Builder path(String path)           { opts.path = path; return this; }
-        public Builder signed(boolean signed)      { opts.signed = signed; return this; }
 
         public CookieOptions build() { return opts; }
     }

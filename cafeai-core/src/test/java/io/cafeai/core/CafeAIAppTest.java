@@ -622,7 +622,7 @@ class CafeAIAppTest {
                 .sameSite(CookieOptions.SameSite.STRICT)
                 .domain("example.com")
                 .path("/api")
-                .signed(true)
+                .expires(java.time.Instant.parse("2030-01-01T00:00:00Z"))
                 .build();
 
         assertThat(opts.maxAge()).isEqualTo(Duration.ofHours(1));
@@ -631,7 +631,7 @@ class CafeAIAppTest {
         assertThat(opts.sameSite()).isEqualTo(CookieOptions.SameSite.STRICT);
         assertThat(opts.domain()).isEqualTo("example.com");
         assertThat(opts.path()).isEqualTo("/api");
-        assertThat(opts.signed()).isTrue();
+        assertThat(opts.expires()).isEqualTo(java.time.Instant.parse("2030-01-01T00:00:00Z"));
     }
 
     // ── Middleware Composition ────────────────────────────────────────────────

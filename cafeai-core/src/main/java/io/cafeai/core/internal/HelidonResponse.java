@@ -15,9 +15,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Adapts a Helidon {@link ServerResponse} to the CafeAI {@link Response} interface.
@@ -37,6 +39,12 @@ public final class HelidonResponse implements Response {
         new com.fasterxml.jackson.databind.ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
+    /** RFC 9110 IMF-fixdate, e.g. {@code Tue, 01 Jan 2030 00:00:00 GMT} (two-digit day). */
+    private static final java.time.format.DateTimeFormatter HTTP_DATE =
+        java.time.format.DateTimeFormatter
+            .ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", java.util.Locale.ENGLISH)
+            .withZone(java.time.ZoneOffset.UTC);
+
     private final ServerResponse helidonRes;
     private final Map<String, Object> locals = new ConcurrentHashMap<>();
 
@@ -50,6 +58,9 @@ public final class HelidonResponse implements Response {
 
     void setPairedRequest(Request req) { this.pairedRequest = req; }
     void setApp(CafeAI app)            { this.app = app; }
+
+    /** The status code currently set on the response (Helidon defaults it to 200). */
+    int statusCode() { return helidonRes.status().code(); }
 
     // -- Application Reference -------------------------------------------------
 
@@ -224,6 +235,9 @@ public final class HelidonResponse implements Response {
         if (options.maxAge() != null) {
             sb.append("; Max-Age=").append(options.maxAge().getSeconds());
         }
+        if (options.expires() != null) {
+            sb.append("; Expires=").append(HTTP_DATE.format(options.expires()));
+        }
         if (options.domain() != null) {
             sb.append("; Domain=").append(options.domain());
         }
@@ -272,23 +286,37 @@ public final class HelidonResponse implements Response {
     @Override
     public void format(ContentMap contentMap) {
         String accept = pairedRequest != null ? pairedRequest.header("Accept") : null;
-        if (accept == null) accept = "*/*";
-        for (var entry : contentMap.handlers().entrySet()) {
-            if (accept.contains(entry.getKey()) || accept.contains("*/*")) {
-                type(entry.getKey());
-                entry.getValue().run();
-                return;
-            }
+        var handlers = contentMap.handlers();
+        String chosen = Negotiation.media(accept, handlers.keySet().toArray(String[]::new));
+        if (chosen == null) {
+            sendStatus(406);
+            return;
         }
-        sendStatus(406);
+        type(chosen);
+        handlers.get(chosen).run();
     }
 
     // -- Rendering -------------------------------------------------------------
 
     @Override
-    public void render(String view, Map<String, Object> locals) {
-        throw new UnsupportedOperationException(
-            "res.render() requires app.engine() registration -- ROADMAP-02 Phase 8");
+    public void render(String view, Map<String, Object> viewLocals) {
+        if (app == null) {
+            throw new IllegalStateException(
+                "res.render() needs the response to be paired with its app, which "
+                + "CafeAI does when it dispatches a request");
+        }
+        // Precedence, lowest to highest: app.locals() < res.locals() < viewLocals.
+        // The app's renderer layers app.locals() underneath what we pass.
+        Map<String, Object> merged = new LinkedHashMap<>(locals);
+        if (viewLocals != null) merged.putAll(viewLocals);
+
+        var html    = new AtomicReference<String>();
+        var failure = new AtomicReference<Throwable>();
+        app.render(view, merged, (err, out) -> { failure.set(err); html.set(out); });
+
+        if (failure.get() instanceof RuntimeException re) throw re;
+        if (failure.get() != null) throw new RuntimeException(failure.get());
+        send(html.get());   // send() defaults the Content-Type to text/html
     }
 
     @Override

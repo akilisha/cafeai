@@ -60,8 +60,38 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   Memcached, "PII detection: Apache OpenNLP", observability "metrics" and "prompt
   versioning" (neither exists), and stale Helidon / LangChain4j versions and
   provider list in the README's technology table.
+- **Signed cookies, and `req.range()`.** `req.signedCookies()` / `signedCookie()` always
+  returned empty/`null`, and `CookieOptions.signed(true)` was accepted and **never
+  honoured — `res.cookie(...)` sent an unsigned cookie**, so anything relying on it for
+  tamper-protection had none. Signing needs an application secret that CafeAI has no
+  setting for, so the API is removed instead of implying protection it didn't give.
+  `req.range(size)` was declared to return an untyped `Object` and always returned
+  `null`. ADR-005 marks all of these "Omitted".
 
 ### Fixed
+
+- **The request/response pair was never wired.** `res.request()`, `req.response()`
+  and `res.app()` returned `null` (nothing set them), so `res.format()` never saw the
+  request's `Accept` header and always chose the first handler. They are now paired
+  where `CafeAIApp` builds the context, and `res.format()` negotiates properly (and
+  answers 406 when nothing matches).
+- **`res.render()` always threw** `UnsupportedOperationException` ("requires
+  app.engine() registration -- ROADMAP-02 Phase 8") even with `app.engine(...)` and a
+  view engine registered. It now renders through the app's engine and sends `text/html`;
+  locals layer as `app.locals()` < `res.locals()` < the locals you pass.
+- **`req.cookies()` / `req.cookie(name)`** returned an empty map / `null` whatever the
+  client sent — the "cookieParser middleware" their Javadoc required never existed. They
+  now parse the `Cookie` header; no middleware is needed.
+- **`req.accepts()`** used substring matching, ignoring `q`-values (`Accept:
+  text/html;q=0.1, application/json;q=0.9` selected HTML). It, and
+  `acceptsCharsets/Encodings/Languages()` — which returned the first offer regardless of
+  the header — now do real negotiation (`q`, wildcard specificity, `q=0` refusal,
+  `en` → `en-US`).
+- **`req.fresh()` / `req.stale()`** were hard-wired to `false` / `true`. They now compare
+  `If-None-Match` to the response's `ETag` (weakly) or `If-Modified-Since` to its
+  `Last-Modified`, per RFC 9110.
+- **`CookieOptions.expires(...)`** was accepted and never written. `res.cookie(...)` now
+  emits an `Expires` attribute in HTTP-date form.
 
 - **`.returning(Class)` was a no-op.** It stored the type in a field nothing
   read; the schema instruction reached the prompt only via `call(Class)`, so

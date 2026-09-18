@@ -135,6 +135,32 @@ They were `implementation` dependencies, so they were never on your *compile*
 classpath; only if your own code reached for one at runtime through CafeAI's
 transitive dependencies do you now need to declare it yourself.
 
+**10. Signed cookies and `req.range()` are removed — check any use of `signed(true)`.**
+`CookieOptions.signed(boolean)`, `req.signedCookies()`, `req.signedCookie(String)` and
+`req.range(long)` are gone. **`signed(true)` never did anything:** `res.cookie(...)` sent
+a plain, unsigned cookie, and the request side always returned nothing. If you set it
+expecting tamper-protection, you never had it — sign and verify the value yourself (an
+HMAC over the value with a secret you manage), or use a session mechanism. `req.range()`
+always returned `null`.
+
+```java
+// Before — compiled, but the cookie was NOT signed
+res.cookie("session", id, CookieOptions.builder().signed(true).build());
+
+// After — remove signed(true); protect the value yourself if you need integrity
+res.cookie("session", signedValue, CookieOptions.builder().httpOnly(true).secure(true).build());
+```
+
+**11. Behaviour fixes you may notice** (each previously returned a fixed value):
+`req.cookies()` / `req.cookie()` now return the client's cookies; `req.accepts*()` now
+honour `q`-values and the actual header; `req.fresh()` / `stale()` now evaluate the
+conditional headers; `res.format()` now picks by `Accept` and returns 406 when nothing
+matches, where it used to always run the first handler; `res.render()` now works instead
+of throwing; and `res.request()`, `req.response()`, `res.app()` now return the live
+objects instead of `null`. If you had written around any of these — for example
+reading cookies from the raw `Cookie` header, or catching the `UnsupportedOperationException`
+from `res.render()` — you can delete the workaround.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.
