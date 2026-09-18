@@ -1,15 +1,13 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.spi.CafeAIModule;
-import io.cafeai.core.spi.CafeAIRegistry;
 
 /**
- * Self-registration module for {@code cafeai-guardrails}.
+ * Announces {@code cafeai-guardrails} at startup.
  *
- * <p>Registers all guardrail implementations. Guardrails are also
- * discovered independently via {@code GuardRailProvider} SPI -- this
- * registration makes them available by name through the registry
- * for programmatic lookup.
+ * <p>The guardrail implementations are not registered here. They are
+ * discovered through the {@code GuardRailProvider} SPI, which is how
+ * {@code GuardRail.pii()} and its siblings find them.
  */
 public final class CafeAIGuardrailsModule implements CafeAIModule {
 
@@ -18,14 +16,4 @@ public final class CafeAIGuardrailsModule implements CafeAIModule {
 
     @Override
     public String version() { return CafeAIModule.versionOf(getClass()); }
-
-    @Override
-    public void register(CafeAIRegistry registry) {
-        registry.registerGuardRail("pii",              PiiGuardRail::new);
-        registry.registerGuardRail("jailbreak",        JailbreakGuardRail::new);
-        registry.registerGuardRail("prompt-injection", PromptInjectionGuardRail::new);
-        registry.registerGuardRail("toxicity",         ToxicityGuardRail::new);
-        registry.registerGuardRail("topic-boundary",   TopicBoundaryGuardRailImpl::new);
-        registry.registerGuardRail("regulatory",       RegulatoryGuardRailImpl::new);
-    }
 }

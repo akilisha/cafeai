@@ -67,7 +67,6 @@ public final class CafeAIApp implements CafeAI {
     private final List<FilterEntry> filterEntries = new ArrayList<>();
     private final List<WsEndpoint> wsEndpoints = new ArrayList<>();
     private final List<RouteEntry> routes = new ArrayList<>();
-    private final CafeAIRegistryImpl registry = new CafeAIRegistryImpl();
 
     // AI state
     private AiProvider aiProvider;
@@ -141,10 +140,8 @@ public final class CafeAIApp implements CafeAI {
     // -- Service Loader Discovery ----------------------------------------------
 
     private void discoverModules() {
-        ServiceLoader.load(CafeAIModule.class).forEach(module -> {
-            log.info("CafeAI module loaded: {} v{}", module.name(), module.version());
-            module.register(registry);
-        });
+        ServiceLoader.load(CafeAIModule.class).forEach(module ->
+            log.info("CafeAI module loaded: {} v{}", module.name(), module.version()));
     }
 
     private void discoverConfigurers() {

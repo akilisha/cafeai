@@ -1,11 +1,18 @@
 package io.cafeai.core.spi;
 
 /**
- * Implemented by CafeAI modules to self-register their capabilities.
+ * Implemented by CafeAI modules so their presence is announced at startup.
  *
- * <p>When a {@code cafeai-*} module JAR is added to the classpath, it
- * registers its capabilities automatically via {@link java.util.ServiceLoader}
- * -- no configuration required. Adding the JAR is the configuration.
+ * <p>When a {@code cafeai-*} module JAR is on the classpath, CafeAI discovers it
+ * via {@link java.util.ServiceLoader} and logs its name and version
+ * ({@code CafeAI module loaded: cafeai-rag v0.4.0}). Adding the JAR is the
+ * configuration.
+ *
+ * <p><strong>Informational, not load-bearing.</strong> A module's capabilities
+ * are wired through the provider SPIs ({@code GuardRailProvider},
+ * {@code RagProvider}, ...), which are discovered independently — this interface
+ * does not register anything. A module works whether or not it implements it;
+ * implement it so the module shows up in the startup log.
  *
  * <p>Modules declare themselves in:
  * {@code META-INF/services/io.cafeai.core.spi.CafeAIModule}
@@ -15,11 +22,6 @@ package io.cafeai.core.spi;
  *   public class PineconeModule implements CafeAIModule {
  *       @Override public String name()    { return "cafeai-pinecone"; }
  *       @Override public String version() { return CafeAIModule.versionOf(getClass()); }
- *
- *       @Override
- *       public void register(CafeAIRegistry registry) {
- *           registry.registerVectorStore("pinecone", PineconeVectorStore::new);
- *       }
  *   }
  * }</pre>
  */
@@ -30,14 +32,6 @@ public interface CafeAIModule {
 
     /** Module version string. Logged at INFO on startup. */
     String version();
-
-    /**
-     * Registers this module's capabilities into the CafeAI registry.
-     * Called once at application startup, before any configurers run.
-     *
-     * @param registry the registry to register capabilities into
-     */
-    void register(CafeAIRegistry registry);
 
     /**
      * Reads a module's version from its JAR manifest ({@code Implementation-Version},

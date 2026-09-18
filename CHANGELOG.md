@@ -5,6 +5,20 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+### Removed — BREAKING
+
+- **`CafeAIRegistry`, `CafeAIRegistryImpl`, and `CafeAIModule.register(...)`.**
+  The registry was write-only: seven modules registered about 19 named
+  capability factories into it, and no code — in any module, test, or the git
+  history — ever read one back. (Some registrations were placeholders such as
+  `registerMemoryStrategy("redis", () -> null)`.) Capabilities are wired through
+  the provider SPIs (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`),
+  so nothing that worked stops working. `CafeAIModule` is now just `name()` and
+  `version()`; module discovery is unchanged and each module is still logged at
+  startup. External modules must delete their `register` method — see
+  `MIGRATION.md` and the amendment to ADR-006. The startup DEBUG lines
+  `CafeAI registry: … registered` are gone.
+
 ### Added
 
 - **NVIDIA provider** — `io.cafeai.core.ai.Nvidia`, for models on NVIDIA's hosted

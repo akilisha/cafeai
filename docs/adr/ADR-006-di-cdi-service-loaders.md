@@ -1,7 +1,8 @@
 # ADR-006: Dependency Injection — CDI, Service Loaders, and the Three-Tier Model
 
-**Status:** Accepted  
-**Date:** March 2026
+**Status:** Accepted — Amended September 2026  
+**Date:** March 2026  
+**Amended:** September 2026 (the `CafeAIRegistry` / `CafeAIModule.register` capability registry was removed — see "Amendment" below)
 
 ---
 
@@ -212,6 +213,12 @@ ServiceLoader.load(CafeAIConfigurer.class)
     .forEach(configurer -> configurer.configure(app));
 ```
 
+> **Amended September 2026 — the two snippets above are as originally decided, and
+> no longer match the code.** `CafeAIRegistry`, `CafeAIRegistryImpl` and
+> `CafeAIModule.register(CafeAIRegistry)` were removed; `CafeAIModule` is now just
+> `name()` / `version()`, and discovery only logs
+> `CafeAI module loaded: <name> v<version>`. See the Amendment section below.
+
 The combination: CDI manages *your* object graph. Service Loaders manage
 *CafeAI's* module graph. They are complementary, not competing.
 
@@ -279,6 +286,33 @@ This is the correct position because:
 3. It respects developer autonomy — CafeAI should not prescribe how you wire your app
 
 ---
+
+## Amendment — September 2026: the capability registry was removed
+
+The decision above had modules *register* named capability factories into a
+`CafeAIRegistry` (`registerGuardRail("pii", PiiGuardRail::new)`,
+`registerVectorStore("inmemory", ...)`, and so on), on the stated premise that
+those capabilities "become available as factory methods" on the corresponding
+interfaces — e.g. `MemoryStrategy.chronicle()`.
+
+That is not how the framework came to work. `GuardRail.pii()`,
+`MemoryStrategy.mapped()`, `VectorStore.inMemory()` and the rest resolve their
+implementation through dedicated provider SPIs (`GuardRailProvider`,
+`MemoryStrategyProvider`, `RagProvider`, ...) loaded with `ServiceLoader`. The
+registry's lookup side (`memoryStrategy(name)`, `guardRail(name)`, ...) was added
+with the registry itself (March 2026) and no caller was ever added — none in any
+module or test, and none in the git history — so the roughly 19 registrations
+across seven modules populated maps that nothing read. Some were placeholders
+(`registerMemoryStrategy("redis", () -> null)`).
+
+**Decision:** delete `CafeAIRegistry` and `CafeAIRegistryImpl`, and remove
+`register(CafeAIRegistry)` from `CafeAIModule`. `CafeAIModule` remains as a
+discovery hook — `name()` and `version()` — so each module is still logged at
+startup. `ServiceLoader` module discovery, and the provider SPIs that do the real
+wiring, are unchanged.
+
+**Consequence:** this is a source-breaking change for any external module that
+implemented `CafeAIModule.register`; delete the method (see `MIGRATION.md`).
 
 ## Consequences
 

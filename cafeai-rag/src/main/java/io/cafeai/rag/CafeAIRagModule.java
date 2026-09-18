@@ -1,17 +1,14 @@
 package io.cafeai.rag;
 
-import io.cafeai.core.rag.EmbeddingProvider;
-import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.spi.CafeAIModule;
-import io.cafeai.core.spi.CafeAIRegistry;
 
 /**
- * Self-registration module for {@code cafeai-rag}.
+ * Announces {@code cafeai-rag} at startup.
  *
- * <p>Registers embedding models and vector store implementations.
- * The local ONNX embedding model and in-memory vector store are
- * available immediately; cloud and database-backed variants
- * require connection configuration.
+ * <p>The embedding providers and vector stores are not registered here; they are
+ * reached through {@code RagProvider}. The local ONNX embedding model and the
+ * in-memory vector store work immediately, while cloud and database-backed
+ * variants need connection configuration.
  */
 public final class CafeAIRagModule implements CafeAIModule {
 
@@ -20,13 +17,4 @@ public final class CafeAIRagModule implements CafeAIModule {
 
     @Override
     public String version() { return CafeAIModule.versionOf(getClass()); }
-
-    @Override
-    public void register(CafeAIRegistry registry) {
-        registry.registerEmbeddingModel("local", EmbeddingProvider::local);
-        registry.registerEmbeddingModel("openai", EmbeddingProvider::openAi);
-        registry.registerVectorStore("inmemory", VectorStore::inMemory);
-        registry.registerVectorStore("pgvector",  () -> null); // requires connection config
-        registry.registerVectorStore("chroma",    () -> null); // requires connection config
-    }
 }

@@ -62,6 +62,33 @@ app.embed(EmbeddingProvider.openAi("text-embedding-3-large"));
 // or set CAFEAI_EMBEDDING_MODEL and keep calling the zero-arg overload
 ```
 
+**4. `CafeAIRegistry` and `CafeAIModule.register(...)` are removed.** The
+registry was write-only: modules registered named capability factories into
+it, and nothing ever read them back. Capabilities are wired through the
+provider SPIs (`GuardRailProvider`, `MemoryStrategyProvider`, `RagProvider`),
+not the registry, so nothing that worked before stops working. This only
+affects you if you wrote your own `cafeai-*`-style module: `CafeAIModule` is
+now just `name()` and `version()`, so delete your `register` method.
+
+```java
+// Before
+public class PineconeModule implements CafeAIModule {
+    @Override public String name()    { return "cafeai-pinecone"; }
+    @Override public String version() { return CafeAIModule.versionOf(getClass()); }
+    @Override public void register(CafeAIRegistry registry) {
+        registry.registerVectorStore("pinecone", PineconeVectorStore::new);
+    }
+}
+
+// After — delete register(); the module is still discovered and logged at startup
+public class PineconeModule implements CafeAIModule {
+    @Override public String name()    { return "cafeai-pinecone"; }
+    @Override public String version() { return CafeAIModule.versionOf(getClass()); }
+}
+```
+
+See `docs/adr/ADR-006-di-cdi-service-loaders.md` (Amendment).
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.
