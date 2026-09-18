@@ -4,23 +4,6 @@
 **Date:** March 2026  
 **Source:** https://expressjs.com/en/4x/api.html
 
-**Amendment (2026-09):** the agent entries in the API table originally read
-`app.agent(name, def)` / `app.orchestrate(name, agents)`, describing a bespoke
-`AgentDefinition` builder and a Structured-Concurrency orchestration primitive.
-That design was dropped — CafeAI binds LangChain4j `AiServices`. See
-[ROADMAP-12](../roadmap/ROADMAP-12-agents.md). The table below reflects the
-current shape.
-
-**Amendment (2026-09, verdicts corrected):** several rows below read "✅ Adopted" for
-members whose implementation was a stub returning a fixed value — `req.cookies()` was
-`Map.of()`, `req.fresh()` was `false`, `req.acceptsCharsets/Encodings/Languages()` returned
-the first offer whatever the client sent, and `res.render()` threw. A verdict of
-"Adopted" now means the behaviour exists and is tested. `req.cookies()`, `req.cookie()`,
-`req.accepts*()` (with `q`-value negotiation), `req.fresh()` / `req.stale()` and
-`res.render()` were implemented. `req.signedCookies` / `req.signedCookie` and
-`req.range` are now **Omitted**: signing needs an application secret CafeAI has no
-configuration for (and `CookieOptions.signed(true)` silently sent an unsigned cookie),
-and `range` returned an untyped `Object`. Add them back only with a design and tests.
 
 ---
 

@@ -16,7 +16,7 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   so nothing that worked stops working. `CafeAIModule` is now just `name()` and
   `version()`; module discovery is unchanged and each module is still logged at
   startup. External modules must delete their `register` method — see
-  `MIGRATION.md` and the amendment to ADR-006. The startup DEBUG lines
+  `MIGRATION.md` and ADR-006. The startup DEBUG lines
   `CafeAI registry: … registered` are gone.
 - **Public API that did nothing.** A dead-code audit found declarations with no
   reader or caller anywhere in the repo. Removed:
@@ -45,7 +45,7 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the README advertised `app.memory(MemoryStrategy.chronicle())` as a working
   option. Its Chronicle Map dependency (an early-access build, imported by
   nothing) rode along on every `cafeai-memory` consumer's runtime classpath.
-  ADR-003 is amended: rungs 3 (Chronicle Map) and 5 (Memcached — which had no
+  ADR-003 now describes only the rungs that exist; rungs 3 (Chronicle Map) and 5 (Memcached — which had no
   code at all) were never built.
 - **Eight unused dependencies**, none referenced by any source or resource file,
   all `implementation` scope and so shipped to consumers' runtime classpaths:

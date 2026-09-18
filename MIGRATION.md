@@ -86,7 +86,7 @@ public class PineconeModule implements CafeAIModule {
 }
 ```
 
-See `docs/adr/ADR-006-di-cdi-service-loaders.md` (Amendment).
+See `docs/adr/ADR-006-di-cdi-service-loaders.md`.
 
 **5. Declarations that nothing ever read are removed.** All of these could be
 referenced without doing anything, so removing them changes behaviour only if you
