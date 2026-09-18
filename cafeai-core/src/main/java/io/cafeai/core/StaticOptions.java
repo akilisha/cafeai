@@ -98,6 +98,13 @@ public final class StaticOptions {
         public Builder fallthrough(boolean f)      { this.fallthrough  = f;           return this; }
         public Builder immutable(boolean i)        { this.immutable    = i;           return this; }
         public Builder cacheControl(boolean c)     { this.cacheControl = c;           return this; }
+        /**
+         * Whether to advertise {@code Accept-Ranges: bytes} and answer a {@code Range: bytes=...}
+         * request with {@code 206 Partial Content}, which is what lets a browser seek in audio and video.
+         * One range is served per request (several, or a malformed one, get the whole file), an
+         * {@code If-Range} that no longer matches the file gets the whole file, and a range past the end
+         * gets {@code 416}. Default {@code true}.
+         */
         public Builder acceptRanges(boolean a)     { this.acceptRanges = a;           return this; }
         public Builder lastModified(boolean l)     { this.lastModified = l;           return this; }
         public Builder extensions(List<String> e)  { this.extensions   = List.copyOf(e); return this; }

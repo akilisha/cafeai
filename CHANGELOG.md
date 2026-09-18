@@ -99,6 +99,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `.failOpen()`. It fails closed: if the moderation call fails, the text is blocked (`failOpen()` opts
   out, logged at WARN). LangChain4j's agent hook works too: `configure(b -> b.moderationModel(m))`
   with `@Moderate` throws its `ModerationException`. See `LC4J-TO-CAFEAI.md` §2.11.
+- **Byte-range requests in `CafeAI.serveStatic(...)`.** The server answers `Range: bytes=...` with `206 Partial
+  Content` (open-ended and suffix ranges, an end past the file clamped, `416` with `Content-Range: bytes */N`
+  for a range past the end, `If-Range` honoured), so browsers can seek in audio and video. One range per
+  request; several, or a malformed one, get the whole file. `StaticOptions.acceptRanges(false)` turns it off.
+  The static server now has behaviour tests (files, dotfiles, traversal, caching headers, conditional
+  requests and ranges).
 - **`GuardRail.promptLeak(systemPrompt)`** — flags a response that reproduces a run of the system
   prompt's words. Needs no module. Catches verbatim and near-verbatim disclosure, not paraphrase,
   translation or encoding.

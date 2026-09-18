@@ -15,19 +15,23 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -630,6 +634,8 @@ public final class BuiltInMiddleware {
      *   <li>ETag generation and conditional request support (304 Not Modified)</li>
      *   <li>Cache-Control / max-age headers</li>
      *   <li>Last-Modified header and validation</li>
+     *   <li>Byte-range requests ({@code Range: bytes=...} answered with 206), so audio and video
+     *       can seek; a single range only, as in Express {@code send}</li>
      *   <li>index.html fallback for directory requests</li>
      *   <li>Extension fallback ({@code /page} -> {@code /page.html})</li>
      *   <li>Dotfile protection per {@link StaticOptions.Dotfiles}</li>
@@ -728,12 +734,11 @@ public final class BuiltInMiddleware {
                     res.set("ETag", etag);
                 }
 
+                String lmFormatted = DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                    Instant.ofEpochMilli(lastModifiedMillis).atZone(ZoneOffset.UTC));
+
                 // Last-Modified conditional request
                 if (options.lastModified()) {
-                    ZonedDateTime lm = Instant
-                        .ofEpochMilli(lastModifiedMillis)
-                        .atZone(ZoneOffset.UTC);
-                    String lmFormatted = DateTimeFormatter.RFC_1123_DATE_TIME.format(lm);
                     String ifModifiedSince = req.header("If-Modified-Since");
                     if (lmFormatted.equals(ifModifiedSince)) {
                         res.status(304).end();
@@ -759,11 +764,35 @@ public final class BuiltInMiddleware {
                 String fileName = target.getFileName().toString();
                 res.type(detectMimeType(fileName));
 
+                if (options.acceptRanges()) {
+                    res.set("Accept-Ranges", "bytes");
+                }
+
                 // HEAD -- headers only, no body
                 if ("HEAD".equalsIgnoreCase(method)) {
                     res.set("Content-Length", String.valueOf(fileSize));
                     res.status(200).end();
                     return;
+                }
+
+                // Range -- answer a single byte range with 206. An If-Range that no longer matches the
+                // file means the client's copy is stale, so the whole file is sent instead.
+                if (options.acceptRanges() && ifRangeAllows(req.header("If-Range"), etag, lmFormatted)) {
+                    ByteRange range = parseRange(req.header("Range"), fileSize);
+                    switch (range.kind()) {
+                        case UNSATISFIABLE -> {
+                            res.set("Content-Range", "bytes */" + fileSize);
+                            res.status(416).end();
+                            return;
+                        }
+                        case PARTIAL -> {
+                            res.status(206);
+                            res.set("Content-Range", "bytes " + range.start() + "-" + range.end() + "/" + fileSize);
+                            res.send(readRange(target, range.start(), range.end()));
+                            return;
+                        }
+                        case IGNORE -> { /* not a usable range: fall through to the whole file */ }
+                    }
                 }
 
                 // GET -- send file bytes
@@ -775,6 +804,70 @@ public final class BuiltInMiddleware {
                 if (options.fallthrough()) { next.run(); } else { res.status(500).send("Internal Server Error"); }
             }
         };
+    }
+
+    // -- Byte ranges (RFC 9110 section 14) ---------------------------------------
+
+    private enum RangeKind { IGNORE, UNSATISFIABLE, PARTIAL }
+
+    private record ByteRange(RangeKind kind, long start, long end) {
+        static final ByteRange IGNORE = new ByteRange(RangeKind.IGNORE, 0, 0);
+        static final ByteRange UNSATISFIABLE = new ByteRange(RangeKind.UNSATISFIABLE, 0, 0);
+    }
+
+    private static final Pattern BYTE_RANGE = Pattern.compile("^(\\d*)-(\\d*)$");
+
+    /**
+     * Reads a {@code Range} header for a file of {@code size} bytes. Only one range is served, as in
+     * Express {@code send}: no header, a unit other than {@code bytes}, several ranges, or a malformed
+     * spec is ignored (the whole file is sent); a range that starts past the end is unsatisfiable (416).
+     * An end past the last byte is clamped to it.
+     */
+    private static ByteRange parseRange(String header, long size) {
+        if (header == null) return ByteRange.IGNORE;
+        String h = header.trim();
+        if (!h.regionMatches(true, 0, "bytes=", 0, 6)) return ByteRange.IGNORE;
+        String spec = h.substring(6).trim();
+        if (spec.contains(",")) return ByteRange.IGNORE;
+        Matcher m = BYTE_RANGE.matcher(spec);
+        if (!m.matches()) return ByteRange.IGNORE;
+        String first = m.group(1), last = m.group(2);
+        try {
+            if (first.isEmpty()) {
+                if (last.isEmpty()) return ByteRange.IGNORE;            // "bytes=-"
+                long suffix = Long.parseLong(last);
+                if (suffix == 0 || size == 0) return ByteRange.UNSATISFIABLE;
+                return new ByteRange(RangeKind.PARTIAL, Math.max(0, size - suffix), size - 1);
+            }
+            long start = Long.parseLong(first);
+            long end = last.isEmpty() ? size - 1 : Long.parseLong(last);
+            if (!last.isEmpty() && end < start) return ByteRange.IGNORE; // "bytes=5-2" is invalid
+            if (start >= size) return ByteRange.UNSATISFIABLE;
+            return new ByteRange(RangeKind.PARTIAL, start, Math.min(end, size - 1));
+        } catch (NumberFormatException tooLarge) {
+            return ByteRange.IGNORE;
+        }
+    }
+
+    /** {@code If-Range} carries a validator; a range is honoured only if it still matches the file. */
+    private static boolean ifRangeAllows(String ifRange, String etag, String lastModified) {
+        if (ifRange == null || ifRange.isBlank()) return true;
+        String v = ifRange.trim();
+        return v.equals(etag) || v.equals(lastModified);
+    }
+
+    private static byte[] readRange(Path file, long start, long end) throws IOException {
+        int length = Math.toIntExact(end - start + 1);
+        ByteBuffer buffer = ByteBuffer.allocate(length);
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            long position = start;
+            while (buffer.hasRemaining()) {
+                int read = channel.read(buffer, position);
+                if (read < 0) break;
+                position += read;
+            }
+        }
+        return buffer.array();
     }
 
     /**
