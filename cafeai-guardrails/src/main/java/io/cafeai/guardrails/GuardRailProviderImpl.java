@@ -7,8 +7,8 @@ import io.cafeai.core.spi.GuardRailProvider;
  * ServiceLoader implementation of {@link GuardRailProvider}.
  *
  * <p>Returns real guardrail implementations backed by pattern matching
- * and regulatory rule sets. Replaces the pass-through stubs in
- * {@code cafeai-core} when {@code cafeai-guardrails} is on the classpath.
+ * and regulatory rule sets. Backs the {@code GuardRail} factories in {@code cafeai-core}
+ * when {@code cafeai-guardrails} is on the classpath.
  *
  * <p>Registered via:
  * {@code META-INF/services/io.cafeai.core.spi.GuardRailProvider}

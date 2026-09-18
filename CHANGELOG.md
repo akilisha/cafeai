@@ -151,6 +151,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `.call()` returns JSON text in that shape; `.call(X.class)` is unchanged and
   needs no separate `returning()`. Applies to `prompt`, `vision` and `audio`.
 
+- **`GuardRail.pii()`, `.jailbreak()`, `.promptInjection()`, `.toxicity()`, `.regulatory()` and
+  `.topicBoundary()` throw `GuardRailModuleNotFoundException` when `cafeai-guardrails` is not on
+  the classpath** (BREAKING). They used to return a guardrail that passed everything through and
+  logged one warning: the code compiled, the app ran, the guardrail was registered, and it protected
+  nothing — indistinguishable from protection until the day it mattered. The message names the
+  Gradle and Maven coordinate to add. `StubGuardRail` is gone; `GuardRail.RegulatoryGuardRail` and
+  `GuardRail.TopicBoundaryGuardRail` are now interfaces (the `cafeai-guardrails` implementations
+  implement them). Guardrails that need no module still work: `GuardRail.moderation(model)` and any
+  `GuardRail` you implement.
+
 ### Housekeeping
 
 - Deleted `StreamingProbe` (a scratch file left in `cafeai-core`'s main source),

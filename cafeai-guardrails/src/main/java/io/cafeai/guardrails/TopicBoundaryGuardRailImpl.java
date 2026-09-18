@@ -12,11 +12,10 @@ import java.util.*;
 /**
  * Real topic boundary guardrail implementation.
  *
- * <p>Extends {@link GuardRail.TopicBoundaryGuardRail} so the {@code instanceof}
- * check in {@link GuardRail#topicBoundary()} resolves correctly, and the
- * fluent {@code .allow()/.deny()} API continues to work on the returned instance.
+ * <p>Implements {@link GuardRail.TopicBoundaryGuardRail}, the type
+ * {@link GuardRail#topicBoundary()} returns, so the fluent {@code .allow()/.deny()} API works.
  */
-public final class TopicBoundaryGuardRailImpl extends GuardRail.TopicBoundaryGuardRail {
+public final class TopicBoundaryGuardRailImpl implements GuardRail.TopicBoundaryGuardRail {
 
     private static final Logger log = LoggerFactory.getLogger(TopicBoundaryGuardRailImpl.class);
 

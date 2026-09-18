@@ -32,9 +32,10 @@ import java.util.List;
  * {@link #handle} middleware form only screens the HTTP body; it runs after the route handler, so
  * it cannot stop a response that handler has already sent — the engine path is what enforces.
  *
- * <p>Real implementations are provided by {@code cafeai-guardrails}. Without
- * that module on the classpath, every factory method returns a pass-through
- * stub and logs a one-time warning. Add the dependency to activate enforcement:
+ * <p>The pattern-based implementations are provided by {@code cafeai-guardrails}. Without
+ * that module on the classpath, every such factory method throws
+ * {@link GuardRailModuleNotFoundException} rather than return a guardrail that passes everything
+ * through — a safety control that silently does nothing is worse than none. Add the dependency:
  *
  * <pre>{@code
  *   // build.gradle
@@ -63,25 +64,22 @@ public interface GuardRail extends Middleware {
     Action action();
 
     // -- Factory Methods -------------------------------------------------------
-    // Each method delegates to GuardRailProvider (cafeai-guardrails) when present.
-    // Without cafeai-guardrails, returns a pass-through stub with a logged warning.
+    // The pattern-based factories delegate to GuardRailProvider (cafeai-guardrails).
+    // Without it they throw GuardRailModuleNotFoundException -- never a silent no-op.
 
     /** PII detection and scrubbing -- pre and post LLM. */
     static GuardRail pii() {
-        return provider().map(p -> p.pii())
-            .orElseGet(() -> warnedStub("pii", Position.BOTH));
+        return requireProvider("GuardRail.pii()").pii();
     }
 
     /** Adversarial prompt / jailbreak detection. */
     static GuardRail jailbreak() {
-        return provider().map(p -> p.jailbreak())
-            .orElseGet(() -> warnedStub("jailbreak", Position.PRE_LLM));
+        return requireProvider("GuardRail.jailbreak()").jailbreak();
     }
 
     /** Data-sourced prompt injection detection -- checks user input and RAG documents. */
     static GuardRail promptInjection() {
-        return provider().map(p -> p.promptInjection())
-            .orElseGet(() -> warnedStub("prompt-injection", Position.PRE_LLM));
+        return requireProvider("GuardRail.promptInjection()").promptInjection();
     }
 
     /**
@@ -99,53 +97,41 @@ public interface GuardRail extends Middleware {
 
     /** Toxic and harmful content filtering. */
     static GuardRail toxicity() {
-        return provider().map(p -> p.toxicity())
-            .orElseGet(() -> warnedStub("toxicity", Position.BOTH));
+        return requireProvider("GuardRail.toxicity()").toxicity();
     }
 
     /**
      * Regulatory compliance guardrail builder -- GDPR, HIPAA, FCRA, CCPA.
      *
-     * <p>Returns a real implementation from {@code cafeai-guardrails} when
-     * present, or a pass-through stub builder with a logged warning when absent.
+     * <p>Requires {@code cafeai-guardrails}; throws {@link GuardRailModuleNotFoundException} without it.
      */
     static RegulatoryGuardRail regulatory() {
-        GuardRail g = provider().map(p -> p.regulatory()).orElse(null);
-        if (g instanceof RegulatoryGuardRail r) return r;
-        warnOnce("regulatory");
-        return new RegulatoryGuardRail();
+        return (RegulatoryGuardRail) requireProvider("GuardRail.regulatory()").regulatory();
     }
 
     /**
      * Topic scope enforcement builder.
      *
-     * <p>Returns a real implementation from {@code cafeai-guardrails} when
-     * present, or a pass-through stub builder with a logged warning when absent.
+     * <p>Requires {@code cafeai-guardrails}; throws {@link GuardRailModuleNotFoundException} without it.
      */
     static TopicBoundaryGuardRail topicBoundary() {
-        GuardRail g = provider().map(p -> p.topicBoundary()).orElse(null);
-        if (g instanceof TopicBoundaryGuardRail t) return t;
-        warnOnce("topic-boundary");
-        return new TopicBoundaryGuardRail();
+        return (TopicBoundaryGuardRail) requireProvider("GuardRail.topicBoundary()").topicBoundary();
     }
 
     // -- Internal helpers ------------------------------------------------------
 
-    private static java.util.Optional<io.cafeai.core.spi.GuardRailProvider> provider() {
+    private static io.cafeai.core.spi.GuardRailProvider requireProvider(String factory) {
         return java.util.ServiceLoader
             .load(io.cafeai.core.spi.GuardRailProvider.class)
-            .findFirst();
-    }
-
-    private static GuardRail warnedStub(String name, Position position) {
-        warnOnce(name);
-        return StubGuardRail.of(name, position);
-    }
-
-    private static void warnOnce(String name) {
-        org.slf4j.LoggerFactory.getLogger(GuardRail.class).warn(
-            "GuardRail.{}() is a no-op -- add 'com.akilisha.oss:cafeai-guardrails' " +
-            "to your dependencies to activate real guardrail enforcement.", name);
+            .findFirst()
+            .orElseThrow(() -> new GuardRailModuleNotFoundException(
+                factory + " requires the cafeai-guardrails module. Add the dependency:\n\n"
+                + "  Gradle: implementation 'com.akilisha.oss:cafeai-guardrails'\n"
+                + "  Maven:  <artifactId>cafeai-guardrails</artifactId>\n\n"
+                + "CafeAI will not hand you a guardrail that silently passes everything through: "
+                + "it would look like protection and be none. Guardrails that need no module "
+                + "still work without it: GuardRail.moderation(model), GuardRail.promptLeak(prompt), "
+                + "and any GuardRail you implement yourself."));
     }
 
     // -- Enums -----------------------------------------------------------------
@@ -205,83 +191,27 @@ public interface GuardRail extends Middleware {
         return OutputCheckResult.pass();
     }
 
-    // -- Pass-through stub (used when cafeai-guardrails is absent) -------------
+    // -- Builder types ---------------------------------------------------------
 
     /**
-     * Pass-through stub returned when {@code cafeai-guardrails} is not on the
-     * classpath. Does nothing -- all requests pass through unchecked.
-     * A warning is logged once when the stub is created.
+     * The regulatory guardrail returned by {@link #regulatory()}; each method adds a rule set.
+     * Implemented by {@code cafeai-guardrails}.
      */
-    record StubGuardRail(String name, Position position) implements GuardRail {
-        public static StubGuardRail of(String name, Position position) {
-            return new StubGuardRail(name, position);
-        }
-
-        @Override public Action action() { return Action.BLOCK; }
-
-        @Override
-        public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through -- cafeai-guardrails not on classpath
-        }
-    }
-
-    // -- Stub builder classes (used when cafeai-guardrails is absent) ----------
-
-    /**
-     * Pass-through regulatory guardrail builder.
-     * Fluent API is preserved so application code compiles regardless of
-     * whether {@code cafeai-guardrails} is present. Enforcement is a no-op
-     * without the module.
-     *
-     * <p>Non-final so {@code cafeai-guardrails} can extend this with real enforcement.
-     */
-    class RegulatoryGuardRail implements GuardRail {
-        private String flags = "";
-
-        public RegulatoryGuardRail gdpr()        { flags += "+gdpr";        return this; }
-        public RegulatoryGuardRail hipaa()       { flags += "+hipaa";       return this; }
-        public RegulatoryGuardRail fcra()        { flags += "+fcra";        return this; }
-        public RegulatoryGuardRail ccpa()        { flags += "+ccpa";        return this; }
-        public RegulatoryGuardRail ecoa()        { flags += "+ecoa";        return this; }
-        public RegulatoryGuardRail fairHousing() { flags += "+fairHousing"; return this; }
-
-        @Override public String   name()     { return "regulatory" + flags; }
-        @Override public Position position() { return Position.BOTH; }
-        @Override public Action   action()   { return Action.BLOCK; }
-
-        @Override
-        public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through -- cafeai-guardrails not on classpath
-        }
+    interface RegulatoryGuardRail extends GuardRail {
+        RegulatoryGuardRail gdpr();
+        RegulatoryGuardRail hipaa();
+        RegulatoryGuardRail fcra();
+        RegulatoryGuardRail ccpa();
+        RegulatoryGuardRail ecoa();
+        RegulatoryGuardRail fairHousing();
     }
 
     /**
-     * Pass-through topic-boundary guardrail builder.
-     * Fluent API is preserved so application code compiles regardless of
-     * whether {@code cafeai-guardrails} is present. Enforcement is a no-op
-     * without the module.
-     *
-     * <p>Non-final so {@code cafeai-guardrails} can extend this with real enforcement.
+     * The topic-scope guardrail returned by {@link #topicBoundary()}; allow and deny topics.
+     * Implemented by {@code cafeai-guardrails}.
      */
-    class TopicBoundaryGuardRail implements GuardRail {
-        private final List<String> allowed = new ArrayList<>();
-        private final List<String> denied  = new ArrayList<>();
-
-        public TopicBoundaryGuardRail allow(String... topics) {
-            allowed.addAll(List.of(topics)); return this;
-        }
-
-        public TopicBoundaryGuardRail deny(String... topics) {
-            denied.addAll(List.of(topics)); return this;
-        }
-
-        @Override public String   name()     { return "topic-boundary"; }
-        @Override public Position position() { return Position.PRE_LLM; }
-        @Override public Action   action()   { return Action.BLOCK; }
-
-        @Override
-        public void handle(Request req, Response res, Next next) {
-            next.run(); // pass-through -- cafeai-guardrails not on classpath
-        }
+    interface TopicBoundaryGuardRail extends GuardRail {
+        TopicBoundaryGuardRail allow(String... topics);
+        TopicBoundaryGuardRail deny(String... topics);
     }
 }

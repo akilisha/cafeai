@@ -13,11 +13,10 @@ import java.util.regex.Pattern;
 /**
  * Real regulatory compliance guardrail — GDPR, HIPAA, FCRA, CCPA.
  *
- * <p>Extends {@link GuardRail.RegulatoryGuardRail} so the {@code instanceof}
- * check in {@link GuardRail#regulatory()} resolves correctly, and the fluent
- * {@code .gdpr().hipaa()} API continues to work on the returned instance.
+ * <p>Implements {@link GuardRail.RegulatoryGuardRail}, the type
+ * {@link GuardRail#regulatory()} returns, so the fluent {@code .gdpr().hipaa()} API works.
  */
-public final class RegulatoryGuardRailImpl extends GuardRail.RegulatoryGuardRail {
+public final class RegulatoryGuardRailImpl implements GuardRail.RegulatoryGuardRail {
 
     private static final Logger log = LoggerFactory.getLogger(RegulatoryGuardRailImpl.class);
 

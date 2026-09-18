@@ -191,6 +191,15 @@ short prompts containing several imperative words with a 400. `SecurityEvent` is
 sealed interface whose `CachePoisoningAttempt` subtype is removed, so delete that case
 from any exhaustive `switch (event)`.
 
+**14. `GuardRail.pii()` / `jailbreak()` / `promptInjection()` / `toxicity()` / `regulatory()` /
+`topicBoundary()` now throw `GuardRailModuleNotFoundException` without `cafeai-guardrails` — they
+no longer return a pass-through guardrail.** If your app called them without the module, it was
+running unprotected and logging one warning; it now fails at startup, naming the dependency:
+`implementation 'com.akilisha.oss:cafeai-guardrails'`. Nothing else changes once the module is
+present. If you referenced `GuardRail.RegulatoryGuardRail` or `GuardRail.TopicBoundaryGuardRail` as
+classes (to extend them), they are now interfaces — `implements`, not `extends`. `StubGuardRail`
+is removed.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.

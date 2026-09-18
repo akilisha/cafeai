@@ -2,6 +2,7 @@ package io.cafeai.core;
 
 import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.guardrails.GuardRailModuleNotFoundException;
 import io.cafeai.core.internal.CafeAIApp;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -274,56 +275,44 @@ class CafeAIAppTest {
 
     // ── GuardRails ────────────────────────────────────────────────────────────
 
+    private static GuardRail noopRail(String name) {
+        return new GuardRail() {
+            @Override public String name() { return name; }
+            @Override public Position position() { return Position.BOTH; }
+            @Override public Action action() { return Action.BLOCK; }
+            @Override public void handle(io.cafeai.core.routing.Request req,
+                                         io.cafeai.core.routing.Response res,
+                                         io.cafeai.core.middleware.Next next) { next.run(); }
+        };
+    }
+
     @Test
-    @DisplayName("app.guard(pii) registers guardrail — returns app for chaining")
-    void guard_pii_returnsApp() {
+    @DisplayName("app.guard(guardrail) registers it — returns app for chaining")
+    void guard_registers_returnsApp() {
         var app = CafeAI.create();
-        var result = app.guard(GuardRail.pii());
-        assertThat(result).isSameAs(app);
+        assertThat(app.guard(noopRail("a"))).isSameAs(app);
     }
 
     @Test
     @DisplayName("Multiple guards register without exception")
     void guard_multiple_registers() {
         var app = CafeAI.create();
-        assertThatCode(() -> app
-                .guard(GuardRail.pii())
-                .guard(GuardRail.jailbreak())
-                .guard(GuardRail.promptInjection())
-                .guard(GuardRail.toxicity()))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> app.guard(noopRail("a")).guard(noopRail("b"))).doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("GuardRail.pii() has correct name and position")
-    void guardRail_pii_hasCorrectMetadata() {
-        var rail = GuardRail.pii();
-        assertThat(rail.name()).isEqualTo("pii");
-        assertThat(rail.position()).isEqualTo(GuardRail.Position.BOTH);
-    }
-
-    @Test
-    @DisplayName("GuardRail.jailbreak() has pre-LLM position")
-    void guardRail_jailbreak_isPreLlm() {
-        assertThat(GuardRail.jailbreak().position())
-                .isEqualTo(GuardRail.Position.PRE_LLM);
-    }
-
-    @Test
-    @DisplayName("GuardRail.regulatory().gdpr().hipaa() builds composite guardrail")
-    void guardRail_regulatory_buildsComposite() {
-        var rail = GuardRail.regulatory().gdpr().hipaa();
-        assertThat(rail.name()).contains("gdpr").contains("hipaa");
-        assertThat(rail.position()).isEqualTo(GuardRail.Position.BOTH);
-    }
-
-    @Test
-    @DisplayName("GuardRail.topicBoundary() allow/deny builds correctly")
-    void guardRail_topicBoundary_builds() {
-        var rail = GuardRail.topicBoundary()
-                .allow("customer service", "orders")
-                .deny("politics", "medical advice");
-        assertThat(rail.name()).isEqualTo("topic-boundary");
+    @DisplayName("pattern-based GuardRail factories fail loudly without cafeai-guardrails, never pass through")
+    void guardRail_factories_failFastWithoutModule() {
+        // This module's test classpath has no cafeai-guardrails, so there is no provider.
+        assertThatThrownBy(GuardRail::pii)
+                .isInstanceOf(GuardRailModuleNotFoundException.class)
+                .hasMessageContaining("GuardRail.pii()")
+                .hasMessageContaining("cafeai-guardrails");
+        assertThatThrownBy(GuardRail::jailbreak).isInstanceOf(GuardRailModuleNotFoundException.class);
+        assertThatThrownBy(GuardRail::promptInjection).isInstanceOf(GuardRailModuleNotFoundException.class);
+        assertThatThrownBy(GuardRail::toxicity).isInstanceOf(GuardRailModuleNotFoundException.class);
+        assertThatThrownBy(GuardRail::regulatory).isInstanceOf(GuardRailModuleNotFoundException.class);
+        assertThatThrownBy(GuardRail::topicBoundary).isInstanceOf(GuardRailModuleNotFoundException.class);
     }
 
     @Test
@@ -645,14 +634,6 @@ class CafeAIAppTest {
         Middleware composed = first.then(second);
         assertThat(composed).isNotNull();
         assertThat(executed).isEmpty();
-    }
-
-    @Test
-    @DisplayName("GuardRail.pii() passes through in stub implementation")
-    void guardRail_stub_passesThroughChain() {
-        var executed = new boolean[]{false};
-        GuardRail.pii().handle(null, null, () -> executed[0] = true);
-        assertThat(executed[0]).isTrue();
     }
 
     // ── ADR-009: filter() / variadic handlers / compose ───────────────────────

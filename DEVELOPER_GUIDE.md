@@ -2215,8 +2215,8 @@ app.chain("support",
 
 ### 20.2 Activating real implementations
 
-Guardrails in `cafeai-core` are pass-through stubs by default. Add
-`cafeai-guardrails` to activate real implementations:
+The pattern-based guardrails (`pii`, `jailbreak`, `promptInjection`, `toxicity`, `regulatory`,
+`topicBoundary`) live in `cafeai-guardrails`. Add it to use them:
 
 ```groovy
 dependencies {
@@ -2225,9 +2225,10 @@ dependencies {
 }
 ```
 
-Without `cafeai-guardrails`, every guardrail logs a one-time warning and calls
-`next.run()`. Your application compiles and runs — guardrails just don't enforce
-anything. Adding the JAR activates enforcement with zero code changes.
+Without `cafeai-guardrails`, those factories throw `GuardRailModuleNotFoundException`, naming the
+dependency to add. They do not return a guardrail that passes everything through: that would
+look like protection and be none. `GuardRail.moderation(model)` and any guardrail you implement
+need no module.
 
 ### 20.3 Available guardrails
 

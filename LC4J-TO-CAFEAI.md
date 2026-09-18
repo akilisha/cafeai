@@ -521,11 +521,11 @@ things worth knowing:
   behind", and it is the one place §2.6's "zero LangChain4j imports" is
   deliberately not true. It fails closed if its API call fails, and reports only
   what `Moderation` carries — flagged or not; no categories or scores.
-- **Graceful absence:** every `GuardRail.xxx()` factory checks
+- **Absence fails loudly:** every pattern-based `GuardRail.xxx()` factory checks
   `ServiceLoader` for a `GuardRailProvider` (from `cafeai-guardrails`) and
-  falls back to a logged, pass-through `StubGuardRail` if the module isn't
-  on the classpath — application code compiles and runs identically either
-  way; only enforcement is absent. See §3.1.
+  throws `GuardRailModuleNotFoundException` if the module isn't on the
+  classpath, naming the coordinate to add. It does not fall back to a
+  pass-through guardrail — that would look like protection and be none. See §3.1.
 
 ### 2.7 Observability — `app.observe(...)`
 
@@ -632,11 +632,11 @@ predictable.
 `EmbeddingProvider.local()` — every optional capability is *declared* in
 `cafeai-core` with no dependency on its real implementation, and *resolved*
 at call time via `ServiceLoader.load(XProvider.class).findFirst()`. Absent
-the implementing module, you get one of two honest outcomes: a logged,
-pass-through stub (guardrails — the app keeps running, unchecked) or a
+the implementing module, you get one honest outcome: an
 `XModuleNotFoundException` naming the exact Gradle/Maven coordinate to add
-(memory rungs 2–5, Chroma/PgVector, embeddings — these have no safe silent
-fallback). Either way, **application code compiles and reads identically
+(guardrails, memory rungs 2–5, Chroma/PgVector, embeddings — none has a safe
+silent fallback; a guardrail that passes everything through is worse than none).
+**Application code compiles and reads identically
 whether or not the module is present** — you write against the full
 vocabulary from day one and add jars only when you need real enforcement.
 This is the mechanism behind the "incremental adoption ladder" in

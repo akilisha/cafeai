@@ -4,15 +4,15 @@ import io.cafeai.core.guardrails.GuardRail;
 
 /**
  * SPI allowing {@code cafeai-guardrails} to provide real guardrail
- * implementations that replace the pass-through stubs in {@code cafeai-core}.
+ * implementations that the {@code GuardRail} factories in {@code cafeai-core} delegate to.
  *
  * <p>When {@code cafeai-guardrails} is on the classpath, its
  * {@code GuardRailProviderImpl} is discovered via {@link java.util.ServiceLoader}
  * and all {@link GuardRail} factory calls return real implementations.
  *
- * <p>Without {@code cafeai-guardrails}, all guardrails are no-ops that call
- * {@code next.run()} -- the application compiles and runs but guardrails do nothing.
- * A warning is logged once on first use.
+ * <p>Without {@code cafeai-guardrails}, those factories throw
+ * {@link io.cafeai.core.guardrails.GuardRailModuleNotFoundException}: a guardrail that
+ * silently passed everything through would look like protection and be none.
  *
  * <p>Registered via:
  * {@code META-INF/services/io.cafeai.core.spi.GuardRailProvider}
