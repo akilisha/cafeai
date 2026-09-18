@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.Function;
 
 /**
  * Entry point for environment-driven connection configuration and health checks.
@@ -46,14 +47,14 @@ public final class Connect {
      *
      * <p>Recognised variables:
      * <pre>
-     *   CAFEAI_AI_PROVIDER    openai | anthropic | ollama
-     *   CAFEAI_AI_MODEL       model ID (e.g. gpt-4o, claude-3-5-sonnet, llama3)
+     *   CAFEAI_AI_PROVIDER    ollama  (a cloud API has no process to probe; register it with app.ai())
+     *   CAFEAI_AI_MODEL       Ollama model ID  (default: llama3)
      *   OLLAMA_BASE_URL       Ollama base URL  (default: http://localhost:11434)
-     *   CAFEAI_MEMORY         inmemory | mapped | redis
-     *   REDIS_URL             redis://host:port
+     *   CAFEAI_MEMORY         redis
+     *   REDIS_URL             redis://[[user]:password@]host[:port][/db]  (rediss:// for TLS)
      *   REDIS_HOST            Redis hostname   (default: localhost)
      *   REDIS_PORT            Redis port       (default: 6379)
-     *   CAFEAI_VECTOR_DB      pgvector | inmemory
+     *   CAFEAI_VECTOR_DB      pgvector
      *   DATABASE_URL          PostgreSQL JDBC URL (for pgvector)
      * </pre>
      *
@@ -61,14 +62,19 @@ public final class Connect {
      *         relevant environment variables are set
      */
     public static List<Connection> fromEnv() {
+        return fromEnv(System::getenv);
+    }
+
+    /** {@link #fromEnv()} over any variable source, so it can be tested without the real environment. */
+    static List<Connection> fromEnv(Function<String, String> getenv) {
         List<Connection> connections = new ArrayList<>();
 
         // -- AI provider -------------------------------------------------------
-        String provider = env("CAFEAI_AI_PROVIDER");
-        String model    = env("CAFEAI_AI_MODEL");
+        String provider = env(getenv, "CAFEAI_AI_PROVIDER");
+        String model    = env(getenv, "CAFEAI_AI_MODEL");
 
         if ("ollama".equalsIgnoreCase(provider)) {
-            String base = env("OLLAMA_BASE_URL", "http://localhost:11434");
+            String base = env(getenv, "OLLAMA_BASE_URL", "http://localhost:11434");
             String m    = model != null ? model : "llama3";
             connections.add(Ollama.at(base).model(m));
             log.debug("fromEnv: Ollama({}) model={}", base, m);
@@ -77,18 +83,18 @@ public final class Connect {
         // they're cloud APIs. Registered directly, not via Connection.
 
         // -- Memory ------------------------------------------------------------
-        String memory = env("CAFEAI_MEMORY");
+        String memory = env(getenv, "CAFEAI_MEMORY");
         if ("redis".equalsIgnoreCase(memory)) {
-            connections.add(buildRedisConnection());
+            connections.add(buildRedisConnection(getenv));
         }
 
         // -- Vector DB ---------------------------------------------------------
-        String vectorDb = env("CAFEAI_VECTOR_DB");
+        String vectorDb = env(getenv, "CAFEAI_VECTOR_DB");
         if ("pgvector".equalsIgnoreCase(vectorDb)) {
-            String url = env("DATABASE_URL");
+            String url = env(getenv, "DATABASE_URL");
             if (url != null) {
                 connections.add(PgVector.at(url));
-                log.debug("fromEnv: PgVector({})", url);
+                log.debug("fromEnv: PgVector({})", Urls.redact(url));
             } else {
                 log.warn("CAFEAI_VECTOR_DB=pgvector but DATABASE_URL is not set -- skipping");
             }
@@ -153,28 +159,50 @@ public final class Connect {
 
     // -- Private helpers -------------------------------------------------------
 
-    private static Redis buildRedisConnection() {
-        String redisUrl = env("REDIS_URL");
-        if (redisUrl != null && redisUrl.startsWith("redis://")) {
+    private static Redis buildRedisConnection(Function<String, String> getenv) {
+        String redisUrl = env(getenv, "REDIS_URL");
+        if (redisUrl != null && !redisUrl.isBlank()) {
             try {
-                var uri  = java.net.URI.create(redisUrl);
-                var conn = Redis.at(uri.getHost() + ":" + (uri.getPort() > 0 ? uri.getPort() : 6379));
-                if (uri.getUserInfo() != null) conn.withPassword(uri.getUserInfo());
-                log.debug("fromEnv: Redis({})", redisUrl);
-                return conn;
+                var uri = java.net.URI.create(redisUrl);
+                String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+                if ((scheme.equals("redis") || scheme.equals("rediss")) && uri.getHost() != null) {
+                    var conn = Redis.at(uri.getHost() + ":" + (uri.getPort() > 0 ? uri.getPort() : 6379));
+                    // redis://:password@host and redis://user:password@host: the password follows the colon
+                    String userInfo = uri.getUserInfo();
+                    if (userInfo != null) {
+                        int colon = userInfo.indexOf(':');
+                        String password = colon >= 0 ? userInfo.substring(colon + 1) : userInfo;
+                        if (!password.isEmpty()) conn.withPassword(password);
+                    }
+                    if (scheme.equals("rediss")) conn.withSsl(true);
+                    String path = uri.getPath();
+                    if (path != null && path.length() > 1 && path.substring(1).chars().allMatch(Character::isDigit)) {
+                        conn.withDatabase(Integer.parseInt(path.substring(1)));
+                    }
+                    log.debug("fromEnv: {}", conn.name());
+                    return conn;
+                }
+                log.warn("REDIS_URL is not a redis:// or rediss:// URL with a host -- using REDIS_HOST/REDIS_PORT");
             } catch (Exception e) {
-                log.warn("Could not parse REDIS_URL '{}': {}", redisUrl, e.getMessage());
+                // The URL can carry a password: never log it.
+                log.warn("Could not parse REDIS_URL ({}) -- using REDIS_HOST/REDIS_PORT", e.getClass().getSimpleName());
             }
         }
-        String host = env("REDIS_HOST", "localhost");
-        int    port = Integer.parseInt(env("REDIS_PORT", "6379"));
+        String host = env(getenv, "REDIS_HOST", "localhost");
+        String portText = env(getenv, "REDIS_PORT", "6379");
+        int port;
+        try {
+            port = Integer.parseInt(portText.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("REDIS_PORT must be a number, got '" + portText + "'", e);
+        }
         log.debug("fromEnv: Redis({}:{})", host, port);
         return Redis.at(host + ":" + port);
     }
 
-    private static String env(String name)                        { return System.getenv(name); }
-    private static String env(String name, String defaultValue)   {
-        String v = System.getenv(name);
+    private static String env(Function<String, String> getenv, String name) { return getenv.apply(name); }
+    private static String env(Function<String, String> getenv, String name, String defaultValue) {
+        String v = getenv.apply(name);
         return (v != null && !v.isBlank()) ? v : defaultValue;
     }
 }

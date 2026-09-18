@@ -11,6 +11,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Out-of-process Ollama LLM connection.
@@ -43,24 +45,23 @@ public final class Ollama implements Connection {
         return new OllamaBuilder(baseUrl);
     }
 
-    @Override public String name()      { return "Ollama(" + baseUrl + "/" + modelId + ")"; }
+    @Override public String name()      { return "Ollama(" + Urls.redact(baseUrl) + "/" + modelId + ")"; }
     @Override public ServiceType type() { return ServiceType.LLM; }
 
     @Override
     public HealthStatus probe() {
         long start = System.currentTimeMillis();
-        try {
-            var client   = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3)).build();
+        try (var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build()) {
             var request  = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/tags"))
+                .timeout(Duration.ofSeconds(5))
                 .GET().build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             long latency = System.currentTimeMillis() - start;
 
             if (response.statusCode() == 200) {
                 // Verify the requested model is actually pulled
-                if (response.body().contains(modelId)) {
+                if (isPulled(response.body())) {
                     return HealthStatus.reachable(name(), latency);
                 }
                 return HealthStatus.degraded(name(),
@@ -68,9 +69,29 @@ public final class Ollama implements Connection {
                     "Run: ollama pull " + modelId);
             }
             return HealthStatus.unreachable(name(), "HTTP " + response.statusCode());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return HealthStatus.unreachable(name(), "interrupted");
         } catch (Exception e) {
             return HealthStatus.unreachable(name(), e.getMessage());
         }
+    }
+
+    private static final Pattern MODEL_NAME = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
+
+    /**
+     * Whether {@code /api/tags} lists this exact model. An untagged id means {@code :latest}, so
+     * {@code llama3} matches {@code llama3:latest} but not {@code llama3.1:8b}.
+     */
+    private boolean isPulled(String tagsJson) {
+        Matcher m = MODEL_NAME.matcher(tagsJson);
+        while (m.find()) {
+            String installed = m.group(1);
+            if (installed.equals(modelId) || (!modelId.contains(":") && installed.equals(modelId + ":latest"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

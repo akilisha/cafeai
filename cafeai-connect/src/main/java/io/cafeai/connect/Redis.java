@@ -45,7 +45,12 @@ public final class Redis implements Connection {
     public static Redis at(String hostAndPort) {
         String[] parts = hostAndPort.split(":");
         String host = parts[0];
-        int port    = parts.length > 1 ? Integer.parseInt(parts[1]) : 6379;
+        int port;
+        try {
+            port = parts.length > 1 ? Integer.parseInt(parts[1]) : 6379;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Redis port must be a number, got '" + parts[1] + "'", e);
+        }
         return new Redis(host, port);
     }
 
@@ -69,6 +74,11 @@ public final class Redis implements Connection {
         return this;
     }
 
+    /** The configuration this connection registers with (also what tests inspect). */
+    RedisConfig config() {
+        return configBuilder.build();
+    }
+
     @Override public String name()      { return "Redis(" + host + ":" + port + ")"; }
     @Override public ServiceType type() { return ServiceType.MEMORY; }
 
@@ -85,7 +95,7 @@ public final class Redis implements Connection {
 
     @Override
     public void register(CafeAI app) {
-        app.memory(MemoryStrategy.redis(configBuilder.build()));
+        app.memory(MemoryStrategy.redis(config()));
         log.info("Connected: {} -> registered as memory strategy", name());
     }
 }

@@ -9,7 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * Out-of-process pgvector (PostgreSQL + vector extension) connection.
@@ -65,18 +70,20 @@ public final class PgVector implements Connection {
         return this;
     }
 
-    @Override public String name()      { return "PgVector(" + jdbcUrl + ")"; }
+    @Override public String name()      { return "PgVector(" + Urls.redact(jdbcUrl) + ")"; }
     @Override public ServiceType type() { return ServiceType.VECTOR_DB; }
 
     @Override
     public HealthStatus probe() {
         long start = System.currentTimeMillis();
         try {
-            var conn = username != null
-                ? DriverManager.getConnection(jdbcUrl, username, password)
-                : DriverManager.getConnection(jdbcUrl);
-            conn.close();
-            return HealthStatus.reachable(name(), System.currentTimeMillis() - start);
+            var props = new Properties();
+            if (username != null) props.setProperty("user", username);
+            if (password != null) props.setProperty("password", password);
+            props.setProperty("connectTimeout", "3");     // seconds; a probe must not hang on a dead host
+            try (var conn = DriverManager.getConnection(jdbcUrl, props)) {
+                return HealthStatus.reachable(name(), System.currentTimeMillis() - start);
+            }
         } catch (Exception e) {
             return HealthStatus.unreachable(name(), e.getMessage());
         }
@@ -94,18 +101,38 @@ public final class PgVector implements Connection {
         log.info("Connected: {} -> registered as vector store", name());
     }
 
-    /** Parses {@code jdbc:postgresql://host:port/database} into a {@link PgVectorConfig}. */
-    private PgVectorConfig toConfig() {
+    /**
+     * Parses {@code jdbc:postgresql://host:port/database} into a {@link PgVectorConfig}. Credentials
+     * come from {@link #credentials}, else from {@code user=} / {@code password=} in the URL's query,
+     * which is where {@link #probe()} (through the JDBC driver) already reads them.
+     */
+    PgVectorConfig toConfig() {
         URI uri = URI.create(jdbcUrl.replaceFirst("^jdbc:", ""));
         String database = uri.getPath() != null && uri.getPath().length() > 1
             ? uri.getPath().substring(1) : null;
+        Map<String, String> query = queryParams(uri.getRawQuery());
+        String user = username != null ? username : query.get("user");
+        String pass = password != null ? password : query.get("password");
         var builder = PgVectorConfig.builder()
             .host(uri.getHost())
             .database(database)
             .dimension(dimension);
         if (uri.getPort() > 0) builder.port(uri.getPort());
-        if (username != null)  builder.user(username);
-        if (password != null)  builder.password(password);
+        if (user != null) builder.user(user);
+        if (pass != null) builder.password(pass);
         return builder.build();
+    }
+
+    private static Map<String, String> queryParams(String rawQuery) {
+        Map<String, String> params = new HashMap<>();
+        if (rawQuery == null) return params;
+        for (String pair : rawQuery.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0) {
+                params.put(URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8),
+                           URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8));
+            }
+        }
+        return params;
     }
 }

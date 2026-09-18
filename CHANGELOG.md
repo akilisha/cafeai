@@ -160,6 +160,19 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   status and `error.type`, or logs the error. The documented span attributes are corrected to the names
   recorded (`gen_ai.*`, `cafeai.session.id`, `cafeai.rag.documents_retrieved`, `error.type`); the
   listed `cafeai.guardrail_triggered` was never recorded.
+- **`cafeai-connect`** (now tested: unit tests for every connector and `Connect.fromEnv()`, and
+  Testcontainers tests against a real Redis and pgvector):
+  - Credentials no longer reach logs or `/health`: `PgVector.name()` embedded the whole JDBC URL
+    (including `?user=…&password=…`), `Ollama.name()` its userinfo, and `Connect.fromEnv()` logged
+    `REDIS_URL` in full, at warn level when it could not be parsed.
+  - `REDIS_URL=redis://:secret@host` (and `user:secret@host`) used `:secret` as the password; the
+    password is now the part after the colon. `rediss://` turns TLS on and a `/N` path selects the database.
+  - Ollama's probe matched the model id as a substring of the whole `/api/tags` response, so `llama3` was
+    satisfied by `llama3.1:8b`. It now matches an installed model exactly (an untagged id means `:latest`).
+  - `PgVector` registered a store without the credentials that its probe had used from the URL query.
+  - Probes time out (Ollama 5s, pgvector 3s) instead of waiting on a dead host, and Ollama's probe closes its
+    HTTP client. A bad `REDIS_PORT` fails with a message that names the variable.
+  - `Connect.fromEnv()`'s Javadoc listed values it never handled (`openai`, `anthropic`, `inmemory`, `mapped`).
 - `GuardRail.jailbreak()` matches `DAN` as a word, not as a substring of "Daniel" or "abundant".
 - `TopicBoundaryGuardRailImpl` no longer returns application-specific text as its reason.
 - **`PgVectorConfig` searches exactly by default** (`useIndex` is `false`). The `ivfflat` index it

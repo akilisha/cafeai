@@ -1866,11 +1866,10 @@ Variables recognised:
 | `OLLAMA_BASE_URL` | Ollama base URL (default: `http://localhost:11434`) |
 | `CAFEAI_AI_MODEL` | Model ID (default: `llama3`) |
 | `CAFEAI_MEMORY=redis` | Creates `Redis.at(REDIS_HOST:REDIS_PORT)` |
-| `REDIS_URL` | Full Redis URL: `redis://host:port` |
+| `REDIS_URL` | Full Redis URL: `redis://[[user]:password@]host[:port][/db]`; `rediss://` turns TLS on |
 | `REDIS_HOST` / `REDIS_PORT` | Redis host and port separately |
 | `CAFEAI_VECTOR_DB=pgvector` | Creates `PgVector.at(DATABASE_URL)` |
-| `DATABASE_URL` | PostgreSQL JDBC URL |
-| `CAFEAI_MCP_SERVERS` | Comma-separated MCP server URLs |
+| `DATABASE_URL` | PostgreSQL JDBC URL; `user=` / `password=` in its query are used |
 
 Missing variables are silently skipped. The returned list is empty if nothing
 is configured. This is not Spring-style autoconfiguration — nothing happens
@@ -1891,7 +1890,6 @@ services:
       REDIS_PORT: 6379
       CAFEAI_VECTOR_DB: pgvector
       DATABASE_URL: jdbc:postgresql://pgvector:5432/cafeai
-      CAFEAI_MCP_SERVERS: http://github-mcp:3000,http://filesystem-mcp:3001
     depends_on: [redis, pgvector, ollama]
 
   redis:

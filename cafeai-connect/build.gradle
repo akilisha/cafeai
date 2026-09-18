@@ -29,7 +29,12 @@ dependencies {
     // Redis.register() calls MemoryStrategy.redis() — needs cafeai-memory at compile time
     compileOnly project(':cafeai-memory')
 
-    // PgVector and McpEndpoint use reflection — no compile dep on cafeai-rag or cafeai-tools
-
     implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
+
+    // Tests run the real connectors against real services in containers (skipped without Docker).
+    testImplementation project(':cafeai-memory')
+    testImplementation project(':cafeai-rag')
+    testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:postgresql:${rootProject.ext.testcontainersVersion}"
 }
