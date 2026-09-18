@@ -21,7 +21,6 @@ dependencies {
     implementation project(':cafeai-guardrails')
     implementation project(':cafeai-observability')
     implementation project(':cafeai-security')
-    implementation project(':cafeai-streaming')
     implementation project(':cafeai-connect')
     implementation project(':cafeai-agents')
 

@@ -8,7 +8,6 @@ include(
     'cafeai-guardrails',
     'cafeai-observability',
     'cafeai-security',
-    'cafeai-streaming',
     'cafeai-views-mustache',
     'cafeai-connect',
     'cafeai-agents',

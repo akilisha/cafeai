@@ -60,8 +60,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, bias, …
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // OpenTelemetry, evals
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // prompt injection, data leakage
-    implementation 'com.akilisha.oss:cafeai-streaming:0.4.0'      // SSE / WebSocket streaming
-    implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector, MCP
+    implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0' // Mustache view engine
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'       // AI Kubernetes/OpenShift incident pipeline
 }
@@ -327,8 +326,7 @@ cafeai/
 ├── cafeai-guardrails     ← PII, jailbreak, bias, hallucination, regulatory compliance
 ├── cafeai-observability  ← OpenTelemetry, metrics, eval harness, prompt versioning
 ├── cafeai-security       ← Prompt injection, data leakage, semantic cache poisoning
-├── cafeai-streaming      ← SSE and WebSocket token streaming with backpressure
-├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector, MCP endpoints
+├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder

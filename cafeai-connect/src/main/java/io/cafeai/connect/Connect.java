@@ -55,7 +55,6 @@ public final class Connect {
      *   REDIS_PORT            Redis port       (default: 6379)
      *   CAFEAI_VECTOR_DB      pgvector | inmemory
      *   DATABASE_URL          PostgreSQL JDBC URL (for pgvector)
-     *   CAFEAI_MCP_SERVERS    comma-separated MCP server URLs
      * </pre>
      *
      * @return ordered list of configured connections -- may be empty if no
@@ -92,16 +91,6 @@ public final class Connect {
                 log.debug("fromEnv: PgVector({})", url);
             } else {
                 log.warn("CAFEAI_VECTOR_DB=pgvector but DATABASE_URL is not set -- skipping");
-            }
-        }
-
-        // -- MCP servers -------------------------------------------------------
-        String mcpServers = env("CAFEAI_MCP_SERVERS");
-        if (mcpServers != null) {
-            for (String url : mcpServers.split(",")) {
-                url = url.trim();
-                if (!url.isBlank()) {
-                }
             }
         }
 

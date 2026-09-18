@@ -430,8 +430,7 @@ cafeai/
 ├── cafeai-guardrails/                  ← PII, jailbreak, bias, hallucination, compliance
 ├── cafeai-observability/               ← OTel, metrics, evals, prompt versioning
 ├── cafeai-security/                    ← Prompt injection, data leakage, cache poisoning
-├── cafeai-streaming/                   ← SSE / WebSocket token streaming
-├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector, MCP
+├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
 ├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity
 │                                         — session, guardrails, RAG, observability (ROADMAP-12)

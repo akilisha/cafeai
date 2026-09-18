@@ -18,7 +18,7 @@ repositories { mavenCentral() }
 dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.4.0'
     // cafeai-config · cafeai-agents · cafeai-memory · cafeai-rag · cafeai-guardrails
-    // cafeai-observability · cafeai-security · cafeai-streaming · cafeai-connect
+    // cafeai-observability · cafeai-security · cafeai-connect
     // cafeai-views-mustache · cafeai-sentinel
 }
 ```

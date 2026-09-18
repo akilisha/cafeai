@@ -31,6 +31,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   - `returningType()` on `PromptRequest`, `VisionRequest` and `AudioRequest`
     (see the fix below).
   - `PodState.hasContainerTrouble()` and `hasWarningEvents()`.
+- **The `cafeai-streaming` module.** It never contained a source file: every
+  version published to Maven Central (0.1.0 – 0.3.2) is a jar holding only a
+  manifest. The SSE / WebSocket streaming its docs advertised lives in
+  `cafeai-core`. Removed from the build, `cafeai-examples`, and the README,
+  GETTING-STARTED, DEVELOPER_GUIDE and SPEC; the artifacts already on Central
+  can't be deleted, but nothing new will be published.
+- **`CAFEAI_MCP_SERVERS` handling in `Connect.fromEnv()`.** It parsed the
+  variable and then did nothing with it (an empty loop body). `McpEndpoint` was
+  never built. Also dropped "MCP" from the `cafeai-connect` description and the
+  docs that claimed it.
 
 ### Fixed
 

@@ -14,7 +14,6 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'
-    implementation 'com.akilisha.oss:cafeai-streaming:0.4.0'
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0'
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'
@@ -107,6 +106,23 @@ appends the schema instruction to the prompt. `.call(X.class)` behaves exactly a
 before, and you can drop the redundant `.returning(X.class)` in front of it. If
 you call `.returning(X.class).call()` (no argument) you now get JSON-shaped text
 where you previously got unconstrained text.
+
+**7. The `cafeai-streaming` module is gone.** It was an empty artifact: every
+published version (0.1.0 – 0.3.2) is a jar holding only a manifest, and the module
+never had source files. The SSE / WebSocket streaming its docs advertised has
+always lived in `cafeai-core` (`res.stream(...)`, `PromptRequest.stream(...)`,
+`WsSession.streamTokens(...)`). Delete the dependency; nothing is lost.
+
+```groovy
+// Before
+implementation 'com.akilisha.oss:cafeai-streaming:0.3.2'   // an empty jar
+
+// After — nothing to add; streaming is in cafeai-core
+```
+
+**8. `Connect.fromEnv()` no longer reads `CAFEAI_MCP_SERVERS`.** It documented the
+variable, parsed it, then did nothing with the URLs. `McpEndpoint` was never built,
+so there is nothing to connect to; remove the variable from your environment.
 
 ### Not breaking, but new
 

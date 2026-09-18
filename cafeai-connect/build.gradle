@@ -9,7 +9,6 @@
 //    Redis              — connects to Redis → registers as MemoryStrategy
 //    Ollama             — connects to Ollama → registers as AI provider
 //    PgVector           — connects to pgvector → registers as VectorStore
-//    McpEndpoint        — connects to any MCP server → registers tools
 //    Connect            — fromEnv() and healthCheck()
 //
 //  Design principle:
@@ -19,7 +18,7 @@
 // ============================================================
 
 description = 'Out-of-process service connectivity for CafeAI — Redis, Ollama, ' +
-    'pgvector, and MCP endpoints.'
+    'and pgvector.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 

@@ -14,7 +14,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.4.0'
     // add capability modules as needed — cafeai-config, cafeai-agents, cafeai-memory,
     // cafeai-rag, cafeai-guardrails, cafeai-observability, cafeai-security,
-    // cafeai-streaming, cafeai-connect, cafeai-views-mustache, cafeai-sentinel
+    // cafeai-connect, cafeai-views-mustache, cafeai-sentinel
 }
 ```
 
@@ -110,8 +110,7 @@ cafeai/
 ├── cafeai-observability/   ← OpenTelemetry, metrics, eval harness
 ├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
 ├── cafeai-security/        ← Prompt injection, data leakage, cache poisoning
-├── cafeai-streaming/       ← SSE / WebSocket token streaming
-├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector, MCP
+├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
 ├── cafeai-sentinel/        ← AI cluster incident pipeline for Kubernetes / OpenShift
 ├── cafeai-examples/        ← Runnable examples — always kept working
