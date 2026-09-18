@@ -162,8 +162,7 @@ is a plain framework, not a container.
 startup CafeAI logs each module it finds (`CafeAI module loaded: cafeai-rag
 v0.4.0`). The capability wiring itself goes through the provider SPIs above —
 `CafeAIModule` is informational, not load-bearing, and registers nothing.
-(Before 0.4.0 it also had a `register(CafeAIRegistry)` method; that registry was
-never read by anything, and was removed.) Implement it in a `cafeai-*` module so its presence is visible in
+Implement it in a `cafeai-*` module so its presence is visible in
 the startup log; it is not required for a Level-1 or Level-2 extension.
 
 ---

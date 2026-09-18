@@ -223,8 +223,7 @@ app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ### 3.5 Tool and MCP Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
 
 Tools and MCP clients attach to an agent through LangChain4j — `@Tool`-annotated
-Java methods and `McpToolProvider` — not a separate CafeAI primitive (the old
-`cafeai-tools` module was removed). Exposing CafeAI's own capabilities *as* an
+Java methods and `McpToolProvider` — not a separate CafeAI primitive. Exposing CafeAI's own capabilities *as* an
 MCP server is the `app.helidon()` escape-hatch pattern (§12).
 
 ```java
@@ -348,10 +347,9 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | 4 | RAG | `core` + `memory` + `rag` | Ingestion, embeddings, retrieval |
 | 5 | Guardrails | `core` + `guardrails` | Safety, ethics, compliance as middleware |
 | 6 | Observability + Evals | `core` + `observability` | Production measurement |
-| 7 | Streaming | `core` + `streaming` | SSE / WebSocket token streaming |
-| 8 | Security | `core` + `security` | Injection, leakage, adversarial robustness |
-| 9 | Out-of-process services | `core` + `connect` | Redis, Ollama, pgvector with fallback policy |
-| 10 | Agents, tools, MCP | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
+| 7 | Security | `core` + `security` | Prompt-injection blocking with audit events |
+| 8 | Out-of-process services | `core` + `connect` | Redis, Ollama, pgvector with fallback policy |
+| 9 | Agents, tools, MCP | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
 | — | MCP server | `core` + `app.helidon()` | Expose capabilities to external orchestrators (§12) |
 
 ---
@@ -571,10 +569,6 @@ capabilities to external orchestrators (MCP server), and giving **agents** an HT
 Both landed on the same principle — CafeAI writes a thin binding, it does not reimplement the
 capability.
 
-> Note: the original `cafeai-tools` module was removed (it relied on deprecated
-> `dev.langchain4j.agent.tool` APIs). Tool + MCP support is rebuilt on LangChain4j's current
-> API through the agent layer — see ROADMAP-12.
-
 ### 11.1 Direction 1 — MCP Server exposure (resolved: the escape hatch)
 
 #### The Journey
@@ -777,9 +771,9 @@ Each module is a self-contained teachable unit. The project structure **is** the
 | 5 | **Context Memory Without the Cloud Tax** — Java FFM and the Tiered Memory Model |
 | 6 | **Building a RAG Pipeline in Java** — Ingestion, Embedding, and Retrieval |
 | 7 | **Tool Use and MCP in Java** — The Difference Between a Tool and an MCP Server |
-| 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, Bias, and Hallucination |
-| 9 | **Production-Grade AI Observability** — OpenTelemetry, Evals, and Prompt Versioning |
-| 10 | **AI Security Beyond Guardrails** — Prompt Injection, Data Leakage, Adversarial Robustness |
+| 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, and Regulatory Compliance |
+| 9 | **Production-Grade AI Observability** — OpenTelemetry and Evals |
+| 10 | **AI Security Beyond Guardrails** — Prompt Injection and Audit Events |
 | 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities via `app.helidon()` |
 | 12 | **Agents Without Magic** — Giving LangChain4j AiServices an HTTP Identity |
 | 13 | **The Multi-Agent Patterns** — Supervisor, Pipeline, Fan-out, and When to Use an Orchestrator |

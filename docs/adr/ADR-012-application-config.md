@@ -5,14 +5,11 @@
 
 ## Context
 
-An audit of the framework (2026-09) found real, undocumented, non-overridable
-constants sitting in production code paths — most seriously, `LangchainBridge`
-hardcoded a 60-second timeout into every LLM chat call, any provider, with no
-setter, no environment variable, no system property, and nothing written down
-anywhere that it existed. `AgentRegistry`'s chat-memory window (20 messages,
-fixed regardless of the `MemoryStrategy` configured) and `WebhookSink`'s retry
-count had the identical shape. None of these were edge cases; they were live
-in every application built on the framework.
+Tunable values need a way to be set. `LangchainBridge`'s LLM chat timeout applies to
+every call and any provider; `AgentRegistry`'s chat-memory window is independent of the
+`MemoryStrategy` configured; `WebhookSink`'s retry count is fixed. Each is live in every
+application built on the framework, and each needs a setter, an environment variable
+and a system property rather than a constant in code.
 
 The fair comparison raised at the time was Spring Boot's `application.properties`
 + `Environment` — not as something to copy wholesale (an external properties
@@ -134,14 +131,12 @@ only ever answers a question that was explicitly asked, by key.
   tune — a timeout, a pool size, a retry count, a window size — should be a
   `ConfigKey`, declared where it's used, not a bare `private static final`.
   `LangchainBridge.CHAT_TIMEOUT`, `AgentRegistry.MEMORY_WINDOW`, and
-  `WebhookSink.TIMEOUT`/`MAX_ATTEMPTS` are the first three; they were also
-  the three concrete bugs that motivated this ADR.
+  `WebhookSink.TIMEOUT`/`MAX_ATTEMPTS` are the first three.
 - Without `cafeai-config` on the classpath, every `ConfigKey` resolves to
   its coded default, unconditionally — there is no partial, zero-dependency
   override tier. That's a deliberate simplification, not an oversight: the
   only cost of *not* adding `cafeai-config` is "you get the default," which
-  is exactly what every one of these values already did before this system
-  existed.
+  is the value each of them has always had.
 - `ConfigCatalog.known()` is only complete once every class that declares a
   key has been loaded by the JVM. Read it after the application has been
   running a while — log it at the end of `app.listen()`, or expose it on a

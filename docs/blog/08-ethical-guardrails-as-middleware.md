@@ -1,4 +1,4 @@
-# Ethical Guardrails as Middleware — PII, Jailbreak, Bias, and Regulatory Compliance
+# Ethical Guardrails as Middleware — PII, Jailbreak, and Regulatory Compliance
 
 *Post 8 of 12 in the CafeAI series*
 
@@ -27,12 +27,12 @@ Incoming prompt text
     ↓
 [ LLM call ]
     ↓
-[ POST_LLM guardrails ] — PII on output, hallucination, regulatory, bias
+[ POST_LLM guardrails ] — PII on output, toxicity, secrets, system-prompt leaks
     ↓
 Response text delivered to caller
 ```
 
-Pre-LLM guardrails protect the model from adversarial input. Post-LLM guardrails protect the user from problematic output. PII guardrails run in BOTH positions — scrubbing personal data from the prompt before it reaches the model, and catching any PII that appears in the response.
+Pre-LLM guardrails protect the model from adversarial input. Post-LLM guardrails protect the user from problematic output. PII guardrails run in BOTH positions — blocking personal data in the prompt before it reaches the model, and catching any PII that appears in the response.
 
 ---
 
@@ -61,7 +61,7 @@ The jailbreak guardrail has a configurable sensitivity threshold. The default ca
 
 ---
 
-## PII Detection and Scrubbing
+## PII Detection
 
 ```java
 app.guard(GuardRail.pii());  // BOTH — pre and post LLM
@@ -69,7 +69,7 @@ app.guard(GuardRail.pii());  // BOTH — pre and post LLM
 
 PII detection runs in two modes:
 
-**Input scrubbing** (PRE_LLM): strips PII from the user's prompt before it reaches the LLM and is logged. Phone numbers, email addresses, SSNs, credit card numbers — all detected and blocked before the model sees them.
+**Input checking** (PRE_LLM): detects PII in the user's prompt and blocks the request before it reaches the LLM or is logged. Phone numbers, email addresses, SSNs, credit card numbers — all detected and blocked before the model sees them.
 
 **Output checking** (POST_LLM): verifies that the model's response does not include PII. If a tool call returned a customer record containing sensitive data and the model included it verbatim in its response, the PII guardrail catches it.
 
@@ -78,9 +78,9 @@ The `acme-claims` capstone applies PII guardrails to claim submissions — claim
 `PiiGuardRail.scrub()` is also available as a utility for application code that needs PII redaction outside the pipeline:
 
 ```java
-// Redact PII from text — replaces with [REDACTED]
+// Redact PII from text — replaces each match with its label
 String clean = PiiGuardRail.scrub("Call me at 555-867-5309");
-// "Call me at [PHONE REDACTED]"
+// "Call me at [PHONE]"
 ```
 
 ---
@@ -133,9 +133,9 @@ app.guard(GuardRail.topicBoundary()
 
 The topic boundary guardrail operates in two modes:
 
-**Allow list** — if the input is not semantically related to any allowed topic, it is blocked. Used in `support-desk` (Helios topics only) and `meridian-qualify` (loan qualification topics only).
+**Allow list** — if the input mentions none of the allowed topic keywords, it is blocked. Used in `support-desk` (Helios topics only) and `meridian-qualify` (loan qualification topics only).
 
-**Deny list** — if the input is semantically related to any denied topic, it is blocked regardless of other content. Used in `acme-claims` to block fraud coaching attempts. The `deny("how do I fake damage")` entry blocked the test input "How do I fake damage to get a bigger payout?" — the deny list pattern worked correctly on the first attempt.
+**Deny list** — if the input contains a denied topic keyword, it is blocked regardless of other content. Used in `acme-claims` to block fraud coaching attempts. The `deny("how do I fake damage")` entry blocked the test input "How do I fake damage to get a bigger payout?" — the deny list pattern worked correctly on the first attempt.
 
 Both modes can be combined. The `meridian-qualify` capstone uses both: an allow list for loan qualification topics and a deny list for explicitly prohibited financial advice.
 
@@ -146,42 +146,21 @@ Both modes can be combined. The `meridian-qualify` capstone uses both: an allow 
 The most demanding guardrail work in the capstone series was in `meridian-qualify` — a loan pre-qualification assistant operating under FCRA (Fair Credit Reporting Act) and ECOA (Equal Credit Opportunity Act).
 
 ```java
-app.guard(GuardRail.regulatory().fcra().ecoa());  // POST_LLM
+app.guard(GuardRail.regulatory().fcra().ecoa());  // PRE_LLM
 ```
 
-The regulatory guardrail checks that the model's output:
+The regulatory guardrail screens the request, before the model is called, for language that asks it to break these rules:
 
-- Does not use protected characteristics (race, religion, national origin, sex, age, marital status) as factors in credit decisions (ECOA)
-- Provides required adverse action notices when denying credit (FCRA)
-- Does not make definitive credit decisions — only recommendations (both)
+- Use a protected characteristic (race, religion, national origin, sex, age, marital status) as a factor in a credit decision (ECOA)
+- Expose raw credit report data, or pull a consumer report without a permissible purpose (FCRA)
 
 The `acme-claims` capstone adds HIPAA:
 
 ```java
-app.guard(GuardRail.regulatory().hipaa());  // POST_LLM
+app.guard(GuardRail.regulatory().hipaa());  // PRE_LLM
 ```
 
-HIPAA compliance checks that claim processing responses do not include protected health information in a form that would violate the regulation.
-
----
-
-## Bias Detection
-
-```java
-app.guard(GuardRail.bias());  // POST_LLM
-```
-
-The bias guardrail detects whether the model's decision output varies based on demographic characteristics in the input. In `meridian-qualify`, a loan qualification that produces a different outcome when the applicant's name is changed from "James Smith" to "Jamal Washington" — with all other inputs identical — is exhibiting demographic bias.
-
-The bias guardrail was the hardest guardrail to make meaningful in the test suite. A guardrail that detects bias needs a notion of what the "same" request looks like with demographic characteristics changed — and defining "same" is itself a substantive decision.
-
-The `meridian-qualify` tests that passed:
-
-- Changing the applicant's name did not change the qualification outcome
-- Changing the applicant's zip code (a common proxy for race) did not change the outcome
-- Adding age-related language ("I'm 62 years old") did not change the outcome
-
-These tests passed because the ECOA guardrail explicitly checks for protected characteristic references in the response, and the system prompt explicitly states "base decisions on financial factors only."
+HIPAA screening blocks a request to share or disclose a patient's records or protected health information, or to describe a treatment without consent.
 
 ---
 
@@ -211,14 +190,13 @@ Guardrails compose. An application can register as many as needed, in any combin
 app.guard(GuardRail.pii());
 app.guard(GuardRail.jailbreak());
 app.filter(AiSecurity.promptInjectionDetector());
-app.guard(GuardRail.bias());
 app.guard(GuardRail.topicBoundary()
     .allow("loan qualification", "mortgage", "credit", "income", "assets")
     .deny("investment advice", "insurance", "other financial products"));
 app.guard(GuardRail.regulatory().fcra().ecoa());
 ```
 
-Each guardrail is independent — removing one does not affect the others. The pipeline fires them in registration order. A guardrail that blocks early prevents subsequent guardrails from running (the request is already blocked), which is the correct behaviour — no point checking for bias in a request that failed the jailbreak check.
+Each guardrail is independent — removing one does not affect the others. The pipeline fires them in registration order. A guardrail that blocks early prevents subsequent guardrails from running (the request is already blocked), which is the correct behaviour — no point running the remaining checks on a request that failed the jailbreak check.
 
 ---
 

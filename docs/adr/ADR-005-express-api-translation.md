@@ -589,7 +589,7 @@ See ADR-009 §2 for the full rationale.
 | `req.res` | `req.response()` | 🔄 Translated | `res` is too terse as a Java method name |
 | `req.route` | `req.route()` | ✅ Adopted | |
 | `req.secure` | `req.secure()` | ✅ Adopted | Shorthand for `req.protocol().equals("https")` |
-| `req.signedCookies` | ❌ Omitted | Signing needs an application secret CafeAI has no setting for. The old `CookieOptions.signed(true)` flag was never honoured — it sent an unsigned cookie — so it was removed rather than left to imply protection. |
+| `req.signedCookies` | ❌ Omitted | Signing needs an application secret CafeAI has no setting for. |
 | `req.stale` | `req.stale()` | ✅ Adopted | Opposite of `req.fresh()` |
 | `req.subdomains` | `req.subdomains()` | 🔄 Translated | Returns `List<String>` |
 | `req.xhr` | `req.xhr()` | ✅ Adopted | Detects `X-Requested-With: XMLHttpRequest` |

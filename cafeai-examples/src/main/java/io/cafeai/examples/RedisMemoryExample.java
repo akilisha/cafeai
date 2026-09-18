@@ -66,8 +66,8 @@ import java.util.Map;
  * <pre>
  *   MemoryStrategy.inMemory()           Rung 1: JVM heap, dev/test only
  *   MemoryStrategy.mapped()             Rung 2: SSD-backed FFM, single-node production
- *   MemoryStrategy.redis(config)        Rung 4: Redis, multi-node / cloud deployments
- *   MemoryStrategy.hybrid()             Rung 5: Warm SSD + cold Redis, best of both
+ *   MemoryStrategy.redis(config)        Rung 3: Redis, multi-node / cloud deployments
+ *   MemoryStrategy.hybrid()             Rung 4: Warm SSD + cold Redis, best of both
  * </pre>
  *
  * <p>Choose the lowest rung that meets your requirements. Most single-instance
@@ -89,7 +89,7 @@ public class RedisMemoryExample {
             Keep responses concise.
             """);
 
-        // ── Memory — Redis (Rung 4) ───────────────────────────────────────────
+        // ── Memory — Redis (Rung 3) ───────────────────────────────────────────
         //
         // THIS IS THE ONLY LINE THAT DIFFERS FROM HelloCafeAI.
         //

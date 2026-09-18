@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 
 /**
- * Rung 4: Redis-backed distributed conversation memory via Lettuce.
+ * Rung 3: Redis-backed distributed conversation memory via Lettuce.
  *
  * <p>The distributed escape valve. Reach for this when:
  * <ul>

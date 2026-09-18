@@ -226,11 +226,7 @@ intercepts first.
   non-trivial to construct — a concrete, unglamorous but load-bearing
   addition. The built-in providers are records, so two providers compare equal
   only if every field does: the same model at two temperatures, on two base
-  URLs, or with two timeouts are distinct cache entries. (The key used to be
-  `name + ":" + modelId`, which silently shared one client between all of
-  those. It only became easy to hit once providers could carry settings, but
-  it was already latent for two `Ollama.at(...)` instances on different hosts
-  serving the same model id.)
+  URLs, or with two timeouts are distinct cache entries.
 - **`ModelRouter`** — cost-based routing by input length — **has no
   LangChain4j equivalent at all.** `ModelRouter implements AiProvider` and
   presents as its `complexModel` for capability checks; the actual routing
@@ -432,7 +428,7 @@ pre-`.build()`.
 ```java
 app.memory(MemoryStrategy.inMemory());   // Rung 1 — zero deps
 app.memory(MemoryStrategy.mapped());     // Rung 2 — SSD-backed FFM (cafeai-memory)
-app.memory(MemoryStrategy.redis(cfg));   // Rung 4 — Lettuce (cafeai-memory)
+app.memory(MemoryStrategy.redis(cfg));   // Rung 3 — Lettuce (cafeai-memory)
 ```
 
 `MemoryStrategy` (`store`/`retrieve`/`evict`/`exists` against a
@@ -643,7 +639,7 @@ predictable.
 at call time via `ServiceLoader.load(XProvider.class).findFirst()`. Absent
 the implementing module, you get one honest outcome: an
 `XModuleNotFoundException` naming the exact Gradle/Maven coordinate to add
-(guardrails, memory rungs 2–5, Chroma/PgVector, embeddings — none has a safe
+(guardrails, memory rungs 2–4, Chroma/PgVector, embeddings — none has a safe
 silent fallback; a guardrail that passes everything through is worse than none).
 **Application code compiles and reads identically
 whether or not the module is present** — you write against the full
@@ -750,7 +746,7 @@ alone does *not* hand you at this rung":
 | 4 | RAG | `VectorStore`/`EmbeddingProvider` factory ergonomics + bespoke hybrid retrieval |
 | 5–7 | Tools, guardrails, agents | A guardrail *catalog*; one config honored by both call styles (§3.3) |
 | 8 | Observability + evals | `ObserveBridge` dual-wiring; `EvalHarness` (no LC4J equivalent) |
-| 9–10 | Streaming, security | SSE/WebSocket backpressure; injection/leakage checks (no LC4J equivalent) |
+| 9–10 | Streaming, security | SSE/WebSocket backpressure; injection checks (no LC4J equivalent) |
 
 ---
 

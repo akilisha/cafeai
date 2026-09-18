@@ -206,8 +206,8 @@ app.template("name", "{{variable}}")     // named prompt templates
 ```java
 app.memory(MemoryStrategy.inMemory())     // Rung 1: JVM HashMap — prototype
 app.memory(MemoryStrategy.mapped())      // Rung 2: SSD-backed via Java FFM
-app.memory(MemoryStrategy.redis(config)) // Rung 4: Redis — the escape valve
-app.memory(MemoryStrategy.hybrid())      // Rung 5: warm SSD + cold Redis
+app.memory(MemoryStrategy.redis(config)) // Rung 3: Redis — the escape valve
+app.memory(MemoryStrategy.hybrid())      // Rung 4: warm SSD + cold Redis
 ```
 
 ### Semantic cache
@@ -364,7 +364,7 @@ CafeAI is structured so that every team can start at the bottom and climb delibe
 | 7    | Agents                | Typed agent interfaces, tool-call loops via LangChain4j |
 | 8    | Observability + Evals | Production measurement, eval harness               |
 | 9    | Streaming             | SSE, backpressure, real-time UX                    |
-| 10   | Security              | Injection, leakage, adversarial robustness         |
+| 10   | Security              | Prompt-injection blocking with audit events        |
 
 ---
 
@@ -450,7 +450,7 @@ A narrative arc through the framework, one capability at a time, each post ancho
 5. **Context Memory Without the Cloud Tax** — [Java FFM and the Tiered Memory Model](https://github.com/akilisha/cafeai/blob/main/docs/blog/05-context-memory-without-cloud-tax.md)
 6. **Building a RAG Pipeline in Java** — [Ingestion, Embedding, and Retrieval](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
 7. **Tool Use in Java** — Giving the LLM Actions to Take *(outline drafted, prose pending)*
-8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, Bias, and Regulatory Compliance](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
+8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, and Regulatory Compliance](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
 9. **Vision and Audio in Java** — [Multimodal AI Without the Boilerplate](https://github.com/akilisha/cafeai/blob/main/docs/blog/09-vision-and-audio-in-java.md)
 10. **Structured Output** — [Typed LLM Responses, No Parser Required](https://github.com/akilisha/cafeai/blob/main/docs/blog/10-structured-output.md)
 11. **Production-Grade AI** — [Token Budgets, Retries, Observability, and Incident Response](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)

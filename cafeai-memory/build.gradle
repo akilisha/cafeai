@@ -4,8 +4,8 @@
 //
 //  Rung 1 → In-JVM HashMap           (in cafeai-core, zero deps)
 //  Rung 2 → FFM MemorySegment        (SSD-backed, off-heap)
-//  Rung 4 → Redis via Lettuce        (distributed escape valve)
-//  Rung 5 → Hybrid warm+cold         (SSD + Redis)
+//  Rung 3 → Redis via Lettuce        (distributed escape valve)
+//  Rung 4 → Hybrid warm+cold         (SSD + Redis)
 // ============================================================
 
 description = 'Tiered context-memory strategies for CafeAI — in-JVM, off-heap SSD, ' +
@@ -22,7 +22,7 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
 
-    // ── Redis (Rung 4) ───────────────────────────────────────
+    // ── Redis (Rung 3) ───────────────────────────────────────
     // Lettuce — reactive Redis client; we use synchronous API (virtual threads)
     implementation "io.lettuce:lettuce-core:${rootProject.ext.lettuceVersion}"
 

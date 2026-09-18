@@ -645,7 +645,7 @@ public interface CafeAI extends Router {
      * <pre>{@code
      *   app.memory(MemoryStrategy.inMemory());   // Rung 1 — prototype
      *   app.memory(MemoryStrategy.mapped());     // Rung 2 — SSD-backed via Java FFM
-     *   app.memory(MemoryStrategy.redis(cfg));   // Rung 4 — distributed escape valve
+     *   app.memory(MemoryStrategy.redis(cfg));   // Rung 3 — distributed escape valve
      * }</pre>
      */
     CafeAI memory(MemoryStrategy strategy);

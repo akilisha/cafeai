@@ -114,14 +114,13 @@ One specific architectural decision is worth calling out before the rest of the 
 
 Most AI tutorials default to Redis for session memory. Redis is excellent infrastructure. It is also frequently unnecessary.
 
-CafeAI's memory model is a five-rung ladder:
+CafeAI's memory model is a four-rung ladder:
 
 ```
 Rung 1 → inMemory()     JVM heap — dev and testing only
 Rung 2 → mapped()       SSD-backed FFM MemorySegment — single-node production
-Rung 3 → chronicle()    Chronicle Map off-heap — high-throughput single node
-Rung 4 → redis(config)  Redis — distributed, multi-instance
-Rung 5 → hybrid()       Warm SSD + cold Redis — both
+Rung 3 → redis(config)  Redis — distributed, multi-instance
+Rung 4 → hybrid()       Warm SSD + cold Redis — both
 ```
 
 The insight is that `mapped()` — the SSD-backed tier — handles most production workloads on a single node. It is faster than Redis (no network), cheaper (no infrastructure), and safer (sessions survive JVM restarts because they are on disk). Redis becomes the right choice only when you genuinely need state shared across multiple application instances. Not before.

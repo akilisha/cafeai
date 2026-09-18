@@ -71,8 +71,7 @@ them.
 
 ## History
 
-Capstones 1–4 began as separate repositories on `io.cafeai:*:0.1.x` and the
-now-removed `cafeai-tools` module. They were folded in here in 2026-09; the
+Capstones 1–4 began as separate repositories on `io.cafeai:*:0.1.x`. They were folded in here in 2026-09; the
 per-capstone `notes/` (invoice-processor) and this file are the only surviving
 narrative from that era. `invoice-processor` was `atlas-inbox`; its package was
 renamed to `io.meridian.invoice`.

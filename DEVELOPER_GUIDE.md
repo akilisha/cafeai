@@ -1685,9 +1685,8 @@ default, unconditionally — exactly the behavior the value already had before
 it was a `ConfigKey`. Adding a configurable value never risks a working
 default disappearing.
 
-`cafeai-core` itself uses this for the three constants an audit found
-hardcoded in production code paths: `LangchainBridge`'s per-call chat
-timeout, `AgentRegistry`'s chat-memory window, and `cafeai-sentinel`'s
+`cafeai-core` itself uses this for three tunable constants:
+`LangchainBridge`'s per-call chat timeout, `AgentRegistry`'s chat-memory window, and `cafeai-sentinel`'s
 `WebhookSink` retry timeout/attempt count.
 
 ### 17.3 Adding `cafeai-config`

@@ -11,11 +11,7 @@ A semantic cache answers a repeat question — or a paraphrase of one — from a
 of calling the model. It saves cost and latency, and in a framework that already has embeddings and
 a vector store it is an obvious feature.
 
-CafeAI advertised one before it existed: `PromptResponse.fromCache()` was hard-wired to `false`, the
-README's pipeline diagram had a "semantic cache lookup" step, and `cafeai-security` shipped a
-"semantic cache poisoning detector". The detector guarded nothing, and it rejected any prompt under
-200 characters containing four common imperative words. An audit removed all of it. This ADR records
-the real feature.
+This ADR records how the cache is built and what it defends against.
 
 ## The threat
 
@@ -80,9 +76,9 @@ The defaults are deliberately strict. A missed hit costs a model call; a wrong h
 - **Embedding similarity alone.** Rejected: it is exactly what the appended-instructions attack
   exploits. A control test runs the attack with the word-overlap and length guards disabled and
   shows the poison is served.
-- **Detecting "poisoning attempts" by heuristic** (the removed detector: short prompt, many
-  imperative words). Rejected: it flags ordinary requests, and it looks at the input rather than at
-  what would be shared. Keeping flagged interactions *out of the cache* is more principled than
+- **Detecting "poisoning attempts" by heuristic** (a short prompt with several imperative
+  words). Rejected: it flags ordinary requests, and it looks at the input rather than at what would
+  be shared. Keeping flagged interactions *out of the cache* is more principled than
   trying to recognise an attack in the prompt.
 - **Persisting entries in the configured `VectorStore`.** Deferred: `VectorStore` has no metadata or
   TTL, and a persistent shared cache is a larger poisoning surface. `SemanticCache` is an interface so
@@ -90,8 +86,8 @@ The defaults are deliberately strict. A missed hit costs a model call; a wrong h
 
 ## Consequences
 
-- `PromptResponse.fromCache()` and the `cafeai.cache_hit` span attribute return, and are now true
-  when they say so.
+- `PromptResponse.fromCache()` and the `cafeai.cache_hit` span attribute report whether the cache
+  answered.
 - `EmbeddingProvider.of(EmbeddingModel)` lets any LangChain4j embedding model back the cache without
   an adapter.
 - The guardrail helpers report whether *anything* was flagged (not only blocked), which the cache's

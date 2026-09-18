@@ -16,14 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <pre>
  *   Rung 1 -> inMemory()    JVM HashMap -- zero deps, prototype/dev
  *   Rung 2 -> mapped()      SSD-backed via Java FFM MemorySegment   (cafeai-memory)
- *   Rung 4 -> redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
- *   Rung 5 -> hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
+ *   Rung 3 -> redis(cfg)    Distributed via Lettuce                 (cafeai-memory)
+ *   Rung 4 -> hybrid()      Warm SSD + cold Redis                   (cafeai-memory)
  * </pre>
  *
- * <p>Rung numbers are historical: rung 3 (Chronicle Map) was never built and was
- * removed, so the ladder skips it.
- *
- * <p>Rungs 2-5 require {@code com.akilisha.oss:cafeai-memory} on the classpath.
+ * <p>Rungs 2-4 require {@code com.akilisha.oss:cafeai-memory} on the classpath.
  * Adding the JAR is the only configuration needed -- no code changes required.
  *
  * <p>Rung 1 ({@code inMemory()}) is fully functional with zero dependencies.
@@ -61,7 +58,7 @@ public interface MemoryStrategy {
         return new InMemoryStrategy();
     }
 
-    // -- Rungs 2-5: Require cafeai-memory module -------------------------------
+    // -- Rungs 2-4: Require cafeai-memory module -------------------------------
 
     /**
      * Rung 2: SSD-backed off-heap memory via Java FFM {@code MemorySegment}.
@@ -89,7 +86,7 @@ public interface MemoryStrategy {
     }
 
     /**
-     * Rung 4: Redis-backed distributed memory via Lettuce.
+     * Rung 3: Redis-backed distributed memory via Lettuce.
      *
      * <p>The distributed escape valve. Sessions are shared across all application
      * instances and survive deployments. TTL is enforced at the Redis level.
@@ -103,7 +100,7 @@ public interface MemoryStrategy {
     }
 
     /**
-     * Rung 5: Hybrid tiered memory -- warm (SSD) + cold (Redis).
+     * Rung 4: Hybrid tiered memory -- warm (SSD) + cold (Redis).
      *
      * <p>Hot sessions stay local and fast. Idle sessions are demoted to Redis.
      * Reads promote sessions back to warm automatically.
@@ -130,7 +127,7 @@ public interface MemoryStrategy {
         return ServiceLoader.load(MemoryStrategyProvider.class)
             .findFirst()
             .orElseThrow(() -> new MemoryModuleNotFoundException(
-                "Memory rungs 2-5 require the cafeai-memory module. " +
+                "Memory rungs 2-4 require the cafeai-memory module. " +
                 "Add the following dependency:\n\n" +
                 "  Gradle: implementation 'com.akilisha.oss:cafeai-memory'\n" +
                 "  Maven:  <artifactId>cafeai-memory</artifactId>\n\n" +

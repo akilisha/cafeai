@@ -71,8 +71,8 @@ import java.util.Map;
  *   MemoryStrategy.inMemory()           Rung 1: JVM heap — dev/test, no persistence
  *   MemoryStrategy.mapped()             Rung 2: SSD-backed FFM — single-node production
  *   MemoryStrategy.mapped(Path)         Rung 2: same, custom storage directory
- *   MemoryStrategy.redis(config)        Rung 4: Redis — multi-node / cloud
- *   MemoryStrategy.hybrid()             Rung 5: Warm SSD + cold Redis
+ *   MemoryStrategy.redis(config)        Rung 3: Redis — multi-node / cloud
+ *   MemoryStrategy.hybrid()             Rung 4: Warm SSD + cold Redis
  * </pre>
  *
  * <p>For single-instance production, {@code mapped()} is the right choice.

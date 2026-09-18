@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Rung 5: Hybrid tiered memory — warm (SSD) + cold (Redis).
+ * Rung 4: Hybrid tiered memory — warm (SSD) + cold (Redis).
  *
  * <p>Hot sessions stay in the warm tier (fast, local, off-heap).
  * Idle sessions are demoted to the cold tier (distributed, persistent) after

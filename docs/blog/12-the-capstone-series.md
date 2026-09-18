@@ -42,7 +42,7 @@ The second application was chosen to stress-test. A loan pre-qualification assis
 
 What `meridian-qualify` proved:
 
-**Regulatory guardrails compose correctly with domain logic.** The FCRA guardrail, the ECOA guardrail, and the bias detection guardrail all register alongside the jailbreak and PII guardrails without conflict. Each fires at its position in the pipeline. The model's outputs are checked against regulatory constraints before the caller receives them.
+**Regulatory guardrails compose correctly with domain logic.** The FCRA and ECOA guardrails register alongside the jailbreak and PII guardrails without conflict. Each fires at its position in the pipeline. The model's outputs are checked against regulatory constraints before the caller receives them.
 
 **Structured output is a missing primitive.** Every qualification decision needed to be a typed `QualificationDecision` record — not free text. The boilerplate appeared the first time in `meridian-qualify`. It appeared three more times in `atlas-inbox`. By the fourth repetition, the primitive had been added to the framework.
 
@@ -94,9 +94,9 @@ What `atlas-inbox` proved:
 | Test modules | cafeai-core (307), cafeai-guardrails (33), cafeai-memory (20), cafeai-rag (13), cafeai-security (14) |
 | Capstones | 4 complete, 1 specified (nova-tutor) |
 | Roadmap items | 15 complete |
-| Framework modules | 11 (core, memory, rag, agents, guardrails, observability, security, streaming, connect, views-mustache, sentinel) |
+| Framework modules | 10 (core, memory, rag, agents, guardrails, observability, security, connect, views-mustache, sentinel) |
 | Modalities | 3 (prompt, vision, audio) |
-| Memory rungs | 5 (inMemory, mapped, chronicle, redis, hybrid) |
+| Memory rungs | 4 (inMemory, mapped, redis, hybrid) |
 | Vector stores | 3 (inMemory, Chroma, PgVector) |
 | LLM providers | 5 (OpenAI, Anthropic, Gemini, Ollama, Jlama) |
 

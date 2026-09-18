@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.*;
  * <ul>
  *   <li>Rung 1: {@code inMemory()} — fully functional</li>
  *   <li>Rung 2: {@code mapped()} — SSD-backed FFM</li>
- *   <li>Rung 5: {@code hybrid()} — warm+cold tiering with demotion</li>
+ *   <li>Rung 4: {@code hybrid()} — warm+cold tiering with demotion</li>
  *   <li>Context window trimming in {@link ConversationContext}</li>
  * </ul>
  *
@@ -157,7 +157,7 @@ class MemoryStrategyTest {
         strategy.close();
     }
 
-    // ── Rung 5: hybrid ───────────────────────────────────────────────────────
+    // ── Rung 4: hybrid ───────────────────────────────────────────────────────
 
     @Test
     @DisplayName("hybrid: store writes to both warm and cold tiers")

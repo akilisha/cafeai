@@ -26,7 +26,7 @@ CafeAI handles all of this automatically when `.session(sessionId)` is called on
 
 ---
 
-## The Five Rungs
+## The Four Rungs
 
 CafeAI's memory model is a deliberate ladder. Start at the lowest rung that meets your requirements. Graduate only when a rung genuinely falls short.
 
@@ -58,18 +58,7 @@ No network. No infrastructure. No cloud cost. No Redis cluster to operate.
 **Use for:** Single-node production deployments.  
 **Graduate when:** You need sessions shared across multiple application instances.
 
-### Rung 3 — `chronicle()` — Off-Heap Chronicle Map
-
-```java
-app.memory(MemoryStrategy.chronicle(Path.of("/var/cafeai/chronicle")));
-```
-
-Chronicle Map is a high-performance off-heap key-value store. Sessions are stored outside the JVM heap — no GC pressure regardless of session count. Chronicle Map handles hundreds of thousands of entries with microsecond access times.
-
-**Use for:** Single-node deployments with very high session volume.  
-**Graduate when:** You need cross-instance session sharing.
-
-### Rung 4 — `redis(config)` — Distributed
+### Rung 3 — `redis(config)` — Distributed
 
 ```java
 app.memory(MemoryStrategy.redis(
@@ -85,7 +74,7 @@ Sessions stored in Redis with configurable TTL. All application instances share 
 **Use for:** Multi-instance deployments, cloud-native architectures.  
 **The honest question:** Do you actually have multiple instances? Most applications that default to Redis do not.
 
-### Rung 5 — `hybrid()` — Warm SSD + Cold Redis
+### Rung 4 — `hybrid()` — Warm SSD + Cold Redis
 
 ```java
 app.memory(MemoryStrategy.hybrid(
@@ -190,7 +179,7 @@ app.memory(MemoryStrategy.redis(
 
 The swap from `inMemory()` to `redis()` — the only code change from capstone 1 to capstone 3's memory configuration — is one line. Every other line in the application is identical.
 
-This is the demonstration the tiered memory model is designed to enable: the application works at Rung 1 during development, runs at Rung 2 in single-node staging, and graduates to Rung 4 in production without touching any application logic.
+This is the demonstration the tiered memory model is designed to enable: the application works at Rung 1 during development, runs at Rung 2 in single-node staging, and graduates to Rung 3 in production without touching any application logic.
 
 ---
 

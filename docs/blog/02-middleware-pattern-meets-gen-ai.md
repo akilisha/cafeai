@@ -43,7 +43,7 @@ Incoming Request
     ↓
 [ LLM call ]                — with retry on rate limit
     ↓
-[ POST_LLM guardrails ]     — hallucination scoring, bias, regulatory
+[ POST_LLM guardrails ]     — PII, toxicity, secrets, prompt leaks
     ↓
 [ Observability ]           — token counts, latency, RAG documents retrieved
     ↓
@@ -128,13 +128,13 @@ In CafeAI, a guardrail is a middleware with a position:
 // Registered at startup — runs on every prompt call automatically
 app.guard(GuardRail.jailbreak());           // PRE_LLM — blocks before the call
 app.guard(GuardRail.pii());                 // BOTH — checks input and output
-app.guard(GuardRail.hallucination());       // POST_LLM — checks after the call
-app.guard(GuardRail.regulatory().gdpr());   // POST_LLM — compliance check
+app.guard(GuardRail.toxicity());            // BOTH — checks input and output
+app.guard(GuardRail.regulatory().gdpr());   // PRE_LLM — compliance check
 ```
 
 The developer never calls these explicitly. They are registered once and the pipeline executes them on every call. Removing a guardrail is removing one line from startup registration. Adding one is adding one line. The LLM call doesn't change. The routes don't change. The guardrails are the pipeline, not the wrapper around it.
 
-The PRE_LLM position runs before the LLM sees the prompt — blocking jailbreak attempts and scrubbing PII before they are sent. The POST_LLM position runs after the response arrives — scoring for hallucination, checking for bias, enforcing regulatory constraints. The BOTH position runs in both places.
+The PRE_LLM position runs before the LLM sees the prompt — blocking jailbreak attempts and PII before they are sent. The POST_LLM position runs after the response arrives — checking the response for PII, toxic content, or a leaked system prompt. The BOTH position runs in both places.
 
 This is why guardrails being middleware matters: they cannot be accidentally omitted. They are not a function call the developer remembers to make. They are a layer that fires whether the developer thinks about it or not.
 
@@ -175,7 +175,7 @@ app.filter("/api/v1", v1);
 
 The real payoff of the middleware model appears when you need to change something.
 
-Suppose you have a production AI application and you need to add PII scrubbing. In a typical implementation, you find every place where prompts are assembled and add a scrub call. You pray you didn't miss any. You write tests for each call site.
+Suppose you have a production AI application and you need to add PII detection. In a typical implementation, you find every place where prompts are assembled and add a scrub call. You pray you didn't miss any. You write tests for each call site.
 
 In CafeAI:
 
@@ -183,7 +183,7 @@ In CafeAI:
 app.guard(GuardRail.pii());
 ```
 
-One line, added to startup. PII scrubbing now runs on every prompt call, every vision call, every audio call — automatically, without touching any of the call sites.
+One line, added to startup. PII detection now runs on every prompt call, every vision call, every audio call — automatically, without touching any of the call sites.
 
 Suppose you need to add observability. Same story:
 
