@@ -908,7 +908,6 @@ public interface CafeAI extends Router {
      *
      * <pre>{@code
      *   app.engine("html", ResponseFormatter.mustache());
-     *   app.engine("md",   ResponseFormatter.markdown());
      * }</pre>
      */
     CafeAI engine(String ext, ResponseFormatter formatter);

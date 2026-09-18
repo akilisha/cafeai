@@ -2006,8 +2006,15 @@ public final class CafeAIApp implements CafeAI {
         // Resolve template path from VIEWS setting
         String viewsDir = (String) setting(Setting.VIEWS);
         String fileName = dot >= 0 ? view : view + "." + ext;
-        String templatePath = java.nio.file.Paths.get(viewsDir, fileName)
-                .toAbsolutePath().normalize().toString();
+        java.nio.file.Path root = java.nio.file.Paths.get(viewsDir).toAbsolutePath().normalize();
+        java.nio.file.Path template = root.resolve(fileName).normalize();
+        // A view name is joined onto the views directory. One that climbs out of it ("../secrets.html")
+        // or is absolute would read any file the process can, so it is refused, not rendered.
+        if (!template.startsWith(root)) {
+            throw new ResponseFormatter.RenderException(
+                    "View \"" + view + "\" resolves outside the views directory");
+        }
+        String templatePath = template.toString();
 
         // Merge locals: app.locals() < res/view locals (view locals win on conflict)
         Map<String, Object> merged = new LinkedHashMap<>(locals());

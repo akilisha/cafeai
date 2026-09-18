@@ -188,6 +188,12 @@ constants `Attributes.EVAL_SCORES`, `Attributes.RAG_DOCUMENTS` and `Attributes.R
 for the same reason: nothing set them, so a handler that read them got `null`. To cite the documents
 behind an answer, use `PromptResponse.ragDocuments()`.
 
+**21. `ResponseFormatter.markdown()` and `ViewEngineProvider.extensions()` are removed.** `markdown()` loaded an
+engine from a `cafeai-views-markdown` module that does not exist, so it could only throw. `extensions()` was
+never called by anything: delete the override from any `ViewEngineProvider` you wrote. Separately,
+`res.render(name)` now refuses a view that resolves outside `Setting.VIEWS` (`../x.html`, an absolute path)
+with a `RenderException`; keep view files under the views directory.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for application configuration. A `ConfigKey` declares a

@@ -23,22 +23,19 @@ import java.util.ServiceLoader;
  * </ul>
  *
  * <h2>Optional engine modules</h2>
- * <p>Real template engines are provided by optional modules on the classpath.
- * Adding the JAR is the only configuration needed — no code changes required.
- * Each module self-registers via {@link java.util.ServiceLoader}.
+ * <p>Real template engines are provided by optional modules on the classpath; each self-registers
+ * via {@link java.util.ServiceLoader}, and adding the JAR makes its factory method available.
+ * You still register the formatter with {@code app.engine(...)}.
  *
  * <table>
  *   <tr><th>Method</th><th>Module</th><th>Dependency</th></tr>
  *   <tr><td>{@link #mustache()}</td><td>{@code cafeai-views-mustache}</td>
  *       <td>{@code com.akilisha.oss:cafeai-views-mustache}</td></tr>
- *   <tr><td>{@link #markdown()}</td><td>{@code cafeai-views-markdown}</td>
- *       <td>{@code com.akilisha.oss:cafeai-views-markdown}</td></tr>
  * </table>
  *
  * <pre>{@code
  *   // Register engines
  *   app.engine("html", ResponseFormatter.mustache());   // requires cafeai-views-mustache
- *   app.engine("md",   ResponseFormatter.markdown());   // requires cafeai-views-markdown
  *
  *   // Development only — no loops or escaping
  *   app.engine("txt",  ResponseFormatter.template());
@@ -82,19 +79,6 @@ public interface ResponseFormatter {
      */
     static ResponseFormatter mustache() {
         return loadEngine("mustache", "com.akilisha.oss:cafeai-views-mustache");
-    }
-
-    /**
-     * Returns a Markdown-to-HTML formatter.
-     *
-     * <p>Requires {@code com.akilisha.oss:cafeai-views-markdown} on the classpath.
-     * Variables are interpolated via {@code {{variable}}} before Markdown rendering.
-     * Output is wrapped in a configurable HTML shell.
-     *
-     * @throws RenderException if {@code cafeai-views-markdown} is not on the classpath
-     */
-    static ResponseFormatter markdown() {
-        return loadEngine("markdown", "com.akilisha.oss:cafeai-views-markdown");
     }
 
     /**

@@ -61,6 +61,8 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **Security.** `AiSecurity.ragDataLeakagePrevention()`, `AiSecurity.semanticCachePoisoningDetector()`,
   `SecurityEvent.DataLeakageAttempt`, `SecurityEvent.CachePoisoningAttempt` and
   `SecurityEvent.InjectionAttempt.source()`. CafeAI has no per-user document access control.
+- **View engines.** `ResponseFormatter.markdown()` (there is no Markdown engine module) and
+  `ViewEngineProvider.extensions()` (nothing called it). Delete the method from your own provider.
 - **Observability.** `app.eval(...)` and `EvalHarness`; the `Attributes` constants `EVAL_SCORES`,
   `RAG_DOCUMENTS` and `RAG_CONTEXT`. The documents behind an answer are on
   `PromptResponse.ragDocuments()`.
@@ -160,6 +162,13 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   status and `error.type`, or logs the error. The documented span attributes are corrected to the names
   recorded (`gen_ai.*`, `cafeai.session.id`, `cafeai.rag.documents_retrieved`, `error.type`); the
   listed `cafeai.guardrail_triggered` was never recorded.
+- **`cafeai-views-mustache` (now tested)** rendered nothing on Windows: Mustache.java treated the absolute
+  template path (`D:\views\page.html`) as a URI and failed. Templates are now compiled by file name against
+  their own directory, which also makes `{{>partial}}` resolve next to the including template on every
+  OS. A template edited on disk is recompiled on its next render, without a restart.
+- **`res.render()` / `app.render()` refuse a view outside the views directory.** A name such as
+  `../secrets.html`, or an absolute path, was joined onto the views directory and read; it now fails with a
+  `RenderException`. This matters when a view name comes from a request.
 - **`cafeai-connect`** (now tested: unit tests for every connector and `Connect.fromEnv()`, and
   Testcontainers tests against a real Redis and pgvector):
   - Credentials no longer reach logs or `/health`: `PgVector.name()` embedded the whole JDBC URL

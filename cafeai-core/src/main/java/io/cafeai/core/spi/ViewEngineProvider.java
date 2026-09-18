@@ -6,20 +6,20 @@ import io.cafeai.core.ResponseFormatter;
  * SPI for optional view engine modules.
  *
  * <p>Implement this interface in a module (e.g. {@code cafeai-views-mustache})
- * to make a {@link ResponseFormatter} discoverable by CafeAI at runtime via
+ * to make a {@link ResponseFormatter} discoverable at runtime via
  * {@link java.util.ServiceLoader}. The implementation JAR declares itself in:
  * <pre>
  *   META-INF/services/io.cafeai.core.spi.ViewEngineProvider
  * </pre>
  *
- * <p>This is the same pattern CafeAI uses for {@link CafeAIModule} -- adding
- * the JAR to the classpath IS the configuration. No code changes required.
+ * <p>This is the same pattern CafeAI uses for {@link CafeAIModule}: adding the JAR to the classpath
+ * makes the engine's factory (such as {@code ResponseFormatter.mustache()}) available. The
+ * application still registers the result with {@code app.engine(ext, formatter)}.
  *
  * <p>Example implementation in {@code cafeai-views-mustache}:
  * <pre>{@code
  *   public class MustacheViewEngineProvider implements ViewEngineProvider {
  *       @Override public String engineId() { return "mustache"; }
- *       @Override public String[] extensions() { return new String[]{"mustache", "html"}; }
  *       @Override public ResponseFormatter create() {
  *           return (templatePath, locals) -> {
  *               MustacheFactory mf = new DefaultMustacheFactory();
@@ -35,24 +35,14 @@ import io.cafeai.core.ResponseFormatter;
 public interface ViewEngineProvider {
 
     /**
-     * Canonical engine identifier -- used to match against
-     * {@code ResponseFormatter.mustache()}, {@code ResponseFormatter.markdown()}, etc.
-     *
-     * <p>Well-known IDs: {@code "mustache"}, {@code "markdown"}, {@code "pebble"},
-     * {@code "thymeleaf"}, {@code "freemarker"}, {@code "handlebars"}.
+     * Canonical engine identifier, matched (case-insensitively) by the factory method that loads
+     * it: {@code "mustache"} for {@code ResponseFormatter.mustache()}.
      */
     String engineId();
 
     /**
-     * File extensions this engine handles.
-     * Used for automatic engine selection when no explicit engine is registered.
-     * Example: {@code ["mustache", "html"]}
-     */
-    String[] extensions();
-
-    /**
-     * Creates a new {@link ResponseFormatter} instance for this engine.
-     * Called once per application -- the result is cached by CafeAI.
+     * Creates a new {@link ResponseFormatter} instance for this engine. Called each time the
+     * factory method is invoked; register the result once with {@code app.engine(...)}.
      */
     ResponseFormatter create();
 }

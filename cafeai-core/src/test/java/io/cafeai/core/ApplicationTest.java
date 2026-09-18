@@ -346,15 +346,6 @@ class ApplicationTest {
     }
 
     @Test
-    @DisplayName("ResponseFormatter.markdown() throws RenderException when module absent")
-    void markdown_withoutModule_throwsRenderException() {
-        assertThatExceptionOfType(ResponseFormatter.RenderException.class)
-            .isThrownBy(ResponseFormatter::markdown)
-            .withMessageContaining("markdown")
-            .withMessageContaining("cafeai-views-markdown");
-    }
-
-    @Test
     @DisplayName("ResponseFormatter.template() performs {{variable}} substitution")
     void responseFormatter_template_substitutes() throws Exception {
         // Create a temp file with a template
