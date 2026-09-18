@@ -77,14 +77,16 @@ Sessions stored in Redis with configurable TTL. All application instances share 
 ### Rung 4 — `hybrid()` — Warm SSD + Cold Redis
 
 ```java
-app.memory(MemoryStrategy.hybrid(
-    MemoryStrategy.mapped(Path.of("/var/cafeai/warm")),
-    MemoryStrategy.redis(RedisConfig.of("redis.internal", 6379))));
+app.memory(MemoryStrategy.hybrid()
+    .warm(MemoryStrategy.mapped(Path.of("/var/cafeai/warm")))
+    .cold(MemoryStrategy.redis(RedisConfig.of("redis.internal", 6379)))
+    .demoteAfter(Duration.ofMinutes(30))
+    .build());
 ```
 
 Recent sessions (warm tier) served from local SSD. Sessions not accessed recently (cold tier) promoted from Redis. Idle sessions demoted from SSD to Redis on a configurable schedule.
 
-This gives the latency profile of local SSD with the durability and cross-instance sharing of Redis. The `invoice-processor` capstone uses a simplified version of this pattern for its claims processing sessions.
+This gives the latency profile of local SSD with the durability and cross-instance sharing of Redis.
 
 **Use for:** High-traffic multi-instance deployments where session read latency matters.
 
@@ -122,7 +124,7 @@ Switching rungs is a one-line change at startup registration. No other code chan
 
 ## The FFM API — Why It Matters
 
-The `mapped()` rung is built on Java 21's Foreign Function and Memory API (FFM). Understanding why requires a brief detour into how the OS handles memory-mapped files.
+The `mapped()` rung is built on Java's Foreign Function and Memory API (FFM, final in Java 22). Understanding why requires a brief detour into how the OS handles memory-mapped files.
 
 When a file is memory-mapped, the OS creates a mapping between a region of virtual address space and a file on disk. Reading from the mapped region triggers a page fault that loads the corresponding file page into the page cache — a region of physical RAM managed by the OS kernel. Subsequent reads of the same page are served directly from RAM.
 
@@ -146,27 +148,9 @@ This is why the FFM API is load-bearing in CafeAI rather than a demo feature. It
 
 ---
 
-## Session TTL and Trimming
-
-Long conversations accumulate context tokens. A session active for an hour may have thousands of tokens of history — more than the model's context window can accommodate, and more expensive to send on every call.
-
-CafeAI's `ConversationContext` trims conversation history when it exceeds a token threshold:
-
-```java
-app.memory(MemoryStrategy.mapped()
-    .maxTokensPerSession(4_000)  // trim when history exceeds 4k tokens
-    .keepLastMessages(4));       // always preserve last 4 messages
-```
-
-Trimming removes the oldest messages first, always preserving the most recent exchanges. The last N messages are never trimmed — the current context is always available.
-
-The `meridian-qualify` capstone sets a tighter token budget (2,000) because loan qualification conversations have structured phases — the initial profile submission, the tool calls, the decision. Older turns are less relevant than in an open-ended support conversation.
-
----
-
 ## The `acme-claims` Capstone — Redis in Practice
 
-The `acme-claims` capstone is the first to use `MemoryStrategy.redis()`. Claims sessions need to survive application restarts (a claim filed today should still be accessible tomorrow), and they need to be shareable across AP staff who may be on different application instances.
+The `acme-claims` capstone is the first to use `MemoryStrategy.redis()`. Claims sessions need to survive application restarts (a claim filed today should still be accessible tomorrow), and they need to be shareable across adjusters who may be on different application instances.
 
 ```java
 app.memory(MemoryStrategy.redis(

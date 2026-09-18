@@ -4,25 +4,7 @@
 
 ---
 
-The `invoice-processor` capstone had two `Thread.sleep` calls in its first version.
-
-```java
-// Rate limit courtesy pause between emails — keeps us under 30k TPM
-if (i < total - 1) {
-    System.out.println("  Pausing 15s (rate limit)...");
-    Thread.sleep(15_000);
-}
-
-// Pause before reconciliation — classification + extraction already consumed tokens
-System.out.println("  Pausing 10s before reconciliation (rate limit)...");
-Thread.sleep(10_000);
-```
-
-These are correct solutions. The OpenAI free tier allows 30,000 tokens per minute. Processing one vendor email with a PDF attachment — classification, extraction, reconciliation, composition — consumes roughly 8,000-15,000 tokens. At that rate, two emails in quick succession blow through the budget.
-
-Pausing is the right behaviour. But `Thread.sleep` in application code is the wrong place for it. This is infrastructure — the framework should handle it, not the developer.
-
-ROADMAP-14 closed this gap. Post 11 covers how.
+A production AI application has to stay inside its provider's rate limits, survive transient failures, and show what it is doing. This post covers the primitives for that — token budgets, retries and observability — and ends with a production checklist.
 
 ---
 
@@ -36,18 +18,7 @@ app.budget(TokenBudget.unlimited());          // no limit — for testing
 
 The token budget tracks actual token consumption across all calls — text, vision, and audio — and enforces the per-minute limit. When the budget is approaching exhaustion, subsequent calls wait until the window resets.
 
-The implementation uses a sliding window counter. Token usage from the last 60 seconds is summed on every call. If the sum plus the estimated cost of the upcoming call would exceed the budget, the call waits. When the window slides past old usage, the budget refills.
-
-This is the correct behaviour. The developer registers the budget at startup. The framework manages the timing. There are no `Thread.sleep` calls in application code.
-
-```java
-// Before
-Thread.sleep(15_000);  // manual pause between emails
-
-// After
-app.budget(TokenBudget.perMinute(30_000));
-// framework waits automatically when needed
-```
+The budget is a one-minute window. Tokens used are added up as calls complete; once the window's total reaches the limit, the next call waits until the window resets, then proceeds. There are no `Thread.sleep` calls in application code — the framework parks the (virtual) thread.
 
 ---
 
@@ -70,7 +41,7 @@ The retry policy applies to all call types — text, vision, and audio. It is re
 18:35:40 WARN  RetryUtils - A retriable exception occurred. Remaining retries: 1 of 2
 ```
 
-The `invoice-processor` validation run showed LangChain4j's own retry layer catching connection resets before CafeAI's retry layer sees them. Both layers are present and correct — LangChain4j handles network-level transients; CafeAI handles API-level rate limits.
+LangChain4j has its own retry layer for network-level transients (connection resets); CafeAI's policy handles API-level rate limits. Both are present.
 
 If all retries are exhausted, `RetryPolicy.RateLimitExceededException` is thrown with the original cause and the number of attempts made.
 
@@ -87,7 +58,7 @@ Observability in CafeAI means structured data on every LLM call:
 
 ```
 -- LLM Call ------------------------------------------
-  model:      openai (gpt-4o)
+  model:      gpt-4o
   session:    demo-session
   tokens:     58 prompt + 149 completion = 207 total
   latency:    2,425ms
@@ -117,42 +88,9 @@ The hooks — `beforePrompt`/`afterPrompt`, `beforeVision`/`afterVision`, `befor
 
 ---
 
-## Beyond Observability — When the Framework Watches Itself
+## Beyond Observability — Watching a Cluster
 
-Observability answers "what happened." `cafeai-sentinel` is built on the same primitives to answer a harder, more production-critical question: "is anything wrong right now, and why, and what should be done about it." It's a different application shape from everything else in this series — nothing comes in over HTTP; it watches a Kubernetes/OpenShift namespace continuously and decides, on its own, when something is broken enough to investigate — but it needed zero new capability added to `cafeai-core`. It's `app.agent()`, `@Tool`, guardrails, and a sink, aimed at a domain the framework was never designed for.
-
-The pipeline is two-tiered for exactly the cost reason `TokenBudget` already established above. `TriageRules` classifies every pod/event snapshot with a lookup table — no model call — into benign, notable, or error; only a confirmed error, coalesced by the pod's owning Deployment (so three crashing replicas become one incident, not three), triggers the expensive tier: a real `app.agent(...)` bound to seven read-only cluster-reading tools, investigating the live cluster and producing a structured cause, confidence, and suggested fix. It has to watch pod *objects*, not just Events, to do this correctly — `OOMKilled` only ever shows up in a pod's container status (exit code 137), never as an Event of its own. Every byte those tools return is scrubbed of secrets and PII before it reaches the prompt, the incident, or a log line.
-
-The first live run against minikube found three real bugs no mock server ever could: incidents that never resolved, because a deleted pod's owner resolved to its own now-vanished ReplicaSet instead of the Deployment the incident was keyed on; investigations that retried forever against a dead API key with no give-up condition; and one real crash loop counted as four separate investigations, because `Error → BackOff → CrashLoopBackOff` looked like three new problems instead of one. A corrected, real run reads like this:
-
-```
-17:12:04 WARN  i.c.sentinel.sink.LogSink - ● OPENED   inc-3f2a9c1d [ERROR] Deployment/oom-demo — OOMKilled, CrashLoopBackOff (pods: oom-demo-7d9f-xr2k)
-17:12:31 WARN  i.c.sentinel.sink.LogSink - ✔ INVESTIGATED inc-3f2a9c1d Deployment/oom-demo — [RESOURCES/HIGH] worker is OOMKilled: the 16Mi memory limit is far below what it allocates under load
-17:12:31 INFO  i.c.sentinel.sink.LogSink -              → raise limits.memory to at least 128Mi, or roll back to the previous image if the footprint regressed
-17:15:41 INFO  i.c.sentinel.sink.LogSink - ○ RESOLVED inc-3f2a9c1d Deployment/oom-demo — was [ERROR], 6 signals over PT3M37S
-```
-
-The module's actual design claim is that it runs identically on Kubernetes and OpenShift — and that claim only became true after it was validated on a real OpenShift cluster, not just minikube. That run found a gap minikube structurally couldn't find: the design doc claimed a least-privilege RBAC manifest had already shipped, and it hadn't. Every prior run had used a personal kubeconfig user with broad access; on the real cluster, that token turned out to lack `list`/`watch` on `events`. The fix — a dedicated `ServiceAccount` scoped to exactly what the tools read, one narrow cluster-scoped `Role` for node reads — is also the credential shape an unattended pipeline should have had from the start, not an afterthought a real cluster happened to force.
-
-`cafeai-sentinel` ends exactly where observability starts feeling insufficient — at "structured incident published," never at auto-remediation. That boundary is deliberate, not a missing feature: it's a pipeline, not a product.
-
----
-
-## What Observability Reveals
-
-The `invoice-processor` validation run produced this observability picture across five emails:
-
-```
-Email 1 — ElevenLabs marketing (pre-filtered, 0 tokens)
-Email 2 — Anthropic login link (pre-filtered, 0 tokens)
-Email 3-5 — QuestCDN webinar invitations (pre-filtered, 0 tokens)
-```
-
-All five emails were pre-filtered without any LLM calls. The pre-filter — a cheap string check on sender domain and subject keywords — ran before any token was spent. Zero tokens consumed on a batch of five emails, all correctly identified as non-vendor.
-
-This is observability working correctly: it confirms the pre-filter is saving tokens, not just claiming to.
-
-During classification tests, the observability output confirmed that multi-page PDFs were consuming more tokens than single-page documents (the model reads all pages). The token counts in the observability trace were the evidence that led to the decision to add `TokenBudget.perMinute(30_000)` to `invoice-processor`.
+Observability answers "what happened." `cafeai-sentinel` is built on the same primitives to answer "is anything wrong right now, and why?" Nothing comes in over HTTP: it watches a Kubernetes or OpenShift namespace, triages every pod event with rules (no model call), coalesces related failures into one incident per owning Deployment, and only for a confirmed incident runs an `app.agent(...)` investigation with seven read-only cluster-reading tools. It ends at "structured incident published" — it is a pipeline, not a remediation product. See the developer guide's `cafeai-sentinel` chapter and the `cluster-sentinel` capstone.
 
 ---
 
@@ -169,7 +107,9 @@ app.retry(RetryPolicy.onRateLimit().maxAttempts(3).backoff(Duration.ofSeconds(10
 **Safety:**
 ```java
 app.guard(GuardRail.jailbreak());
+app.guard(GuardRail.promptInjection());
 app.guard(GuardRail.pii());
+app.guard(GuardRail.secrets());
 // add domain-specific guardrails as needed
 ```
 
@@ -195,47 +135,7 @@ app.connect(
           .onUnavailable(Fallback.use(OpenAI.of("gpt-4o-mini"))));
 ```
 
-**Cluster incident response (optional — containerized deployments):**
-```java
-SentinelConfig config = SentinelConfig.create().namespace("payments");
-new IncidentTracker(config)
-    .onIncident(IncidentSink.of(new LogSink(), new WebhookSink(webhookUrl)))
-    .start();
-```
-
----
-
-## The `Thread.sleep` Refactor — Before and After
-
-The complete `invoice-processor` startup before ROADMAP-14:
-
-```java
-var chat = new MultimodalChatService(SYSTEM_PROMPT);  // raw LangChain4j
-var analyzer   = new EmailSentimentAnalyzer(app);
-var classifier = new AttachmentTypeClassifier(chat);  // bypasses CafeAI
-var extractor  = new InvoiceDataExtractor(chat);      // bypasses CafeAI
-
-// Between emails
-Thread.sleep(15_000);  // manual rate limit management
-
-// Before reconciliation
-Thread.sleep(10_000);  // more manual rate limit management
-```
-
-After ROADMAP-14:
-
-```java
-app.budget(TokenBudget.perMinute(30_000));   // framework manages rate limits
-app.retry(RetryPolicy.onRateLimit().maxAttempts(3).backoff(Duration.ofSeconds(10)));
-
-var analyzer   = new EmailSentimentAnalyzer(app);
-var classifier = new AttachmentTypeClassifier(app);  // through CafeAI pipeline
-var extractor  = new InvoiceDataExtractor(app);      // through CafeAI pipeline
-
-// No Thread.sleep anywhere in application code
-```
-
-The `Thread.sleep` calls were not wrong. They were correct for their time — the only tool available when the framework had no budget management. When the framework grew to handle the concern, the application code could stop handling it. That is the correct direction of travel.
+**Cluster incident response (optional — containerized deployments):** see the `cafeai-sentinel` chapter of the developer guide.
 
 ---
 
@@ -263,7 +163,7 @@ A single JVM with virtual threads can hold thousands of concurrent LLM calls in 
 
 ## Post 12 — The Capstone Series
 
-Post 12 is the synthesis — what four complete applications, 359 tests, and 14 roadmap items prove about a framework, about the middleware pattern applied to AI, and about what it means to build serious Gen AI infrastructure in Java.
+Post 12 is the synthesis — what four complete applications prove about a framework, about the middleware pattern applied to AI, and about what it means to build serious Gen AI infrastructure in Java.
 
 ---
 

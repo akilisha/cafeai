@@ -65,7 +65,7 @@ CafeAI supports four ingestion sources:
 // Inline text — good for documentation stored in code or config
 app.ingest(Source.text(documentationString, "helios/api-overview"));
 
-// PDF — digital or scanned
+// PDF — text is extracted with Apache Tika
 app.ingest(Source.pdf("vendor-contracts/acme-2024.pdf"));
 
 // URL — fetches and ingests the page content
@@ -75,7 +75,7 @@ app.ingest(Source.url("https://docs.helios.io/api-reference"));
 app.ingest(Source.directory("src/main/resources/docs/"));
 ```
 
-Each source is identified by a source ID — the string `"helios/api-overview"`, the file path, the URL. The source ID is attached to every chunk derived from that source. This enables targeted deletion: if a document is updated, `app.deleteBySource("helios/api-overview")` removes all its chunks before re-ingesting the new version.
+Each source is identified by a source ID — the string `"helios/api-overview"`, the file path, the URL. The source ID is attached to every chunk derived from that source, so a source can be removed as a unit: keep a reference to the store and call `store.deleteBySource("helios/api-overview")` to drop all its chunks before re-ingesting a new version.
 
 ---
 
@@ -83,16 +83,16 @@ Each source is identified by a source ID — the string `"helios/api-overview"`,
 
 Long documents are split into chunks before embedding. A chunk is the unit of retrieval — smaller chunks give more precise retrieval; larger chunks give more complete context.
 
-CafeAI's default chunker uses a sliding window with overlap:
+CafeAI's chunker is a sliding window over the text: 512 characters per chunk, with 64 characters of overlap between neighbours.
 
 ```
 Document: [----chunk 1----][----chunk 2----][----chunk 3----]
                      [overlap]         [overlap]
 ```
 
-The overlap ensures that sentences at chunk boundaries are not lost. A concept that starts at the end of chunk 1 and continues into chunk 2 will be present in both — whichever chunk is retrieved will contain the full context.
+The overlap keeps a sentence that straddles a boundary intact in at least one chunk.
 
-The chunker assigns deterministic IDs to each chunk based on the content hash. Ingesting the same document twice produces the same chunk IDs — the second ingestion upserts rather than duplicates.
+Chunk IDs are deterministic: `<sourceId>#chunk<index>` (`helios/auth#chunk0`, `helios/auth#chunk1`, ...). Ingesting the same source twice therefore overwrites its chunks rather than duplicating them. It does not remove chunks the new text no longer has: if a document gets shorter, the old tail chunks remain until you call `deleteBySource` first.
 
 ---
 
@@ -110,7 +110,7 @@ app.embed(EmbeddingProvider.local());
 app.embed(EmbeddingProvider.openAi("text-embedding-3-small"));
 ```
 
-The local ONNX model runs via Java FFM — the same API that backs the SSD session memory. A pre-trained embedding model is bundled with `cafeai-rag` and runs entirely in-process. For most documentation retrieval use cases, the local model produces retrieval quality that is indistinguishable from the OpenAI API.
+The local model is a quantized all-MiniLM-L6-v2 in ONNX form, bundled with `cafeai-rag` and run in-process by LangChain4j (384-dimensional vectors). Nothing leaves the machine.
 
 The tradeoff: local embeddings are faster (no network round-trip), cheaper (no API cost), and private (no data sent externally). OpenAI embeddings are marginally higher quality on very specialised domains. For general technical documentation, local is the right default.
 
@@ -157,48 +157,44 @@ app.rag(Retriever.hybrid(5));     // top 5 from combined scoring
 
 Semantic retrieval finds chunks that are conceptually similar to the query, even if they use different words. A query about "how to handle 429 errors" retrieves chunks about "rate limiting" even without the word "429" in the chunk.
 
-Hybrid retrieval combines semantic similarity with keyword matching. It is better for queries that contain domain-specific terms, product names, or identifiers — things that may not have good semantic neighbours but should be retrieved when the exact term matches. The `acme-claims` capstone uses hybrid retrieval for policy lookups where the policy number is the critical identifier.
+Hybrid retrieval combines semantic similarity with keyword matching. It is better for queries that contain domain-specific terms, product names, or identifiers — things that may not have good semantic neighbours but should be retrieved when the exact term matches.
 
 ---
 
-## What RAG Retrieved — The `support-desk` Capstone
+## What RAG Retrieved
 
-The observability output from a `support-desk` prompt call shows exactly what RAG retrieved:
+Every response carries the chunks that informed it:
 
-```
--- LLM Call -----------------------------------------
-  model:      openai (qwen2.5 via Ollama)
-  session:    dev-123
-  tokens:     847 prompt + 23 completion = 870 total
-  latency:    1,203ms
-  rag docs:   3 retrieved
-    helios/rate-limits    score: 0.94
-    helios/troubleshoot   score: 0.71
-    helios/auth           score: 0.43
-------------------------------------------------------
+```java
+var response = app.prompt("How do I handle rate limit errors in Helios?").call();
+
+for (RagDocument doc : response.ragDocuments()) {
+    System.out.printf("%s  score %.2f%n", doc.sourceId(), doc.score());
+}
+// helios/rate-limits  score 0.94
+// helios/troubleshoot score 0.71
+// helios/auth         score 0.43
 ```
 
-The source ID and similarity score are visible for every retrieved chunk. When an answer is wrong, the developer can inspect which chunks were retrieved and diagnose whether the problem is in the retrieval (wrong chunks) or the model (wrong answer given the right chunks). These are different problems with different fixes.
+`ragDocuments()` gives the source ID and similarity score of each retrieved chunk. When an answer is wrong, the developer can inspect which chunks were retrieved and diagnose whether the problem is in the retrieval (wrong chunks) or the model (wrong answer given the right chunks). These are different problems with different fixes. The console observability strategy prints how many documents were retrieved (`rag docs: 3 retrieved`), and the OpenTelemetry span records the count.
 
 ---
 
 ## Dynamic Knowledge Bases
 
-The `acme-claims` capstone demonstrates a pattern where the knowledge base updates without restarting the application:
+A knowledge base can change while the application runs. Keep a reference to the store, and replace a source by deleting it and ingesting the new version:
 
 ```java
-// At startup — ingest base knowledge
+var store = VectorStore.inMemory();          // or chroma(...), pgVector(...)
+app.vectordb(store);
 app.ingest(Source.pdf("policies/2024-auto.pdf"));
-app.ingest(Source.pdf("policies/2024-home.pdf"));
 
-// Later — when a policy is updated, replace it atomically
-app.deleteBySource("policies/2024-auto.pdf");
+// Later — when a policy is replaced
+store.deleteBySource("policies/2024-auto.pdf");
 app.ingest(Source.pdf("policies/2025-auto.pdf"));
 ```
 
-`deleteBySource()` removes all chunks derived from that source. The subsequent ingest adds the new version. The update is atomic from the retrieval pipeline's perspective — a query issued between the delete and the re-ingest will find no chunks for that source (a brief degraded state), but no stale chunks will be returned.
-
-For high-availability scenarios, the update can be performed on a shadow index and swapped atomically. That pattern is outside the scope of this post but is supported by the `pgVector` backend.
+`deleteBySource()` removes every chunk derived from that source, and the ingest adds the new version. The swap is not atomic: a query issued between the two steps finds no chunks for that source, though it never sees stale ones.
 
 ---
 
@@ -212,7 +208,7 @@ The `invoice-processor` capstone demonstrates cost management with the token bud
 app.budget(TokenBudget.perMinute(30_000));  // OpenAI free tier
 ```
 
-The token budget tracker monitors actual usage across all calls. When the budget is approaching the limit, subsequent calls wait until the window resets. This prevents rate limit errors without the `Thread.sleep` calls that appeared in the original invoice-processor implementation before the budget API was added.
+The token budget tracker monitors actual usage across all calls. When the budget is approaching the limit, subsequent calls wait until the window resets. This prevents rate limit errors without pauses in application code.
 
 Post 11 covers token budgets, retry policies, and production observability in full.
 
@@ -220,7 +216,7 @@ Post 11 covers token budgets, retry policies, and production observability in fu
 
 ## Post 7 — Tool Use
 
-Post 7 covers tool use — giving the AI actions to take, not just information to retrieve. Coming in ROADMAP-17.
+Post 7 covers tool use — giving the AI actions to take, not just information to retrieve.
 
 ---
 

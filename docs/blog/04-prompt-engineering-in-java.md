@@ -6,7 +6,7 @@
 
 Prompt engineering gets a bad reputation in typed language communities. The name sounds like the opposite of engineering — something fluid and intuitive that resists the structure that Java developers are paid to impose. The reality is that production AI systems need the same discipline applied to prompts that they apply to everything else: typed contracts, reusable components, testable units.
 
-CafeAI provides three mechanisms for structured prompt management: system prompts for persona, named templates for reusable patterns, and the fluent `PromptRequest` chain for call-specific overrides. This post covers all three, with examples drawn from the `support-desk` and `meridian-qualify` capstones.
+CafeAI provides three mechanisms for structured prompt management: system prompts for persona, named templates for reusable patterns, and the fluent `PromptRequest` chain for call-specific overrides. This post covers all three, with examples drawn from the `support-desk` and `invoice-processor` capstones.
 
 ---
 
@@ -122,7 +122,7 @@ String rendered = app.template("vendor-reply").render(Map.of(
 var response = app.prompt(rendered).call();
 ```
 
-Templates are validated at registration time — `{{variable}}` references that don't appear in the data map throw a `TemplateException`. This catches missing variable errors at the template call site rather than producing a garbled prompt at runtime.
+A template is not checked when it is registered, because a `{{variable}}` only has a value at render time. What happens to a missing value is decided by how you render it, covered next.
 
 ---
 
@@ -142,7 +142,7 @@ String rendered = app.template("sentiment-analysis")
     .render(Map.of("emailBody", email.body()));
 ```
 
-The `meridian-qualify` capstone uses strict rendering for all its templates — a loan qualification prompt that is missing the applicant's income figure should fail immediately, not proceed with `{{income}}` in the text.
+Use strict rendering wherever every variable must be supplied — a loan qualification prompt that is missing the applicant's income figure should fail immediately, not proceed with `{{income}}` in the text.
 
 ---
 
@@ -154,8 +154,7 @@ Every `app.prompt()` call returns a `PromptRequest` — a fluent builder that co
 var response = app.prompt("Analyse this loan application")
     .system("You are a loan qualification assistant...")  // override system prompt
     .session("applicant-A7F2")                           // thread session memory
-    .returning(QualificationDecision.class)              // expect structured output
-    .call(QualificationDecision.class);                  // execute and deserialise
+    .call(QualificationDecision.class);                  // execute and deserialise to a typed record
 ```
 
 Each method is optional and returns `this` for chaining. Only `.call()` executes.
@@ -164,9 +163,9 @@ The key design decision: execution is deferred. Building the chain costs nothing
 
 ---
 
-## Structured Output — The `.returning()` Pattern
+## Structured Output — `.call(Class)`
 
-The most important fluent method is `.returning(Class<T>)`. It declares that the LLM response should be deserialised to a typed Java record or POJO.
+`.call(Class<T>)` executes the request and deserialises the response to a typed Java record or POJO. (`.returning(Class<T>)` on its own adds the same schema instruction to the prompt, so a plain `.call()` returns JSON in that shape; `.call(Class<T>)` needs no separate `.returning()`.)
 
 Without structured output:
 
@@ -182,14 +181,12 @@ With structured output:
 
 ```java
 // New pattern — one line
-SentimentResult result = app.prompt(sentimentPrompt)
-    .returning(SentimentResult.class)
-    .call(SentimentResult.class);
+SentimentResult result = app.prompt(sentimentPrompt).call(SentimentResult.class);
 ```
 
 Internally, `SchemaHintBuilder` reflects on `SentimentResult` and appends a JSON schema example to the prompt. `ResponseDeserializer` strips any markdown fences from the response and parses it. The developer writes neither.
 
-The `invoice-processor` capstone uses this pattern four times: `SentimentResult`, `AttachmentClassification`, `InvoiceData`, and `ReconciliationResult`. Each is a plain Java record. Each is populated by one `.call()` line. The 40 lines of boilerplate parsing that existed in the original version are gone.
+The `invoice-processor` capstone uses it for attachment classification, invoice extraction and email sentiment. Each result type is a plain Java record, populated by one `.call(...)` line.
 
 ---
 
@@ -197,9 +194,9 @@ The `invoice-processor` capstone uses this pattern four times: `SentimentResult`
 
 Three principles that appear consistently across the four capstones:
 
-**Be explicit about schema.** The `.returning(Class)` mechanism handles this mechanically, but the principle applies to manual prompts too. "Respond with ONLY a valid JSON object" is more reliable than "respond in JSON format" — the word "only" reduces prose-before-JSON responses significantly.
+**Be explicit about schema.** The `.call(Class)` mechanism handles this mechanically, but the principle applies to manual prompts too. "Respond with ONLY a valid JSON object" is more reliable than "respond in JSON format" — the word "only" reduces prose-before-JSON responses significantly.
 
-**Separate responsibilities from boundaries.** A system prompt that lists what the model should do and separately what it must not do outperforms one that mixes the two. The `meridian-qualify` system prompt has explicit `FCRA boundaries:` and `ECOA boundaries:` sections that mirror the regulatory guardrails registered in the pipeline. The model and the infrastructure enforce the same constraints from different positions.
+**Separate responsibilities from boundaries.** A system prompt that lists what the model should do and separately what it must not do outperforms one that mixes the two. The model and the infrastructure then enforce the same constraints from different positions.
 
 **Personas are contracts.** A system prompt that says "you are a professional loan qualification assistant" establishes a contract the model generally honours. Specificity strengthens the contract: "you are a professional loan qualification assistant for Meridian Home Loans. You do not approve or decline loans — you recommend decisions for human review" gives the model a clearer role than "you are an assistant."
 

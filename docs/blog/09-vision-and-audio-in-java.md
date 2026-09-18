@@ -4,21 +4,13 @@
 
 ---
 
-The first version of `invoice-processor` worked. The Meridian Home Loans vendor invoice processor classified attachments, extracted invoice data, reconciled amounts, and drafted replies. It processed real vendor PDFs and produced correct decisions.
-
-It also had a structural problem: the part that worked hardest — the multimodal classification and extraction — bypassed CafeAI entirely.
-
-`MultimodalChatService` was a raw LangChain4j wrapper. It built its own `OpenAiChatModel`, managed its own base64 encoding, wrote its own fence-stripping parser. Guardrails did not fire on those calls. Observability did not trace them. The token budget did not apply. CafeAI was a satellite orbiting a sun that had nothing to do with the framework.
-
-This was a framework gap, not a developer mistake. `app.prompt()` accepts a string. There was no CafeAI-native path for binary content.
-
-ROADMAP-14 closed the gap. ROADMAP-15 extended it to audio. This post covers both.
+Language models take more than text. CafeAI has one pipeline for three kinds of input — text, images and documents, and audio — so guardrails, session memory, the token budget, retries and observability apply to all of them the same way. This post covers `app.vision()` and `app.audio()`.
 
 ---
 
 ## The Three Modalities
 
-After ROADMAP-15, CafeAI has three modality entry points:
+CafeAI has three modality entry points:
 
 ```java
 // Text — full pipeline, all features
@@ -69,42 +61,14 @@ The `VisionMessageBuilder` handles provider-specific content encoding. OpenAI's 
 
 ---
 
-## The `invoice-processor` Refactor
-
-Before ROADMAP-14:
-
-```java
-// Bypasses CafeAI entirely — no guardrails, no observability, no budget
-var chat = new MultimodalChatService(SYSTEM_PROMPT);  // raw LangChain4j
-var classification = chat.promptWithPdf(buildPrompt(), pdfBytes);
-String clean = response.replaceAll("(?s)```json\\s*", "").trim();
-AttachmentClassification result = MAPPER.readValue(clean, AttachmentClassification.class);
-```
-
-After ROADMAP-14:
-
-```java
-// Through the CafeAI pipeline — guardrails, observability, budget, retry all apply
-AttachmentClassification result = app.vision(buildPrompt(), pdfBytes, "application/pdf")
-    .returning(AttachmentClassification.class)
-    .call(AttachmentClassification.class);
-```
-
-`MultimodalChatService` was deleted. 80 lines of raw LangChain4j wiring removed. The boilerplate — base64 encoding, fence stripping, Jackson parsing — absorbed into the framework where it belongs.
-
-The outcome is identical. The architecture is correct.
-
----
-
 ## Structured Output from Vision
 
-The `.returning(Class)` pattern works identically for vision and text. `invoice-processor` uses it for both classification and extraction:
+`.call(Class)` works identically for vision and text. `invoice-processor` uses it for both classification and extraction:
 
 ```java
 // Classify the attachment
-AttachmentClassification classification = app.vision(classificationPrompt, pdfBytes, "application/pdf")
-    .returning(AttachmentClassification.class)
-    .call(AttachmentClassification.class);
+AttachmentClassification classification =
+    app.vision(classificationPrompt, pdfBytes, "application/pdf").call(AttachmentClassification.class);
 
 // classification.isInvoice() → true
 // classification.docType()   → "INVOICE"
@@ -112,9 +76,8 @@ AttachmentClassification classification = app.vision(classificationPrompt, pdfBy
 // classification.reason()    → "Document contains billing totals and payment terms"
 
 // Extract invoice data
-InvoiceData invoice = app.vision(extractionPrompt, pdfBytes, "application/pdf")
-    .returning(InvoiceData.class)
-    .call(InvoiceData.class);
+InvoiceData invoice =
+    app.vision(extractionPrompt, pdfBytes, "application/pdf").call(InvoiceData.class);
 
 // invoice.vendorName()    → "Liberty Fastener Company"
 // invoice.invoiceNumber() → "0212164-1"
@@ -128,38 +91,32 @@ Both `AttachmentClassification` and `InvoiceData` are plain Java records. No cus
 
 ## Vision Provider Capability
 
-Not every provider supports vision. CafeAI checks at call time:
+A provider declares whether it takes images, and CafeAI checks before the call:
 
 ```java
-// supportsVision() = true
-app.ai(OpenAI.of("gpt-4o"));        // gpt-4o supports vision
-app.ai(Ollama.vision("llava"));        // LLaVA is a vision model
+app.ai(OpenAI.of("gpt-4o"));      // OpenAI chat models are treated as vision-capable; the API rejects one that is not
+app.ai(Anthropic.of("claude-sonnet-4-5"));
+app.ai(Gemini.of("gemini-2.5-flash"));
+app.ai(Ollama.vision("llava"));   // a local vision model
 
-// supportsVision() = false — throws VisionNotSupportedException
-app.ai(OpenAI.of("gpt-4o-mini"));   // gpt-4o-mini does not support vision
-app.ai(Ollama.of("llama3.3"));       // llama3 is text-only
+app.ai(Ollama.of("llama3.3"));    // text-only — app.vision() throws VisionNotSupportedException
 ```
 
-`VisionNotSupportedException` on the wrong provider is better than a cryptic 400 error from the OpenAI API. The error message names the registered provider and suggests vision-capable alternatives.
+`VisionNotSupportedException` on a text-only provider is better than a cryptic error from the model server. The message names the registered provider.
 
 ---
 
 ## The `app.audio()` Pipeline
 
-Audio calls follow the same pipeline structure as vision, with one important routing difference:
+Audio calls follow the same pipeline structure as vision, with one routing difference:
 
 ```
 OpenAI providers:
-    → Direct HTTP to /v1/audio/transcriptions (Whisper multipart endpoint)
-    → Optionally: transcript sent back through gpt-4o for reasoning/extraction
-
-Gemini providers:
-    → AudioContent via chat completions API (supported natively)
+    → the audio goes to OpenAI's /v1/audio/transcriptions endpoint (Whisper, multipart upload)
+    → optionally: the transcript is sent back through the chat model for reasoning or extraction
 ```
 
-This routing exists because LangChain4j 1.11 does not serialise `AudioContent` to the `input_audio` format that OpenAI's chat completions API requires. The `AudioMessageBuilder` handles this transparently — OpenAI audio calls go to Whisper; Gemini audio calls go through the standard chat path. The developer writes the same `app.audio()` call either way.
-
-The routing is documented honestly in the code — the comment in `AudioMessageBuilder` explains exactly what would need to change in LangChain4j to remove the Whisper direct-HTTP path.
+OpenAI's chat completions API accepts only text and image content, so audio cannot ride along with a chat message; `AudioMessageBuilder` sends it to the transcription endpoint and treats the transcript as text from then on. The developer writes the same `app.audio()` call either way. Every `OpenAI.of(...)` provider can take audio, as can `OpenAI.whisper()`, the purpose-built transcription provider. The other built-in providers do not declare audio support, so `app.audio()` on them fails before any call; a custom `AiProvider` that declares `supportsAudio()` has the audio sent as LangChain4j `AudioContent` through the chat path.
 
 ---
 
@@ -168,7 +125,7 @@ The routing is documented honestly in the code — the comment in `AudioMessageB
 ```java
 var app = CafeAI.create();
 app.ai(OpenAI.of("gpt-4o"));  // supportsAudio() = true
-app.guard(GuardRail.pii());  // scrubs PII from transcripts
+app.guard(GuardRail.pii());  // blocks a transcript that contains PII
 
 // Plain transcription
 AudioResponse transcript = app.audio(
@@ -179,13 +136,13 @@ System.out.println(transcript.text());  // the transcript
 System.out.println(transcript.totalTokens());  // tokens consumed
 ```
 
-The PII guardrail fires on the transcript text — not on the raw audio. If the caller mentions their phone number during the call, the guardrail catches it in the transcript before the response is returned to the application.
+The PII guardrail checks the transcript text — not the raw audio. If the caller mentions their phone number during the call, the guardrail catches it in the transcript and the response is replaced with a refusal instead of being returned to the application.
 
 ---
 
 ## Structured Extraction from Audio
 
-The `.returning()` pattern applies to audio exactly as it does to text and vision:
+`.call(Class)` applies to audio exactly as it does to text and vision:
 
 ```java
 record CallSummary(
@@ -199,7 +156,6 @@ record CallSummary(
 CallSummary summary = app.audio(
     "Extract the key details from this customer support call.",
     audioBytes, "audio/wav")
-    .returning(CallSummary.class)
     .call(CallSummary.class);
 ```
 
@@ -252,7 +208,7 @@ The lesson: vision prompts need the same engineering attention as text prompts. 
 
 ## Post 10 — Structured Output
 
-Post 10 covers the `.returning(Class).call(Class)` pattern in depth — `SchemaHintBuilder`, `ResponseDeserializer`, how the schema hint is constructed from Java records, and why removing the boilerplate is more than a convenience.
+Post 10 covers `.call(Class)` in depth — `SchemaHintBuilder`, `ResponseDeserializer`, how the schema hint is constructed from Java records, and why removing the boilerplate is more than a convenience.
 
 ---
 
