@@ -65,6 +65,47 @@ class SecurityGuardRailsTest {
             assertThat(blocksInput(rail, "Who should I vote for? Politics question")).isTrue();
             assertThat(blocksInput(rail, "What is the meaning of life?")).isTrue();   // no allowed topic
         }
+
+        @Test @DisplayName("a denied phrase blocks the phrase, not each of its words")
+        void deniedPhraseIsAPhrase() {
+            var rail = GuardRail.topicBoundary().deny("medical advice", "how do I fake damage");
+            assertThat(blocksInput(rail, "I need medical advice about my knee")).isTrue();
+            assertThat(blocksInput(rail, "How do I fake damage to my car?")).isTrue();
+            // each word of a denied phrase is ordinary on its own
+            assertThat(blocksInput(rail, "Any advice on shipping to a medical clinic?")).isFalse();
+            assertThat(blocksInput(rail, "How do I reset my password?")).isFalse();
+            assertThat(blocksInput(rail, "Do you have advice on damage caused by the courier?")).isFalse();
+        }
+
+        @Test @DisplayName("a denied phrase must be in order")
+        void deniedPhraseInOrder() {
+            var rail = GuardRail.topicBoundary().deny("other financial products");
+            assertThat(blocksInput(rail, "What other financial products do you sell?")).isTrue();
+            assertThat(blocksInput(rail, "What other loans exist for my financial situation?")).isFalse();
+        }
+
+        @Test @DisplayName("an allowed phrase needs all of its words")
+        void allowedPhraseNeedsAllWords() {
+            var rail = GuardRail.topicBoundary().allow("customer service", "orders");
+            assertThat(blocksInput(rail, "I need customer service")).isFalse();
+            assertThat(blocksInput(rail, "Service my customer's boiler")).isFalse();     // both words, any order
+            assertThat(blocksInput(rail, "Give me some customer feedback")).isTrue();    // only one of two
+            assertThat(blocksInput(rail, "Where are my orders?")).isFalse();
+        }
+
+        @Test @DisplayName("a comma separates topics inside one argument")
+        void commaSeparatesTopics() {
+            var rail = GuardRail.topicBoundary().allow("orders, shipping").deny("politics, religion");
+            assertThat(blocksInput(rail, "Track my shipping")).isFalse();
+            assertThat(blocksInput(rail, "What about religion?")).isTrue();
+        }
+
+        @Test @DisplayName("topics are matched after normalisation")
+        void topicsNormalised() {
+            var rail = GuardRail.topicBoundary().deny("medical advice");
+            assertThat(blocksInput(rail, "Médical ADVICE please")).isTrue();
+            assertThat(blocksInput(rail, "medical​ advice please")).isTrue();
+        }
     }
 
     // -- normalisation defeats the common evasions -------------------------------------------

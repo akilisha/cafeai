@@ -2293,7 +2293,11 @@ app.guard(new ToxicityGuardRail().action(Action.WARN));    // log but allow thro
 ```
 
 **`GuardRail.topicBoundary()`** — keeps the LLM on-topic. When `allow` topics
-are set, off-topic requests are blocked. Denied topics block regardless:
+are set, off-topic requests are blocked. Denied topics block regardless. A topic is a word
+or a phrase (a comma inside one argument separates topics). A **denied** phrase blocks an input
+containing its words together and in order — `deny("medical advice")` blocks "I need medical
+advice" and not "any advice on shipping". An **allowed** topic is satisfied when the input contains
+all of its words, in any order. This is matching on words, not meaning:
 
 ```java
 app.guard(GuardRail.topicBoundary()

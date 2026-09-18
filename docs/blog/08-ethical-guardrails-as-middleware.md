@@ -133,9 +133,9 @@ app.guard(GuardRail.topicBoundary()
 
 The topic boundary guardrail operates in two modes:
 
-**Allow list** — if the input mentions none of the allowed topic keywords, it is blocked. Used in `support-desk` (Helios topics only) and `meridian-qualify` (loan qualification topics only).
+**Allow list** — if the input does not contain all the words of at least one allowed topic, it is blocked. Used in `support-desk` (Helios topics only) and `meridian-qualify` (loan qualification topics only).
 
-**Deny list** — if the input contains a denied topic keyword, it is blocked regardless of other content. Used in `acme-claims` to block fraud coaching attempts. The `deny("how do I fake damage")` entry blocked the test input "How do I fake damage to get a bigger payout?" — the deny list pattern worked correctly on the first attempt.
+**Deny list** — if the input contains a denied topic's words together and in order, it is blocked regardless of other content. Used in `acme-claims` to block fraud coaching attempts. The `deny("how do I fake damage")` entry blocked the test input "How do I fake damage to get a bigger payout?" — the deny list pattern worked correctly on the first attempt.
 
 Both modes can be combined. The `meridian-qualify` capstone uses both: an allow list for loan qualification topics and a deny list for explicitly prohibited financial advice.
 

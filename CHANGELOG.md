@@ -213,6 +213,13 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **`PiiGuardRail.scrubbing()` is removed.** It set a flag nothing read and logged instead of
   redacting, while its Javadoc promised in-place redaction. A guardrail cannot rewrite text in
   flight; use `PiiGuardRail.scrub(text)` on text you log or forward.
+- **`GuardRail.topicBoundary().deny(...)` blocked on any single word of a denied phrase.**
+  Topics were split into individual words, so `deny("medical advice")` blocked every input
+  containing "advice", and `deny("other financial products")` blocked any message containing
+  "other". A denied topic now matches only when its words appear together and in order. An
+  *allowed* topic now needs all of its words (any order), so `allow("customer service")` is no
+  longer satisfied by "customer" alone; single-word topics behave as before, and a comma inside one
+  argument still separates topics.
 - **`TopicBoundaryGuardRailImpl` returned the hard-coded reason "I can only help with Helios
   connection pooling questions."** — demo text left in the framework.
 - `GuardRail.regulatory()` declared `Position.BOTH` but only ever inspected input; it now declares

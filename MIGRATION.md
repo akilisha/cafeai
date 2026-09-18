@@ -225,6 +225,13 @@ case from any exhaustive `switch`. `SecurityEvent.InjectionAttempt` no longer ha
 could only be `"user_input"`), and `AiSecurity.promptInjectionDetector()`'s `400` body is
 `{error, eventId}` — the `reason` is gone.
 
+**19. `topicBoundary()` matches phrases, not single words.** A denied phrase now blocks only when
+its words appear together and in order — inputs that a multi-word `deny(...)` used to block through
+one common word ("advice", "other", "how") now pass. An allowed multi-word topic now requires all of
+its words, so an input that used to satisfy `allow("customer service")` with "customer" alone is
+now blocked; list the words separately (`allow("customer", "service")`) to keep the old leniency.
+Single-word topics are unchanged.
+
 ### Not breaking, but new
 
 - **`cafeai-config`** — an optional module for real application configuration.
