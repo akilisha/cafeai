@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * ChromaVectorExample — persistent vector store via Chroma.
  *
- * <p>Demonstrates {@link Chroma} as a drop-in replacement for
+ * <p>Demonstrates {@link VectorStore#chroma()} as a drop-in replacement for
  * {@link VectorStore#inMemory()}. Documents are ingested once and
  * persist in Chroma across application restarts. The knowledge base
  * does not need to be re-embedded on every startup.

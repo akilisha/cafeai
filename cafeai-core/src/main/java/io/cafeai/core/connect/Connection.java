@@ -67,8 +67,8 @@ public interface Connection {
     /**
      * Probes the service to determine if it is currently reachable.
      *
-     * <p>Called once at registration time (during {@code app.connect()}) and
-     * periodically by {@link Connect#healthCheck(CafeAI)}.
+     * <p>Called once at registration time (during {@code app.connect()}) and again each time
+     * the health endpoint built by {@code Connect.healthCheck(app)} (in {@code cafeai-connect}) is called.
      *
      * <p>Implementations must not throw -- catch all exceptions and return
      * an appropriate {@link HealthStatus}.

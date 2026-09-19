@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Capstone entry point — a runnable {@link io.cafeai.sentinel} pipeline pointed
+ * Capstone entry point — a runnable {@code cafeai-sentinel} pipeline pointed
  * at a Kubernetes / OpenShift cluster.
  *
  * <p>{@link ClusterWatch} feeds correlated pod snapshots to an

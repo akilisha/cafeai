@@ -7,7 +7,7 @@ import io.cafeai.core.spi.CafeAIModule;
  *
  * <p>Signals that file-based configuration is active. Nothing is wired here —
  * {@link io.cafeai.core.config.AppConfig#load()}
- * discovers {@link PropertiesConfigProvider} directly via
+ * discovers {@link HelidonConfigProvider} directly via
  * {@link java.util.ServiceLoader}.
  */
 public final class CafeAIConfigModule implements CafeAIModule {
