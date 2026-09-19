@@ -87,6 +87,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Live tests for every provider.** OpenAI, Anthropic, Gemini and Ollama join NVIDIA and Jlama, all
+  running one shared suite (plain, streamed and structured calls, system prompt, session memory,
+  `HistoryPolicy.summarise()` and `lastMessages()`, `withMaxTokens` / `withTemperature` / `withTimeout`,
+  vision), plus OpenAI's speech round trip and moderation guardrail, and an agent-with-a-tool test in
+  `cafeai-agents`. They are opt-in (`./gradlew :cafeai-core:liveTest`, `:cafeai-agents:liveTest`), skip
+  when a provider is unavailable, and are described in GETTING-STARTED.md.
 - **Tunable values are settings.** Constants an operator might reasonably need to change are now
   `ConfigKey`s whose default is the value the constant had, so nothing changes until something sets
   them; the fluent setters (`RetryPolicy.maxAttempts`, `.threshold(...)`, the cache builder,
@@ -203,6 +209,17 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **An agent with tools and session memory crashed once it called a tool.** A tool call is an assistant
+  message with no text and its result is a message of its own; the memory adapter stored the first as
+  `null` and dropped the second, then failed rebuilding the history (`text cannot be null`) and would
+  have sent the model a tool call with no result. Such messages are now stored as LangChain4j's own JSON
+  under the role `langchain4j` and come back as they went in; plain user and assistant turns are stored
+  as text, as before. Found by a live test against a real model; the tests that missed it never called a
+  tool.
+- **A history summary is worded so the model knows it is about the user.** The summary is written as
+  notes ("The user's name is ...") and introduced as the model's memory of the conversation, where it
+  had been narrated in the third person and labelled "not instructions"; a small model did not connect
+  it to a question about the user.
 - **`serveStatic` streams files from disk** instead of reading each one into memory, so a large
   video or download no longer costs its size in heap per request; byte-range responses stream the
   requested slice the same way. `res.sendFile` and `res.download` stream too, and a new

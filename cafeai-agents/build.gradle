@@ -16,6 +16,7 @@ description = 'HTTP identity for LangChain4j AiServices agents — session threa
     'guardrail pre-screening, and observability, bound at AiServices.builder() time.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
+apply from: "$rootDir/gradle/live-tests.gradle"
 
 dependencies {
 
@@ -28,4 +29,7 @@ dependencies {
     // AiService proxy, so consumers need these types on their compile classpath.
     api 'dev.langchain4j:langchain4j'
     api 'dev.langchain4j:langchain4j-core'
+
+    // The real guardrails, for the tests that put an app-level guardrail in front of an agent.
+    testImplementation project(':cafeai-guardrails')
 }

@@ -1,25 +1,15 @@
 package io.cafeai.core.live;
 
-import io.cafeai.core.CafeAI;
+import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Nvidia;
-import io.cafeai.core.ai.PromptResponse;
-import io.cafeai.core.memory.MemoryStrategy;
 import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Live smoke test against NVIDIA's hosted API catalog: proves the whole path — CafeAI provider,
@@ -36,128 +26,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>{@code NVIDIA_LIVE_VISION_MODEL} — enables the vision test.</li>
  * </ul>
  */
-@Tag("live")
+
 @DisplayName("NVIDIA — live")
-class NvidiaLiveTest {
+class NvidiaLiveTest extends ProviderLiveSuite {
 
     private static final String DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 
-    private static String model;
+    private final String model = env("NVIDIA_LIVE_MODEL", DEFAULT_MODEL);
 
-    @BeforeAll
-    static void requireKey() {
-        String key = System.getenv("NVIDIA_API_KEY");
-        Assumptions.assumeTrue(key != null && !key.isBlank() && !key.startsWith("test-key"),
-            "NVIDIA_API_KEY is not set to a real key — skipping live tests");
-        model = env("NVIDIA_LIVE_MODEL", DEFAULT_MODEL);
-        System.out.println("[live] text model: " + model);
+    @Override String label() { return "NVIDIA"; }
+
+    @Override String skipReason() {
+        return has("NVIDIA_API_KEY") ? null : "NVIDIA_API_KEY is not set to a real key";
     }
 
-    private static String env(String name, String fallback) {
-        String v = System.getenv(name);
-        return v == null || v.isBlank() ? fallback : v;
-    }
+    @Override AiProvider provider() { return Nvidia.of(model); }
 
-    private static CafeAI appOn(Nvidia.NvidiaProvider provider) {
-        var app = CafeAI.create();
-        app.ai(provider);
-        return app;
-    }
-
-    private static String abbreviate(String s) {
-        String flat = s == null ? "null" : s.replaceAll("\\s+", " ").trim();
-        return flat.length() > 100 ? flat.substring(0, 100) + "…" : flat;
-    }
-
-    // -- the basics ----------------------------------------------------------------
-
-    @Test @DisplayName("a plain call returns text, token usage and the model id")
-    void plainCall() {
-        PromptResponse r = appOn(Nvidia.of(model)).prompt("Reply with exactly one word: pong").call();
-
-        System.out.println("[live] plain: " + abbreviate(r.text())
-            + " (tokens in/out " + r.promptTokens() + "/" + r.outputTokens() + ", model " + r.modelId() + ")");
-        assertThat(r.text()).isNotBlank();
-        assertThat(r.text().toLowerCase()).contains("pong");
-    }
-
-    @Test @DisplayName("a streamed call delivers several tokens that add up to the answer")
-    void streamedCall() {
-        List<String> tokens = new CopyOnWriteArrayList<>();
-        appOn(Nvidia.of(model)).prompt("Count from one to five in words, separated by commas.").stream(tokens::add);
-
-        String joined = String.join("", tokens);
-        System.out.println("[live] stream: " + tokens.size() + " tokens -> " + abbreviate(joined));
-        assertThat(tokens.size()).as("more than one chunk arrived").isGreaterThan(1);
-        assertThat(joined.toLowerCase()).contains("three");
-    }
-
-    record Capital(String country, String capital) {}
-
-    @Test @DisplayName("structured output: call(Class) returns a typed object")
-    void structuredOutput() {
-        Capital c = appOn(Nvidia.of(model))
-            .prompt("What is the capital of France? Answer for country France.")
-            .call(Capital.class);
-
-        System.out.println("[live] structured: " + c);
-        assertThat(c).isNotNull();
-        assertThat(c.capital()).containsIgnoringCase("Paris");
-    }
-
-    @Test @DisplayName("a system prompt shapes the reply")
-    void systemPrompt() {
-        var app = appOn(Nvidia.of(model));
-        app.system("You are a pirate. Always end your reply with the word ARRR.");
-
-        String text = app.prompt("Say hello.").call().text();
-
-        System.out.println("[live] system: " + abbreviate(text));
-        assertThat(text.toUpperCase()).contains("ARRR");
-    }
-
-    @Test @DisplayName("session memory carries a fact from one turn to the next")
-    void sessionMemory() {
-        var app = appOn(Nvidia.of(model));
-        app.memory(MemoryStrategy.inMemory());
-
-        app.prompt("My name is Zephyrine. Please remember it.").session("live-1").call();
-        String text = app.prompt("What is my name?").session("live-1").call().text();
-
-        System.out.println("[live] memory: " + abbreviate(text));
-        assertThat(text).containsIgnoringCase("Zephyrine");
-    }
-
-    // -- the provider settings reach the wire ------------------------------------------
-
-    @Test @DisplayName("withMaxTokens truncates a long answer")
-    void maxTokensIsHonoured() {
-        PromptResponse r = appOn(Nvidia.of(model).withMaxTokens(16))
-            .prompt("Count from 1 to 300, separated by spaces.").call();
-
-        System.out.println("[live] maxTokens=16: " + r.text().length() + " chars, output tokens " + r.outputTokens());
-        assertThat(r.text().length()).as("a 300-number count cannot fit in 16 tokens").isLessThan(200);
-        if (r.outputTokens() > 0) assertThat(r.outputTokens()).isLessThanOrEqualTo(24);
-    }
-
-    @Test @DisplayName("withTemperature(0) is accepted by the endpoint")
-    void temperatureIsAccepted() {
-        String text = appOn(Nvidia.of(model).withTemperature(0.0)).prompt("Reply with one word: ok").call().text();
-
-        assertThat(text).isNotBlank();
-    }
-
-    @Test @DisplayName("withTimeout applies: an impossible timeout fails fast")
-    void timeoutIsHonoured() {
-        long start = System.nanoTime();
-
-        assertThatThrownBy(() ->
-            appOn(Nvidia.of(model).withTimeout(Duration.ofMillis(1))).prompt("Write a long story.").call())
-            .isInstanceOf(RuntimeException.class);
-
-        long seconds = Duration.ofNanos(System.nanoTime() - start).toSeconds();
-        System.out.println("[live] timeout=1ms failed after ~" + seconds + "s");
-        assertThat(seconds).as("failed quickly rather than waiting for a reply").isLessThan(15);
+    @Override
+    AiProvider visionProvider() {
+        String vision = System.getenv("NVIDIA_LIVE_VISION_MODEL");
+        return vision == null || vision.isBlank() ? null : Nvidia.of(vision);
     }
 
     // -- opt-in: slow or model-specific --------------------------------------------------
@@ -182,23 +70,5 @@ class NvidiaLiveTest {
         // Thinking is a side channel: a substantial chunk of it never shows up in the answer text.
         thinking.stream().map(String::strip).filter(t -> t.length() >= 6).findFirst()
             .ifPresent(t -> assertThat(answerText).doesNotContain(t));
-    }
-
-    @Test @DisplayName("a vision model describes an image")
-    void vision() throws Exception {
-        String visionModel = System.getenv("NVIDIA_LIVE_VISION_MODEL");
-        Assumptions.assumeTrue(visionModel != null && !visionModel.isBlank(),
-            "NVIDIA_LIVE_VISION_MODEL not set — skipping");
-
-        BufferedImage img = new BufferedImage(128, 128, BufferedImage.TYPE_INT_RGB);
-        for (int x = 0; x < 128; x++) for (int y = 0; y < 128; y++) img.setRGB(x, y, 0xFF0000);
-        var png = new ByteArrayOutputStream();
-        ImageIO.write(img, "png", png);
-
-        var app = appOn(Nvidia.of(visionModel).withMaxTokens(200));
-        String text = app.vision("What single colour fills this image?", png.toByteArray(), "image/png").call().text();
-
-        System.out.println("[live] vision: " + abbreviate(text));
-        assertThat(text.toLowerCase()).contains("red");
     }
 }

@@ -135,30 +135,46 @@ Central is covered in `distribution.md`.
 
 ### Live tests against real providers
 
-`./gradlew build` and `test` never touch the network. A separate task runs a smoke test against a
-real provider, so you can check the whole path — CafeAI provider, LangChain4j bridge, the wire —
-with your own key:
+`./gradlew build` and `test` never touch the network. A separate task runs the same set of checks
+against a real provider, so you can see the whole path (CafeAI provider, LangChain4j bridge, the wire)
+work with your own key:
 
 ```bash
-./gradlew :cafeai-core:liveTest
+./gradlew :cafeai-core:liveTest      # every provider you have a key for, and Ollama if it is running
+./gradlew :cafeai-agents:liveTest    # an agent that calls a tool, against the first provider available
 ```
 
-Live tests are tagged `@Tag("live")`, excluded from `test`, and skip themselves when the provider's
-key is absent. The key comes from the environment only; it is never read from a file in the repo.
+Live tests are tagged `@Tag("live")`, excluded from `test`, and skip themselves when a provider is not
+available: a missing key, no server, a model that is not installed. Keys come from the environment only;
+they are never read from a file in the repo.
 
 ```powershell
 # PowerShell — this window only
-$env:NVIDIA_API_KEY = "nvapi-..."
+$env:OPENAI_API_KEY = "sk-..."
 # or for your user account (open a new terminal afterwards)
-[Environment]::SetEnvironmentVariable("NVIDIA_API_KEY", "nvapi-...", "User")
+[Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "sk-...", "User")
 ```
 
 ```bash
 # bash / zsh
-export NVIDIA_API_KEY=nvapi-...
+export OPENAI_API_KEY=sk-...
 ```
 
-The NVIDIA suite (`cafeai-core/src/test/java/io/cafeai/core/live/NvidiaLiveTest.java`) proves:
+| Provider | Needs | Model variable (default) |
+|---|---|---|
+| OpenAI | `OPENAI_API_KEY` | `OPENAI_LIVE_MODEL` (`gpt-4o-mini`) |
+| Anthropic | `ANTHROPIC_API_KEY` | `ANTHROPIC_LIVE_MODEL` (`claude-haiku-4-5-20251001`) |
+| Gemini | `GEMINI_API_KEY` | `GEMINI_LIVE_MODEL` (`gemini-2.5-flash`) |
+| NVIDIA | `NVIDIA_API_KEY` | `NVIDIA_LIVE_MODEL` (`nvidia/nemotron-3.5-lightning-30b-a3b`) |
+| Ollama | a running server with the model pulled | `OLLAMA_LIVE_MODEL` (`llama3.2`), `OLLAMA_LIVE_URL` (`http://localhost:11434`) |
+| Jlama | a model on disk | `JLAMA_LIVE_MODEL` (no default: the first run downloads about 300 MB) |
+
+Model ids are provider data and change: a vendor retires a model, or a model is not enabled for your
+account. When a default stops working, point the variable at one that answers. For NVIDIA,
+`curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models` lists what
+your key can see.
+
+Every provider runs the same suite (`cafeai-core/src/test/java/io/cafeai/core/live/ProviderLiveSuite.java`):
 
 | Test | What it proves |
 |---|---|
@@ -167,38 +183,31 @@ The NVIDIA suite (`cafeai-core/src/test/java/io/cafeai/core/live/NvidiaLiveTest.
 | structured output | `.call(Class)` returns a typed object parsed from the model's JSON |
 | system prompt | `app.system(...)` shapes the reply |
 | session memory | a fact given in one turn is recalled in the next (`MemoryStrategy` + `.session(...)`) |
+| `HistoryPolicy.summarise()` | a fact folded into a summary is still known, and the model kept it in the summary |
+| `HistoryPolicy.lastMessages(n)` | a fact that has left the window is not known |
 | `withMaxTokens` | a 16-token cap truncates a long answer (the setting reaches the vendor parameter) |
 | `withTemperature` | the endpoint accepts the setting |
 | `withTimeout` | an impossible timeout fails within seconds instead of waiting for a reply |
-| thinking stream *(opt-in)* | `.onThinking(...)` receives reasoning tokens apart from the answer text |
-| vision *(opt-in)* | `app.vision(...)` sends an image and the model describes it |
+| vision *(when the provider has a vision model)* | `app.vision(...)` sends an image and the model describes it |
 
-Two of them run only when you name a model for them:
+Some providers add checks of their own:
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `NVIDIA_LIVE_MODEL` | text model for the main tests | `nvidia/nemotron-3.5-lightning-30b-a3b` |
-| `NVIDIA_LIVE_REASONING_MODEL` | enables the thinking-stream test (`.onThinking(...)`); slow | *(skipped)* |
-| `NVIDIA_LIVE_VISION_MODEL` | enables the vision test | *(skipped)* |
+| Provider | Extra checks |
+|---|---|
+| OpenAI | speech round trip (`app.synthesise(...)` makes audio, `app.audio(...)` transcribes it back); the moderation guardrail blocks violent text |
+| NVIDIA | `NVIDIA_LIVE_REASONING_MODEL` enables the thinking-stream test (`.onThinking(...)` receives reasoning apart from the answer); `NVIDIA_LIVE_VISION_MODEL` enables vision |
+| Ollama | `OLLAMA_LIVE_VISION_MODEL` (for example `llava`) enables vision |
+| Jlama | `withMaxTokens` counts the prompt too, `withTemperature(0)` repeatability, `Jlama.cachedIn(...)`; run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`. `liveTest` already passes the Vector API flags Jlama needs |
+| agents (`:cafeai-agents:liveTest`) | the model calls a `@Tool` and answers from the result; session memory reaches the agent, tool calls included |
 
-Model ids are provider data and change: NVIDIA retires models, and a model in its catalog may not be
-enabled for your account (HTTP `410` and `404` respectively). List what your key can see with
-`curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`, and
-point the variables above at one that answers.
+A small local model rewords things and gets simple questions wrong now and then, so a failure on Ollama
+is worth reading before it is worth blaming. Live tests have found real bugs here: an agent with tools
+and session memory used to crash on its second message, and the wording of a history summary decided
+whether a small model connected it to "my name".
 
-Jlama runs in-process and needs no key, only a model on disk, so its live tests run when you name one:
-
-```bash
-JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'
-```
-
-The first run downloads the model (about 300 MB) into `~/.jlama/models`; `liveTest` already passes the
-Vector API flags Jlama needs. They cover a plain and a streamed call, `withMaxTokens` (which for Jlama
-counts the prompt too), `withTemperature(0)` repeatability, and `Jlama.cachedIn(...)`.
-
-To add a live test for another provider: tag the class `@Tag("live")`, skip it with
-`Assumptions.assumeTrue(...)` when the key is missing, and make sure the module applies
-`gradle/live-tests.gradle` (`cafeai-core` already does).
+To add a live test for another provider: extend `ProviderLiveSuite`, say why the suite cannot run
+(`skipReason()`) and how to build the provider (`provider()`), and add whatever only that provider can do.
+Make sure the module applies `gradle/live-tests.gradle` (`cafeai-core` and `cafeai-agents` already do).
 
 ## JVM Flags for Local Models (Jlama)
 
