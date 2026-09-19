@@ -248,7 +248,7 @@ companion.
 - **LangChain4j 1.20** — LLM provider abstraction
 - **OpenAI** — any chat model by id (`gpt-4o`, ...), plus Whisper and TTS
 - **Anthropic** — any Claude model by id (`claude-sonnet-4-5`, ...)
-- **Gemini** — any Gemini model by id (`gemini-2.5-flash`, ...)
+- **Gemini** — any Gemini model by id (`gemini-3.6-flash`, ...)
 - **Nvidia** — any model on NVIDIA's API catalog by id (`moonshotai/kimi-k3`, ...)
 - **Ollama** — any local model by id (`llama3.3`, `llava`, `mistral`, ...)
 - **Jlama** — any pure-Java in-process local model by id, no server required

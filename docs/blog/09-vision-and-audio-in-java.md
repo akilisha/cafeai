@@ -96,7 +96,7 @@ A provider declares whether it takes images, and CafeAI checks before the call:
 ```java
 app.ai(OpenAI.of("gpt-4o"));      // OpenAI chat models are treated as vision-capable; the API rejects one that is not
 app.ai(Anthropic.of("claude-sonnet-4-5"));
-app.ai(Gemini.of("gemini-2.5-flash"));
+app.ai(Gemini.of("gemini-3.6-flash"));
 app.ai(Ollama.vision("llava"));   // a local vision model
 
 app.ai(Ollama.of("llama3.3"));    // text-only — app.vision() throws VisionNotSupportedException

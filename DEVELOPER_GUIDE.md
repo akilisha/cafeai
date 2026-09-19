@@ -694,7 +694,7 @@ app.ai(OpenAI.of("gpt-4o"));
 app.ai(Anthropic.of("claude-sonnet-4-5"));
 
 // Production — Gemini (see "Beyond the four built-in providers" below)
-app.ai(Gemini.of("gemini-2.5-flash"));
+app.ai(Gemini.of("gemini-3.6-flash"));
 ```
 
 **Cost-aware routing** with `ModelRouter` lets you automatically send simple queries to a
@@ -750,7 +750,7 @@ private record GeminiProvider(String modelId)
 }
 ```
 
-`app.ai(Gemini.of("gemini-2.5-flash"))` works exactly like any built-in provider — nothing in
+`app.ai(Gemini.of("gemini-3.6-flash"))` works exactly like any built-in provider — nothing in
 `AiProvider`, `LangchainBridge`'s switch, or any existing provider changed to add it. This is
 the pattern for wiring in anything LangChain4j has (or can be given) a `ChatModel` for — Azure
 OpenAI, Vertex AI, a custom gateway, a model you've wrapped yourself.

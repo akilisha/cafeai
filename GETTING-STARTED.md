@@ -164,7 +164,7 @@ export OPENAI_API_KEY=sk-...
 |---|---|---|
 | OpenAI | `OPENAI_API_KEY` | `OPENAI_LIVE_MODEL` (`gpt-4o-mini`) |
 | Anthropic | `ANTHROPIC_API_KEY` | `ANTHROPIC_LIVE_MODEL` (`claude-haiku-4-5-20251001`) |
-| Gemini | `GEMINI_API_KEY` | `GEMINI_LIVE_MODEL` (`gemini-2.5-flash`) |
+| Gemini | `GEMINI_API_KEY` | `GEMINI_LIVE_MODEL` (`gemini-3.6-flash`) |
 | NVIDIA | `NVIDIA_API_KEY` | `NVIDIA_LIVE_MODEL` (`nvidia/nemotron-3.5-lightning-30b-a3b`) |
 | Ollama | a running server with the model pulled | `OLLAMA_LIVE_MODEL` (`llama3.2`), `OLLAMA_LIVE_URL` (`http://localhost:11434`) |
 | Jlama | a model on disk | `JLAMA_LIVE_MODEL` (no default: the first run downloads about 300 MB) |

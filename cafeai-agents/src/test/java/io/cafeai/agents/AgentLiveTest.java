@@ -49,7 +49,7 @@ class AgentLiveTest {
             provider = Anthropic.of(env("ANTHROPIC_LIVE_MODEL", "claude-haiku-4-5-20251001"));
             label = "Anthropic";
         } else if (has("GEMINI_API_KEY")) {
-            provider = Gemini.of(env("GEMINI_LIVE_MODEL", "gemini-2.5-flash"));
+            provider = Gemini.of(env("GEMINI_LIVE_MODEL", "gemini-3.6-flash"));
             label = "Gemini";
         } else {
             String model = env("OLLAMA_LIVE_MODEL", "llama3.2");

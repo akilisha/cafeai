@@ -209,6 +209,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **Gemini can stream.** `app.prompt(...).stream(...)` and `app.vision(...).stream(...)` with
+  `Gemini.of(...)` failed with `Streaming not supported for provider type: CUSTOM`, because the provider
+  supplied a chat model but no streaming one. It now supplies both.
+- **A provider that reports no token count no longer crashes the call.** Gemini leaves the output-token
+  count out when it stops at a token limit, and LangChain4j then returns `null`; the engine unboxed it, so
+  a good answer ended in a `NullPointerException`. A missing count is now zero.
+- **A model that answers with no text gives an empty answer, not `null`.** A thinking model whose
+  `withMaxTokens` limit is spent on thinking returns no text; `PromptResponse.text()` was `null` and the
+  `null` reached guardrails and session memory. It is now an empty string.
 - **An agent with tools and session memory crashed once it called a tool.** A tool call is an assistant
   message with no text and its result is a message of its own; the memory adapter stored the first as
   `null` and dropped the second, then failed rebuilding the history (`text cannot be null`) and would

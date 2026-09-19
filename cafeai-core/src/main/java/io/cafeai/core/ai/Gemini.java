@@ -1,7 +1,9 @@
 package io.cafeai.core.ai;
 
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import io.cafeai.core.internal.LangchainBridge;
 
 import java.time.Duration;
@@ -11,7 +13,7 @@ import java.time.Duration;
  * Studio) — an API key, no GCP project or service account to set up.
  *
  * <pre>{@code
- *   app.ai(Gemini.of("gemini-2.5-flash"));
+ *   app.ai(Gemini.of("gemini-3.6-flash"));
  *   app.ai(Gemini.of("gemini-2.5-pro"));
  * }</pre>
  *
@@ -34,13 +36,13 @@ public final class Gemini {
 
     private Gemini() {}
 
-    /** A Gemini provider for the given model id (e.g. {@code "gemini-2.5-flash"}). */
+    /** A Gemini provider for the given model id (e.g. {@code "gemini-3.6-flash"}). */
     public static AiProvider of(String modelId) {
         return new GeminiProvider(modelId, null, null, null);
     }
 
     private record GeminiProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout)
-            implements AiProvider, LangchainBridge.ChatModelAccess {
+            implements AiProvider, LangchainBridge.ChatModelAccess, LangchainBridge.StreamingChatModelAccess {
 
         @Override public AiProvider withTemperature(double t) { return new GeminiProvider(modelId, t, maxTokens, timeout); }
         @Override public AiProvider withMaxTokens(int n)      { return new GeminiProvider(modelId, temperature, n, timeout); }
@@ -59,8 +61,7 @@ public final class Gemini {
         // reject the rare exception rather than CafeAI tracking a model list.
         @Override public boolean supportsVision() { return true; }
 
-        @Override
-        public ChatModel toChatModel() {
+        private static String apiKey() {
             String apiKey = System.getenv("GEMINI_API_KEY");
             if (apiKey == null || apiKey.isBlank()) {
                 throw new IllegalStateException(
@@ -69,8 +70,25 @@ public final class Gemini {
                     + "  export GEMINI_API_KEY=your-key-here\n\n"
                     + "Get one at https://aistudio.google.com/apikey");
             }
+            return apiKey;
+        }
+
+        @Override
+        public ChatModel toChatModel() {
             var builder = GoogleAiGeminiChatModel.builder()
-                    .apiKey(apiKey)
+                    .apiKey(apiKey())
+                    .modelName(modelId);
+            if (temperature != null) builder.temperature(temperature);
+            if (maxTokens != null)   builder.maxOutputTokens(maxTokens);
+            if (timeout != null)     builder.timeout(timeout);
+            return builder.build();
+        }
+
+        /** What {@code .stream()} and {@code app.vision(...).stream(...)} call. */
+        @Override
+        public StreamingChatModel toStreamingChatModel() {
+            var builder = GoogleAiGeminiStreamingChatModel.builder()
+                    .apiKey(apiKey())
                     .modelName(modelId);
             if (temperature != null) builder.temperature(temperature);
             if (maxTokens != null)   builder.maxOutputTokens(maxTokens);

@@ -424,10 +424,10 @@ public final class CafeAIApp implements CafeAI {
                 lastRateLimitError = null;
                 try {
                     ChatResponse response = model.chat(messages);
-                    responseText = response.aiMessage().text();
+                    responseText = answerText(response.aiMessage());
                     TokenUsage usage = response.tokenUsage();
-                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                    promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                    outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                     // -- Token budget: record actual usage after successful call -------
                     if (budgetTracker != null) {
                         budgetTracker.recordUsage(promptTokens + outputTokens);
@@ -586,8 +586,8 @@ public final class CafeAIApp implements CafeAI {
                                 storeInCache(cacheNamespace, request.message(), full);
                             }
                             TokenUsage usage = response.tokenUsage();
-                            int promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                            int outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                            int promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                            int outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
 
                             if (budgetTracker != null) {
                                 budgetTracker.recordUsage(promptTokens + outputTokens);
@@ -718,10 +718,10 @@ public final class CafeAIApp implements CafeAI {
                 lastRateLimitError = null;
                 try {
                     ChatResponse response = model.chat(messages);
-                    responseText = response.aiMessage().text();
+                    responseText = answerText(response.aiMessage());
                     TokenUsage usage = response.tokenUsage();
-                    promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                    outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                    promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                    outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                     if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                     break;
                 } catch (RuntimeException e) {
@@ -870,8 +870,8 @@ public final class CafeAIApp implements CafeAI {
             @Override
             public void onCompleteResponse(ChatResponse response) {
                 TokenUsage usage = response.tokenUsage();
-                int promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                int outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                int promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                int outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                 if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
 
                 String full = applyPostLlmGuardrails(assembled.toString());
@@ -1012,10 +1012,10 @@ public final class CafeAIApp implements CafeAI {
                         lastRateLimitError = null;
                         try {
                             ChatResponse cr = model.chat(textMessages);
-                            responseText = cr.aiMessage().text();
+                            responseText = answerText(cr.aiMessage());
                             TokenUsage usage = cr.tokenUsage();
-                            promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                            outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                            promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                            outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                             if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                             break;
                         } catch (RuntimeException e) {
@@ -1059,10 +1059,10 @@ public final class CafeAIApp implements CafeAI {
                     lastRateLimitError = null;
                     try {
                         ChatResponse response = model.chat(messages);
-                        responseText = response.aiMessage().text();
+                        responseText = answerText(response.aiMessage());
                         TokenUsage usage = response.tokenUsage();
-                        promptTokens = usage != null ? usage.inputTokenCount() : 0;
-                        outputTokens = usage != null ? usage.outputTokenCount() : 0;
+                        promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                        outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                         if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
                         break;
                     } catch (RuntimeException e) {
@@ -1511,6 +1511,25 @@ public final class CafeAIApp implements CafeAI {
     }
 
     /** The policy in force: the one set with {@code history()}, else {@code cafeai.memory.window}'s. */
+    /**
+     * The text of a model's answer. A model can answer with no text (a thinking model whose token limit
+     * was spent thinking), and LangChain4j then returns {@code null}; the rest of the pipeline treats an
+     * empty answer as an empty string.
+     */
+    private static String answerText(dev.langchain4j.data.message.AiMessage message) {
+        String text = message.text();
+        return text == null ? "" : text;
+    }
+
+    /**
+     * A token count as a plain number. A provider may report usage without a count (Gemini does when it
+     * stops at a token limit), and LangChain4j then returns {@code null}, which unboxing would turn into
+     * a crash on an otherwise good answer.
+     */
+    private static int tokens(Integer count) {
+        return count == null ? 0 : count;
+    }
+
     private HistoryPolicy historyPolicy() {
         HistoryPolicy p = historyPolicy;
         if (p == null) {
