@@ -484,12 +484,12 @@ A narrative arc through the framework, one capability at a time, each post ancho
 4. **Prompt Engineering in Java** — [Templates, System Prompts, and the API Vocabulary](https://github.com/akilisha/cafeai/blob/main/docs/blog/04-prompt-engineering-in-java.md)
 5. **Context Memory Without the Cloud Tax** — [Java FFM and the Tiered Memory Model](https://github.com/akilisha/cafeai/blob/main/docs/blog/05-context-memory-without-cloud-tax.md)
 6. **Building a RAG Pipeline in Java** — [Ingestion, Embedding, and Retrieval](https://github.com/akilisha/cafeai/blob/main/docs/blog/06-building-rag-pipeline-in-java.md)
-7. **Tool Use in Java** — Giving the LLM Actions to Take *(outline drafted, prose pending)*
+7. **Tool Use in Java** — [Giving the LLM Actions to Take](https://github.com/akilisha/cafeai/blob/main/docs/blog/07-tool-use-in-java.md)
 8. **Ethical Guardrails as Middleware** — [PII, Jailbreak, and Regulatory Compliance](https://github.com/akilisha/cafeai/blob/main/docs/blog/08-ethical-guardrails-as-middleware.md)
 9. **Vision and Audio in Java** — [Multimodal AI Without the Boilerplate](https://github.com/akilisha/cafeai/blob/main/docs/blog/09-vision-and-audio-in-java.md)
 10. **Structured Output** — [Typed LLM Responses, No Parser Required](https://github.com/akilisha/cafeai/blob/main/docs/blog/10-structured-output.md)
 11. **Production-Grade AI** — [Token Budgets, Retries, Observability, and Incident Response](https://github.com/akilisha/cafeai/blob/main/docs/blog/11-production-grade-ai.md)
-12. **The Capstone Series** — [What Four Applications Prove](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
+12. **The Capstone Series** — [Five Applications and What Each Found](https://github.com/akilisha/cafeai/blob/main/docs/blog/12-the-capstone-series.md)
 
 ---
 
