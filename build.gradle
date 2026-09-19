@@ -32,10 +32,14 @@ ext {
 
 // ── Shared Config for All Subprojects ───────────────────────
 subprojects {
-    apply plugin: 'java-library'
-
     group   = 'com.akilisha.oss'
     version = '0.4.0'
+}
+
+// Every subproject except the BOM is a Java library. cafeai-bom is a platform (no code, no
+// `implementation`), and the Java plugins cannot be applied to it.
+configure(subprojects.findAll { it.name != 'cafeai-bom' }) {
+    apply plugin: 'java-library'
 
     java {
         toolchain {

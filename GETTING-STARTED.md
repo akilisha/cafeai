@@ -27,6 +27,11 @@ dependencies {
 </dependency>
 ```
 
+Using more than one module? Import `com.akilisha.oss:cafeai-bom:0.4.0` once (Gradle:
+`implementation platform('com.akilisha.oss:cafeai-bom:0.4.0')`; Maven: a `dependencyManagement` import
+with `<type>pom</type>` and `<scope>import</scope>`) and declare the modules without versions. The README
+shows both.
+
 Requires **Java 23+**. For a local `Jlama` model, add
 `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` to your
 run arguments.
@@ -102,6 +107,7 @@ curl -X POST http://localhost:8080/classify \
 
 ```
 cafeai/
+├── cafeai-bom/             ← Bill of materials — one version for every published module
 ├── cafeai-core/            ← Start here — the Express API + AI primitives
 ├── cafeai-config/          ← Application configuration — ConfigKey/AppConfig, Helidon Config-backed
 ├── cafeai-memory/          ← Tiered context memory

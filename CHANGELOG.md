@@ -87,6 +87,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai-bom`.** A bill of materials for the published modules. Import it once
+  (`implementation platform("com.akilisha.oss:cafeai-bom:0.4.0")`) and declare the modules without
+  versions, so they cannot drift apart: they are released together and share service-loader interfaces. It
+  lists only CafeAI's own modules, generated from whichever modules publish, so a new module joins by
+  publishing; LangChain4j and Helidon keep their own BOMs. It is a twelfth published artifact (a `.pom` and
+  `.module`, no jar).
 - **Live tests for every provider.** OpenAI, Anthropic, Gemini and Ollama join NVIDIA and Jlama, all
   running one shared suite (plain, streamed and structured calls, system prompt, session memory,
   `HistoryPolicy.summarise()` and `lastMessages()`, `withMaxTokens` / `withTemperature` / `withTimeout`,

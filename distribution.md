@@ -122,7 +122,9 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
 
    Inspect `~/.m2/repository/com/akilisha/oss/cafeai-core/<version>/` — you want
    `.jar` (~200 KB, *not* a fat jar), `-sources.jar`, `-javadoc.jar`, `.pom`,
-   `.module`, and a `.asc` next to each.
+   `.module`, and a `.asc` next to each. `cafeai-bom/<version>/` has only a `.pom` and
+   `.module` (with `.asc`): a BOM has no code, so no jar. Its POM should list every
+   published module, and none of `cafeai-examples` or the capstones.
 
 4. **Upload every module.**
 
@@ -130,8 +132,8 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
    ./gradlew publishToMavenCentral
    ```
 
-   Runs for all nine opted-in modules in one invocation; the plugin stages them
-   together and uploads a bundle. Inter-module dependencies
+   Runs for every opted-in module (eleven libraries and `cafeai-bom`) in one invocation; the
+   plugin stages them together and uploads a bundle. Inter-module dependencies
    (`com.akilisha.oss:cafeai-core:<version>`, …) are wired automatically, with no
    ordering requirement.
 
@@ -160,7 +162,10 @@ apply from: "$rootDir/gradle/maven-central.gradle"
 the common POM fields (license, developer, SCM, project URL). `cafeai-examples`
 does **not** apply it — it's a runnable sample, not a library.
 
-Adding a new library module = add those two lines. Nothing else.
+Adding a new library module = add those two lines. Nothing else: `cafeai-bom` lists every module
+that applies `maven-central.gradle`, so the new module joins the BOM by publishing. (`cafeai-bom` is
+a `java-platform` project; the root `build.gradle` gives it a group and version but not the Java
+plugins, which cannot be applied to a platform.)
 
 ---
 

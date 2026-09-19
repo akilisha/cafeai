@@ -75,6 +75,35 @@ dependencies {
 </dependency>
 ```
 
+**Using several modules?** Import the BOM once and leave the versions off, so the modules cannot drift
+apart (they are released together and share service-loader interfaces, so a mix of versions is not a
+supported combination):
+
+```groovy
+dependencies {
+    implementation platform('com.akilisha.oss:cafeai-bom:0.4.0')
+    implementation 'com.akilisha.oss:cafeai-core'
+    implementation 'com.akilisha.oss:cafeai-guardrails'
+    implementation 'com.akilisha.oss:cafeai-agents'
+}
+```
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.akilisha.oss</groupId>
+      <artifactId>cafeai-bom</artifactId>
+      <version>0.4.0</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
+
+The BOM lists only CafeAI's own modules; LangChain4j and Helidon keep their own BOMs, which the modules import.
+
 Requires **Java 23+** (**Java 25**, the current LTS, is recommended). For a local
 `Jlama` model, also add `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED`
 to your run args.
@@ -330,6 +359,7 @@ and the runnable `capstones/cluster-sentinel` companion.
 
 ```
 cafeai/
+├── cafeai-bom            ← Bill of materials: one version for every published module
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-config         ← File-based config (application.properties/.yaml + profiles) for AppConfig
 ├── cafeai-agents         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
