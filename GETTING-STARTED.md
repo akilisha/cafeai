@@ -40,7 +40,7 @@ run arguments.
 
 ## Prerequisites
 
-- **Java 23+** — required for the FFM API, the Vector API (Jlama), and Virtual Threads (**Java 25**, the current LTS, is recommended)
+- **Java 23+** — required for the FFM API, the Vector API (Jlama), and Virtual Threads (CI builds and tests on Java 23)
 - **IntelliJ IDEA** 2023.3+ (recommended) or any IDE with Gradle support
 - **Git**
 

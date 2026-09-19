@@ -243,7 +243,7 @@ companion.
 
 ## What it runs on
 
-- **Java 23+** — virtual threads, records, pattern matching, sealed classes, FFM, the Vector API (Java 25, the current LTS, is recommended)
+- **Java 23+** — virtual threads, records, pattern matching, sealed classes, FFM, the Vector API (CI builds and tests on Java 23)
 - **Helidon 4** — reactive HTTP server on virtual threads
 - **LangChain4j 1.20** — LLM provider abstraction
 - **OpenAI** — any chat model by id (`gpt-4o`, ...), plus Whisper and TTS
