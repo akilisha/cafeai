@@ -1182,14 +1182,7 @@ public final class CafeAIApp implements CafeAI {
             format = format1;
         }
 
-        String safeText = request.text()
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
-        String body = "{\"model\":\"tts-1\",\"input\":\"" + safeText +
-                "\",\"voice\":\"" + voice +
-                "\",\"response_format\":\"" + format + "}";
+        String body = SpeechRequestBody.json(provider.modelId(), request.text(), voice, format);
 
         byte[] audioBytes;
         try {

@@ -40,7 +40,12 @@ class JlamaLiveTest extends ProviderLiveSuite {
             : "JLAMA_LIVE_MODEL is not set (needs a Hugging Face model id, e.g. tjake/Qwen2.5-0.5B-Instruct-JQ4)";
     }
 
-    @Override AiProvider provider() { return Jlama.of(model); }
+    /**
+     * Temperature 0, so a small model gives the same answer every run: at its default sampling a 0.5B model
+     * sometimes answers "what is my name" with its own name, and a suite that passes and fails at random
+     * proves nothing.
+     */
+    @Override AiProvider provider() { return Jlama.of(model).withTemperature(0.0); }
 
     /** Jlama's limit is the prompt plus the answer, and the chat template alone is dozens of tokens. */
     @Override int smallCap() { return 128; }

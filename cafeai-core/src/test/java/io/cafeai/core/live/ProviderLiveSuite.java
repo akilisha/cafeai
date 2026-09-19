@@ -58,6 +58,12 @@ abstract class ProviderLiveSuite {
     /** Whether {@code withTimeout} applies to this provider; an in-process model has no call to time out. */
     boolean honoursTimeout() { return true; }
 
+    /**
+     * The fewest chunks a streamed short answer must arrive in. Most providers send it in pieces; Gemini
+     * may send a short answer whole, and that is still a streamed response.
+     */
+    int minStreamChunks() { return 2; }
+
     @BeforeAll
     void requireProvider() {
         String why = skipReason();
@@ -119,7 +125,8 @@ abstract class ProviderLiveSuite {
 
         String joined = String.join("", tokens);
         System.out.println("[live] stream: " + tokens.size() + " tokens -> " + abbreviate(joined));
-        assertThat(tokens.size()).as("more than one chunk arrived").isGreaterThan(1);
+        assertThat(tokens.size()).as("the answer arrived as a stream of at least " + minStreamChunks() + " chunk(s)")
+            .isGreaterThanOrEqualTo(minStreamChunks());
         assertThat(joined.toLowerCase()).contains("three");
     }
 

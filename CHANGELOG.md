@@ -209,6 +209,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **`app.synthesise(...)` with OpenAI works.** The request body was assembled by hand and its last string
+  was never closed (`"response_format":"mp3}`), so OpenAI refused every call with "could not parse the
+  JSON body"; the hand-written escaping also missed control characters other than line breaks. The body
+  is now written with Jackson and uses the provider's model id. Found by a live speech round trip.
 - **Gemini can stream.** `app.prompt(...).stream(...)` and `app.vision(...).stream(...)` with
   `Gemini.of(...)` failed with `Streaming not supported for provider type: CUSTOM`, because the provider
   supplied a chat model but no streaming one. It now supplies both.

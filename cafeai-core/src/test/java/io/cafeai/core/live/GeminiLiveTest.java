@@ -25,4 +25,7 @@ class GeminiLiveTest extends ProviderLiveSuite {
     @Override AiProvider provider() { return Gemini.of(model); }
 
     @Override AiProvider visionProvider() { return Gemini.of(model); }
+
+    /** Gemini may send a short answer as a single chunk. */
+    @Override int minStreamChunks() { return 1; }
 }
