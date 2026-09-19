@@ -3,7 +3,7 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [0.4.0] — unreleased
+## [0.4.0] — 2026-09-18
 
 ### Breaking changes
 
