@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -27,7 +29,7 @@ import java.time.Duration;
  * uses — no new dependency, and nothing in the bridge's switch changed.
  *
  * <p><strong>Timeout:</strong> five minutes unless you set
- * {@link NvidiaProvider#withTimeout}, and not {@code cafeai.chat.timeout}. A hosted
+ * {@link NvidiaProvider#withTimeout} or {@link #TIMEOUT} ({@code cafeai.nvidia.timeout}), and not {@code cafeai.chat.timeout}. A hosted
  * model can take well over the 60-second default to start responding — the
  * reasoning model in {@code NvidiaVisionExample} took about two minutes.
  *
@@ -41,7 +43,14 @@ import java.time.Duration;
 public final class Nvidia {
 
     private static final String   BASE_URL = "https://integrate.api.nvidia.com/v1";
-    private static final Duration TIMEOUT  = Duration.ofMinutes(5);
+
+    /**
+     * How long one NVIDIA call may take. Longer than {@code cafeai.chat.timeout}, because a reasoning
+     * model can think for minutes before it answers. {@link NvidiaProvider#withTimeout} overrides it.
+     */
+    public static final ConfigKey<Duration> TIMEOUT = ConfigKey.of(
+        "cafeai.nvidia.timeout", Duration.class, Duration.ofMinutes(5),
+        "Timeout for one NVIDIA call; a reasoning model can think for minutes before it answers.");
 
     private Nvidia() {}
 
@@ -110,7 +119,7 @@ public final class Nvidia {
                     .baseUrl(BASE_URL)
                     .apiKey(apiKey())
                     .modelName(modelId)
-                    .timeout(timeout != null ? timeout : TIMEOUT);
+                    .timeout(timeout != null ? timeout : AppConfig.load().get(TIMEOUT));
             if (reasoningEffort != null) builder.reasoningEffort(reasoningEffort);
             if (temperature != null)     builder.temperature(temperature);
             if (maxTokens != null)       builder.maxCompletionTokens(maxTokens);
@@ -126,7 +135,7 @@ public final class Nvidia {
                     // Surface reasoning_content via onThinking(...); a no-op
                     // for models that don't emit it.
                     .returnThinking(true)
-                    .timeout(timeout != null ? timeout : TIMEOUT);
+                    .timeout(timeout != null ? timeout : AppConfig.load().get(TIMEOUT));
             if (reasoningEffort != null) builder.reasoningEffort(reasoningEffort);
             if (temperature != null)     builder.temperature(temperature);
             if (maxTokens != null)       builder.maxCompletionTokens(maxTokens);

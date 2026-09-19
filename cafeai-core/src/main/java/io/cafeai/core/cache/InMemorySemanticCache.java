@@ -1,5 +1,6 @@
 package io.cafeai.core.cache;
 
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.rag.EmbeddingProvider;
 
 import java.time.Clock;
@@ -59,7 +60,11 @@ public final class InMemorySemanticCache implements SemanticCache {
     }
 
     public static Builder builder(EmbeddingProvider embedder) {
-        return new Builder(Objects.requireNonNull(embedder, "EmbeddingProvider must not be null"));
+        return builder(embedder, AppConfig.load());
+    }
+
+    static Builder builder(EmbeddingProvider embedder, AppConfig config) {
+        return new Builder(Objects.requireNonNull(embedder, "EmbeddingProvider must not be null"), config);
     }
 
     // ── SemanticCache ─────────────────────────────────────────────────────────
@@ -186,18 +191,30 @@ public final class InMemorySemanticCache implements SemanticCache {
 
     // ── builder ───────────────────────────────────────────────────────────────
 
-    /** Defaults are deliberately strict: a missed hit costs a model call; a wrong hit costs trust. */
+    /**
+     * Defaults are deliberately strict: a missed hit costs a model call; a wrong hit costs trust.
+     * Each default is a {@code cafeai.cache.*} setting (see the constants on {@link SemanticCache}),
+     * and each setter here overrides it.
+     */
     public static final class Builder {
         private final EmbeddingProvider embedder;
-        private double threshold       = 0.95;
-        private double minTokenOverlap = 0.80;
-        private double maxLengthRatio  = 1.25;
-        private Duration ttl           = Duration.ofHours(1);
-        private int maxEntries         = 1_000;
-        private int maxResponseChars   = 8_000;
+        private double threshold       = SemanticCache.THRESHOLD.defaultValue();
+        private double minTokenOverlap = SemanticCache.MIN_OVERLAP.defaultValue();
+        private double maxLengthRatio  = SemanticCache.MAX_LENGTH_RATIO.defaultValue();
+        private Duration ttl           = SemanticCache.TTL.defaultValue();
+        private int maxEntries         = SemanticCache.MAX_ENTRIES.defaultValue();
+        private int maxResponseChars   = SemanticCache.MAX_RESPONSE_CHARS.defaultValue();
         private Clock clock            = Clock.systemUTC();
 
-        private Builder(EmbeddingProvider embedder) { this.embedder = embedder; }
+        private Builder(EmbeddingProvider embedder, AppConfig config) {
+            this.embedder = embedder;
+            config.apply(SemanticCache.THRESHOLD, this::threshold);
+            config.apply(SemanticCache.MIN_OVERLAP, this::minTokenOverlap);
+            config.apply(SemanticCache.MAX_LENGTH_RATIO, this::maxLengthRatio);
+            config.apply(SemanticCache.TTL, this::ttl);
+            config.apply(SemanticCache.MAX_ENTRIES, this::maxEntries);
+            config.apply(SemanticCache.MAX_RESPONSE_CHARS, this::maxResponseChars);
+        }
 
         /** Minimum cosine similarity between prompt embeddings, in (0, 1]. Default 0.95. */
         public Builder threshold(double similarity) {

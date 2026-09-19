@@ -1,5 +1,7 @@
 package io.cafeai.sentinel;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.ai.TokenBudget;
 
 import java.time.Duration;
@@ -35,8 +37,18 @@ public final class SentinelConfig {
     private ClusterConnection connection = ClusterConnection.ambient();
     private String namespace = "default";
     private boolean investigateOnStartup = false;
-    private Duration resolveAfter = Duration.ofMinutes(2);
-    private Duration updateDebounce = Duration.ofSeconds(3);
+    /** How long an incident stays open after its last error once its pods have recovered; {@code resolveAfter(...)} overrides it. */
+    public static final ConfigKey<Duration> RESOLVE_AFTER = ConfigKey.of(
+        "cafeai.sentinel.resolve.after", Duration.class, Duration.ofMinutes(2),
+        "How long an incident stays open after its most recent error once all its pods have recovered or been deleted.");
+
+    /** At most one UPDATED notification per incident in this window; {@code updateDebounce(...)} overrides it. */
+    public static final ConfigKey<Duration> UPDATE_DEBOUNCE = ConfigKey.of(
+        "cafeai.sentinel.update.debounce", Duration.class, Duration.ofSeconds(3),
+        "At most one UPDATED incident notification per incident is sent in this window. Zero disables the limit.");
+
+    private Duration resolveAfter = AppConfig.load().get(RESOLVE_AFTER);
+    private Duration updateDebounce = AppConfig.load().get(UPDATE_DEBOUNCE);
     private boolean redact = true;
     private TokenBudget tokenBudget = TokenBudget.unlimited();
 

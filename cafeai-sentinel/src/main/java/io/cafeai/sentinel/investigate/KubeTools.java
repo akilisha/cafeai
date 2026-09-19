@@ -1,5 +1,7 @@
 package io.cafeai.sentinel.investigate;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import io.fabric8.kubernetes.api.model.Container;
@@ -38,9 +40,24 @@ import java.util.Objects;
  */
 public final class KubeTools {
 
-    private static final int LOG_TAIL_LINES = 200;
-    private static final int MAX_EVENTS = 40;
-    private static final int MAX_REPLICASETS = 8;
+    /** Lines of a container's log the model is shown. */
+    public static final ConfigKey<Integer> LOG_LINES = ConfigKey.of(
+        "cafeai.sentinel.tool.log.lines", Integer.class, 200,
+        "Lines from the end of a container's log the investigation tool returns to the model.");
+
+    /** Events the model is shown for a pod. */
+    public static final ConfigKey<Integer> EVENTS = ConfigKey.of(
+        "cafeai.sentinel.tool.events", Integer.class, 40,
+        "Most events the investigation tool returns to the model for a pod.");
+
+    /** ReplicaSets the model is shown for a deployment. */
+    public static final ConfigKey<Integer> REPLICASETS = ConfigKey.of(
+        "cafeai.sentinel.tool.replicasets", Integer.class, 8,
+        "Most ReplicaSets the investigation tool returns to the model for a deployment.");
+
+    private final int logTailLines = AppConfig.load().positive(LOG_LINES);
+    private final int maxEvents = AppConfig.load().positive(EVENTS);
+    private final int maxReplicaSets = AppConfig.load().positive(REPLICASETS);
 
     private final KubernetesClient client;
     private final String namespace;
@@ -151,8 +168,8 @@ public final class KubeTools {
             }
             var loggable = client.pods().inNamespace(namespace).withName(podName).inContainer(container);
             String log = previous
-                    ? loggable.terminated().tailingLines(LOG_TAIL_LINES).getLog()
-                    : loggable.tailingLines(LOG_TAIL_LINES).getLog();
+                    ? loggable.terminated().tailingLines(logTailLines).getLog()
+                    : loggable.tailingLines(logTailLines).getLog();
             if (log == null || log.isBlank()) {
                 return "(no " + (previous ? "previous " : "") + "logs for " + podName + "/" + container + ")";
             }
@@ -178,7 +195,7 @@ public final class KubeTools {
                 return "(no events)";
             }
             StringBuilder sb = new StringBuilder();
-            for (Event e : events.subList(0, Math.min(events.size(), MAX_EVENTS))) {
+            for (Event e : events.subList(0, Math.min(events.size(), maxEvents))) {
                 String obj = e.getInvolvedObject() == null ? "?"
                         : e.getInvolvedObject().getKind() + "/" + e.getInvolvedObject().getName();
                 sb.append(nz(e.getType())).append(' ')
@@ -241,7 +258,7 @@ public final class KubeTools {
             owned.sort(Comparator.comparing(KubeTools::revision).reversed());
             StringBuilder sb = new StringBuilder("ReplicaSet history for Deployment/")
                     .append(deploymentName).append('\n');
-            for (ReplicaSet rs : owned.subList(0, Math.min(owned.size(), MAX_REPLICASETS))) {
+            for (ReplicaSet rs : owned.subList(0, Math.min(owned.size(), maxReplicaSets))) {
                 String images = "?";
                 if (rs.getSpec() != null && rs.getSpec().getTemplate() != null
                         && rs.getSpec().getTemplate().getSpec() != null) {

@@ -100,6 +100,19 @@ class TriageRulesTest {
     }
 
     @Test
+    void probeFailuresSettingSetsHowManyUnhealthyEventsCountAsAnError() {
+        PodEvent e = new PodEvent("Warning", "Unhealthy", "readiness probe failed", 5, Instant.now());
+        var pod = pod("Running", List.of(running()), List.of(e));
+        io.cafeai.core.config.AppConfig lenient = key ->
+            key.name().equals("cafeai.sentinel.probe.failures") ? java.util.Optional.of("6") : java.util.Optional.empty();
+        io.cafeai.core.config.AppConfig strict = key ->
+            key.name().equals("cafeai.sentinel.probe.failures") ? java.util.Optional.of("2") : java.util.Optional.empty();
+
+        assertThat(new TriageRules(lenient).assess(pod).verdict()).isEqualTo(Verdict.BENIGN);
+        assertThat(new TriageRules(strict).assess(pod).verdict()).isEqualTo(Verdict.ERROR);
+    }
+
+    @Test
     void preemptionEventIsNotable() {
         PodEvent e = new PodEvent("Warning", "Preempted", "preempted by a higher priority pod", 1, Instant.now());
         TriageResult r = triage.assess(pod("Running", List.of(running()), List.of(e)));

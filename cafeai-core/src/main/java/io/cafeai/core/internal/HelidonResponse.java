@@ -1,5 +1,6 @@
 package io.cafeai.core.internal;
 
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.routing.ContentMap;
 import io.cafeai.core.routing.CookieOptions;
@@ -357,8 +358,21 @@ public final class HelidonResponse implements Response {
         return this;
     }
 
-    /** Bytes copied per write when a file is streamed. */
-    private static final int FILE_BLOCK = 64 * 1024;
+    private static volatile int fileBlock;
+
+    /** Bytes copied per write when a file is streamed: {@link Response#FILE_BLOCK}, read once. */
+    private static int fileBlock() {
+        int block = fileBlock;
+        if (block == 0) {
+            block = AppConfig.load().get(Response.FILE_BLOCK);
+            if (block < 1) {
+                throw new IllegalArgumentException(
+                    "Invalid value for " + Response.FILE_BLOCK.name() + ": " + block + " (must be positive)");
+            }
+            fileBlock = block;
+        }
+        return block;
+    }
 
     @Override
     public void sendFile(Path file) {
@@ -411,7 +425,7 @@ public final class HelidonResponse implements Response {
             helidonRes.contentLength(length);
             streaming = true;
             try (java.io.OutputStream out = helidonRes.outputStream()) {
-                java.nio.ByteBuffer block = java.nio.ByteBuffer.allocate((int) Math.min(FILE_BLOCK, Math.max(length, 1)));
+                java.nio.ByteBuffer block = java.nio.ByteBuffer.allocate((int) Math.min(fileBlock(), Math.max(length, 1)));
                 long position = offset;
                 long remaining = length;
                 while (remaining > 0) {

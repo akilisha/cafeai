@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import java.time.Duration;
 
 /**
@@ -28,6 +30,16 @@ import java.time.Duration;
  */
 public final class RetryPolicy {
 
+    /** Attempts {@link #onRateLimit()} allows, including the first. */
+    public static final ConfigKey<Integer> ATTEMPTS = ConfigKey.of(
+        "cafeai.retry.attempts", Integer.class, 3,
+        "Attempts RetryPolicy.onRateLimit() allows, including the first.");
+
+    /** The base wait {@link #onRateLimit()} uses between attempts. */
+    public static final ConfigKey<Duration> BACKOFF = ConfigKey.of(
+        "cafeai.retry.backoff", Duration.class, Duration.ofSeconds(5),
+        "Base wait between retries for RetryPolicy.onRateLimit(); the wait grows linearly with the attempt.");
+
     private final int      maxAttempts;
     private final Duration backoff;
     private final boolean  retriesOnRateLimit;
@@ -41,10 +53,17 @@ public final class RetryPolicy {
     /**
      * Creates a retry policy that activates on rate limit exceptions.
      *
-     * <p>Defaults: 3 attempts, 5 second linear backoff.
+     * <p>Defaults: 3 attempts ({@code cafeai.retry.attempts}), 5 second linear backoff
+     * ({@code cafeai.retry.backoff}).
      */
     public static RetryPolicy onRateLimit() {
-        return new RetryPolicy(3, Duration.ofSeconds(5), true);
+        return onRateLimit(AppConfig.load());
+    }
+
+    static RetryPolicy onRateLimit(AppConfig config) {
+        RetryPolicy policy = new RetryPolicy(ATTEMPTS.defaultValue(), BACKOFF.defaultValue(), true);
+        policy = config.apply(ATTEMPTS, policy::maxAttempts);
+        return config.apply(BACKOFF, policy::backoff);
     }
 
     /**

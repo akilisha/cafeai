@@ -1,5 +1,7 @@
 package io.cafeai.core.memory;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import java.time.Duration;
 
 /**
@@ -41,6 +43,11 @@ public final class RedisConfig {
         return builder().host(host).port(port).build();
     }
 
+    /** How long an idle Redis session is kept before Redis expires it. */
+    public static final ConfigKey<Duration> SESSION_TTL = ConfigKey.of(
+        "cafeai.memory.redis.ttl", Duration.class, Duration.ofHours(24),
+        "How long an idle session is kept in Redis before it expires; RedisConfig.Builder.sessionTtl overrides it.");
+
     public static Builder builder() { return new Builder(); }
 
     public String   host()       { return host; }
@@ -55,7 +62,7 @@ public final class RedisConfig {
         private int      port       = 6379;
         private String   password   = null;
         private int      database   = 0;
-        private Duration sessionTtl = Duration.ofHours(24);
+        private Duration sessionTtl = AppConfig.load().get(SESSION_TTL);
         private boolean  ssl        = false;
 
         public Builder host(String host)           { this.host = host;             return this; }

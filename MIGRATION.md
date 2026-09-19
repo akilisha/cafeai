@@ -205,12 +205,16 @@ remove those; they trimmed nothing in the engine.
 ### Not breaking, but new
 
 - **`app.history(HistoryPolicy...)`** — `lastMessages`, `tokenBudget`, `summarise` and `all`; see
-  `CHANGELOG.md`. Keys: `cafeai.memory.window`, `.budget`, `.summary.after`, `.summary.keep`.
+  `CHANGELOG.md`. Keys: `cafeai.memory.window`, `.budget`, `.summary.after`, `.summary.keep`, `.summary.words`.
+- **More of the framework is configurable.** Timeouts, retry counts, cache and chunk sizes, guardrail
+  thresholds and the sentinel's caps are settings with today's values as defaults; nothing changes
+  unless you set one. The full list is DEVELOPER_GUIDE.md §17.6.
 - **`cafeai-config`** — an optional module for application configuration. A `ConfigKey` declares a
   tunable value where it is used; `AppConfig.load().get(key)` resolves it from a system property, an
   environment variable, an external file, or `application.yaml`/`.properties` with profile overlays.
   Without the module every key resolves to its coded default. Keys: `cafeai.chat.timeout`,
-  `cafeai.agent.memory.window`, `cafeai.sentinel.webhook.timeout` / `.max_attempts`. See
+  `cafeai.agent.memory.window`, `cafeai.sentinel.webhook.timeout` / `.max_attempts`, and the rest of
+  the list in DEVELOPER_GUIDE.md §17.6. See
   `docs/adr/ADR-012-application-config.md` and DEVELOPER_GUIDE.md §17.
 - **Semantic cache** (`app.cache(...)`), **`GuardRail.moderation(model)`**,
   **`GuardRail.promptLeak(prompt)`**, **`GuardRail.secrets()`**, the **NVIDIA provider**,

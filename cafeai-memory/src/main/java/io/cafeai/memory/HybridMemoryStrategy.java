@@ -1,5 +1,7 @@
 package io.cafeai.memory;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
 import org.slf4j.Logger;
@@ -41,6 +43,12 @@ public final class HybridMemoryStrategy implements MemoryStrategy {
     /** Default: demote to cold after 30 minutes of inactivity. */
     public static final Duration DEFAULT_DEMOTE_AFTER = Duration.ofMinutes(30);
 
+    /** How long a session may sit idle in the warm tier before it moves to the cold tier. */
+    public static final ConfigKey<Duration> DEMOTE_AFTER = ConfigKey.of(
+        "cafeai.memory.hybrid.demote", Duration.class, DEFAULT_DEMOTE_AFTER,
+        "How long a session may be idle in the warm tier before HybridMemoryStrategy moves it to the cold tier; "
+        + "demoteAfter(...) overrides it.");
+
     private MemoryStrategy warm;
     private MemoryStrategy cold;
     private Duration       demoteAfter;
@@ -50,6 +58,12 @@ public final class HybridMemoryStrategy implements MemoryStrategy {
 
     public HybridMemoryStrategy() {
         this.demoteAfter = DEFAULT_DEMOTE_AFTER;
+        AppConfig.load().apply(DEMOTE_AFTER, duration -> {
+            if (duration.isZero() || duration.isNegative()) {
+                throw new IllegalArgumentException("must be positive");
+            }
+            return this.demoteAfter = duration;
+        });
     }
 
     /**

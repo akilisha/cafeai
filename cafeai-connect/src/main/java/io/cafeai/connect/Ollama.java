@@ -1,5 +1,7 @@
 package io.cafeai.connect;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.connect.Connection;
 import io.cafeai.core.connect.HealthStatus;
@@ -48,13 +50,24 @@ public final class Ollama implements Connection {
     @Override public String name()      { return "Ollama(" + Urls.redact(baseUrl) + "/" + modelId + ")"; }
     @Override public ServiceType type() { return ServiceType.LLM; }
 
+    /** How long the startup probe waits for Ollama to list its models. Connecting gets at most 3 seconds of it. */
+    public static final ConfigKey<Duration> PROBE_TIMEOUT = ConfigKey.of(
+        "cafeai.connect.ollama.probe.timeout", Duration.class, Duration.ofSeconds(5),
+        "How long the Ollama startup probe waits for a reply before treating Ollama as unreachable.");
+
     @Override
     public HealthStatus probe() {
+        return probe(AppConfig.load());
+    }
+
+    HealthStatus probe(AppConfig config) {
         long start = System.currentTimeMillis();
-        try (var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build()) {
+        Duration timeout = config.get(PROBE_TIMEOUT);
+        Duration connect = timeout.compareTo(Duration.ofSeconds(3)) < 0 ? timeout : Duration.ofSeconds(3);
+        try (var client = HttpClient.newBuilder().connectTimeout(connect).build()) {
             var request  = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/tags"))
-                .timeout(Duration.ofSeconds(5))
+                .timeout(timeout)
                 .GET().build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             long latency = System.currentTimeMillis() - start;

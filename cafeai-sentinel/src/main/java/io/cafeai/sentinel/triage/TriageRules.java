@@ -1,5 +1,7 @@
 package io.cafeai.sentinel.triage;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.sentinel.watch.ContainerState;
 import io.cafeai.sentinel.watch.PodEvent;
 import io.cafeai.sentinel.watch.PodState;
@@ -56,7 +58,19 @@ public final class TriageRules {
     private static final int SIGTERM_EXIT = 143;
 
     /** {@code Unhealthy} fires every probe period; wait for a few before calling it. */
-    private static final int PROBE_FAIL_THRESHOLD = 3;
+    public static final ConfigKey<Integer> PROBE_FAILURES = ConfigKey.of(
+        "cafeai.sentinel.probe.failures", Integer.class, 3,
+        "Failed health probes reported by Kubernetes before a pod is called unhealthy.");
+
+    private final int probeFailThreshold;
+
+    public TriageRules() {
+        this(AppConfig.load());
+    }
+
+    TriageRules(AppConfig config) {
+        this.probeFailThreshold = config.positive(PROBE_FAILURES);
+    }
 
     /**
      * Groups reasons that describe the <em>same</em> underlying failure into one
@@ -126,7 +140,7 @@ public final class TriageRules {
                 continue;
             }
             if ("Unhealthy".equals(e.reason())) {
-                if (e.count() >= PROBE_FAIL_THRESHOLD) {
+                if (e.count() >= probeFailThreshold) {
                     reasons.add("Unhealthy");
                     verdict = Verdict.ERROR;
                 }

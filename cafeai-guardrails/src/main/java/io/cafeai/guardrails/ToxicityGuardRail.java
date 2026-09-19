@@ -1,5 +1,7 @@
 package io.cafeai.guardrails;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.List;
@@ -27,7 +29,12 @@ import java.util.regex.Pattern;
  */
 public final class ToxicityGuardRail extends AbstractGuardRail {
 
-    private static final double BLOCK_THRESHOLD = 0.6;
+    /** Severity at or above which content is blocked. Each pattern below carries a severity from 0.0 to 1.0. */
+    public static final ConfigKey<Double> THRESHOLD = ConfigKey.of(
+        "cafeai.guardrails.toxicity.threshold", Double.class, 0.6,
+        "Severity (0.0-1.0) at or above which GuardRail.toxicity() blocks text. Lower is more sensitive.");
+
+    private final double blockThreshold;
 
     private static final List<ToxicPattern> PATTERNS = List.of(
         tp(1.0, "THREAT",
@@ -45,11 +52,19 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
     );
 
     public ToxicityGuardRail() {
-        super(Action.BLOCK);
+        this(Action.BLOCK, AppConfig.load());
     }
 
     ToxicityGuardRail(Action action) {
+        this(action, AppConfig.load());
+    }
+
+    ToxicityGuardRail(Action action, AppConfig config) {
         super(action);
+        this.blockThreshold = config.apply(THRESHOLD, t -> {
+            if (t <= 0.0 || t > 1.0) throw new IllegalArgumentException("must be above 0.0 and at most 1.0");
+            return t;
+        });
     }
 
     public ToxicityGuardRail action(Action action) {
@@ -69,7 +84,7 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
         return check(output);
     }
 
-    private static CheckResult check(String text) {
+    private CheckResult check(String text) {
         String lower = TextNormalizer.normalize(text);
         double maxScore = 0.0;
         String triggeredCategory = null;
@@ -81,7 +96,7 @@ public final class ToxicityGuardRail extends AbstractGuardRail {
             }
         }
 
-        if (maxScore >= BLOCK_THRESHOLD) {
+        if (maxScore >= blockThreshold) {
             return CheckResult.block(
                 "Toxic content detected: " + triggeredCategory, maxScore);
         }

@@ -40,7 +40,7 @@ public final class RawOptions {
 
     public static final class Builder {
         private boolean     inflate = true;
-        private long        limit   = DEFAULT_LIMIT;
+        private long        limit   = JsonOptions.defaultLimit();
         private Set<String> type    = Set.of("application/octet-stream");
 
         public Builder inflate(boolean inflate) { this.inflate = inflate; return this; }

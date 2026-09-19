@@ -1,5 +1,6 @@
 package io.cafeai.core.rag;
 
+import io.cafeai.core.config.ConfigKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +13,16 @@ import java.util.List;
  * it needs package-private {@link Chunker}. Called from {@code CafeAIApp.ingest()}.
  */
 public final class RagIngestion {
+
+    /** Characters per chunk when a source is split for embedding. */
+    public static final ConfigKey<Integer> CHUNK_SIZE = ConfigKey.of(
+        "cafeai.rag.chunk.size", Integer.class, Chunker.DEFAULT_CHUNK_SIZE,
+        "Characters per chunk when a source is split for embedding.");
+
+    /** Characters shared by neighbouring chunks, so a sentence on a boundary stays whole in one. */
+    public static final ConfigKey<Integer> CHUNK_OVERLAP = ConfigKey.of(
+        "cafeai.rag.chunk.overlap", Integer.class, Chunker.DEFAULT_CHUNK_OVERLAP,
+        "Characters shared by neighbouring chunks; must be smaller than cafeai.rag.chunk.size.");
 
     private static final Logger log = LoggerFactory.getLogger(RagIngestion.class);
 

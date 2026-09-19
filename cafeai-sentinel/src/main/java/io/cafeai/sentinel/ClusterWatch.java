@@ -1,5 +1,7 @@
 package io.cafeai.sentinel;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.sentinel.watch.ContainerState;
 import io.cafeai.sentinel.watch.PodEvent;
 import io.cafeai.sentinel.watch.PodState;
@@ -57,8 +59,19 @@ public final class ClusterWatch implements AutoCloseable {
 
     /** No periodic resync — the callback stream is real changes only, never a re-send of unchanged state. */
     private static final long NO_RESYNC = 0L;
-    private static final int MAX_EVENTS_PER_POD = 12;
-    private static final long SYNC_TIMEOUT_MILLIS = 30_000L;
+
+    /** Most recent events kept for each pod, which is what triage and an investigation see of them. */
+    public static final ConfigKey<Integer> EVENTS_PER_POD = ConfigKey.of(
+        "cafeai.sentinel.events.per.pod", Integer.class, 12,
+        "Most recent Kubernetes events kept for each pod.");
+
+    /** How long the watch waits for the informers to finish their first listing before carrying on. */
+    public static final ConfigKey<java.time.Duration> SYNC_TIMEOUT = ConfigKey.of(
+        "cafeai.sentinel.sync.timeout", java.time.Duration.class, java.time.Duration.ofSeconds(30),
+        "How long the cluster watch waits for its first full listing before carrying on.");
+
+    private final int maxEventsPerPod = AppConfig.load().positive(EVENTS_PER_POD);
+    private final long syncTimeoutMillis = AppConfig.load().positiveDuration(SYNC_TIMEOUT).toMillis();
 
     private final KubernetesClient client;
     private final boolean ownsClient;
@@ -165,7 +178,7 @@ public final class ClusterWatch implements AutoCloseable {
     }
 
     private void awaitInitialSync() {
-        long deadline = System.currentTimeMillis() + SYNC_TIMEOUT_MILLIS;
+        long deadline = System.currentTimeMillis() + syncTimeoutMillis;
         while (System.currentTimeMillis() < deadline) {
             if (podInformer.hasSynced() && eventInformer.hasSynced()) {
                 return;
@@ -177,7 +190,7 @@ public final class ClusterWatch implements AutoCloseable {
                 return;
             }
         }
-        log.warn("informers did not sync within {}ms — continuing", SYNC_TIMEOUT_MILLIS);
+        log.warn("informers did not sync within {}ms — continuing", syncTimeoutMillis);
     }
 
     private void recordEvent(Event event) {
@@ -196,7 +209,7 @@ public final class ClusterWatch implements AutoCloseable {
                 involved.getName(), k -> new ArrayDeque<>());
         synchronized (window) {
             window.addLast(pe);
-            while (window.size() > MAX_EVENTS_PER_POD) {
+            while (window.size() > maxEventsPerPod) {
                 window.pollFirst();
             }
         }

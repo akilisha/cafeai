@@ -1,5 +1,6 @@
 package io.cafeai.memory;
 
+import io.cafeai.core.config.AppConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.cafeai.core.memory.ConversationContext;
@@ -52,7 +53,8 @@ public final class RedisMemoryStrategy implements MemoryStrategy {
 
     public RedisMemoryStrategy(RedisConfig config) {
         this.config = config;
-        this.ttl    = config.sessionTtl() != null ? config.sessionTtl() : Duration.ofHours(24);
+        this.ttl    = config.sessionTtl() != null
+            ? config.sessionTtl() : AppConfig.load().get(RedisConfig.SESSION_TTL);
 
         RedisURI uri = buildUri(config);
         this.client     = RedisClient.create(uri);

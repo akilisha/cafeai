@@ -1,5 +1,7 @@
 package io.cafeai.sentinel;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.ai.TokenBudget;
 import io.cafeai.sentinel.incident.Incident;
 import io.cafeai.sentinel.incident.IncidentEvent;
@@ -77,16 +79,44 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
 
     private static final Logger log = LoggerFactory.getLogger(IncidentTracker.class);
 
-    private static final int MAX_EVIDENCE = 20;
-    private static final int INVESTIGATION_WORKERS = 2;
-    private static final Duration SWEEP_INTERVAL = Duration.ofSeconds(30);
+    /** Most pieces of evidence kept on one incident. */
+    public static final ConfigKey<Integer> EVIDENCE_MAX = ConfigKey.of(
+        "cafeai.sentinel.evidence.max", Integer.class, 20,
+        "Most pieces of evidence (pod observations) kept on one incident.");
+
+    /** Investigations that may run at the same time. */
+    public static final ConfigKey<Integer> INVESTIGATION_WORKERS = ConfigKey.of(
+        "cafeai.sentinel.investigation.workers", Integer.class, 2,
+        "How many incident investigations may run at once.");
+
+    /** How often the tracker checks whether an incident has gone quiet and can be resolved. */
+    public static final ConfigKey<Duration> SWEEP_INTERVAL = ConfigKey.of(
+        "cafeai.sentinel.sweep.interval", Duration.class, Duration.ofSeconds(30),
+        "How often open incidents are checked for having gone quiet.");
 
     /** Rough cost of one agentic investigation (system + brief + tool round-trips + output). */
     static final long ESTIMATED_TOKENS_PER_INVESTIGATION = 20_000L;
+
+    /** What one investigation is assumed to cost when it is counted against the token budget. */
+    public static final ConfigKey<Long> INVESTIGATION_TOKENS = ConfigKey.of(
+        "cafeai.sentinel.investigation.tokens", Long.class, ESTIMATED_TOKENS_PER_INVESTIGATION,
+        "Tokens one incident investigation is assumed to use, counted against the token budget per minute.");
+
     private static final long TOKEN_WINDOW_MILLIS = 60_000L;
 
     /** Consecutive failures after which an incident's auto-investigation gives up (until a new failure family). */
     static final int MAX_INVESTIGATION_FAILURES = 3;
+
+    /** Consecutive failures after which an incident's automatic investigation gives up. */
+    public static final ConfigKey<Integer> INVESTIGATION_FAILURES = ConfigKey.of(
+        "cafeai.sentinel.investigation.failures", Integer.class, MAX_INVESTIGATION_FAILURES,
+        "Consecutive failed investigations after which an incident is left alone until a new kind of failure appears.");
+
+    private final int maxEvidence;
+    private final int investigationWorkers;
+    private final Duration sweepInterval;
+    private final long investigationTokens;
+    private final int maxInvestigationFailures;
 
     private final TriageRules triage;
     private final boolean investigateOnStartup;
@@ -121,6 +151,10 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
     }
 
     IncidentTracker(SentinelConfig config, TriageRules triage, Clock clock) {
+        this(config, triage, clock, AppConfig.load());
+    }
+
+    IncidentTracker(SentinelConfig config, TriageRules triage, Clock clock, AppConfig settings) {
         Objects.requireNonNull(config, "config");
         this.triage = Objects.requireNonNull(triage, "triage");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -129,6 +163,11 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         this.updateDebounce = config.updateDebounce();
         this.redactor = Redactor.of(config.isRedact());
         this.tokenBudget = config.tokenBudget();
+        this.maxEvidence              = settings.positive(EVIDENCE_MAX);
+        this.investigationWorkers     = settings.positive(INVESTIGATION_WORKERS);
+        this.sweepInterval            = settings.positiveDuration(SWEEP_INTERVAL);
+        this.investigationTokens      = settings.positiveLong(INVESTIGATION_TOKENS);
+        this.maxInvestigationFailures = settings.positive(INVESTIGATION_FAILURES);
         this.windowStartMillis = clock.millis();
     }
 
@@ -154,7 +193,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             return this;
         }
         sweeper = Executors.newSingleThreadScheduledExecutor(daemonFactory("sentinel-incident-sweeper"));
-        long period = SWEEP_INTERVAL.toSeconds();
+        long period = Math.max(1, sweepInterval.toSeconds());
         sweeper.scheduleAtFixedRate(this::sweep, period, period, TimeUnit.SECONDS);
 
         if (!updateDebounce.isZero()) {
@@ -164,7 +203,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
 
         if (investigator != null) {
             investigations = Executors.newFixedThreadPool(
-                    INVESTIGATION_WORKERS, daemonFactory("sentinel-investigator"));
+                    investigationWorkers, daemonFactory("sentinel-investigator"));
         }
         return this;
     }
@@ -201,7 +240,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             if (current.introducesNewReason(result)) {
                 investigationFailures.remove(current.id()); // a new failure family — worth another attempt
             }
-            Incident updated = current.fold(now, result, pod.name(), evidence, MAX_EVIDENCE);
+            Incident updated = current.fold(now, result, pod.name(), evidence, maxEvidence);
             incidents.put(key, updated);
             emitUpdate(updated);
         }
@@ -243,7 +282,7 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
         if (incident == null
                 || incident.status() != IncidentStatus.OPEN
                 || investigating.contains(incident.id())
-                || investigationFailures.getOrDefault(incident.id(), 0) >= MAX_INVESTIGATION_FAILURES
+                || investigationFailures.getOrDefault(incident.id(), 0) >= maxInvestigationFailures
                 || !incident.needsInvestigation()) {
             return;
         }
@@ -269,10 +308,10 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             windowStartMillis = now;
             windowTokens = 0;
         }
-        if (windowTokens + ESTIMATED_TOKENS_PER_INVESTIGATION > tokenBudget.tokensPerMinute()) {
+        if (windowTokens + investigationTokens > tokenBudget.tokensPerMinute()) {
             return false;
         }
-        windowTokens += ESTIMATED_TOKENS_PER_INVESTIGATION;
+        windowTokens += investigationTokens;
         return true;
     }
 
@@ -284,12 +323,12 @@ public final class IncidentTracker implements Consumer<PodState>, AutoCloseable 
             synchronized (this) {
                 investigating.remove(id);
                 int failures = investigationFailures.merge(id, 1, Integer::sum);
-                if (failures >= MAX_INVESTIGATION_FAILURES) {
+                if (failures >= maxInvestigationFailures) {
                     log.warn("giving up investigating {} for {} after {} failures — last: {}",
                             id, key, failures, ex.toString());
                 } else {
                     log.warn("investigation {} for {} failed ({}/{}): {}",
-                            id, key, failures, MAX_INVESTIGATION_FAILURES, ex.toString());
+                            id, key, failures, maxInvestigationFailures, ex.toString());
                 }
             }
             return;

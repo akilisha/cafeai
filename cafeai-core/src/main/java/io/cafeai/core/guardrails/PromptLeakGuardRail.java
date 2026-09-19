@@ -1,5 +1,7 @@
 package io.cafeai.core.guardrails;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
@@ -50,6 +52,11 @@ public final class PromptLeakGuardRail implements GuardRail {
 
     /** Consecutive words that must match for a response to be flagged. */
     public static final int DEFAULT_WINDOW = 8;
+
+    /** The window {@link #of(String)} uses; {@link #window(int)} overrides it. Defaults to {@link #DEFAULT_WINDOW}. */
+    public static final ConfigKey<Integer> WINDOW = ConfigKey.of(
+        "cafeai.guardrails.promptleak.window", Integer.class, DEFAULT_WINDOW,
+        "Consecutive words of the system prompt that must appear in a response for it to be flagged as a leak.");
     /** The shortest system prompt this can guard. */
     public static final int MIN_PROMPT_WORDS = 4;
     private static final int MIN_WINDOW = 4;
@@ -78,7 +85,8 @@ public final class PromptLeakGuardRail implements GuardRail {
                 + "to detect a leak of: it would match almost any response. Need at least "
                 + MIN_PROMPT_WORDS + ".");
         }
-        return new PromptLeakGuardRail("prompt-leak", Action.BLOCK, DEFAULT_WINDOW, words);
+        PromptLeakGuardRail guard = new PromptLeakGuardRail("prompt-leak", Action.BLOCK, DEFAULT_WINDOW, words);
+        return AppConfig.load().apply(WINDOW, guard::window);
     }
 
     /**

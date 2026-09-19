@@ -1,5 +1,7 @@
 package io.cafeai.connect;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.connect.Connection;
 import io.cafeai.core.connect.HealthStatus;
@@ -27,7 +29,11 @@ import java.time.Duration;
 public final class Redis implements Connection {
 
     private static final Logger log = LoggerFactory.getLogger(Redis.class);
-    private static final int PROBE_TIMEOUT_MS = 2000;
+
+    /** How long the startup probe waits to open a connection to Redis. */
+    public static final ConfigKey<Duration> PROBE_TIMEOUT = ConfigKey.of(
+        "cafeai.connect.redis.probe.timeout", Duration.class, Duration.ofSeconds(2),
+        "How long the Redis startup probe waits to connect before treating Redis as unreachable.");
 
     private final String host;
     private final int    port;
@@ -86,7 +92,8 @@ public final class Redis implements Connection {
     public HealthStatus probe() {
         long start = System.currentTimeMillis();
         try (Socket socket = new Socket()) {
-            socket.connect(new java.net.InetSocketAddress(host, port), PROBE_TIMEOUT_MS);
+            socket.connect(new java.net.InetSocketAddress(host, port),
+                    (int) AppConfig.load().get(PROBE_TIMEOUT).toMillis());
             return HealthStatus.reachable(name(), System.currentTimeMillis() - start);
         } catch (Exception e) {
             return HealthStatus.unreachable(name(), e.getMessage());

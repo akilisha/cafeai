@@ -104,6 +104,27 @@ class ConnectorProbeTest {
             assertThat(s.detail()).contains("500");
         }
 
+        @Test @DisplayName("cafeai.connect.ollama.probe.timeout bounds how long the probe waits for Ollama")
+        void probeTimeout() throws Exception {
+            http = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            http.createContext("/api/tags", ex -> {
+                try { Thread.sleep(4000); } catch (InterruptedException ignored) { }
+                ex.close();
+            });
+            http.start();
+            var ollama = (Ollama) Ollama.at("http://localhost:" + http.getAddress().getPort()).model("llama3");
+            io.cafeai.core.config.AppConfig oneSecond = key ->
+                key.name().equals("cafeai.connect.ollama.probe.timeout")
+                    ? java.util.Optional.of("1s") : java.util.Optional.empty();
+
+            long start = System.nanoTime();
+            HealthStatus s = ollama.probe(oneSecond);
+            long tookMs = (System.nanoTime() - start) / 1_000_000;
+
+            assertThat(s.state()).isEqualTo(HealthStatus.State.UNREACHABLE);
+            assertThat(tookMs).isLessThan(3_000);   // the 5 s default would still be waiting
+        }
+
         @Test @DisplayName("nothing listening is unreachable, not an exception")
         void refused() throws IOException {
             HealthStatus s = Ollama.at("http://localhost:" + closedPort()).model("llama3").probe();

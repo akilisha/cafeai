@@ -1,5 +1,6 @@
 package io.cafeai.core.internal;
 
+import io.cafeai.core.config.AppConfig;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -1577,7 +1578,8 @@ public final class CafeAIApp implements CafeAI {
             StringBuilder prompt = new StringBuilder(
                 "Summarise this conversation so that it can continue without the original messages. "
                 + "Keep names, numbers, decisions, preferences and unresolved questions. "
-                + "Write plain prose in under 200 words and reply with the summary only.\n\n");
+                + "Write plain prose in under " + AppConfig.load().get(HistoryPolicy.SUMMARY_WORDS)
+                + " words and reply with the summary only.\n\n");
             if (previous != null && !previous.isBlank()) {
                 prompt.append("Summary so far:\n").append(previous).append("\n\n");
             }

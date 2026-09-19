@@ -1,5 +1,6 @@
 package io.cafeai.core.routing;
 
+import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.CafeAI;
 
 import java.nio.file.Path;
@@ -33,6 +34,11 @@ import java.util.concurrent.Flow;
  * </ul>
  */
 public interface Response {
+
+    /** Bytes copied per write when {@link #sendFile(Path)} streams a file. */
+    ConfigKey<Integer> FILE_BLOCK = ConfigKey.of(
+        "cafeai.http.file.block", Integer.class, 64 * 1024,
+        "Bytes copied per write when a file is streamed to a client (sendFile, download, serveStatic).");
 
     // ── Application Reference ─────────────────────────────────────────────────
 

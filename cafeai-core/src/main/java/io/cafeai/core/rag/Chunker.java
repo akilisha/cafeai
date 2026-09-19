@@ -1,5 +1,6 @@
 package io.cafeai.core.rag;
 
+import io.cafeai.core.config.AppConfig;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,8 +27,13 @@ final class Chunker {
     private final int chunkSize;
     private final int overlap;
 
+    /** A chunker with the sizes set by {@code cafeai.rag.chunk.size} and {@code cafeai.rag.chunk.overlap}. */
     Chunker() {
-        this(DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_OVERLAP);
+        this(AppConfig.load());
+    }
+
+    Chunker(AppConfig config) {
+        this(config.get(RagIngestion.CHUNK_SIZE), config.get(RagIngestion.CHUNK_OVERLAP));
     }
 
     Chunker(int chunkSize, int overlap) {

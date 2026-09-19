@@ -1,5 +1,7 @@
 package io.cafeai.core;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import java.util.Set;
 
 /**
@@ -21,6 +23,25 @@ public final class JsonOptions {
 
     /** Default body size limit: 100 KB. Mirrors Express default. */
     public static final long DEFAULT_LIMIT = 100 * 1024L;
+
+    /**
+     * The body size limit the body parsers ({@code json}, {@code raw}, {@code text},
+     * {@code urlencoded}) use unless a {@code limit(...)} is set on their options. It defaults to
+     * {@link #DEFAULT_LIMIT}.
+     */
+    public static final ConfigKey<Long> BODY_LIMIT = ConfigKey.of(
+        "cafeai.http.body.limit", Long.class, DEFAULT_LIMIT,
+        "Largest request body, in bytes, the body parsers accept unless their options set a limit.");
+
+    /** The limit in force when none is set on the options: {@link #BODY_LIMIT}. */
+    public static long defaultLimit() {
+        long limit = AppConfig.load().get(BODY_LIMIT);
+        if (limit <= 0) {
+            throw new IllegalArgumentException(
+                "Invalid value for " + BODY_LIMIT.name() + ": " + limit + " (must be positive)");
+        }
+        return limit;
+    }
 
     private final boolean inflate;
     private final long    limit;
@@ -81,7 +102,7 @@ public final class JsonOptions {
 
     public static final class Builder {
         private boolean      inflate = true;
-        private long         limit   = DEFAULT_LIMIT;
+        private long         limit   = defaultLimit();
         private boolean      strict  = true;
         private Set<String>  type    = Set.of("application/json");
         private boolean      verify  = false;

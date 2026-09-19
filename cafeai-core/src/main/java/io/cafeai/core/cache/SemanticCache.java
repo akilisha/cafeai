@@ -1,5 +1,6 @@
 package io.cafeai.core.cache;
 
+import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.rag.EmbeddingProvider;
 
 import java.util.Optional;
@@ -51,6 +52,36 @@ import java.util.Optional;
  * entries, not millions.
  */
 public interface SemanticCache {
+
+    /** Minimum cosine similarity between prompt embeddings, in (0, 1]. */
+    ConfigKey<Double> THRESHOLD = ConfigKey.of(
+        "cafeai.cache.threshold", Double.class, 0.95,
+        "Minimum cosine similarity between two prompts for the in-memory semantic cache to treat them as the same.");
+
+    /** Minimum word overlap (Jaccard) between prompts, in [0, 1]. */
+    ConfigKey<Double> MIN_OVERLAP = ConfigKey.of(
+        "cafeai.cache.overlap", Double.class, 0.80,
+        "Minimum word overlap between two prompts for the in-memory semantic cache to treat them as the same.");
+
+    /** Largest ratio between the longer and shorter prompt, at least 1. */
+    ConfigKey<Double> MAX_LENGTH_RATIO = ConfigKey.of(
+        "cafeai.cache.length.ratio", Double.class, 1.25,
+        "Largest ratio between the lengths of two prompts the in-memory semantic cache will match.");
+
+    /** How long an entry may be served. */
+    ConfigKey<java.time.Duration> TTL = ConfigKey.of(
+        "cafeai.cache.ttl", java.time.Duration.class, java.time.Duration.ofHours(1),
+        "How long an in-memory semantic cache entry may be served.");
+
+    /** Most entries kept; the least recently used is dropped. */
+    ConfigKey<Integer> MAX_ENTRIES = ConfigKey.of(
+        "cafeai.cache.entries", Integer.class, 1_000,
+        "Most entries the in-memory semantic cache keeps.");
+
+    /** Longest response admitted, in characters. */
+    ConfigKey<Integer> MAX_RESPONSE_CHARS = ConfigKey.of(
+        "cafeai.cache.response.chars", Integer.class, 8_000,
+        "Longest response, in characters, the in-memory semantic cache will store.");
 
     /**
      * An answer previously stored for a prompt <em>close enough</em> to {@code prompt}, within

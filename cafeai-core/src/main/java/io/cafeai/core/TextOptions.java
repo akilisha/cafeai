@@ -46,7 +46,7 @@ public final class TextOptions {
 
     public static final class Builder {
         private boolean     inflate        = true;
-        private long        limit          = DEFAULT_LIMIT;
+        private long        limit          = JsonOptions.defaultLimit();
         private Charset     defaultCharset = StandardCharsets.UTF_8;
         private Set<String> type           = Set.of("text/plain");
 

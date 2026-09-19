@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.CafeAI;
 
 import java.util.ArrayList;
@@ -48,6 +50,11 @@ public final class StreamingVoicePipeline {
     /** Default minimum characters per chunk before synthesis. */
     public static final int DEFAULT_MIN_CHUNK_SIZE = 40;
 
+    /** The minimum chunk size a new pipeline starts with; {@link #minChunkSize(int)} overrides it. */
+    public static final ConfigKey<Integer> MIN_CHUNK = ConfigKey.of(
+        "cafeai.voice.chunk.min", Integer.class, DEFAULT_MIN_CHUNK_SIZE,
+        "Minimum characters per chunk before StreamingVoicePipeline sends text for synthesis.");
+
     private final CafeAI app;
     private String textProviderName;
     private String voiceProviderName;
@@ -55,6 +62,7 @@ public final class StreamingVoicePipeline {
 
     private StreamingVoicePipeline(CafeAI app) {
         this.app = app;
+        AppConfig.load().apply(MIN_CHUNK, this::minChunkSize);
     }
 
     /**

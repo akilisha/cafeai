@@ -1671,10 +1671,9 @@ default, unconditionally — exactly the behavior the value already had before
 it was a `ConfigKey`. Adding a configurable value never risks a working
 default disappearing.
 
-`cafeai-core` itself uses this for its tunable constants:
-`LangchainBridge`'s per-call chat timeout, `AgentRegistry`'s chat-memory window, `cafeai-sentinel`'s
-`WebhookSink` retry timeout/attempt count, and the four `cafeai.memory.*` numbers behind
-`HistoryPolicy` (`window`, `budget`, `summary.after`, `summary.keep`).
+The framework uses this for every value an operator might reasonably tune: timeouts, retry counts,
+cache and chunk sizes, guardrail thresholds, history limits, the sentinel's caps. §17.6 lists them all
+with their defaults.
 
 ### 17.3 Adding `cafeai-config`
 
@@ -1734,6 +1733,100 @@ rationale, including the design mistake this ADR corrects (an earlier version
 of this system tried to resolve system properties and environment variables
 directly in `cafeai-core`, with a hand-rolled naming convention), is in
 `docs/adr/ADR-012-application-config.md`.
+
+### 17.6 Settings reference
+
+Every value that can be set, with the default it has when nothing sets it. A duration is a number of
+seconds (`60`) or a number with a unit (`90s`, `5m`, `2h`). Where a class also has a fluent setter for the
+same thing (`RetryPolicy.maxAttempts(...)`, `GuardRail.jailbreak().threshold(...)`, the semantic cache
+builder, `RedisConfig.sessionTtl(...)`, ...), the setter wins over the setting. A setting a class cannot use
+(a zero worker count, a threshold above 1) is refused where it is read, and the message names the setting.
+
+**Model calls**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.chat.timeout` | 60s | Timeout for a single LLM chat call, any provider. |
+| `cafeai.nvidia.timeout` | 5m | Timeout for one NVIDIA call; a reasoning model can think for minutes before it answers. |
+| `cafeai.retry.attempts` | 3 | Attempts RetryPolicy.onRateLimit() allows, including the first. |
+| `cafeai.retry.backoff` | 5s | Base wait between retries for RetryPolicy.onRateLimit(); the wait grows linearly with the attempt. |
+
+**Session history and memory**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.agent.memory.window` | 20 | Number of messages an agent's chat memory retains per session. |
+| `cafeai.memory.budget` | 4000 | Estimated tokens of a session's history sent with each call, for HistoryPolicy.tokenBudget(). |
+| `cafeai.memory.hybrid.demote` | 30m | How long a session may be idle in the warm tier before HybridMemoryStrategy moves it to the cold tier; demoteAfter(...) overrides it. |
+| `cafeai.memory.redis.ttl` | 24h | How long an idle session is kept in Redis before it expires; RedisConfig.Builder.sessionTtl overrides it. |
+| `cafeai.memory.summary.after` | 20 | Messages a session may hold before HistoryPolicy.summarise() summarises the older ones. |
+| `cafeai.memory.summary.keep` | 6 | Newest messages HistoryPolicy.summarise() keeps verbatim when it writes a summary. |
+| `cafeai.memory.summary.words` | 200 | Length, in words, HistoryPolicy.summarise() asks the model to keep a summary under. |
+| `cafeai.memory.window` | 20 | Number of the newest messages of a session's history sent with each call. 0 sends the whole history. |
+
+**Retrieval**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.rag.chunk.overlap` | 64 | Characters shared by neighbouring chunks; must be smaller than cafeai.rag.chunk.size. |
+| `cafeai.rag.chunk.size` | 512 | Characters per chunk when a source is split for embedding. |
+
+**Semantic cache**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.cache.entries` | 1000 | Most entries the in-memory semantic cache keeps. |
+| `cafeai.cache.length.ratio` | 1.25 | Largest ratio between the lengths of two prompts the in-memory semantic cache will match. |
+| `cafeai.cache.overlap` | 0.80 | Minimum word overlap between two prompts for the in-memory semantic cache to treat them as the same. |
+| `cafeai.cache.response.chars` | 8000 | Longest response, in characters, the in-memory semantic cache will store. |
+| `cafeai.cache.threshold` | 0.95 | Minimum cosine similarity between two prompts for the in-memory semantic cache to treat them as the same. |
+| `cafeai.cache.ttl` | 1h | How long an in-memory semantic cache entry may be served. |
+
+**HTTP**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.http.body.limit` | 102400 (100 KB) | Largest request body, in bytes, the body parsers accept unless their options set a limit. |
+| `cafeai.http.file.block` | 65536 (64 KB) | Bytes copied per write when a file is streamed to a client (sendFile, download, serveStatic). |
+
+**Guardrails**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.guardrails.jailbreak.threshold` | 0.7 | Confidence (0.0-1.0) at or above which GuardRail.jailbreak() blocks an input. Lower is more sensitive. |
+| `cafeai.guardrails.promptleak.window` | 8 | Consecutive words of the system prompt that must appear in a response for it to be flagged as a leak. |
+| `cafeai.guardrails.toxicity.threshold` | 0.6 | Severity (0.0-1.0) at or above which GuardRail.toxicity() blocks text. Lower is more sensitive. |
+
+**Connectors and voice**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.connect.ollama.probe.timeout` | 5s | How long the Ollama startup probe waits for a reply before treating Ollama as unreachable. |
+| `cafeai.connect.redis.probe.timeout` | 2s | How long the Redis startup probe waits to connect before treating Redis as unreachable. |
+| `cafeai.voice.chunk.min` | 40 | Minimum characters per chunk before StreamingVoicePipeline sends text for synthesis. |
+
+**Sentinel**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.sentinel.events.per.pod` | 12 | Most recent Kubernetes events kept for each pod. |
+| `cafeai.sentinel.evidence.max` | 20 | Most pieces of evidence (pod observations) kept on one incident. |
+| `cafeai.sentinel.investigation.failures` | 3 | Consecutive failed investigations after which an incident is left alone until a new kind of failure appears. |
+| `cafeai.sentinel.investigation.tokens` | 20000 | Tokens one incident investigation is assumed to use, counted against the token budget per minute. |
+| `cafeai.sentinel.investigation.workers` | 2 | How many incident investigations may run at once. |
+| `cafeai.sentinel.probe.failures` | 3 | Failed health probes reported by Kubernetes before a pod is called unhealthy. |
+| `cafeai.sentinel.resolve.after` | 2m | How long an incident stays open after its most recent error once all its pods have recovered or been deleted. |
+| `cafeai.sentinel.sweep.interval` | 30s | How often open incidents are checked for having gone quiet. |
+| `cafeai.sentinel.sync.timeout` | 30s | How long the cluster watch waits for its first full listing before carrying on. |
+| `cafeai.sentinel.tool.events` | 40 | Most events the investigation tool returns to the model for a pod. |
+| `cafeai.sentinel.tool.log.lines` | 200 | Lines from the end of a container's log the investigation tool returns to the model. |
+| `cafeai.sentinel.tool.replicasets` | 8 | Most ReplicaSets the investigation tool returns to the model for a deployment. |
+| `cafeai.sentinel.update.debounce` | 3s | At most one UPDATED incident notification per incident is sent in this window. Zero disables the limit. |
+| `cafeai.sentinel.webhook.max_attempts` | 2 | How many times to attempt a webhook POST before dropping the event. |
+| `cafeai.sentinel.webhook.timeout` | 5s | Connect and request timeout for a webhook incident POST. |
+
+The settings only supply numbers. Which strategies, providers and guardrails an application uses is still
+decided by the `app.*` calls in its code.
 
 ---
 

@@ -57,6 +57,47 @@ public interface AppConfig {
     }
 
     /**
+     * Reads {@code key} and passes it to {@code use}, which is normally a setter that validates its
+     * argument. A value that setter refuses is reported with the name of the key it came from, so a
+     * bad setting says which setting it was.
+     *
+     * @throws IllegalArgumentException naming the key, if {@code use} refuses the configured value
+     */
+    default <T, R> R apply(ConfigKey<T> key, java.util.function.Function<? super T, R> use) {
+        T value = get(key);
+        try {
+            return use.apply(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "Invalid value for " + key.name() + ": \"" + value + "\" (" + e.getMessage() + ")", e);
+        }
+    }
+
+    /** {@link #get} for a count or size that must be at least 1. */
+    default int positive(ConfigKey<Integer> key) {
+        return apply(key, value -> {
+            if (value < 1) throw new IllegalArgumentException("must be at least 1");
+            return value;
+        });
+    }
+
+    /** {@link #get} for a long count or size that must be at least 1. */
+    default long positiveLong(ConfigKey<Long> key) {
+        return apply(key, value -> {
+            if (value < 1) throw new IllegalArgumentException("must be at least 1");
+            return value;
+        });
+    }
+
+    /** {@link #get} for a duration that must be longer than zero. */
+    default java.time.Duration positiveDuration(ConfigKey<java.time.Duration> key) {
+        return apply(key, value -> {
+            if (value.isZero() || value.isNegative()) throw new IllegalArgumentException("must be longer than zero");
+            return value;
+        });
+    }
+
+    /**
      * {@link ConfigProvider} via {@link ServiceLoader} when {@code cafeai-config}
      * is present; otherwise an {@code AppConfig} that resolves nothing, so
      * {@link #get} always returns the {@link ConfigKey}'s coded default.

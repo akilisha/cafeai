@@ -53,7 +53,7 @@ public final class UrlEncodedOptions {
 
     public static final class Builder {
         private boolean inflate  = true;
-        private long    limit    = DEFAULT_LIMIT;
+        private long    limit    = JsonOptions.defaultLimit();
         private boolean extended = false;
 
         public Builder inflate(boolean inflate)   { this.inflate  = inflate;  return this; }

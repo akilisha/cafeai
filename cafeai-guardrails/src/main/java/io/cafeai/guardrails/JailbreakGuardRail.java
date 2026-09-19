@@ -1,5 +1,7 @@
 package io.cafeai.guardrails;
 
+import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.List;
@@ -35,6 +37,11 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
 
     private static final double DEFAULT_THRESHOLD = 0.7;
 
+    /** Confidence at or above which an input is blocked; {@link #threshold(double)} overrides it. */
+    public static final ConfigKey<Double> THRESHOLD = ConfigKey.of(
+        "cafeai.guardrails.jailbreak.threshold", Double.class, DEFAULT_THRESHOLD,
+        "Confidence (0.0-1.0) at or above which GuardRail.jailbreak() blocks an input. Lower is more sensitive.");
+
     // -- Detection patterns ----------------------------------------------------
 
     private static final List<WeightedPattern> PATTERNS = List.of(
@@ -64,8 +71,20 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
     );
 
     public JailbreakGuardRail() {
+        this(AppConfig.load());
+    }
+
+    JailbreakGuardRail(AppConfig config) {
         super(Action.BLOCK);
         this.threshold = DEFAULT_THRESHOLD;
+        this.threshold = config.apply(THRESHOLD, this::validated);
+    }
+
+    private double validated(double threshold) {
+        if (threshold < 0.0 || threshold > 1.0) {
+            throw new IllegalArgumentException("Threshold must be between 0.0 and 1.0");
+        }
+        return threshold;
     }
 
     JailbreakGuardRail(Action action, double threshold) {
@@ -75,10 +94,7 @@ public final class JailbreakGuardRail extends AbstractGuardRail {
 
     /** Returns a new JailbreakGuardRail with the given confidence threshold (0.0-1.0). */
     public JailbreakGuardRail threshold(double threshold) {
-        if (threshold < 0.0 || threshold > 1.0) {
-            throw new IllegalArgumentException("Threshold must be between 0.0 and 1.0");
-        }
-        return new JailbreakGuardRail(action(), threshold);
+        return new JailbreakGuardRail(action(), validated(threshold));
     }
 
     @Override public String   name()     { return "jailbreak"; }

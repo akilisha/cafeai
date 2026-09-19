@@ -87,6 +87,20 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Tunable values are settings.** Constants an operator might reasonably need to change are now
+  `ConfigKey`s whose default is the value the constant had, so nothing changes until something sets
+  them; the fluent setters (`RetryPolicy.maxAttempts`, `.threshold(...)`, the cache builder,
+  `RedisConfig.sessionTtl`, ...) still win. New: `cafeai.retry.attempts` / `.backoff`,
+  `cafeai.nvidia.timeout`, `cafeai.cache.*` (threshold, overlap, length ratio, ttl, entries, response
+  chars), `cafeai.http.body.limit`, `cafeai.http.file.block`, `cafeai.rag.chunk.size` / `.overlap`,
+  `cafeai.guardrails.jailbreak.threshold`, `.toxicity.threshold`, `.promptleak.window`,
+  `cafeai.connect.ollama.probe.timeout`, `.redis.probe.timeout`, `cafeai.memory.redis.ttl`,
+  `.hybrid.demote`, `cafeai.voice.chunk.min`, and for `cafeai-sentinel` `cafeai.sentinel.evidence.max`,
+  `.investigation.workers` / `.tokens` / `.failures`, `.sweep.interval`, `.resolve.after`,
+  `.update.debounce`, `.events.per.pod`, `.sync.timeout`, `.probe.failures`, `.tool.log.lines` /
+  `.events` / `.replicasets`. A value a class cannot use is refused where it is read, naming the
+  setting (`AppConfig.apply`, `positive`, `positiveLong`, `positiveDuration`). DEVELOPER_GUIDE.md
+  §17.6 lists all 43 settings with their defaults.
 - **History policies: `app.history(HistoryPolicy...)`.** Three ways to keep a long conversation
   affordable, and one to turn the limit off:
   `HistoryPolicy.lastMessages(n)` sends the newest `n` messages;

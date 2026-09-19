@@ -39,7 +39,7 @@ public interface HistoryPolicy {
      * The window {@link #lastMessages(int)} uses when no policy is set. {@code 0} or less sends the
      * whole history.
      *
-     * <p>The four {@code cafeai.memory.*} settings only supply numbers: which policy is in force is
+     * <p>The {@code cafeai.memory.*} settings only supply numbers: which policy is in force is
      * decided in code with {@code app.history(...)}, and a setting never switches one on.
      */
     ConfigKey<Integer> WINDOW = ConfigKey.of(
@@ -61,6 +61,11 @@ public interface HistoryPolicy {
     ConfigKey<Integer> SUMMARY_KEEP = ConfigKey.of(
         "cafeai.memory.summary.keep", Integer.class, 6,
         "Newest messages HistoryPolicy.summarise() keeps verbatim when it writes a summary.");
+
+    /** The length asked of a summary, in words. */
+    ConfigKey<Integer> SUMMARY_WORDS = ConfigKey.of(
+        "cafeai.memory.summary.words", Integer.class, 200,
+        "Length, in words, HistoryPolicy.summarise() asks the model to keep a summary under.");
 
     /** What to send for this turn: an optional summary of older turns, then messages in order. */
     History select(ConversationContext context);
