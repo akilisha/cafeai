@@ -49,6 +49,15 @@ abstract class ProviderLiveSuite {
     /** A provider that can read images, or {@code null} to skip the vision test. */
     AiProvider visionProvider() { return null; }
 
+    /** The cap the {@code withMaxTokens} test uses. A provider whose limit also counts the prompt needs more. */
+    int smallCap() { return 16; }
+
+    /** The most characters an answer capped at {@link #smallCap()} can have. */
+    int maxCharsAtCap() { return 200; }
+
+    /** Whether {@code withTimeout} applies to this provider; an in-process model has no call to time out. */
+    boolean honoursTimeout() { return true; }
+
     @BeforeAll
     void requireProvider() {
         String why = skipReason();
@@ -130,7 +139,7 @@ abstract class ProviderLiveSuite {
     @Test @DisplayName("a system prompt shapes the reply")
     void systemPrompt() {
         var app = app();
-        app.system("You are a pirate. Always end your reply with the word ARRR.");
+        app.system("Whatever the user says, reply with exactly one word: ARRR");
 
         String text = app.prompt("Say hello.").call().text();
 
@@ -197,12 +206,14 @@ abstract class ProviderLiveSuite {
 
     @Test @DisplayName("withMaxTokens truncates a long answer")
     void maxTokensIsHonoured() {
-        PromptResponse r = appOn(provider().withMaxTokens(16))
+        int cap = smallCap();
+        PromptResponse r = appOn(provider().withMaxTokens(cap))
             .prompt("Count from 1 to 300, separated by spaces.").call();
 
-        System.out.println("[live] maxTokens=16: " + r.text().length() + " chars, output tokens " + r.outputTokens());
-        assertThat(r.text().length()).as("a 300-number count cannot fit in 16 tokens").isLessThan(200);
-        if (r.outputTokens() > 0) assertThat(r.outputTokens()).isLessThanOrEqualTo(24);
+        System.out.println("[live] maxTokens=" + cap + ": " + r.text().length() + " chars, output tokens " + r.outputTokens());
+        assertThat(r.text().length()).as("a 300-number count cannot fit in " + cap + " tokens")
+            .isLessThan(maxCharsAtCap());
+        if (r.outputTokens() > 0) assertThat(r.outputTokens()).isLessThanOrEqualTo(cap + 8);
     }
 
     @Test @DisplayName("withTemperature(0) is accepted by the endpoint")
@@ -214,6 +225,7 @@ abstract class ProviderLiveSuite {
 
     @Test @DisplayName("withTimeout applies: an impossible timeout fails fast")
     void timeoutIsHonoured() {
+        Assumptions.assumeTrue(honoursTimeout(), label() + ": withTimeout does not apply — skipping");
         long start = System.nanoTime();
 
         assertThatThrownBy(() ->

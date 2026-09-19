@@ -197,7 +197,7 @@ Some providers add checks of their own:
 | OpenAI | speech round trip (`app.synthesise(...)` makes audio, `app.audio(...)` transcribes it back); the moderation guardrail blocks violent text |
 | NVIDIA | `NVIDIA_LIVE_REASONING_MODEL` enables the thinking-stream test (`.onThinking(...)` receives reasoning apart from the answer); `NVIDIA_LIVE_VISION_MODEL` enables vision |
 | Ollama | `OLLAMA_LIVE_VISION_MODEL` (for example `llava`) enables vision |
-| Jlama | `withMaxTokens` counts the prompt too, `withTemperature(0)` repeatability, `Jlama.cachedIn(...)`; run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`. `liveTest` already passes the Vector API flags Jlama needs |
+| Jlama | runs the suite above with a larger `withMaxTokens` cap (Jlama's limit counts the prompt too) and no `withTimeout` check (there is no call to time out); adds a limit below the prompt failing with a clear message, `withTemperature(0)` repeatability and `Jlama.cachedIn(...)`. Run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`; `liveTest` already passes the Vector API flags Jlama needs. A 0.5B model is small, so try a larger one before suspecting the framework when a recall check fails |
 | agents (`:cafeai-agents:liveTest`) | the model calls a `@Tool` and answers from the result; session memory reaches the agent, tool calls included |
 
 A small local model rewords things and gets simple questions wrong now and then, so a failure on Ollama

@@ -1,26 +1,20 @@
 package io.cafeai.core.live;
 
-import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Jlama;
 import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Live smoke test of Jlama, the in-process inference provider: a real model, through the LangChain4j Jlama
- * builders, after the LangChain4j upgrade. No key is needed, but a model must be on disk (or downloadable),
- * so this only runs when you name one:
+ * Jlama, the in-process inference provider: a real model, through the LangChain4j Jlama builders. No key
+ * is needed, but a model must be on disk (or downloadable), so this only runs when you name one:
  *
  * <pre>
  *   JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest
@@ -28,63 +22,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>The first run downloads the model (about 300 MB for the one above) into Jlama's cache,
  * {@code ~/.jlama/models}. The {@code liveTest} task already passes the Vector API flags Jlama requires.
+ *
+ * <p>It runs the shared suite with two differences: Jlama's {@code withMaxTokens} limit counts the prompt
+ * as well as the answer, so the cap is larger, and {@code withTimeout} is refused (there is no call to time
+ * out), so that check is skipped. A 0.5B model is small; if a check that needs it to recall or reason fails,
+ * try a larger model before suspecting the framework.
  */
-@Tag("live")
 @DisplayName("Jlama — live")
-class JlamaLiveTest {
+class JlamaLiveTest extends ProviderLiveSuite {
 
-    private static String model;
+    private final String model = System.getenv("JLAMA_LIVE_MODEL");
 
-    @BeforeAll
-    static void requireModel() {
-        model = System.getenv("JLAMA_LIVE_MODEL");
-        Assumptions.assumeTrue(model != null && !model.isBlank(),
-            "JLAMA_LIVE_MODEL is not set — skipping (needs a Hugging Face model id, e.g. tjake/Qwen2.5-0.5B-Instruct-JQ4)");
-        System.out.println("[live] jlama model: " + model);
+    @Override String label() { return "Jlama"; }
+
+    @Override String skipReason() {
+        return model != null && !model.isBlank() ? null
+            : "JLAMA_LIVE_MODEL is not set (needs a Hugging Face model id, e.g. tjake/Qwen2.5-0.5B-Instruct-JQ4)";
     }
 
-    private static CafeAI appOn(AiProvider provider) {
-        var app = CafeAI.create();
-        app.ai(provider);
-        return app;
-    }
+    @Override AiProvider provider() { return Jlama.of(model); }
 
-    private static String abbreviate(String s) {
-        String flat = s == null ? "null" : s.replaceAll("\\s+", " ").trim();
-        return flat.length() > 100 ? flat.substring(0, 100) + "…" : flat;
-    }
+    /** Jlama's limit is the prompt plus the answer, and the chat template alone is dozens of tokens. */
+    @Override int smallCap() { return 128; }
 
-    @Test @DisplayName("a plain call returns text from the in-process model")
-    void plainCall() {
-        var r = appOn(Jlama.of(model)).prompt("Say hello in one short sentence.").call();
+    /** 128 tokens in total is a short prompt and roughly an 80-token answer. */
+    @Override int maxCharsAtCap() { return 700; }
 
-        System.out.println("[live] plain: " + abbreviate(r.text()));
-        assertThat(r.text()).isNotBlank();
-        assertThat(r.modelId()).isEqualTo(model);
-    }
-
-    @Test @DisplayName("a streamed call delivers several tokens")
-    void streamedCall() {
-        List<String> tokens = new CopyOnWriteArrayList<>();
-
-        appOn(Jlama.of(model)).prompt("Count from one to five in words.").stream(tokens::add);
-
-        System.out.println("[live] stream: " + tokens.size() + " tokens -> " + abbreviate(String.join("", tokens)));
-        assertThat(tokens.size()).as("more than one chunk arrived").isGreaterThan(1);
-        assertThat(String.join("", tokens)).isNotBlank();
-    }
-
-    @Test @DisplayName("withMaxTokens cuts a long answer short; for Jlama the limit counts the prompt as well")
-    void maxTokensIsHonoured() {
-        // Jlama's limit is prompt + answer. The chat template alone is dozens of tokens, so the limit has to
-        // leave room for them: 128 in total is a short prompt and roughly an 80-token answer.
-        String text = appOn(Jlama.of(model).withMaxTokens(128))
-            .prompt("Write a long essay about the history of the printing press.").call().text();
-
-        System.out.println("[live] maxTokens=128: " + text.length() + " chars -> " + abbreviate(text));
-        assertThat(text).isNotBlank();
-        assertThat(text.length()).as("128 tokens in total cannot be a long essay").isLessThan(700);
-    }
+    @Override boolean honoursTimeout() { return false; }
 
     @Test @DisplayName("a limit smaller than the prompt fails, and says so")
     void limitBelowThePromptFails() {
