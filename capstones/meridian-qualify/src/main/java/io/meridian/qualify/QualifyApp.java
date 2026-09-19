@@ -269,19 +269,18 @@ public class QualifyApp {
                 activeSessions.remove(session);
             }
 
-            // Minimal JSON builder for simple string key-value pairs
+            private final com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+
+            /** A JSON object of string values, written by a JSON writer so any text in it stays valid. */
             private String json(String... kvPairs) {
-                var sb = new StringBuilder("{");
-                for (int i = 0; i < kvPairs.length; i += 2) {
-                    if (i > 0) sb.append(',');
-                    sb.append('"').append(kvPairs[i]).append("\":\"")
-                            .append(kvPairs[i + 1]
-                                    .replace("\\", "\\\\")
-                                    .replace("\"", "\\\"")
-                                    .replace("\n", "\\n"))
-                            .append('"');
+                var map = new java.util.LinkedHashMap<String, String>();
+                for (int i = 0; i < kvPairs.length; i += 2) map.put(kvPairs[i], kvPairs[i + 1]);
+                try {
+                    return mapper.writeValueAsString(map);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    throw new IllegalStateException(e);
                 }
-                return sb.append('}').toString();
             }
         });
 

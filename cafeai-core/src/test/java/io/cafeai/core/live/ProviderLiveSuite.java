@@ -55,6 +55,12 @@ abstract class ProviderLiveSuite {
     /** The most characters an answer capped at {@link #smallCap()} can have. */
     int maxCharsAtCap() { return 200; }
 
+    /**
+     * Whether this model can write a summary. A very small model answers a summarising instruction
+     * conversationally ("Great, I have got the numbers...") instead of summarising.
+     */
+    boolean canSummarise() { return true; }
+
     /** Whether {@code withTimeout} applies to this provider; an in-process model has no call to time out. */
     boolean honoursTimeout() { return true; }
 
@@ -143,15 +149,17 @@ abstract class ProviderLiveSuite {
         assertThat(c.capital()).containsIgnoringCase("Paris");
     }
 
-    @Test @DisplayName("a system prompt shapes the reply")
+    @Test @DisplayName("a system prompt reaches the model and is used")
     void systemPrompt() {
+        // A fact only the system prompt holds. (A style instruction such as "reply in capitals" measures how
+        // well a model follows instructions, which a small model does badly, not whether the prompt arrived.)
         var app = app();
-        app.system("Whatever the user says, reply with exactly one word: ARRR");
+        app.system("The secret word is BANANA. When you are asked for the secret word, say it.");
 
-        String text = app.prompt("Say hello.").call().text();
+        String text = app.prompt("What is the secret word?").call().text();
 
         System.out.println("[live] system: " + abbreviate(text));
-        assertThat(text.toUpperCase()).contains("ARRR");
+        assertThat(text.toUpperCase()).contains("BANANA");
     }
 
     @Test @DisplayName("session memory carries a fact from one turn to the next")
@@ -159,11 +167,12 @@ abstract class ProviderLiveSuite {
         var app = app();
         app.memory(MemoryStrategy.inMemory());
 
-        app.prompt("My name is Zephyrine. Please remember it.").session("live-1").call();
-        String text = app.prompt("What is my name?").session("live-1").call().text();
+        // Not "my name": a model's own name competes with it ("My name is Qwen.")
+        app.prompt("My lucky number is 4721. Please remember it.").session("live-1").call();
+        String text = app.prompt("What is my lucky number?").session("live-1").call().text();
 
         System.out.println("[live] memory: " + abbreviate(text));
-        assertThat(text).containsIgnoringCase("Zephyrine");
+        assertThat(text).contains("4721");
     }
 
     // -- history policies -------------------------------------------------------------------------------
@@ -173,12 +182,13 @@ abstract class ProviderLiveSuite {
 
     @Test @DisplayName("summarise: a fact that has been folded into a summary is still known")
     void summariseKeepsAFact() {
+        Assumptions.assumeTrue(canSummarise(), label() + ": this model does not write summaries — skipping");
         var app = app();
         var memory = MemoryStrategy.inMemory();
         app.memory(memory);
         app.history(HistoryPolicy.summarise().keepRecent(2).after(6));
 
-        app.prompt("My name is Zephyrine and I keep bees. Please remember that.").session("live-h1").call();
+        app.prompt("My lucky number is 4721 and I keep bees. Please remember that.").session("live-h1").call();
         for (String question : FILLER) {
             app.prompt(question).session("live-h1").call();     // the 4th exchange stores message 8 (> 6) and summarises
         }
@@ -187,11 +197,11 @@ abstract class ProviderLiveSuite {
         System.out.println("[live] summary: " + abbreviate(stored.summary()));
         assertThat(stored.summary()).as("the older turns were folded into a summary").isNotBlank();
         assertThat(stored.messages()).as("only the newest messages are kept whole").hasSize(2);
-        assertThat(stored.summary()).as("the model kept the name in the summary").containsIgnoringCase("Zephyrine");
+        assertThat(stored.summary()).as("the model kept the number in the summary").contains("4721");
 
-        String text = app.prompt("What is my name, and what do I keep?").session("live-h1").call().text();
+        String text = app.prompt("What is my lucky number, and what do I keep?").session("live-h1").call().text();
         System.out.println("[live] after summary: " + abbreviate(text));
-        assertThat(text).containsIgnoringCase("Zephyrine");
+        assertThat(text).contains("4721");
     }
 
     @Test @DisplayName("lastMessages: a fact that has fallen out of the window is not known")
@@ -200,13 +210,13 @@ abstract class ProviderLiveSuite {
         app.memory(MemoryStrategy.inMemory());
         app.history(HistoryPolicy.lastMessages(2));
 
-        app.prompt("My name is Zephyrine. Please remember it.").session("live-h2").call();
+        app.prompt("My lucky number is 4721. Please remember it.").session("live-h2").call();
         app.prompt("What is 2 + 2?").session("live-h2").call();
         app.prompt("Name one primary colour.").session("live-h2").call();
-        String text = app.prompt("What is my name?").session("live-h2").call().text();
+        String text = app.prompt("What is my lucky number?").session("live-h2").call().text();
 
         System.out.println("[live] forgotten: " + abbreviate(text));
-        assertThat(text).doesNotContainIgnoringCase("Zephyrine");
+        assertThat(text).doesNotContain("4721");
     }
 
     // -- the provider settings reach the wire ---------------------------------------------------------

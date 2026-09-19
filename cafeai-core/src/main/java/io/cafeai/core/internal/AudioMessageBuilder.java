@@ -96,19 +96,31 @@ final class AudioMessageBuilder {
                     ": " + response.body());
             }
 
-            // Parse {"text": "..."} — avoid pulling in a JSON library
-            String json = response.body();
-            int start = json.indexOf("\"text\"");
-            if (start < 0) throw new RuntimeException(
-                "Unexpected Whisper response: " + json);
-            int colon = json.indexOf(':', start);
-            int quote1 = json.indexOf('"', colon + 1);
-            int quote2 = json.indexOf('"', quote1 + 1);
-            return json.substring(quote1 + 1, quote2);
+            return parseTranscript(response.body());
 
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new RuntimeException("Audio transcription failed: " + e.getMessage(), e);
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+        new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /**
+     * The transcript in a Whisper response, {@code {"text": "..."}}. Read with a JSON parser: a transcript
+     * can hold quotation marks, escaped line breaks and non-ASCII characters, and taking the text between
+     * the first two quote characters cuts it off at the first one.
+     */
+    static String parseTranscript(String json) {
+        try {
+            var text = MAPPER.readTree(json).get("text");
+            if (text == null || !text.isTextual()) {
+                throw new RuntimeException("Unexpected Whisper response: " + json);
+            }
+            return text.asText();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new RuntimeException("Unexpected Whisper response: " + json, e);
         }
     }
 

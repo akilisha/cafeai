@@ -209,6 +209,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **A transcript with a quotation mark is no longer cut short.** `app.audio(...)` with OpenAI read the
+  transcript out of Whisper's JSON reply by taking the text between the first two quote characters after
+  `"text"`, so `She said "hello" and left.` came back as `She said ` followed by a stray backslash, and JSON escape sequences (for a line break or an accented letter) were returned as written. The reply is now parsed as JSON.
+- **The capstones write JSON with a JSON writer.** The WebSocket messages in `acme-claims`,
+  `meridian-qualify` and `support-desk` escaped only some characters, so an answer with a tab or another
+  control character produced invalid JSON; the `invoice-processor` tools joined model-supplied arguments
+  into their results, so a vendor name with a quote broke them. They now use Jackson (a shared dependency
+  in `gradle/capstone.gradle`).
 - **`app.synthesise(...)` with OpenAI works.** The request body was assembled by hand and its last string
   was never closed (`"response_format":"mp3}`), so OpenAI refused every call with "could not parse the
   JSON body"; the hand-written escaping also missed control characters other than line breaks. The body
@@ -229,10 +237,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   under the role `langchain4j` and come back as they went in; plain user and assistant turns are stored
   as text, as before. Found by a live test against a real model; the tests that missed it never called a
   tool.
-- **A history summary is worded so the model knows it is about the user.** The summary is written as
-  notes ("The user's name is ...") and introduced as the model's memory of the conversation, where it
-  had been narrated in the third person and labelled "not instructions"; a small model did not connect
-  it to a question about the user.
+- **A history summary is written and introduced so the model uses it.** The summariser is asked to list
+  what the user said about themselves exactly as they said it, including numbers, and nothing they did not
+  say; the summary is introduced as the model's memory of the conversation. It had been narrated in the
+  third person and labelled "not instructions", and an example line in the request made small models
+  invent a name. A very small model may still not summarise at all; `HistoryPolicy.summarise().model(...)`
+  names a stronger one.
 - **`serveStatic` streams files from disk** instead of reading each one into memory, so a large
   video or download no longer costs its size in heap per request; byte-range responses stream the
   requested slice the same way. `res.sendFile` and `res.download` stream too, and a new

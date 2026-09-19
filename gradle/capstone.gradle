@@ -18,6 +18,9 @@ apply plugin: 'application'
 dependencies {
     // Concrete SLF4J binding for the runnable app (the library modules ship none).
     runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"
+
+    // Capstones write JSON (WebSocket messages, tool results) with a JSON writer, never by joining strings.
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
 }
 
 // Capstones are demonstrations, not gates: a missing live-service test

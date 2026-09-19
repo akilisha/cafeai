@@ -55,6 +55,13 @@ class JlamaLiveTest extends ProviderLiveSuite {
 
     @Override boolean honoursTimeout() { return false; }
 
+    /**
+     * A 0.5B model does not do the summarising task: asked to summarise, it replied "Great, I've got the
+     * numbers and the reason for your bees. What's the next step?" (a larger model, or {@code .model(...)}
+     * pointing summaries at one, is the remedy; see {@code HistoryPolicy.summarise()}).
+     */
+    @Override boolean canSummarise() { return false; }
+
     @Test @DisplayName("a limit smaller than the prompt fails, and says so")
     void limitBelowThePromptFails() {
         assertThatThrownBy(() -> appOn(Jlama.of(model).withMaxTokens(4)).prompt("Say hello.").call())

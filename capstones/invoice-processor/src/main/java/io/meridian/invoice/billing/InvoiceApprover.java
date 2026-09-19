@@ -44,12 +44,13 @@ public class InvoiceApprover {
                           "amount=%s | po=%s%n",
             timestamp, vendorId, invoiceNumber, approvedAmount, poNumber);
 
-        return String.format(
-            "{\"status\": \"approved\", \"approvalId\": \"APR-%05d\", " +
-            "\"vendorId\": \"%s\", \"invoiceNumber\": \"%s\", " +
-            "\"approvedAmount\": \"%s\", " +
-            "\"nextStep\": \"Forwarded to AP team for payment authorisation\"}",
-            log.size(), vendorId, invoiceNumber, approvedAmount);
+        return ToolJson.of(
+            "status", "approved",
+            "approvalId", String.format("APR-%05d", log.size()),
+            "vendorId", vendorId,
+            "invoiceNumber", invoiceNumber,
+            "approvedAmount", approvedAmount,
+            "nextStep", "Forwarded to AP team for payment authorisation");
     }
 
     /** Returns all approvals recorded during this run. */

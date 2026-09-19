@@ -44,11 +44,12 @@ public class DiscrepancyRecorder {
             timestamp, vendorId, invoiceNumber,
             invoicedAmount, contractedAmount, reason);
 
-        return String.format(
-            "{\"status\": \"recorded\", \"discrepancyId\": \"DISC-%05d\", " +
-            "\"vendorId\": \"%s\", \"invoiceNumber\": \"%s\", " +
-            "\"action\": \"Flagged for AP supervisor review\"}",
-            log.size(), vendorId, invoiceNumber);
+        return ToolJson.of(
+            "status", "recorded",
+            "discrepancyId", String.format("DISC-%05d", log.size()),
+            "vendorId", vendorId,
+            "invoiceNumber", invoiceNumber,
+            "action", "Flagged for AP supervisor review");
     }
 
     /** Returns all discrepancies recorded during this run. */

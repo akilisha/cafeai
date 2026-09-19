@@ -160,6 +160,10 @@ public interface HistoryPolicy {
      * messages, leaving the newest {@link #keepRecent(int)} untouched; after that the history is
      * the summary plus those messages, growing again until the next summary.
      *
+     * <p>The summary is only as good as the model that writes it. A very small model (a 0.5B one run
+     * in-process, say) may answer the request conversationally instead of summarising; name a stronger
+     * one for the job with {@link #model(AiProvider)}.
+     *
      * <p>If the summarising call fails, the history is left as it is and the call that triggered
      * it still succeeds; the next turn tries again. In the meantime no more than {@code after}
      * messages are sent.

@@ -96,7 +96,7 @@ public class VendorContractLookup {
             })
             .findFirst()
             .map(VendorRecord::toJson)
-            .orElse("{\"error\": \"Vendor not found: " + vendorName + "\"}");
+            .orElseGet(() -> ToolJson.of("error", "Vendor not found: " + vendorName));
     }
 
     @Tool("Look up the contracted amount expected for a vendor and purchase order. " +
@@ -112,26 +112,25 @@ public class VendorContractLookup {
             // Try without PO — look up vendor to give a helpful message
             VendorRecord vendor = VENDORS.get(vendorId);
             if (vendor == null) {
-                return "{\"error\": \"Unknown vendor: " + vendorId + "\"}";
+                return ToolJson.of("error", "Unknown vendor: " + vendorId);
             }
-            return "{\"error\": \"No contract found for " + vendorId +
-                   " / PO " + poNumber + "\", " +
-                   "\"vendor\": \"" + vendor.name() + "\", " +
-                   "\"hint\": \"" + vendor.contractSummary() + "\"}";
+            return ToolJson.of(
+                "error", "No contract found for " + vendorId + " / PO " + poNumber,
+                "vendor", vendor.name(),
+                "hint", vendor.contractSummary());
         }
 
         double tolerancePct = toleranceFor(vendorId);
         double toleranceAmt = amount * tolerancePct / 100.0;
 
-        return String.format(
-            "{\"vendorId\": \"%s\", \"poNumber\": \"%s\", " +
-            "\"contractedAmount\": %.2f, " +
-            "\"tolerancePct\": %.1f, " +
-            "\"toleranceMin\": %.2f, " +
-            "\"toleranceMax\": %.2f, " +
-            "\"currency\": \"USD\"}",
-            vendorId, poNumber, amount,
-            tolerancePct, amount - toleranceAmt, amount + toleranceAmt);
+        return ToolJson.of(
+            "vendorId", vendorId,
+            "poNumber", poNumber,
+            "contractedAmount", ToolJson.money(amount),
+            "tolerancePct", ToolJson.percent(tolerancePct),
+            "toleranceMin", ToolJson.money(amount - toleranceAmt),
+            "toleranceMax", ToolJson.money(amount + toleranceAmt),
+            "currency", "USD");
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
@@ -153,12 +152,12 @@ public class VendorContractLookup {
         String contractSummary
     ) {
         String toJson() {
-            return String.format(
-                "{\"vendorId\": \"%s\", \"name\": \"%s\", " +
-                "\"type\": \"%s\", \"email\": \"%s\", " +
-                "\"contractSummary\": \"%s\"}",
-                vendorId, name, type, email,
-                contractSummary.replace("\"", "'"));
+            return ToolJson.of(
+                "vendorId", vendorId,
+                "name", name,
+                "type", type,
+                "email", email,
+                "contractSummary", contractSummary);
         }
     }
 }

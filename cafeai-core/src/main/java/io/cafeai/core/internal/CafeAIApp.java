@@ -1589,9 +1589,10 @@ public final class CafeAIApp implements CafeAI {
         return (previous, older) -> {
             StringBuilder prompt = new StringBuilder(
                 "Summarise this conversation so that it can continue without the original messages. "
-                + "Write short notes about the user, in the form \"The user's name is ...\", "
-                + "\"The user asked ...\", \"You answered ...\". Keep names, numbers, decisions, "
-                + "preferences and unresolved questions. Write under " + AppConfig.load().get(HistoryPolicy.SUMMARY_WORDS)
+                + "Write short notes. First list, one to a line, every fact the user gave about themselves or "
+                + "what they want, exactly as they gave it, including any numbers, names and preferences; "
+                + "write nothing they did not say. Then note what the user asked and what you answered. "
+                + "Write under " + AppConfig.load().get(HistoryPolicy.SUMMARY_WORDS)
                 + " words and reply with the notes only.\n\n");
             if (previous != null && !previous.isBlank()) {
                 prompt.append("Summary so far:\n").append(previous).append("\n\n");

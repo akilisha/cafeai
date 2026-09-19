@@ -225,13 +225,27 @@ public class ClaimsApp {
         var activeSessions = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
         app.ws("/ws/claims", new io.cafeai.core.routing.WsHandler() {
+            private final com.fasterxml.jackson.databind.ObjectMapper wsMapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+
+            /** A JSON object of string values, written by a JSON writer so any text in it stays valid. */
+            private String json(String... keysAndValues) {
+                var map = new java.util.LinkedHashMap<String, String>();
+                for (int i = 0; i < keysAndValues.length; i += 2) map.put(keysAndValues[i], keysAndValues[i + 1]);
+                try {
+                    return wsMapper.writeValueAsString(map);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
             @Override
             public void onOpen(io.cafeai.core.routing.WsSession session) {
                 activeSessions.add(session);
-                session.send("{\"type\":\"connected\","
-                        + "\"message\":\"Acme Insurance claims assistant ready. "
-                        + "Please describe your incident or provide your claim number.\","
-                        + "\"sessionId\":\"" + session.id() + "\"}");
+                session.send(json("type", "connected",
+                        "message", "Acme Insurance claims assistant ready. "
+                                + "Please describe your incident or provide your claim number.",
+                        "sessionId", session.id()));
             }
 
             @Override
@@ -245,23 +259,17 @@ public class ClaimsApp {
                         String text = body.getOrDefault("message", "").toString();
 
                         if (text.isBlank()) {
-                            session.send("{\"type\":\"error\","
-                                    + "\"message\":\"Field 'message' is required\"}");
+                            session.send(json("type", "error", "message", "Field 'message' is required"));
                             return;
                         }
 
                         // WebSocket is the adjuster's conversational channel.
                         String answer = app.agent("claims", ClaimsAgent.class,
                                 session.id()).followUp(text);
-                        String escaped = answer
-                                .replace("\\", "\\\\")
-                                .replace("\"", "\\\"")
-                                .replace("\n", "\\n");
-                        session.send("{\"type\":\"response\",\"answer\":\"" + escaped + "\"}");
+                        session.send(json("type", "response", "answer", answer));
                     } catch (Exception e) {
-                        String msg = e.getMessage() != null
-                                ? e.getMessage().replace("\"", "'") : "Internal error";
-                        session.send("{\"type\":\"error\",\"message\":\"" + msg + "\"}");
+                        session.send(json("type", "error",
+                                "message", e.getMessage() != null ? e.getMessage() : "Internal error"));
                     }
                 });
             }

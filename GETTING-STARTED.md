@@ -181,9 +181,9 @@ Every provider runs the same suite (`cafeai-core/src/test/java/io/cafeai/core/li
 | plain call | `app.prompt(...).call()` returns text, token usage and the model id |
 | streamed call | `.stream(...)` delivers several chunks that add up to the answer |
 | structured output | `.call(Class)` returns a typed object parsed from the model's JSON |
-| system prompt | `app.system(...)` shapes the reply |
+| system prompt | a fact only `app.system(...)` holds (a secret word) reaches the model and is used |
 | session memory | a fact given in one turn is recalled in the next (`MemoryStrategy` + `.session(...)`) |
-| `HistoryPolicy.summarise()` | a fact folded into a summary is still known, and the model kept it in the summary |
+| `HistoryPolicy.summarise()` | a fact (a number) folded into a summary is still known, and the model kept it in the summary |
 | `HistoryPolicy.lastMessages(n)` | a fact that has left the window is not known |
 | `withMaxTokens` | a 16-token cap truncates a long answer (the setting reaches the vendor parameter) |
 | `withTemperature` | the endpoint accepts the setting |
@@ -197,11 +197,13 @@ Some providers add checks of their own:
 | OpenAI | speech round trip (`app.synthesise(...)` makes audio, `app.audio(...)` transcribes it back); the moderation guardrail blocks violent text |
 | NVIDIA | `NVIDIA_LIVE_REASONING_MODEL` enables the thinking-stream test (`.onThinking(...)` receives reasoning apart from the answer); `NVIDIA_LIVE_VISION_MODEL` enables vision |
 | Ollama | `OLLAMA_LIVE_VISION_MODEL` (for example `llava`) enables vision |
-| Jlama | runs the suite above with a larger `withMaxTokens` cap (Jlama's limit counts the prompt too) and no `withTimeout` check (there is no call to time out); adds a limit below the prompt failing with a clear message, `withTemperature(0)` repeatability and `Jlama.cachedIn(...)`. Run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`; `liveTest` already passes the Vector API flags Jlama needs. A 0.5B model is small, so try a larger one before suspecting the framework when a recall check fails |
+| Jlama | runs the suite above with a larger `withMaxTokens` cap (Jlama's limit counts the prompt too), no `withTimeout` check (there is no call to time out) and no `summarise` check (a 0.5B model does not do the summarising task); adds a limit below the prompt failing with a clear message, `withTemperature(0)` repeatability and `Jlama.cachedIn(...)`. Run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`; `liveTest` already passes the Vector API flags Jlama needs. A 0.5B model is small, so try a larger one before suspecting the framework when a recall check fails |
 | agents (`:cafeai-agents:liveTest`) | the model calls a `@Tool` and answers from the result; session memory reaches the agent, tool calls included |
 
-A small local model rewords things and gets simple questions wrong now and then, so a failure on Ollama
-is worth reading before it is worth blaming. Live tests have found real bugs here: an agent with tools
+A small local model rewords things and gets simple questions wrong now and then, so a failure on a small
+model is worth reading before it is worth blaming. The checks use neutral facts (a secret word, a lucky
+number) on purpose: a style instruction ("reply in capitals") measures instruction-following, and "what is
+my name" competes with the model's own name; a 0.5B model fails both while CafeAI delivers everything correctly. Live tests have found real bugs here: an agent with tools
 and session memory used to crash on its second message, and the wording of a history summary decided
 whether a small model connected it to "my name".
 

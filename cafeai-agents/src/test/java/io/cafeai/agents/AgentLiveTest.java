@@ -127,10 +127,10 @@ class AgentLiveTest {
         app.memory(MemoryStrategy.inMemory());
         app.agent("vault", Vault.class).system(SYSTEM).tool(new VaultTools());
 
-        app.agent("vault", Vault.class, "live-agent").ask("My name is Zephyrine. Please remember it.");
-        String answer = app.agent("vault", Vault.class, "live-agent").ask("What is my name?");
+        app.agent("vault", Vault.class, "live-agent").ask("My lucky number is 4721. Please remember it.");
+        String answer = app.agent("vault", Vault.class, "live-agent").ask("What is my lucky number?");
 
         System.out.println("[live] agent memory: " + answer);
-        assertThat(answer).containsIgnoringCase("Zephyrine");
+        assertThat(answer).contains("4721");
     }
 }

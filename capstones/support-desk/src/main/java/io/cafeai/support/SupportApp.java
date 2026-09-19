@@ -185,12 +185,16 @@ public class SupportApp {
             }
 
             // Minimal JSON string escaping — avoids a Jackson dependency here
+            private final com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+
+            /** A JSON string literal for {@code s}, written by a JSON writer so any text in it stays valid. */
             private String jsonString(String s) {
-                if (s == null) return "\"\"";
-                return "\"" + s.replace("\\", "\\\\")
-                        .replace("\"", "\\\"")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r") + "\"";
+                try {
+                    return mapper.writeValueAsString(s == null ? "" : s);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    throw new IllegalStateException(e);
+                }
             }
         });
 
