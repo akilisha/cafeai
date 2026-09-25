@@ -23,7 +23,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import javax.crypto.Cipher;
 import javax.crypto.Mac;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -461,6 +465,127 @@ public final class BuiltInMiddleware {
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("HmacSHA256 is unavailable", e); // every JVM has it
         }
+    }
+
+    // -- HTTP Session: encrypted cookie-session -----------------------------------
+
+    /**
+     * Stateless, encrypted cookie-session middleware. See
+     * {@link Middleware#encryptedCookieSession(String)}.
+     *
+     * <p>AES-GCM replaces HMAC-SHA256 entirely here -- its authentication tag
+     * already proves the ciphertext wasn't tampered with, the same job HMAC does
+     * for {@link #cookieSession(List, SessionOptions)}. Otherwise identical shape:
+     * the cookie is set from a {@code beforeSend} hook for the same reason (the
+     * cookie's content is the session data, not known until the handler finishes
+     * mutating it), and a wrong key, a tampered cookie, or a malformed payload all
+     * fail open into a fresh session rather than an error.
+     */
+    public static Middleware encryptedCookieSession(List<String> secrets, SessionOptions options) {
+        if (secrets == null || secrets.isEmpty()) {
+            throw new IllegalArgumentException("Middleware.encryptedCookieSession requires at least one secret.");
+        }
+        String encryptingSecret = secrets.get(0);
+        if (encryptingSecret.length() < MIN_COOKIE_SESSION_SECRET_LENGTH) {
+            log.warn("Middleware.encryptedCookieSession: the key is shorter than {} characters; " +
+                "use a longer, random value in production.", MIN_COOKIE_SESSION_SECRET_LENGTH);
+        }
+
+        return (req, res, next) -> {
+            String cookieName = options.cookieName();
+            String cookieValue = req.cookie(cookieName);
+            Session session = (cookieValue != null)
+                ? decryptCookieSession(cookieValue, secrets, options.idleTimeout())
+                : null;
+            if (session == null) session = new Session(COOKIE_SESSION_ID);
+
+            final Session current = session;
+            current.bindInvalidationHook(() -> res.clearCookie(cookieName, options.cookieOptions()));
+            req.setAttribute(Attributes.HTTP_SESSION, current);
+
+            res.beforeSend(() -> {
+                if (current.isInvalidated()) return;
+                current.touch();
+                String encoded = encryptCookieSession(current, encryptingSecret);
+                int limit = AppConfig.load().get(Middleware.MAX_COOKIE_SESSION_BYTES);
+                if (encoded.length() > limit) {
+                    throw new Middleware.CookieSessionTooLargeException(
+                        "Encrypted cookie-session payload is " + encoded.length() + " bytes, over the "
+                        + limit + "-byte limit (cafeai.http.session.cookie.maxBytes). "
+                        + "Store less in the session, or use Middleware.session(SessionStore) instead.");
+                }
+                res.cookie(cookieName, encoded, options.cookieOptions());
+            });
+
+            next.run();
+        };
+    }
+
+    private static final String AES_GCM = "AES/GCM/NoPadding";
+    private static final int GCM_TAG_BITS = 128;
+    private static final int GCM_IV_BYTES = 12;
+
+    private static SecretKeySpec deriveAesKey(String secret) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.UTF_8));
+            return new SecretKeySpec(hash, "AES");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e); // every JVM has it
+        }
+    }
+
+    private static String encryptCookieSession(Session session, String secret) {
+        try {
+            var payload = new CookieSessionPayload(session.attributes(),
+                session.createdAt().toEpochMilli(), session.lastAccessedAt().toEpochMilli());
+            byte[] plaintext = MAPPER.writeValueAsBytes(payload);
+
+            byte[] iv = new byte[GCM_IV_BYTES];
+            new SecureRandom().nextBytes(iv);
+
+            Cipher cipher = Cipher.getInstance(AES_GCM);
+            cipher.init(Cipher.ENCRYPT_MODE, deriveAesKey(secret), new GCMParameterSpec(GCM_TAG_BITS, iv));
+            byte[] ciphertext = cipher.doFinal(plaintext); // GCM appends the tag automatically
+
+            String encodedIv         = Base64.getUrlEncoder().withoutPadding().encodeToString(iv);
+            String encodedCiphertext = Base64.getUrlEncoder().withoutPadding().encodeToString(ciphertext);
+            return encodedIv + "." + encodedCiphertext;
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot encrypt cookie session", e);
+        }
+    }
+
+    private static Session decryptCookieSession(String cookieValue, List<String> secrets, Duration idleTimeout) {
+        int dot = cookieValue.indexOf('.');
+        if (dot < 0) return null;
+        byte[] iv;
+        byte[] ciphertext;
+        try {
+            iv         = Base64.getUrlDecoder().decode(cookieValue.substring(0, dot));
+            ciphertext = Base64.getUrlDecoder().decode(cookieValue.substring(dot + 1));
+        } catch (IllegalArgumentException malformed) {
+            return null; // not valid base64 -- treated as absent
+        }
+
+        for (String secret : secrets) {
+            try {
+                Cipher cipher = Cipher.getInstance(AES_GCM);
+                cipher.init(Cipher.DECRYPT_MODE, deriveAesKey(secret), new GCMParameterSpec(GCM_TAG_BITS, iv));
+                byte[] plaintext = cipher.doFinal(ciphertext); // throws AEADBadTagException on wrong key/tampering
+
+                var payload = MAPPER.readValue(plaintext, CookieSessionPayload.class);
+                Instant lastAccessedAt = Instant.ofEpochMilli(payload.lastAccessedAt());
+                if (Duration.between(lastAccessedAt, Instant.now()).compareTo(idleTimeout) > 0) {
+                    return null; // idle-expired -- same rule cookieSession/session(store) apply
+                }
+                return new Session(COOKIE_SESSION_ID, payload.attributes(),
+                    Instant.ofEpochMilli(payload.createdAt()), lastAccessedAt);
+            } catch (Exception e) {
+                // Wrong/rotated-out key (AEADBadTagException), or a malformed decrypted payload --
+                // try the next candidate key; fail open into a new session if none work.
+            }
+        }
+        return null;
     }
 
     // -- URL-Encoded Body Parser (ROADMAP-01 Phase 7) --------------------------

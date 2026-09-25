@@ -196,4 +196,36 @@ public interface Middleware {
     class CookieSessionTooLargeException extends RuntimeException {
         public CookieSessionTooLargeException(String message) { super(message); }
     }
+
+    /**
+     * Stateless HTTP session middleware with confidentiality: the session is
+     * AES-GCM encrypted into the cookie, not just signed. Use this instead of
+     * {@link #cookieSession(String)} when the session may hold data the client
+     * itself shouldn't be able to read (cookieSession is tamper-proof but not
+     * confidential -- the client can read every attribute in plain text).
+     *
+     * <p>{@code secret} is hashed (SHA-256) into the AES-256 key -- same
+     * high-entropy-secret expectation as {@link #cookieSession(String)}, not a
+     * password (no password-based key stretching is applied).
+     *
+     * <pre>{@code
+     *   app.filter(Middleware.encryptedCookieSession(System.getenv("SESSION_KEY")));
+     * }</pre>
+     */
+    static Middleware encryptedCookieSession(String secret) {
+        return encryptedCookieSession(List.of(secret), SessionOptions.defaults());
+    }
+
+    /** {@link #encryptedCookieSession(String)} with explicit cookie/timeout options. */
+    static Middleware encryptedCookieSession(String secret, SessionOptions options) {
+        return encryptedCookieSession(List.of(secret), options);
+    }
+
+    /**
+     * {@link #encryptedCookieSession(String, SessionOptions)} with key rotation:
+     * encrypted with {@code secrets.get(0)}, decryptable with any of {@code secrets}.
+     */
+    static Middleware encryptedCookieSession(List<String> secrets, SessionOptions options) {
+        return BuiltInMiddleware.encryptedCookieSession(secrets, options);
+    }
 }

@@ -166,6 +166,16 @@ app.filter(Middleware.cookieSession(System.getenv("SESSION_SECRET")));
 
 Signing proves the cookie wasn't tampered with; it does not hide its contents — anything in a `cookieSession` is readable by the client, so it's the wrong tool for anything secret. A tampered, expired, or wrong-secret cookie is treated exactly like no cookie at all: a fresh session, never an error response. And because there's no store, `SessionStore.redis(...)`-style horizontal scaling isn't a question here the way it is for `Middleware.session(...)` — a signed cookie is inherently shareable across any number of instances that hold the same secret.
 
+When "the client can read it" is the actual blocker, `Middleware.encryptedCookieSession(secret)` is the same idea with confidentiality added: the session is AES-GCM encrypted into the cookie, not just signed. GCM's authentication tag already proves the ciphertext wasn't tampered with — the same job HMAC does above — so encryption replaces signing here entirely rather than layering both; doing both would be redundant, not more secure. Everything else about `cookieSession` carries over unchanged: same `beforeSend` timing, same fail-open behavior on a wrong key or a tampered cookie, same secret-rotation shape.
+
+```java
+app.filter(Middleware.encryptedCookieSession(System.getenv("SESSION_KEY")));
+```
+
+One question this reliably provokes: if the cookie is encrypted -- or even just signed -- how does a browser-side SPA read the JWT or permissions data it needs to decide what to render? The honest answer is that it can't, and that was already true before encryption entered the picture. `SessionOptions.defaults()` sets `CookieOptions.httpOnly = true` for every session middleware CafeAI ships, `Middleware.session(...)` included -- `document.cookie` can't see this cookie's value at all, plaintext or not. That's a browser-API restriction, not a crypto one: the browser still attaches the cookie to every request automatically, JS just never touches it. Encryption only changes what happens if that restriction is ever bypassed (an XSS, a rogue extension) -- signed-but-plaintext leaks the session then, encrypted doesn't -- it was never the intended channel to the SPA either way.
+
+So anything the SPA does need goes through a channel that was built for it. Two standard shapes: an endpoint the SPA calls (`GET /me`), which reads `req.session()` server-side and returns exactly what's safe to expose, recomputed fresh on every call; or a short-lived bearer token minted server-side and handed back in the login response body -- a genuinely separate value from the session cookie, not a view into it. `SpaSessionExample` in `cafeai-examples` runs both side by side against one `encryptedCookieSession`-backed app: `/login` sets the real session *and* returns a JWT, `/me` proves the cookie-only path works with zero token involved, `/protected` proves the token-only path works with zero cookie involved. Confirmed live, not just read: the two channels really are independent -- `/me` still 401s with the token but no cookie, `/protected` still 401s with the cookie but no token.
+
 ---
 
 ## Guardrails as Middleware
