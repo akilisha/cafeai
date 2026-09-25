@@ -3,6 +3,52 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
+## [Unreleased]
+
+### Added
+
+- **`cafeai-session`.** `Middleware.session(SessionStore)` — Express `express-session`
+  equivalent: the cookie carries only an opaque ID, the attribute data lives server-side.
+  `SessionStore.inMemory()` is the zero-dependency dev/test rung; `SessionStore.sqlite()`
+  (the new `cafeai-session` module — `org.xerial:sqlite-jdbc` over a HikariCP pool, WAL mode)
+  is the real default, single-instance only. Multi-instance deployments supply their own
+  `SessionStore` — `RedisSessionExample` in `cafeai-examples` shows the ~40-line pattern;
+  CafeAI does not ship a distributed session store. `req.session()` returns the current
+  `Session` (`get`/`set`/`remove`/`invalidate`); distinct from `MemoryStrategy`'s
+  AI-conversation "session" (LLM chat history) and `WsSession` (a WebSocket handle) — see
+  `Session`'s Javadoc for the disambiguation. New settings: `cafeai.http.session.cookie.name`
+  (`cafeai.sid`), `cafeai.http.session.idle.timeout` (30m), `cafeai.session.sqlite.path`,
+  `cafeai.session.sqlite.pool.size`.
+- **`Middleware.cookieSession(secret)`.** The Express `cookie-session` equivalent: no
+  server-side store at all, the whole session is HMAC-SHA256-signed straight into the
+  cookie. Secret rotation via a `List<String>` overload (sign with the first, verify
+  against any). A tampered, expired, or wrong-secret cookie is treated exactly like no
+  cookie — a fresh session, never an error response. New setting:
+  `cafeai.http.session.cookie.maxBytes` (4093).
+- **`Middleware.encryptedCookieSession(secret)`.** Adds confidentiality to `cookieSession`:
+  AES-GCM encrypts the session into the cookie instead of just signing it — GCM's
+  authentication tag already gives integrity, so encryption replaces signing here rather
+  than layering both. Same rotation, fail-open, and size-limit behaviour as `cookieSession`.
+- **`Response.beforeSend(Runnable)`.** Registers a hook that runs immediately before a
+  response commits — the one point late enough to reflect what a handler did (e.g. session
+  mutations from `req.session().set(...)`) and still early enough for a header to reach the
+  client. Needed for `cookieSession`/`encryptedCookieSession`, whose cookie *content* isn't
+  known until the handler finishes running: ordinary post-processing (code after
+  `next.run()`) is too late, since the response has almost always already committed by then.
+  `Middleware.session(store)` was refactored onto the same hook, removing a prior
+  double-`Set-Cookie` quirk on invalidation.
+- **`cafeai-flight`.** JVM-level visibility via Java Flight Recorder
+  (`jdk.jfr.consumer.RecordingStream`), surfaced as OpenTelemetry metrics under
+  `cafeai.flight.*`. `FlightCategory` groups related JFR events (`GC`, `VIRTUAL_THREADS`,
+  `CONTENTION`, `ALLOCATION`, `CPU`, `IO`) so callers don't need raw JFR event-name strings;
+  `GC` and `VIRTUAL_THREADS` are the defaults. Headline event: `jdk.VirtualThreadPinned` — a
+  virtual thread stuck to its carrier (e.g. inside `synchronized`), the first thing worth
+  checking in a framework where every request runs on a virtual thread. Independent of
+  `cafeai-observability` — both simply call `GlobalOpenTelemetry.get()` and share whatever
+  exporter the application registers, no dependency either direction. No dashboard is
+  shipped; point an existing OTel-compatible one (Grafana, etc.) at the same exporter. New
+  setting: `cafeai.flight.threshold` (20ms).
+
 ## [0.4.0] — 2026-09-18
 
 ### Breaking changes

@@ -128,9 +128,14 @@ app.use((req, res, err, next) -> {
   Options: `limit`, `windowDuration`, `keyExtractor`, `onLimitReached`
 - [ ] Implement `Middleware.timeout(Duration)` — request timeout
 - [ ] Implement `Middleware.compress()` — gzip/deflate response compression
-- [ ] Implement `Middleware.cookieParser()` — parses cookies into `req.cookies()`
-- [ ] Implement `Middleware.cookieParser(String secret)` — with signed cookie support
-- [ ] Implement `Middleware.session(SessionStore)` — session management
+- [x] Cookie parsing — landed differently than planned: no middleware needed. `req.cookies()`/
+  `req.cookie(name)` parse the `Cookie` header transparently, always (`CookieHeader`,
+  `cafeai-core`). `cookieParser(String secret)`'s "signed cookie" idea became two real
+  middlewares instead: `Middleware.cookieSession(secret)` (signed) and
+  `Middleware.encryptedCookieSession(secret)` (encrypted) — see DEVELOPER_GUIDE §24.
+- [x] Implement `Middleware.session(SessionStore)` — session management. `SessionStore.inMemory()`
+  (core, dev/test) / `SessionStore.sqlite()` (`cafeai-session` module, real default). See
+  DEVELOPER_GUIDE §24.
 - [ ] `Middleware.json()` — see ROADMAP-01 Phase 2 (cross-reference)
 
 #### Output

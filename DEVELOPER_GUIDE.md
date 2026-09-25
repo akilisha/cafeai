@@ -105,6 +105,15 @@ without a version — pin them to `0.4.0` (or import a version catalog).
     - [23.2 Investigation and redaction](#232-investigation-and-redaction)
     - [23.3 Sinks](#233-sinks)
     - [23.4 Connecting to a cluster](#234-connecting-to-a-cluster)
+24. [HTTP Sessions — cafeai-session](#24-http-sessions--cafeai-session)
+    - [24.1 Store-backed sessions](#241-store-backed-sessions--middlewaresessionsessionstore)
+    - [24.2 Stateless cookie sessions](#242-stateless-cookie-sessions--middlewarecookiesession)
+    - [24.3 Encrypted cookie sessions](#243-encrypted-cookie-sessions--middlewareencryptedcookiesession)
+    - [24.4 What the browser can and can't read](#244-what-the-browser-can-and-cant-read)
+25. [cafeai-flight — JVM Visibility via Flight Recorder](#25-cafeai-flight--jvm-visibility-via-flight-recorder)
+    - [25.1 Adding cafeai-flight](#251-adding-cafeai-flight)
+    - [25.2 Categories and thresholds](#252-categories-and-thresholds)
+    - [25.3 Relationship to cafeai-observability](#253-relationship-to-cafeai-observability)
 
 ---
 
@@ -460,6 +469,23 @@ if (!res.headersSent()) {
     res.status(500).json(Map.of("error", "Something went wrong"));
 }
 ```
+
+### Running code right before the response is sent
+
+Code after `next.run()` in a middleware (ordinary post-processing) usually runs
+**after** the response has already committed — too late to add a header, because
+the terminal handler has almost certainly already called `send()`/`json()`/etc. by
+then. `res.beforeSend(Runnable)` is the hook for when a header's value depends on
+what the downstream handler did — it runs once, right before whichever terminal
+method actually commits the response:
+
+```java
+res.beforeSend(() -> res.set("X-Response-Time", String.valueOf(elapsedMs())));
+```
+
+`Middleware.session(...)`/`cookieSession(...)` (§24) are the reference users — a
+session cookie's content, or even just its refreshed expiry, isn't known until the
+handler finishes mutating `req.session()`.
 
 ---
 
@@ -1597,6 +1623,8 @@ cafeai-core          ← always required; HTTP + AI primitives
 cafeai-config        ← optional; unlocks file/profile-based AppConfig resolution
 cafeai-memory        ← optional; unlocks mapped, redis, hybrid memory
 cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
+cafeai-session       ← optional; unlocks SessionStore.sqlite() for Middleware.session() (§24)
+cafeai-flight        ← optional; JVM visibility via Flight Recorder → OTel metrics (§25)
 cafeai-examples      ← reference; not a runtime dependency
 ```
 
@@ -2652,3 +2680,199 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'
 }
 ```
+
+---
+
+## 24. HTTP Sessions — `cafeai-session`
+
+CafeAI ships three HTTP session mechanisms, mirroring Express's two session
+packages (`express-session`, `cookie-session`) plus a confidentiality variant
+neither has. All three attach the same `Session` to `req.session()`
+(`get`/`set`/`remove`/`invalidate`) — only the backing mechanism differs.
+
+**Disambiguation, worth stating plainly:** this is not `MemoryStrategy`'s
+"session" (§14) — that's LLM chat history, keyed by an app-chosen `sessionId`,
+usually from an `X-Session-Id` header. It's also not `WsSession` (§13) — a
+WebSocket connection handle. "Session" means three different things in
+CafeAI; this chapter is about the classic Express-style HTTP session (a
+cookie pointing at login state, cart contents, flash messages). The default
+cookie name, `cafeai.sid`, is deliberately distinct from the AI story's
+`X-Session-Id` header so a request trace showing both doesn't read as a
+contradiction.
+
+### 24.1 Store-backed sessions — `Middleware.session(SessionStore)`
+
+The Express `express-session` equivalent: the cookie carries only an opaque
+ID, the attribute data lives server-side.
+
+```java
+app.filter(Middleware.session(SessionStore.sqlite()));
+
+app.post("/login", (req, res, next) -> {
+    req.session().set("userId", user.id());
+    res.json(Map.of("status", "ok"));
+});
+
+app.post("/logout", (req, res, next) -> {
+    req.session().invalidate();
+    res.json(Map.of("status", "ok"));
+});
+```
+
+`SessionStore.inMemory()` (in `cafeai-core`, zero dependencies) is the dev/test
+rung — sessions are lost on restart, same caveat as `MemoryStrategy.inMemory()`.
+`SessionStore.sqlite()` (the `cafeai-session` module — `org.xerial:sqlite-jdbc`
+over a HikariCP pool, WAL mode) is the real default: sessions survive a
+restart, real concurrent connections. It is explicitly **single-instance
+only**. There is no shipped `SessionStore.redis(...)` rung — a multi-instance
+deployment needs a shared store, and `SessionStore` is a five-method
+interface; `RedisSessionExample` in `cafeai-examples` shows the ~40 lines it
+takes to back it with Lettuce yourself. Neither store is chosen for you —
+every call is explicit, so what you get never depends on what happens to be
+on the classpath.
+
+```groovy
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-session:0.4.0'
+}
+```
+
+Settings: `cafeai.http.session.cookie.name` (`cafeai.sid`),
+`cafeai.http.session.idle.timeout` (30m), `cafeai.session.sqlite.path`
+(`${java.io.tmpdir}/cafeai/sessions.db`), `cafeai.session.sqlite.pool.size` (4).
+
+### 24.2 Stateless cookie sessions — `Middleware.cookieSession(secret)`
+
+The Express `cookie-session` equivalent: no server-side store at all — the
+whole attribute bag is HMAC-SHA256-signed straight into the cookie value.
+
+```java
+app.filter(Middleware.cookieSession(System.getenv("SESSION_SECRET")));
+
+// Key rotation: sign with the first, verify against any
+app.filter(Middleware.cookieSession(List.of(newSecret, oldSecret), SessionOptions.defaults()));
+```
+
+Signing proves the cookie wasn't tampered with; it does **not** hide its
+contents — anything in a `cookieSession` is readable by the client (see
+§24.4). A tampered, expired, or wrong-secret cookie is treated exactly like
+no cookie at all: a fresh session, never an error response. No `cafeai-session`
+module needed — this lives entirely in `cafeai-core`. Setting:
+`cafeai.http.session.cookie.maxBytes` (4093 — browsers guarantee roughly
+4096 bytes per cookie).
+
+### 24.3 Encrypted cookie sessions — `Middleware.encryptedCookieSession(secret)`
+
+The confidentiality follow-up to `cookieSession`: AES-GCM encrypts the
+session into the cookie instead of signing it. GCM's authentication tag
+already proves the ciphertext wasn't tampered with — the same job HMAC does
+for `cookieSession` — so encryption replaces signing here rather than
+layering both.
+
+```java
+app.filter(Middleware.encryptedCookieSession(System.getenv("SESSION_KEY")));
+```
+
+The key is SHA-256-hashed into AES-256 — the secret is expected to already
+be high-entropy (same assumption `cookieSession` makes), not a password, so
+no password-based key stretching is applied. Same `beforeSend` timing, same
+fail-open behaviour, same `List<String>`-based rotation as `cookieSession` —
+only the envelope differs.
+
+### 24.4 What the browser can and can't read
+
+A question all three variants provoke: if a session cookie is `HttpOnly`
+(the default for every session middleware above) — or encrypted, on top of
+that — how does a browser-side SPA read a JWT or a permissions flag it needs
+to decide what to render? It can't, and that's true regardless of
+encryption: `document.cookie` never sees an `HttpOnly` cookie's value. That's
+a browser-API restriction, not a crypto one — the browser still attaches the
+cookie to every request automatically, JS just never touches it. Encryption
+only changes what happens if that restriction is ever bypassed (an XSS, a
+rogue extension) — signed-but-plaintext leaks the session then, encrypted
+doesn't.
+
+Anything the SPA does need goes through a channel built for it — either an
+endpoint (`GET /me`) that reads `req.session()` server-side and returns
+exactly what's safe to expose, recomputed fresh on every call, or a
+short-lived bearer token minted at login and returned in the response body
+(a genuinely separate value from the session cookie, not a view into it).
+`SpaSessionExample` in `cafeai-examples` runs both against one
+`encryptedCookieSession`-backed app and proves them independent: `/me` works
+from the cookie with zero token involved, `/protected` verifies a bearer
+JWT with zero cookie involved. Its `MiniJwt` codec is a ~30-line hand-rolled
+HS256 implementation, deliberately example-only — CafeAI does not ship a JWT
+library or API; minting/verifying tokens is a solved, commodity problem
+(jjwt, nimbus-jose-jwt, ...) with nothing CafeAI-specific to add.
+
+---
+
+## 25. `cafeai-flight` — JVM Visibility via Flight Recorder
+
+`cafeai-observability` (§20) instruments the AI story — a span per
+LLM/RAG/agent call. It has nothing to say about the JVM underneath: a GC
+pause, allocation pressure, lock contention, or — specific to a framework
+built entirely on virtual threads — a virtual thread pinned to its carrier.
+`cafeai-flight` closes that gap with Java Flight Recorder
+(`jdk.jfr.consumer.RecordingStream`, stable since JDK 14), surfaced as
+OpenTelemetry metrics under `cafeai.flight.*`.
+
+```java
+var flight = FlightBridge.builder()
+    .categories(FlightCategory.GC, FlightCategory.VIRTUAL_THREADS)  // the defaults
+    .build();
+flight.start();
+// ... app.listen(...) ...
+Runtime.getRuntime().addShutdownHook(new Thread(flight::close));
+```
+
+Not wired into `app.listen()`/`app.stop()` — no such generic lifecycle
+registration mechanism exists in CafeAI today, so `FlightBridge` is started
+and stopped by the developer, the same way `SqliteSessionStore` (§24) and the
+memory strategies are.
+
+### 25.1 Adding cafeai-flight
+
+```groovy
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-flight:0.4.0'
+}
+```
+
+### 25.2 Categories and thresholds
+
+`FlightCategory` groups related JFR events so callers don't need raw JFR
+event-name strings:
+
+| Category | JFR events | Default threshold |
+|---|---|---|
+| `GC` | `jdk.GCPhasePause`, `jdk.GarbageCollection` | 0 (always) |
+| `VIRTUAL_THREADS` | `jdk.VirtualThreadPinned`, `jdk.VirtualThreadSubmitFailed` | 20ms |
+| `CONTENTION` | `jdk.JavaMonitorEnter`, `jdk.JavaMonitorWait`, `jdk.ThreadPark` | 10ms |
+| `ALLOCATION` | `jdk.ObjectAllocationSample` | n/a (sampling) |
+| `CPU` | `jdk.CPULoad` | n/a (periodic, ~1s) |
+| `IO` | `jdk.SocketRead`/`Write`, `jdk.FileRead`/`Write` | 5ms |
+
+`GC` and `VIRTUAL_THREADS` are the defaults — the two most likely to explain
+a production slowdown in a virtual-thread-heavy application. `ALLOCATION`,
+`CPU`, and `IO` are higher-volume and opt-in. The headline event is
+`jdk.VirtualThreadPinned`: a virtual thread stuck to its carrier — inside a
+`synchronized` block, for instance — past a threshold. For a framework where
+every request runs on a virtual thread, this is usually the first thing
+worth asking a JVM about when things get slow, and it costs nothing to
+leave on — JFR's whole design point is low, always-on production overhead.
+An escape hatch, `Builder.rawEvent(String jfrEventName, Duration threshold)`,
+covers any JFR event `FlightCategory` doesn't wrap. Setting:
+`cafeai.flight.threshold` (20ms — the fallback for categories without a more
+specific built-in default).
+
+### 25.3 Relationship to cafeai-observability
+
+Deliberately independent, no dependency either direction — both simply call
+`GlobalOpenTelemetry.get()` and share whatever exporter the application
+registers. CafeAI does not manage the OTel SDK lifecycle for either module;
+configure your own exporter the same way for both. No dashboard is shipped
+by `cafeai-flight` — point an existing OTel-compatible one (Grafana, etc.)
+at the same exporter and these metrics show up next to everything else.
