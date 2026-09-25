@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.cafeai.core.*;
+import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.session.Session;
 import io.cafeai.core.session.SessionOptions;
@@ -20,6 +21,10 @@ import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -308,15 +313,16 @@ public final class BuiltInMiddleware {
     /**
      * HTTP session middleware. See {@link Middleware#session(SessionStore)}.
      *
-     * <p>The session cookie is set <strong>before</strong> {@code next.run()} --
-     * headers set after the downstream chain returns do not reach the client,
-     * because the terminal handler has almost certainly already committed the
-     * response by then (see the Post-Processing Middleware discussion). Only
-     * {@code store.save()}/{@code store.destroy()} -- pure persistence, not HTTP
-     * output -- run after {@code next.run()}. {@code session.invalidate()} is bound
-     * to clear the cookie synchronously, at the moment a handler calls it (e.g. a
-     * {@code /logout} route), since that happens before that same handler sends
-     * its own response.
+     * <p>The session cookie is set from a {@link io.cafeai.core.routing.Response#beforeSend}
+     * hook -- registered before {@code next.run()}, but not actually run until the
+     * response is about to commit. Code placed directly after {@code next.run()}
+     * (ordinary post-processing) usually runs too late -- the terminal handler has
+     * almost certainly already sent the response by then (see the Post-Processing
+     * Middleware discussion). Only {@code store.save()}/{@code store.destroy()} --
+     * pure persistence, not HTTP output -- run there. {@code session.invalidate()}
+     * is bound to clear the cookie synchronously, at the moment a handler calls it
+     * (e.g. a {@code /logout} route), since that happens before that same handler's
+     * own {@code beforeSend} hook fires.
      */
     public static Middleware session(SessionStore store, SessionOptions options) {
         return (req, res, next) -> {
@@ -339,17 +345,122 @@ public final class BuiltInMiddleware {
                 store.destroy(current.id());
                 res.clearCookie(cookieName, options.cookieOptions());
             });
-
-            res.cookie(cookieName, current.id(), options.cookieOptions());
             req.setAttribute(Attributes.HTTP_SESSION, current);
 
-            next.run();
-
-            if (!current.isInvalidated()) {
+            res.beforeSend(() -> {
+                if (current.isInvalidated()) return;
                 current.touch();
                 store.save(current);
-            }
+                res.cookie(cookieName, current.id(), options.cookieOptions());
+            });
+
+            next.run();
         };
+    }
+
+    private static final int MIN_COOKIE_SESSION_SECRET_LENGTH = 32;
+
+    // Sentinel, not a real identifier -- cookie-session has no server-side key to speak of.
+    // A fresh random ID here would look like identity but silently change every request.
+    private static final String COOKIE_SESSION_ID = "cookie-session";
+
+    /**
+     * Stateless cookie-session middleware. See {@link Middleware#cookieSession(String)}.
+     *
+     * <p>Unlike {@link #session(SessionStore, SessionOptions)}, the cookie's content
+     * <strong>is</strong> the session data, so it cannot be finalised until the handler
+     * has finished mutating {@code req.session()} -- which happens during
+     * {@code next.run()}. {@link io.cafeai.core.routing.Response#beforeSend} is the one
+     * point late enough to see the final data and still early enough to be honored.
+     */
+    public static Middleware cookieSession(List<String> secrets, SessionOptions options) {
+        if (secrets == null || secrets.isEmpty()) {
+            throw new IllegalArgumentException("Middleware.cookieSession requires at least one secret.");
+        }
+        String signingSecret = secrets.get(0);
+        if (signingSecret.length() < MIN_COOKIE_SESSION_SECRET_LENGTH) {
+            log.warn("Middleware.cookieSession: the signing secret is shorter than {} characters; " +
+                "use a longer, random value in production.", MIN_COOKIE_SESSION_SECRET_LENGTH);
+        }
+
+        return (req, res, next) -> {
+            String cookieName = options.cookieName();
+            String cookieValue = req.cookie(cookieName);
+            Session session = (cookieValue != null)
+                ? decodeCookieSession(cookieValue, secrets, options.idleTimeout())
+                : null;
+            if (session == null) session = new Session(COOKIE_SESSION_ID);
+
+            final Session current = session;
+            current.bindInvalidationHook(() -> res.clearCookie(cookieName, options.cookieOptions()));
+            req.setAttribute(Attributes.HTTP_SESSION, current);
+
+            res.beforeSend(() -> {
+                if (current.isInvalidated()) return;
+                current.touch();
+                String encoded = encodeCookieSession(current, signingSecret);
+                int limit = AppConfig.load().get(Middleware.MAX_COOKIE_SESSION_BYTES);
+                if (encoded.length() > limit) {
+                    throw new Middleware.CookieSessionTooLargeException(
+                        "Cookie-session payload is " + encoded.length() + " bytes, over the "
+                        + limit + "-byte limit (cafeai.http.session.cookie.maxBytes). "
+                        + "Store less in the session, or use Middleware.session(SessionStore) instead.");
+                }
+                res.cookie(cookieName, encoded, options.cookieOptions());
+            });
+
+            next.run();
+        };
+    }
+
+    private record CookieSessionPayload(Map<String, Object> attributes, long createdAt, long lastAccessedAt) {}
+
+    private static String encodeCookieSession(Session session, String secret) {
+        try {
+            var payload = new CookieSessionPayload(session.attributes(),
+                session.createdAt().toEpochMilli(), session.lastAccessedAt().toEpochMilli());
+            String encodedPayload = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(MAPPER.writeValueAsBytes(payload));
+            return encodedPayload + "." + hmac(encodedPayload, secret);
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot encode cookie session", e);
+        }
+    }
+
+    private static Session decodeCookieSession(String cookieValue, List<String> secrets, Duration idleTimeout) {
+        int dot = cookieValue.lastIndexOf('.');
+        if (dot < 0) return null;
+        String encodedPayload = cookieValue.substring(0, dot);
+        String signature       = cookieValue.substring(dot + 1);
+
+        boolean verified = secrets.stream().anyMatch(secret -> MessageDigest.isEqual(
+            hmac(encodedPayload, secret).getBytes(StandardCharsets.US_ASCII),
+            signature.getBytes(StandardCharsets.US_ASCII)));
+        // Wrong/rotated-out secret, or tampered -- fail open into a new session, not an error.
+        if (!verified) return null;
+
+        try {
+            var payload = MAPPER.readValue(Base64.getUrlDecoder().decode(encodedPayload), CookieSessionPayload.class);
+            Instant lastAccessedAt = Instant.ofEpochMilli(payload.lastAccessedAt());
+            if (Duration.between(lastAccessedAt, Instant.now()).compareTo(idleTimeout) > 0) {
+                return null; // idle-expired -- same rule Middleware.session(store) applies
+            }
+            return new Session(COOKIE_SESSION_ID, payload.attributes(),
+                Instant.ofEpochMilli(payload.createdAt()), lastAccessedAt);
+        } catch (Exception e) {
+            return null; // malformed/corrupt payload -- fail open, same as SqliteSessionStore.load()
+        }
+    }
+
+    private static String hmac(String payload, String secret) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(mac.doFinal(payload.getBytes(StandardCharsets.US_ASCII)));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("HmacSHA256 is unavailable", e); // every JVM has it
+        }
     }
 
     // -- URL-Encoded Body Parser (ROADMAP-01 Phase 7) --------------------------

@@ -1792,6 +1792,7 @@ builder, `RedisConfig.sessionTtl(...)`, ...), the setter wins over the setting. 
 | `cafeai.http.file.block` | 65536 (64 KB) | Bytes copied per write when a file is streamed to a client (sendFile, download, serveStatic). |
 | `cafeai.http.session.cookie.name` | cafeai.sid | Name of the cookie that carries the opaque HTTP session ID. |
 | `cafeai.http.session.idle.timeout` | 30m | How long an HTTP session may be idle before Middleware.session() destroys it. |
+| `cafeai.http.session.cookie.maxBytes` | 4093 | Largest encoded+signed payload Middleware.cookieSession(...) will write to a cookie, in bytes. |
 
 **HTTP sessions (cafeai-session)**
 

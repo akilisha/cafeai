@@ -120,7 +120,7 @@ POST_LLM guardrails are not built this way. They run inside `app.prompt()` on th
 
 ## HTTP Sessions
 
-The pre/post split above has a sharp edge, and the built-in session middleware is the cleanest place to see it. A cookie is a response header, and headers set after `next.run()` returns do not reach the client — by then the terminal handler has almost certainly already called `res.send()`/`res.json()`, which commits the response. So `Middleware.session(...)` sets the session cookie *before* `next.run()`, not after:
+The pre/post split above has a sharp edge, and the built-in session middleware is the cleanest place to see it. A cookie is a response header, and headers set after `next.run()` returns do not reach the client — by then the terminal handler has almost certainly already called `res.send()`/`res.json()`, which commits the response. So `Middleware.session(...)` doesn't set the cookie in ordinary post-processing:
 
 ```java
 app.filter(Middleware.session(SessionStore.sqlite()));
@@ -142,7 +142,29 @@ One disambiguation before going further: this is not the "session" from [Post 5]
 
 `SqliteSessionStore` is single-instance only, and deliberately so — this is where the story diverges from Post 5's Redis rung. `MemoryStrategy.redis(...)` is a maintained CafeAI rung: add `cafeai-memory`, call `MemoryStrategy.redis(config)`, done. There is no equivalent `SessionStore.redis(...)`. A multi-instance deployment needs a session store shared across pods, and CafeAI does not ship one — `SessionStore` is a five-method interface, and `RedisSessionExample` in `cafeai-examples` shows the ~40 lines it takes to back it with Lettuce yourself. The asymmetry is deliberate: worth calling out precisely because a reader who just finished Post 5 will expect symmetry and not find it.
 
-Back to the pre/post split: only `store.save(...)`/`store.destroy(...)` — plain persistence, not HTTP output — run after `next.run()`. The one case that needs to touch *this* response's cookie mid-handler is `invalidate()`: a `/logout` route calls it, then sends its own `res.json(...)`, all before control returns to the middleware. So invalidation doesn't wait for post-processing — it clears the cookie synchronously, the moment it's called, which is exactly why `next.run()`'s pre/post boundary can't be where it happens.
+So where *does* the cookie get set? Not before `next.run()` either — a fixed ID could be decided that early, but committing to it before the handler runs would mean the middleware can't tell yet whether the handler will call `invalidate()` a moment later. CafeAI resolves this with a third point in a response's lifecycle, alongside pre- and post-processing: `res.beforeSend(...)`, a hook that runs immediately before whichever terminal call (`send`/`json`/`end`/`redirect`/...) actually commits the response — late enough to reflect everything the handler did, early enough that a header set there still reaches the client:
+
+```java
+res.beforeSend(() -> {
+    session.touch();
+    store.save(session);
+    res.cookie("cafeai.sid", session.id(), cookieOptions);
+});
+```
+
+`store.save(...)`/`store.destroy(...)` — plain persistence, not HTTP output — could safely happen in ordinary post-processing; the cookie write is what needs `beforeSend`. The one case that needs to touch *this* response's cookie even earlier than that is `invalidate()`: a `/logout` route calls it, then sends its own `res.json(...)`, all before the handler returns and `beforeSend` fires. So invalidation doesn't wait either — it clears the cookie synchronously, the moment it's called, and the `beforeSend` hook checks for that and skips re-setting it.
+
+### The stateless alternative: `cookieSession`
+
+`Middleware.session(store)` mirrors Express's `express-session` — the cookie carries only an ID, the data lives server-side. Express ships a second package, `cookie-session`, with the opposite architecture: no server-side store at all, the entire attribute bag is HMAC-signed straight into the cookie value. CafeAI has both — `Middleware.cookieSession(secret)` is the second one:
+
+```java
+app.filter(Middleware.cookieSession(System.getenv("SESSION_SECRET")));
+```
+
+`beforeSend` isn't just convenient for `cookieSession` — it's the only place this can work at all. For `Middleware.session(store)`, the cookie only ever needs to carry a fixed, pre-decided ID, so setting it earlier was always an option (an earlier draft of this middleware did exactly that, before `beforeSend` existed, at the cost of an occasional redundant `Set-Cookie` header on the same response). `cookieSession` has no such escape: the cookie's *content* is the session data, and that data isn't final until the handler has finished calling `req.session().set(...)` — which happens during `next.run()`. There is no point in the old pre/post model where a correct value was ever available. `beforeSend` is what makes the feature possible, not just cleaner.
+
+Signing proves the cookie wasn't tampered with; it does not hide its contents — anything in a `cookieSession` is readable by the client, so it's the wrong tool for anything secret. A tampered, expired, or wrong-secret cookie is treated exactly like no cookie at all: a fresh session, never an error response. And because there's no store, `SessionStore.redis(...)`-style horizontal scaling isn't a question here the way it is for `Middleware.session(...)` — a signed cookie is inherently shareable across any number of instances that hold the same secret.
 
 ---
 

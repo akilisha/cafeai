@@ -1,10 +1,13 @@
 package io.cafeai.core.middleware;
 
+import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
 import io.cafeai.core.session.SessionOptions;
 import io.cafeai.core.session.SessionStore;
+
+import java.util.List;
 
 /**
  * The fundamental unit of composability in CafeAI. (ADR-002, ADR-009)
@@ -150,5 +153,47 @@ public interface Middleware {
     /** {@link #session(SessionStore)} with explicit cookie/timeout options. */
     static Middleware session(SessionStore store, SessionOptions options) {
         return BuiltInMiddleware.session(store, options);
+    }
+
+    /** Largest signed cookie-session payload {@link #cookieSession(String)} will emit. */
+    ConfigKey<Integer> MAX_COOKIE_SESSION_BYTES = ConfigKey.of(
+        "cafeai.http.session.cookie.maxBytes", Integer.class, 4093,
+        "Largest encoded+signed payload Middleware.cookieSession(...) will write to a cookie, " +
+        "in bytes. 4093 leaves headroom under the ~4096-byte single-cookie limit most browsers guarantee.");
+
+    /**
+     * Stateless HTTP session middleware -- the whole session is signed and stored
+     * in the cookie itself; no server-side store. Mirrors Express {@code cookie-session},
+     * as opposed to {@link #session(SessionStore)} (Express {@code express-session}).
+     *
+     * <p>{@code secret} is the HMAC-SHA256 signing key. Use a long, random value --
+     * signing proves the cookie wasn't tampered with, it does not hide its contents
+     * (the client can read every attribute; do not put secrets in the session itself).
+     *
+     * <pre>{@code
+     *   app.filter(Middleware.cookieSession(System.getenv("SESSION_SECRET")));
+     * }</pre>
+     */
+    static Middleware cookieSession(String secret) {
+        return cookieSession(List.of(secret), SessionOptions.defaults());
+    }
+
+    /** {@link #cookieSession(String)} with explicit cookie/timeout options. */
+    static Middleware cookieSession(String secret, SessionOptions options) {
+        return cookieSession(List.of(secret), options);
+    }
+
+    /**
+     * {@link #cookieSession(String, SessionOptions)} with secret rotation: cookies are
+     * signed with {@code secrets.get(0)} and verified against any of {@code secrets},
+     * so an old secret keeps validating existing cookies while a new one phases in.
+     */
+    static Middleware cookieSession(List<String> secrets, SessionOptions options) {
+        return BuiltInMiddleware.cookieSession(secrets, options);
+    }
+
+    /** Thrown when a session's encoded, signed payload exceeds {@link #MAX_COOKIE_SESSION_BYTES}. */
+    class CookieSessionTooLargeException extends RuntimeException {
+        public CookieSessionTooLargeException(String message) { super(message); }
     }
 }

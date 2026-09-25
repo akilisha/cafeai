@@ -178,6 +178,24 @@ public interface Response {
      */
     boolean headersSent();
 
+    /**
+     * Registers a hook that runs immediately before the response is sent --
+     * the last point at which a header or cookie can still be added, after
+     * everything downstream (including the route handler) has run. Hooks run
+     * once, in registration order, right before whichever terminal method
+     * (send/json/end/redirect/sendFile/stream/...) is called first; never if
+     * the response is never sent. Returns {@code this} for chaining.
+     *
+     * <p>Exists because code placed after {@code next.run()} in a middleware
+     * (ordinary post-processing) usually runs <strong>after</strong> the
+     * response has already committed -- too late to add a header. This is
+     * the hook to use instead when a header's value depends on what the
+     * downstream handler did. {@code Middleware.cookieSession(...)} is the
+     * reference user: the session cookie's content isn't known until the
+     * handler has finished mutating {@code req.session()}.
+     */
+    Response beforeSend(Runnable hook);
+
     // ── Cookies ───────────────────────────────────────────────────────────────
 
     /**

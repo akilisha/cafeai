@@ -101,11 +101,9 @@ class SessionMiddlewareTest {
 
         var logout = post("/logout", sid, "");
 
-        // Two Set-Cookie headers are sent for cafeai.sid: the middleware's
-        // pre-next.run() set (see BuiltInMiddleware.session()'s Javadoc), then
-        // invalidate()'s synchronous clear. Per RFC 6265, a client applies
-        // Set-Cookie headers in order, so the clearing one wins client-side --
-        // assert it's present among all of them, not just the first.
+        // Exactly one Set-Cookie header: invalidate() clears it synchronously via
+        // its bound hook, and the middleware's own beforeSend hook (which would
+        // otherwise set/refresh the cookie) checks isInvalidated() and no-ops.
         var setCookies = logout.headers().allValues("Set-Cookie");
         assertThat(setCookies).anySatisfy(c ->
             assertThat(c).contains("cafeai.sid=;").contains("Max-Age=0"));

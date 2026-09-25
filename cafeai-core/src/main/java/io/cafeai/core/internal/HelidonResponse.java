@@ -18,7 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Flow;
@@ -52,6 +54,7 @@ public final class HelidonResponse implements Response {
 
     private final ServerResponse helidonRes;
     private final Map<String, Object> locals = new ConcurrentHashMap<>();
+    private final List<Runnable> beforeSendHooks = new ArrayList<>();
 
     private Request pairedRequest;
     private CafeAI  app;
@@ -233,6 +236,12 @@ public final class HelidonResponse implements Response {
     @Override
     public boolean headersSent() {
         return committed;
+    }
+
+    @Override
+    public Response beforeSend(Runnable hook) {
+        beforeSendHooks.add(hook);
+        return this;
     }
 
     // -- Cookies ---------------------------------------------------------------
@@ -560,6 +569,7 @@ public final class HelidonResponse implements Response {
     }
 
     private void commit() {
+        for (Runnable hook : beforeSendHooks) hook.run();
         committed = true;
     }
 }
