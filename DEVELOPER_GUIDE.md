@@ -1790,6 +1790,15 @@ builder, `RedisConfig.sessionTtl(...)`, ...), the setter wins over the setting. 
 |---|---|---|
 | `cafeai.http.body.limit` | 102400 (100 KB) | Largest request body, in bytes, the body parsers accept unless their options set a limit. |
 | `cafeai.http.file.block` | 65536 (64 KB) | Bytes copied per write when a file is streamed to a client (sendFile, download, serveStatic). |
+| `cafeai.http.session.cookie.name` | cafeai.sid | Name of the cookie that carries the opaque HTTP session ID. |
+| `cafeai.http.session.idle.timeout` | 30m | How long an HTTP session may be idle before Middleware.session() destroys it. |
+
+**HTTP sessions (cafeai-session)**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.session.sqlite.path` | `${java.io.tmpdir}/cafeai/sessions.db` | File path of the SQLite database backing SessionStore.sqlite(). |
+| `cafeai.session.sqlite.pool.size` | 4 | Pooled JDBC connections SqliteSessionStore keeps open. |
 
 **Guardrails**
 

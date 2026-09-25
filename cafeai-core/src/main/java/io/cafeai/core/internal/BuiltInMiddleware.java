@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.cafeai.core.*;
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.session.Session;
+import io.cafeai.core.session.SessionOptions;
+import io.cafeai.core.session.SessionStore;
 import io.helidon.http.HeaderNames;
 import io.helidon.webserver.http.ServerRequest;
 import org.slf4j.Logger;
@@ -21,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -296,6 +300,55 @@ public final class BuiltInMiddleware {
                 return;
             }
             next.run();
+        };
+    }
+
+    // -- HTTP Session ------------------------------------------------------------
+
+    /**
+     * HTTP session middleware. See {@link Middleware#session(SessionStore)}.
+     *
+     * <p>The session cookie is set <strong>before</strong> {@code next.run()} --
+     * headers set after the downstream chain returns do not reach the client,
+     * because the terminal handler has almost certainly already committed the
+     * response by then (see the Post-Processing Middleware discussion). Only
+     * {@code store.save()}/{@code store.destroy()} -- pure persistence, not HTTP
+     * output -- run after {@code next.run()}. {@code session.invalidate()} is bound
+     * to clear the cookie synchronously, at the moment a handler calls it (e.g. a
+     * {@code /logout} route), since that happens before that same handler sends
+     * its own response.
+     */
+    public static Middleware session(SessionStore store, SessionOptions options) {
+        return (req, res, next) -> {
+            String cookieName = options.cookieName();
+            String id = req.cookie(cookieName);
+            Session session = (id != null) ? store.load(id) : null;
+
+            if (session != null) {
+                boolean expired = Duration.between(session.lastAccessedAt(), Instant.now())
+                    .compareTo(options.idleTimeout()) > 0;
+                if (expired) {
+                    store.destroy(session.id());
+                    session = null;
+                }
+            }
+            if (session == null) session = store.create();
+
+            final Session current = session;
+            current.bindInvalidationHook(() -> {
+                store.destroy(current.id());
+                res.clearCookie(cookieName, options.cookieOptions());
+            });
+
+            res.cookie(cookieName, current.id(), options.cookieOptions());
+            req.setAttribute(Attributes.HTTP_SESSION, current);
+
+            next.run();
+
+            if (!current.isInvalidated()) {
+                current.touch();
+                store.save(current);
+            }
         };
     }
 

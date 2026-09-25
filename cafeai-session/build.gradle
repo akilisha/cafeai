@@ -1,0 +1,34 @@
+// ============================================================
+//  cafeai-session
+//  SQLite-backed HTTP session store for CafeAI (Middleware.session()).
+//
+//  Add to your project:
+//    implementation 'com.akilisha.oss:cafeai-session'
+//
+//  Then register in your app:
+//    app.filter(Middleware.session(SessionStore.sqlite()));
+//
+//  Single-instance only. For multi-instance/multi-pod deployments, supply
+//  your own SessionStore (Redis or otherwise) -- see RedisSessionExample
+//  in cafeai-examples.
+// ============================================================
+
+description = 'SQLite-backed HTTP session store for CafeAI (Middleware.session()). ' +
+    'Single-instance only.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+
+    // SQLite driver -- real WAL, real concurrent connections, real file durability.
+    // (Not sqlite4j/WASM: SQLITE_THREADSAFE=0 there rules out concurrent request load.)
+    implementation "org.xerial:sqlite-jdbc:${rootProject.ext.sqliteJdbcVersion}"
+
+    // Connection pooling -- same library cafeai-rag already uses for Postgres.
+    implementation "com.zaxxer:HikariCP:${rootProject.ext.hikariVersion}"
+
+    // JSON serialization for session attributes.
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${rootProject.ext.jacksonVersion}"
+}

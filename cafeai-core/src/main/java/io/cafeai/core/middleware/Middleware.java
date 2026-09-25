@@ -3,6 +3,8 @@ package io.cafeai.core.middleware;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
+import io.cafeai.core.session.SessionOptions;
+import io.cafeai.core.session.SessionStore;
 
 /**
  * The fundamental unit of composability in CafeAI. (ADR-002, ADR-009)
@@ -125,5 +127,28 @@ public interface Middleware {
      */
     static Middleware tokenBudget(int maxTokensPerSession) {
         return BuiltInMiddleware.tokenBudget(maxTokensPerSession);
+    }
+
+    /**
+     * HTTP session middleware -- attaches a {@code Session} to {@code req.session()},
+     * backed by {@code store}. Mirrors Express {@code session(store)}.
+     *
+     * <p>Not the AI-conversation "session" ({@code MemoryStrategy}) -- see
+     * {@code io.cafeai.core.session.Session}'s Javadoc for the disambiguation.
+     *
+     * <pre>{@code
+     *   app.filter(Middleware.session(SessionStore.sqlite()));
+     * }</pre>
+     *
+     * @param store the backing session store -- {@code SessionStore.inMemory()} for
+     *              dev/test, {@code SessionStore.sqlite()} for real deployments
+     */
+    static Middleware session(SessionStore store) {
+        return BuiltInMiddleware.session(store, SessionOptions.defaults());
+    }
+
+    /** {@link #session(SessionStore)} with explicit cookie/timeout options. */
+    static Middleware session(SessionStore store, SessionOptions options) {
+        return BuiltInMiddleware.session(store, options);
     }
 }

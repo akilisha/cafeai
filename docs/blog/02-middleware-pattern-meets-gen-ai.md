@@ -118,6 +118,34 @@ POST_LLM guardrails are not built this way. They run inside `app.prompt()` on th
 
 ---
 
+## HTTP Sessions
+
+The pre/post split above has a sharp edge, and the built-in session middleware is the cleanest place to see it. A cookie is a response header, and headers set after `next.run()` returns do not reach the client — by then the terminal handler has almost certainly already called `res.send()`/`res.json()`, which commits the response. So `Middleware.session(...)` sets the session cookie *before* `next.run()`, not after:
+
+```java
+app.filter(Middleware.session(SessionStore.sqlite()));
+
+app.post("/login", (req, res, next) -> {
+    req.session().set("userId", user.id());
+    res.json(Map.of("status", "ok"));
+});
+
+app.post("/logout", (req, res, next) -> {
+    req.session().invalidate();
+    res.json(Map.of("status", "ok"));
+});
+```
+
+One disambiguation before going further: this is not the "session" from [Post 5](05-context-memory-without-cloud-tax.md) — `MemoryStrategy`'s tiered rungs are LLM chat history, keyed by a `sessionId` you choose (usually an `X-Session-Id` header). This is the other, older meaning of the word: the classic Express-style HTTP session, a cookie pointing at a server-side bag of attributes — login state, cart contents, flash messages. Same English word, unrelated concept. The cookie name defaults to `cafeai.sid` rather than something session-sounding, on purpose, so a request trace showing both an `X-Session-Id` header and a `cafeai.sid` cookie doesn't read as a contradiction — it's two different features that happen to share a name.
+
+`SessionStore.inMemory()` is the zero-dependency rung — fine for development, gone on the next restart, same caveat `MemoryStrategy.inMemory()` carries. `SessionStore.sqlite()` is the real default: WAL-mode SQLite via `cafeai-session`, real concurrent connections, sessions that survive a restart. Neither is chosen for you — every store is explicit at the call site, so what you get is never a surprise depending on what happens to be on the classpath.
+
+`SqliteSessionStore` is single-instance only, and deliberately so — this is where the story diverges from Post 5's Redis rung. `MemoryStrategy.redis(...)` is a maintained CafeAI rung: add `cafeai-memory`, call `MemoryStrategy.redis(config)`, done. There is no equivalent `SessionStore.redis(...)`. A multi-instance deployment needs a session store shared across pods, and CafeAI does not ship one — `SessionStore` is a five-method interface, and `RedisSessionExample` in `cafeai-examples` shows the ~40 lines it takes to back it with Lettuce yourself. The asymmetry is deliberate: worth calling out precisely because a reader who just finished Post 5 will expect symmetry and not find it.
+
+Back to the pre/post split: only `store.save(...)`/`store.destroy(...)` — plain persistence, not HTTP output — run after `next.run()`. The one case that needs to touch *this* response's cookie mid-handler is `invalidate()`: a `/logout` route calls it, then sends its own `res.json(...)`, all before control returns to the middleware. So invalidation doesn't wait for post-processing — it clears the cookie synchronously, the moment it's called, which is exactly why `next.run()`'s pre/post boundary can't be where it happens.
+
+---
+
 ## Guardrails as Middleware
 
 The most important application of this pattern in CafeAI is guardrails. In most frameworks, safety checks are an afterthought — a library you call, a function you wrap around the LLM invocation, something that lives outside the pipeline and gets forgotten when deadlines arrive.

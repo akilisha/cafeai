@@ -1,6 +1,8 @@
 package io.cafeai.core.routing;
 
+import io.cafeai.core.Attributes;
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.session.Session;
 
 import java.util.List;
 import java.util.Map;
@@ -336,6 +338,28 @@ public interface Request {
      * CafeAI uses {@code req.response()} — more descriptive as a Java method name.
      */
     Response response();
+
+    // ── HTTP Session ─────────────────────────────────────────────────────────
+
+    /**
+     * Returns the current HTTP session. Requires {@code Middleware.session(store)}
+     * to be registered upstream (via {@code app.filter(...)}). Mirrors Express
+     * {@code req.session} as a property; CafeAI exposes it as a method, built on
+     * the same attribute-carrier convention as {@link #attribute(String, Class)}.
+     *
+     * <p>Not {@code MemoryStrategy}'s AI-conversation session -- see
+     * {@link Session}'s Javadoc for the disambiguation.
+     *
+     * @throws IllegalStateException if no session middleware is registered
+     */
+    default Session session() {
+        if (!hasAttribute(Attributes.HTTP_SESSION)) {
+            throw new IllegalStateException(
+                "No session middleware registered. Call app.filter(Middleware.session(store)) " +
+                "before req.session() is used.");
+        }
+        return attribute(Attributes.HTTP_SESSION, Session.class);
+    }
 
     // ── CafeAI Extensions (no Express equivalent) ─────────────────────────────
 

@@ -21,6 +21,7 @@ ext {
     lettuceVersion          = '6.3.2.RELEASE'
     hikariVersion           = '5.1.0'
     postgresqlVersion       = '42.7.13'
+    sqliteJdbcVersion       = '3.47.1.0'
     fabric8Version          = '6.13.4'   // ROADMAP-18 cafeai-sentinel; pin verified when P1 lands
     junitVersion            = '5.14.4'
     assertjVersion          = '3.27.7'

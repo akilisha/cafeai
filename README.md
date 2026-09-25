@@ -62,6 +62,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // audit events for blocked prompt injection
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // Redis, Ollama, pgvector
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0' // Mustache view engine
+    implementation 'com.akilisha.oss:cafeai-session:0.4.0'        // SQLite-backed HTTP session store
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'       // AI Kubernetes/OpenShift incident pipeline
 }
 ```
@@ -370,6 +371,7 @@ cafeai/
 ├── cafeai-security       ← Blocks prompt injection, raises audit events
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache ← Optional Mustache view engine
+├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder
 ```

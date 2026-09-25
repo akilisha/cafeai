@@ -57,4 +57,17 @@ public final class Attributes {
      * <p>Type: {@code String}
      */
     public static final String LLM_RESPONSE_TEXT = "cafeai.llm.responseText";
+
+    // -- HTTP Session ------------------------------------------------------------
+
+    /**
+     * The current request's HTTP session, set by {@code Middleware.session(...)}.
+     *
+     * <p>Distinct from {@link io.cafeai.core.memory.MemoryStrategy}'s AI-conversation
+     * session (LLM chat history) -- see {@link io.cafeai.core.session.Session}'s
+     * Javadoc for the disambiguation.
+     *
+     * <p>Type: {@link io.cafeai.core.session.Session}
+     */
+    public static final String HTTP_SESSION = "cafeai.http.session";
 }

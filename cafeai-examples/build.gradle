@@ -23,6 +23,12 @@ dependencies {
     implementation project(':cafeai-security')
     implementation project(':cafeai-connect')
     implementation project(':cafeai-agents')
+    implementation project(':cafeai-session')
+
+    // RedisSessionExample hand-rolls a SessionStore over Lettuce's sync API --
+    // cafeai-memory depends on it too, but as `implementation`, not `api`, so
+    // it isn't visible here transitively.
+    implementation "io.lettuce:lettuce-core:${rootProject.ext.lettuceVersion}"
 
     // Concrete SLF4J binding for the runnable app (the library modules ship none)
     runtimeOnly "ch.qos.logback:logback-classic:${rootProject.ext.logbackVersion}"

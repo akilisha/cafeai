@@ -9,6 +9,7 @@ include(
     'cafeai-guardrails',
     'cafeai-observability',
     'cafeai-security',
+    'cafeai-session',
     'cafeai-views-mustache',
     'cafeai-connect',
     'cafeai-agents',
