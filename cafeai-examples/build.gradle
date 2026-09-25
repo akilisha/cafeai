@@ -24,6 +24,12 @@ dependencies {
     implementation project(':cafeai-connect')
     implementation project(':cafeai-agents')
     implementation project(':cafeai-session')
+    implementation project(':cafeai-flight')
+
+    // FlightRecorderExample prints OTel metrics to the console for the demo --
+    // a real deployment would point an OTLP exporter at a real backend instead.
+    implementation "io.opentelemetry:opentelemetry-sdk:${rootProject.ext.opentelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-exporter-logging:${rootProject.ext.opentelemetryVersion}"
 
     // RedisSessionExample hand-rolls a SessionStore over Lettuce's sync API --
     // cafeai-memory depends on it too, but as `implementation`, not `api`, so

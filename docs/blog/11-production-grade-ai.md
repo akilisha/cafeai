@@ -88,6 +88,27 @@ The hooks — `beforePrompt`/`afterPrompt`, `beforeVision`/`afterVision`, `befor
 
 ---
 
+## JVM-Level Visibility with Flight Recorder
+
+Everything above answers "what happened in this LLM call." It has nothing to say about the JVM underneath it — a GC pause, allocation pressure, lock contention, or (specific to a framework built entirely on virtual threads) a virtual thread pinned to its carrier. `cafeai-flight` closes that gap with Java Flight Recorder, exported as OpenTelemetry metrics:
+
+```java
+var flight = FlightBridge.builder()
+    .categories(FlightCategory.GC, FlightCategory.VIRTUAL_THREADS)  // the defaults
+    .build();
+flight.start();
+// ... app.listen(...) ...
+Runtime.getRuntime().addShutdownHook(new Thread(flight::close));
+```
+
+`cafeai-flight` is deliberately independent of `cafeai-observability` — no dependency either direction. Both simply call `GlobalOpenTelemetry.get()`, so they share whatever exporter the application registers, for free, because that's how an OTel global registration already works. CafeAI has never managed the OTel SDK lifecycle for either module; configure your own exporter the same way for both.
+
+The headline event is `jdk.VirtualThreadPinned`: a virtual thread stuck to its carrier thread — inside a `synchronized` block, for instance — past a threshold (20ms by default, matching the JVM's own default). For a framework where every request runs on a virtual thread, this is usually the first thing worth asking a JVM about when things get slow, and it costs nothing to leave on: JFR's whole design point is low, always-on production overhead. `FlightCategory.GC` and `FlightCategory.VIRTUAL_THREADS` are the two enabled by default; `ALLOCATION`, `CPU`, and `IO` are higher-volume and opt-in.
+
+One explicit non-goal: `cafeai-flight` does not ship a dashboard. Point whatever OTel-compatible backend you already use (Grafana, Jaeger, Honeycomb, Datadog) at the same exporter, and these metrics show up next to everything else.
+
+---
+
 ## Beyond Observability — Watching a Cluster
 
 Observability answers "what happened." `cafeai-sentinel` is built on the same primitives to answer "is anything wrong right now, and why?" Nothing comes in over HTTP: it watches a Kubernetes or OpenShift namespace, triages every pod event with rules (no model call), coalesces related failures into one incident per owning Deployment, and only for a confirmed incident runs an `app.agent(...)` investigation with seven read-only cluster-reading tools. It ends at "structured incident published" — it is a pipeline, not a remediation product. See the developer guide's `cafeai-sentinel` chapter and the `cluster-sentinel` capstone.

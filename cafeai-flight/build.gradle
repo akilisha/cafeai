@@ -1,0 +1,37 @@
+// ============================================================
+//  cafeai-flight
+//  JVM-level visibility for CafeAI via Java Flight Recorder,
+//  surfaced as OpenTelemetry metrics.
+//
+//  Add to your project:
+//    implementation 'com.akilisha.oss:cafeai-flight'
+//
+//  Then start it:
+//    var flight = FlightBridge.builder().build();
+//    flight.start();
+//    // ... app.listen(...) ...
+//    Runtime.getRuntime().addShutdownHook(new Thread(flight::close));
+//
+//  Independent of cafeai-observability -- both just call
+//  GlobalOpenTelemetry.get(), so they share whatever exporter the
+//  application registers, with no dependency either direction.
+// ============================================================
+
+description = 'JVM-level visibility for CafeAI via Java Flight Recorder, ' +
+    'surfaced as OpenTelemetry metrics.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+
+    // ── OpenTelemetry ────────────────────────────────────────
+    // Bundled here (not just opentelemetry-api) so cafeai-flight works standalone,
+    // without needing cafeai-observability present just to get exporter jars on
+    // the classpath -- mirrors cafeai-observability's own dependency scoping.
+    implementation "io.opentelemetry:opentelemetry-api:${rootProject.ext.opentelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk:${rootProject.ext.opentelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp:${rootProject.ext.opentelemetryVersion}"
+
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${rootProject.ext.opentelemetryVersion}"
+}

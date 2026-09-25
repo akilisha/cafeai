@@ -1801,6 +1801,12 @@ builder, `RedisConfig.sessionTtl(...)`, ...), the setter wins over the setting. 
 | `cafeai.session.sqlite.path` | `${java.io.tmpdir}/cafeai/sessions.db` | File path of the SQLite database backing SessionStore.sqlite(). |
 | `cafeai.session.sqlite.pool.size` | 4 | Pooled JDBC connections SqliteSessionStore keeps open. |
 
+**Flight Recorder**
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `cafeai.flight.threshold` | 20ms | Default JFR event duration threshold below which an event is not recorded, for FlightCategory values without a more specific built-in default; FlightBridge.Builder.threshold(...) overrides it. |
+
 **Guardrails**
 
 | Setting | Default | What it controls |
