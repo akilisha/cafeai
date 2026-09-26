@@ -16,7 +16,7 @@ apply from: "$rootDir/gradle/capstone.gradle"
 dependencies {
     implementation project(':cafeai-core')
     implementation project(':cafeai-sentinel')
-    implementation project(':cafeai-agents')
+    implementation project(':cafeai-aiservices')
     implementation project(':cafeai-guardrails')
     implementation project(':cafeai-observability')
 }

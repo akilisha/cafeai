@@ -17,7 +17,7 @@ apply from: "$rootDir/gradle/capstone.gradle"
 
 dependencies {
     implementation project(':cafeai-core')
-    implementation project(':cafeai-agents')     // app.agent() — the reconciliation tool loop
+    implementation project(':cafeai-aiservices')     // app.agent() — the reconciliation tool loop
     implementation project(':cafeai-guardrails')
 
     // Gmail API + OAuth2

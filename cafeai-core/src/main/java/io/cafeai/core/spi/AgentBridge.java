@@ -12,7 +12,7 @@ import io.cafeai.core.rag.VectorStore;
 import java.util.List;
 
 /**
- * SPI that lets {@code cafeai-agents} provide agent registration and resolution
+ * SPI that lets {@code cafeai-aiservices} provide agent registration and resolution
  * without a circular compile-time dependency on {@code cafeai-core}.
  *
  * <p>{@code cafeai-core} loads the single implementation via
@@ -57,7 +57,7 @@ public interface AgentBridge {
     int count();
 
     /**
-     * The {@code cafeai-core} capabilities {@code cafeai-agents} borrows to
+     * The {@code cafeai-core} capabilities {@code cafeai-aiservices} borrows to
      * assemble an {@code AiServices} builder. All accessors may return
      * {@code null} when the corresponding capability is not configured.
      */

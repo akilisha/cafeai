@@ -5,6 +5,19 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`cafeai-agents` is renamed to `cafeai-aiservices`.** Same module, same
+  `app.agent(name, Class)` API, same `AgentConfig`/`AgentBridge` — only the
+  Maven coordinate and its internal package changed:
+  `com.akilisha.oss:cafeai-agents` → `com.akilisha.oss:cafeai-aiservices`,
+  `io.cafeai.agents.*` → `io.cafeai.aiservices.*`. No compatibility shim on
+  the old coordinate — it stops being published. The rename exists to leave
+  room for a differently-scoped module, `cafeai-agentic` (multi-agent
+  workflow composition via `langchain4j-agentic`), without two
+  near-identical names on the module list inviting confusion about which one
+  does what.
+
 ### Added
 
 - **`cafeai-session`.** `Middleware.session(SessionStore)` — Express `express-session`

@@ -6,7 +6,7 @@
 > as a historical record.
 
 **Maps to:** No Express equivalent — these are CafeAI's original contribution  
-**Modules:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-guardrails`, `cafeai-observability`, `cafeai-security`, `cafeai-streaming` (`cafeai-tools` removed; `cafeai-agents` → ROADMAP-12)  
+**Modules:** `cafeai-core`, `cafeai-memory`, `cafeai-rag`, `cafeai-guardrails`, `cafeai-observability`, `cafeai-security`, `cafeai-streaming` (`cafeai-tools` removed; `cafeai-aiservices` → ROADMAP-12)  
 **ADR Reference:** ADR-003, ADR-004, ADR-005 §9  
 **Depends On:** ROADMAP-01 through ROADMAP-06 (full Express foundation complete)  
 **Status:** 🟢 Complete — Phases 1–4, 6–7, 9–10 shipped. Phase 5 (`cafeai-tools`) was
@@ -379,7 +379,7 @@ app.post("/support", (req, res, next) ->
 
 **Goal:** Agentic patterns powered by Java 21 Structured Concurrency.
 
-**Module:** `cafeai-agents`
+**Module:** `cafeai-aiservices`
 
 #### Tasks
 - [ ] Define `AgentDefinition` interface

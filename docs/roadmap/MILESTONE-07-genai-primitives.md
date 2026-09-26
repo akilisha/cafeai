@@ -23,7 +23,7 @@
 | Phase 5 | ~~`app.tool()` + `app.mcp()`~~ | ~~`cafeai-tools`~~ | ⚫ Removed | tool/MCP support → LangChain4j, see ROADMAP-12 |
 | Phase 6 | `app.chain()` — named composable pipelines | `cafeai-core` | 🟢 Complete | March 2026 |
 | Phase 7 | `app.guard()` — guardrails as middleware | `cafeai-guardrails` | 🟢 Complete | March 2026 |
-| Phase 8 | ~~`app.agent()` + `app.orchestrate()`~~ | `cafeai-agents` | ⚫ Superseded | → ROADMAP-12 |
+| Phase 8 | ~~`app.agent()` + `app.orchestrate()`~~ | `cafeai-aiservices` | ⚫ Superseded | → ROADMAP-12 |
 | Phase 9 | `app.observe()` + `app.eval()` | `cafeai-observability` | 🟢 Complete | March 2026 |
 | Phase 10 | Security layer | `cafeai-security` | 🟢 Complete | March 2026 |
 

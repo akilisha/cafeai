@@ -6,7 +6,7 @@
 
 Retrieval gives the model information. Tools give it actions: look up an order, check an issue's status, calculate a debt-to-income ratio. The model decides when a tool is needed, the framework calls the Java method, and the result goes back into the conversation.
 
-LangChain4j already does all of that. Its `AiServices` owns the tool schema, the dispatch and the calling loop, and CafeAI does not reimplement any of it. What `cafeai-agents` adds is the part a web application needs around it: a name, an HTTP-friendly way to get the right conversation, and the CafeAI pieces the application has already configured.
+LangChain4j already does all of that. Its `AiServices` owns the tool schema, the dispatch and the calling loop, and CafeAI does not reimplement any of it. What `cafeai-aiservices` adds is the part a web application needs around it: a name, an HTTP-friendly way to get the right conversation, and the CafeAI pieces the application has already configured.
 
 ---
 

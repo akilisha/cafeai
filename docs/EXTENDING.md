@@ -55,7 +55,7 @@ from the factory class named in the last column.
 | `ConfigProvider` | `AppConfig.load()` reading `application.properties`/`.yaml` + profile overlays | `cafeai-config` | `AppConfig` |
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (throw `GuardRailModuleNotFoundException` without it) | `cafeai-guardrails` | `GuardRail` |
 | `ObserveBridge` | `app.observe(...)` tracing / spans | `cafeai-observability` | `CafeAIApp` |
-| `AgentBridge` | `app.agent(...)` | `cafeai-agents` | `CafeAIApp` |
+| `AgentBridge` | `app.agent(...)` | `cafeai-aiservices` | `CafeAIApp` |
 | `ViewEngineProvider` | `app.engine(...)` / `res.render(...)` | `cafeai-views-mustache` | `CafeAIApp` |
 
 `app.connect(...)` needs no SPI at all: `Connection`, `HealthStatus`, and
@@ -118,7 +118,7 @@ void provider_isDiscovered() {
 ```
 
 Provider methods are ordinary code — test them directly with fakes. See
-`cafeai-agents`' `AgentRegistryTest` for the pattern (fake `ChatModel`, fake
+`cafeai-aiservices`' `AgentRegistryTest` for the pattern (fake `ChatModel`, fake
 support object, real assembly).
 
 ---

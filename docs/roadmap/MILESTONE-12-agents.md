@@ -1,7 +1,7 @@
 # MILESTONE-12: CafeAI Agents
 
 **Roadmap:** ROADMAP-12  
-**Module:** `cafeai-agents` (new), `cafeai-core`  
+**Module:** `cafeai-aiservices` (new), `cafeai-core`  
 **Started:** 2026-09-02  
 **Current Status:** 🟢 Complete — `app.agent()` wired (Phases 1–5), `AgentConfig.rag()` + `ObserveBridge` agent hooks, all four capstones migrated in-tree (`capstones/`). 14 binding tests green.
 
@@ -14,10 +14,10 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 | Phase | Description | Module | Status |
 |---|---|---|---|
 | 1 | Prerequisites — Helidon 4.4, LangChain4j 1.11, `app.helidon()` | root, `cafeai-core` | 🟢 Complete |
-| 2 | `cafeai-agents` module scaffold | `cafeai-agents` | 🟢 Complete (`17fad1d`) |
+| 2 | `cafeai-aiservices` module scaffold | `cafeai-aiservices` | 🟢 Complete (`17fad1d`) |
 | 3 | `AgentConfig<T>` — fluent registration API | `cafeai-core` | 🟢 Complete (`17fad1d`) |
-| 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-agents` | 🟢 Complete (`33912e5`) |
-| 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-agents` | 🟢 Complete (`33912e5`) |
+| 4 | `AgentRegistry` — build/resolve agents, per-session memory, guardrails | `cafeai-aiservices` | 🟢 Complete (`33912e5`) |
+| 5 | `app.agent()` API surface (register + invoke) | `cafeai-core`, `cafeai-aiservices` | 🟢 Complete (`33912e5`) |
 | 6 | Capstone 4 — `invoice-processor` + fold all four capstones into `capstones/` | capstone apps | 🟢 Complete (`e300c4c`, `33f6852`) |
 
 **Legend:** 🔴 Not Started · 🟡 In Progress · 🟢 Complete · 🔵 Revised · 🔷 Deferred
@@ -35,7 +35,7 @@ Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
 | Observability trace fires on agent invocation | `AiServiceListener` logs + `ObserveBridge.beforeAgent`/`afterAgent` → console line / OTel span (name, latency, outcome) |
 | RAG on an agent | `AgentConfig.rag(...)` or app-level `app.rag(...)` → LangChain4j `ContentRetriever` via the `RagPipeline` SPI |
 | Supervisor pattern works — an agent calls another agent as a `@Tool` | `AgentExample` (`OrderDesk` tool → `OrderNarrator` agent); Capstone 4 next |
-| `cafeai-agents` published to Maven Central | Part of the 0.2.x release |
+| `cafeai-aiservices` published to Maven Central | Part of the 0.2.x release |
 
 ---
 
@@ -84,9 +84,9 @@ is deferred to if-and-when a capstone proves it necessary.
    (routing lifecycle, no module).
 2. *Reach* an external MCP server → `cafeai-connect` `McpEndpoint` connector (persistent
    transport, three-state reachability, fallback policy — like Redis/Ollama/pgvector).
-3. *Give* an agent those tools → `cafeai-agents` adapts a named MCP connection to a
+3. *Give* an agent those tools → `cafeai-aiservices` adapts a named MCP connection to a
    `ToolProvider` at `AiServices.builder()` time.
-`cafeai-agents` does #3 for **Java `@Tool` objects only**. The `AgentConfig.mcp(...)` stub
+`cafeai-aiservices` does #3 for **Java `@Tool` objects only**. The `AgentConfig.mcp(...)` stub
 and the `ToolSource` sealed type were removed (2026-09) — `AgentConfig` holds a plain
 `List<Object>` of tool instances. Concerns #2 and the MCP half of #3 are re-added together
 if/when a real need for connecting an agent to an external MCP server appears; until then

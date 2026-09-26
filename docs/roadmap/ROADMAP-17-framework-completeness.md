@@ -90,7 +90,7 @@ identifiers — anything with exact-match requirements alongside semantic search
 
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
-implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
+implementation 'com.akilisha.oss:cafeai-aiservices:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
 // + cafeai-memory, -guardrails, -observability, -security, -streaming,
 //   -connect, -views-mustache

@@ -27,7 +27,7 @@
 10. [The HTTP Identity Layer — CafeAI's Foundational Position](#10-the-http-identity-layer)
 11. [The Two Strategic Directions](#11-the-two-strategic-directions)
 12. [The Helidon Escape Hatch](#12-the-helidon-escape-hatch)
-13. [The First `cafeai-agents` Attempt — Abandoned, Then Redesigned](#13-the-first-cafeai-agents-attempt--abandoned-then-redesigned)
+13. [The First `cafeai-aiservices` Attempt — Abandoned, Then Redesigned](#13-the-first-cafeai-aiservices-attempt--abandoned-then-redesigned)
 14. [Blog and Conference Series](#14-blog-and-conference-series)
 
 ---
@@ -126,7 +126,7 @@ graph TD
         end
 
         MCP["MCP Server\n(Helidon McpFeature via app.helidon())\nExposes registered tools + agents\nas discoverable nodes"]
-        Agents["Agent Registry (cafeai-agents)\nBinds LangChain4j AiServices\nHTTP identity + session + guardrails + RAG"]
+        Agents["Agent Registry (cafeai-aiservices)\nBinds LangChain4j AiServices\nHTTP identity + session + guardrails + RAG"]
 
         Router --> Auth --> Security --> GuardPre --> Cost --> RAG --> LLM
         LLM --> GuardPost --> Observe --> MemWrite --> Stream
@@ -220,7 +220,7 @@ app.rag(Retriever.semantic(topK))          // semantic similarity retrieval
 app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ```
 
-### 3.5 Tool and MCP Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
+### 3.5 Tool and MCP Primitives &nbsp;<sub>✅ shipped — `cafeai-aiservices` (ROADMAP-12)</sub>
 
 Tools and MCP clients attach to an agent through LangChain4j — `@Tool`-annotated
 Java methods and `McpToolProvider` — not a separate CafeAI primitive. Exposing CafeAI's own capabilities *as* an
@@ -252,7 +252,7 @@ app.observe(ObserveStrategy.console())    // development console traces
 app.observe(ObserveStrategy.otel())       // OpenTelemetry export
 ```
 
-### 3.8 Agent Primitives &nbsp;<sub>✅ shipped — `cafeai-agents` (ROADMAP-12)</sub>
+### 3.8 Agent Primitives &nbsp;<sub>✅ shipped — `cafeai-aiservices` (ROADMAP-12)</sub>
 
 ```java
 app.agent("support-agent", SupportAgent.class)  // bind a LangChain4j AiService,
@@ -279,7 +279,7 @@ app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — extern
 
 MCP splits three ways: **serve** CafeAI as an MCP server → `app.helidon()` (§12); **reach**
 an external MCP server → the `McpEndpoint` connection above; **give** its tools to an agent →
-`cafeai-agents` (ROADMAP-12).
+`cafeai-aiservices` (ROADMAP-12).
 
 ### 3.10 Configuration Primitives &nbsp;<sub>✅ shipped — `cafeai-config` (ADR-012)</sub>
 
@@ -425,7 +425,7 @@ cafeai/
 ├── cafeai-security/                    ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/              ← Optional Mustache view engine
-├── cafeai-agents/                      ← binds LangChain4j AiServices to an HTTP identity
+├── cafeai-aiservices/                      ← binds LangChain4j AiServices to an HTTP identity
 │                                         — session, guardrails, RAG, observability (ROADMAP-12)
 ├── cafeai-sentinel/                    ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 └── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
@@ -461,7 +461,7 @@ the position it does — and why that position is both distinct and durable.
 
 ### 10.1 How the Insight Emerged
 
-The question started simply: what should `cafeai-agents` look like?
+The question started simply: what should `cafeai-aiservices` look like?
 
 The first instinct was to look at what langchain4j-agentic was building. The Quarkus workshop
 against that library showed the full picture: `@SequenceAgent`, `@ParallelAgent`, `AgenticScope`,
@@ -489,7 +489,7 @@ Look at each CafeAI module and the pattern is identical:
 | `cafeai-rag` | LangChain4j vector stores | Registered, session-aware pipeline identity |
 | `cafeai-memory` | Redis, in-memory stores | HTTP session identity (`X-Session-Id`) |
 | `cafeai-guardrails` | NLP classifiers, pattern matchers | Middleware identity in the HTTP pipeline |
-| `cafeai-agents` *(planned)* | LangChain4j `AiServices` | HTTP identity + session + guardrails for an agent |
+| `cafeai-aiservices` *(planned)* | LangChain4j `AiServices` | HTTP identity + session + guardrails for an agent |
 | `app.helidon()` | Helidon `McpFeature` | Seam to expose the tool/agent registry as an MCP server |
 
 CafeAI never reimplements the AI capability. It gives the capability an HTTP-native home.
@@ -637,7 +637,7 @@ The agent has the same composable, registerable feel as `app.memory()`, `app.gua
 
 CafeAI does not implement the agent loop, tool dispatch, or chat memory — LangChain4j
 `AiServices` does all of it. CafeAI writes the binding between the `AiService` and CafeAI's
-session/guardrail/observability model. Code surface: `cafeai-agents`, ~250 lines (planned —
+session/guardrail/observability model. Code surface: `cafeai-aiservices`, ~250 lines (planned —
 ROADMAP-12).
 
 ### 11.3 Why Both Directions Are Complementary
@@ -721,9 +721,9 @@ for every Helidon capability.
 
 ---
 
-## 13. The First `cafeai-agents` Attempt — Abandoned, Then Redesigned
+## 13. The First `cafeai-aiservices` Attempt — Abandoned, Then Redesigned
 
-A first attempt to build `cafeai-agents` was abandoned. It was rushed — written against
+A first attempt to build `cafeai-aiservices` was abandoned. It was rushed — written against
 LangChain4j `AiServices` without reading the existing code first — and produced a cascade of
 compile errors, re-implementations of things `AiServices` already does, and forced
 reconciliations of incompatible assumptions. It produced no useful design.
@@ -735,7 +735,7 @@ identity every other CafeAI capability has — a registration name, session thre
 guardrail pre-screening, an observability context — plus a `.configure()` escape hatch to the
 raw `AiServices.Builder`.
 
-**[ROADMAP-12](../roadmap/ROADMAP-12-agents.md)** is that redesign: a small `cafeai-agents`
+**[ROADMAP-12](../roadmap/ROADMAP-12-agents.md)** is that redesign: a small `cafeai-aiservices`
 module (~250 lines) that binds, and does not wrap. `app.helidon()` covers anything the binding
 doesn't.
 

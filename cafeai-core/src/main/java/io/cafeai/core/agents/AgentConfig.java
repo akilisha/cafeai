@@ -130,7 +130,7 @@ public final class AgentConfig<T> {
         return this;
     }
 
-    // ── Accessors (read by cafeai-agents via the AgentBridge SPI) ─────────────
+    // ── Accessors (read by cafeai-aiservices via the AgentBridge SPI) ─────────────
 
     public Class<T>           agentInterface()  { return agentInterface; }
     public String             systemPrompt()    { return systemPrompt; }

@@ -18,7 +18,7 @@ intuition to move fast. Applied twice here — once to LangChain4j on its own
 terms, then to CafeAI as a function of it.
 
 Versions: LangChain4j 1.20.0, Helidon SE 4.5.5. Code references are to
-`cafeai-core`, `cafeai-agents`, `cafeai-rag`, and `cafeai-sentinel` as they
+`cafeai-core`, `cafeai-aiservices`, `cafeai-rag`, and `cafeai-sentinel` as they
 exist on `main`.
 
 ---
@@ -371,7 +371,7 @@ app.agent("loan", LoanAgent.class)
 var agent = app.agent("loan", LoanAgent.class, sessionId);
 ```
 
-Underneath: `cafeai-agents`' `AgentRegistry.build()` (the sole implementation
+Underneath: `cafeai-aiservices`' `AgentRegistry.build()` (the sole implementation
 of the `AgentBridge` SPI `cafeai-core` calls through) is, almost line for
 line, an `AiServices.builder()` call. This is the one place in CafeAI that
 hands full control to LangChain4j's own reasoning loop — no re-implementation
@@ -436,7 +436,7 @@ app.memory(MemoryStrategy.redis(cfg));   // Rung 3 — Lettuce (cafeai-memory)
 implementation** — `cafeai-memory`'s FFM/Redis/hybrid tiers are
 entirely bespoke, because LangChain4j has no tiered-storage story to
 delegate to (§1.9). LangChain4j only enters the picture when a
-`MemoryStrategy` is handed to an *agent* — at that point `cafeai-agents`
+`MemoryStrategy` is handed to an *agent* — at that point `cafeai-aiservices`
 backs a `MessageWindowChatMemory` with a `CafeAiChatMemoryStore` wrapping it
 (§2.3). The plain `app.prompt()` path (§2.2) calls `MemoryStrategy` directly
 and never touches `ChatMemory`/`ChatMemoryStore` at all.
@@ -769,7 +769,7 @@ The premise going in was explicit: if this exercise surfaced unnecessary or
 convoluted CafeAI abstraction, trim it. Having traced every LangChain4j
 touchpoint in the codebase (Part 2) end to end, here's the honest result.
 
-**The agent-binding layer (`cafeai-agents`) is already minimal.** Four
+**The agent-binding layer (`cafeai-aiservices`) is already minimal.** Four
 adapter classes, 20–45 lines each, each translating exactly one CafeAI
 interface method to exactly one LangChain4j SPI method, with no
 intermediate state, no extra indirection layer, and no wrapper type around

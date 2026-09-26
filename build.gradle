@@ -89,7 +89,7 @@ configure(subprojects.findAll { it.name != 'cafeai-bom' }) {
     dependencies {
         implementation platform("io.helidon:helidon-bom:${rootProject.ext.helidonVersion}")
         // langchain4j types leak through the public API of cafeai-core (ChatModel,
-        // AiServices) and cafeai-agents, so those modules declare langchain4j deps as
+        // AiServices) and cafeai-aiservices, so those modules declare langchain4j deps as
         // `api`. The BOM that versions them must be on `api` too, or the generated POM
         // publishes those dependencies with no version.
         api platform("dev.langchain4j:langchain4j-bom:${rootProject.ext.langchain4jVersion}")

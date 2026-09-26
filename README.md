@@ -54,7 +54,7 @@ dependencies {
 
     // add only what you use:
     implementation 'com.akilisha.oss:cafeai-config:0.4.0'         // application.properties/.yaml + profiles
-    implementation 'com.akilisha.oss:cafeai-agents:0.4.0'         // app.agent() — LangChain4j AiServices
+    implementation 'com.akilisha.oss:cafeai-aiservices:0.4.0'         // app.agent() — LangChain4j AiServices
     implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // tiered context memory
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, toxicity, regulatory
@@ -86,7 +86,7 @@ dependencies {
     implementation platform('com.akilisha.oss:cafeai-bom:0.4.0')
     implementation 'com.akilisha.oss:cafeai-core'
     implementation 'com.akilisha.oss:cafeai-guardrails'
-    implementation 'com.akilisha.oss:cafeai-agents'
+    implementation 'com.akilisha.oss:cafeai-aiservices'
 }
 ```
 
@@ -364,7 +364,7 @@ cafeai/
 ├── cafeai-bom            ← Bill of materials: one version for every published module
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-config         ← File-based config (application.properties/.yaml + profiles) for AppConfig
-├── cafeai-agents         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
+├── cafeai-aiservices         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
 ├── cafeai-memory         ← Tiered context memory (in-memory, FFM/SSD, Redis)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
 ├── cafeai-guardrails     ← PII, jailbreak, toxicity, regulatory compliance

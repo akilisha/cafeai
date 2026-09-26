@@ -44,7 +44,7 @@ repositories { mavenCentral() }
 
 dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.4.0'
-    implementation 'com.akilisha.oss:cafeai-agents:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-aiservices:0.4.0'
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'
     implementation 'com.akilisha.oss:cafeai-memory:0.4.0'
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'

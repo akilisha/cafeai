@@ -1,4 +1,4 @@
-package io.cafeai.agents;
+package io.cafeai.aiservices;
 
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.AiMessage;
@@ -8,7 +8,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.guardrail.GuardrailResult;
 import dev.langchain4j.guardrail.InputGuardrailResult;
 import dev.langchain4j.guardrail.OutputGuardrailResult;
-import io.cafeai.agents.adapter.GuardrailAdapters;
+import io.cafeai.aiservices.adapter.GuardrailAdapters;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;

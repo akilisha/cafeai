@@ -1,4 +1,4 @@
-package io.cafeai.agents.adapter;
+package io.cafeai.aiservices.adapter;
 
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;

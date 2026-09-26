@@ -1,5 +1,26 @@
 # Migration Guide
 
+## 0.4.0 → Unreleased
+
+### `cafeai-agents` → `cafeai-aiservices`
+
+Coordinate and package renamed; nothing else about the module changed —
+`app.agent(name, Class)`, `AgentConfig`, and `AgentBridge` are all unchanged.
+No compatibility shim: the old coordinate is not published under the new
+version.
+
+```groovy
+// before
+implementation 'com.akilisha.oss:cafeai-agents:0.4.0'
+
+// after (version number set when this actually releases)
+implementation 'com.akilisha.oss:cafeai-aiservices'
+```
+
+If you referenced `io.cafeai.agents.*` classes directly (uncommon —
+`AgentRegistry` and its adapters are internal, reached only through
+`app.agent(...)`), update the import to `io.cafeai.aiservices.*`.
+
 ## 0.3.2 → 0.4.0
 
 ### Coordinates

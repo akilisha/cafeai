@@ -1,4 +1,4 @@
-package io.cafeai.agents;
+package io.cafeai.aiservices;
 
 import dev.langchain4j.guardrail.InputGuardrail;
 import dev.langchain4j.guardrail.OutputGuardrail;
@@ -6,10 +6,10 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.observability.api.listener.AiServiceListener;
 import dev.langchain4j.service.AiServices;
-import io.cafeai.agents.adapter.AgentObserveListener;
-import io.cafeai.agents.adapter.CafeAiChatMemoryStore;
-import io.cafeai.agents.adapter.CafeAiContentRetriever;
-import io.cafeai.agents.adapter.GuardrailAdapters;
+import io.cafeai.aiservices.adapter.AgentObserveListener;
+import io.cafeai.aiservices.adapter.CafeAiChatMemoryStore;
+import io.cafeai.aiservices.adapter.CafeAiContentRetriever;
+import io.cafeai.aiservices.adapter.GuardrailAdapters;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.config.AppConfig;
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * The {@code cafeai-agents} implementation of {@link AgentBridge}.
+ * The {@code cafeai-aiservices} implementation of {@link AgentBridge}.
  *
  * <p>Registers agent configs, and on {@link #resolve} assembles a LangChain4j
  * {@code AiServices} builder from the config + the {@link AgentSupport}
@@ -79,7 +79,7 @@ public final class AgentRegistry implements AgentBridge {
                 + "app.agent(\"" + name + "\", " + type.getSimpleName() + ".class)");
         }
         if (support == null) {
-            throw new IllegalStateException("cafeai-agents is not initialised — build the app via CafeAI.create().");
+            throw new IllegalStateException("cafeai-aiservices is not initialised — build the app via CafeAI.create().");
         }
 
         MemoryStrategy memory = config.memoryStrategy() != null

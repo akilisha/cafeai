@@ -93,7 +93,7 @@ public final class CafeAIApp implements CafeAI {
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private ObserveBridge observeBridge;
 
-    // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-agents
+    // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-aiservices
     private AgentBridge agentBridge;
 
     // Token budget and retry (ROADMAP-14 Phase 10)
@@ -165,7 +165,7 @@ public final class CafeAIApp implements CafeAI {
         }
     }
 
-    /** Lends {@code cafeai-agents} the core capabilities it needs at build time. */
+    /** Lends {@code cafeai-aiservices} the core capabilities it needs at build time. */
     private final class AgentSupportImpl implements AgentBridge.AgentSupport {
         @Override
         public dev.langchain4j.model.chat.ChatModel chatModel(AiProvider provider) {
@@ -189,8 +189,8 @@ public final class CafeAIApp implements CafeAI {
         Objects.requireNonNull(agentInterface, "Agent interface must not be null");
         if (agentBridge == null) {
             throw new IllegalStateException(
-                "app.agent() requires the cafeai-agents module.\n\n"
-                + "  implementation 'com.akilisha.oss:cafeai-agents:<version>'");
+                "app.agent() requires the cafeai-aiservices module.\n\n"
+                + "  implementation 'com.akilisha.oss:cafeai-aiservices:<version>'");
         }
         AgentConfig<T> config = agentBridge.register(name, agentInterface);
         log.info("Agent registered: {} ({})", name, agentInterface.getSimpleName());
@@ -201,7 +201,7 @@ public final class CafeAIApp implements CafeAI {
     public <T> T agent(String name, Class<T> type, String sessionId) {
         if (agentBridge == null) {
             throw new IllegalStateException(
-                "app.agent() requires the cafeai-agents module on the classpath.");
+                "app.agent() requires the cafeai-aiservices module on the classpath.");
         }
         return agentBridge.resolve(name, type, sessionId);
     }

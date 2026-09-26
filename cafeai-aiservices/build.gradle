@@ -1,5 +1,5 @@
 // ============================================================
-//  cafeai-agents
+//  cafeai-aiservices
 //  HTTP identity for LangChain4j AiServices agents.
 //
 //  CafeAI does not implement the reasoning loop, tool dispatch,

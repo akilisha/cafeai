@@ -1,4 +1,4 @@
-package io.cafeai.agents.adapter;
+package io.cafeai.aiservices.adapter;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;

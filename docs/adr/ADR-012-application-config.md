@@ -112,7 +112,7 @@ properties and environment variables and ship no file at all.
 `ConfigKey` and `AppConfig` live in `cafeai-core`, which every module already
 depends on. Whether real resolution is active at all is entirely a decision
 the *application author* makes by adding `cafeai-config` to their own app —
-a library module (`cafeai-rag`, `cafeai-agents`, `cafeai-sentinel`) never
+a library module (`cafeai-rag`, `cafeai-aiservices`, `cafeai-sentinel`) never
 checks for it and never needs a new dependency to declare a key.
 
 **Boundary, deliberate and firm: config supplies values, never wires

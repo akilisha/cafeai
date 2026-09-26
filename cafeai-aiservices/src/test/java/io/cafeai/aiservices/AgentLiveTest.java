@@ -1,4 +1,4 @@
-package io.cafeai.agents;
+package io.cafeai.aiservices;
 
 import dev.langchain4j.agent.tool.Tool;
 import io.cafeai.core.CafeAI;
@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Anthropic ({@code ANTHROPIC_API_KEY}), Gemini ({@code GEMINI_API_KEY}), then Ollama on this machine
  * ({@code OLLAMA_LIVE_MODEL}, default {@code llama3.2}, which must be pulled and must support tools).
  * Model ids come from {@code OPENAI_LIVE_MODEL}, {@code ANTHROPIC_LIVE_MODEL} and {@code GEMINI_LIVE_MODEL},
- * with the same defaults as the providers' own live tests. Run with {@code ./gradlew :cafeai-agents:liveTest}.
+ * with the same defaults as the providers' own live tests. Run with {@code ./gradlew :cafeai-aiservices:liveTest}.
  */
 @Tag("live")
 @DisplayName("agents — live")

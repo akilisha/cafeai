@@ -1,4 +1,4 @@
-package io.cafeai.agents;
+package io.cafeai.aiservices;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -10,7 +10,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import io.cafeai.agents.adapter.CafeAiChatMemoryStore;
+import io.cafeai.aiservices.adapter.CafeAiChatMemoryStore;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.internal.LangchainBridge;

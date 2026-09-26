@@ -564,7 +564,7 @@ public interface CafeAI extends Router {
      * agent an HTTP identity: a name, session threading, guardrail pre-screening,
      * and an observability context. See {@code docs/roadmap/ROADMAP-12-agents.md}.
      *
-     * <p>Requires {@code cafeai-agents} on the classpath.
+     * <p>Requires {@code cafeai-aiservices} on the classpath.
      *
      * <pre>{@code
      *   interface SupportAgent {

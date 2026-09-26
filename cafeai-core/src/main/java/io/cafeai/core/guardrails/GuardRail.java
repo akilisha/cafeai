@@ -177,7 +177,7 @@ public interface GuardRail extends Middleware {
     /**
      * Inspects the user's message before it reaches the LLM.
      *
-     * <p>Called by {@code CafeAIApp} and the {@code cafeai-agents} input-guardrail
+     * <p>Called by {@code CafeAIApp} and the {@code cafeai-aiservices} input-guardrail
      * adapter for guardrails with position {@link Position#PRE_LLM} or
      * {@link Position#BOTH}. The default passes through — override (or extend
      * {@code AbstractGuardRail}) to screen the prompt.

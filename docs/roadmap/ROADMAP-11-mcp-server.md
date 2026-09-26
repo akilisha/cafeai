@@ -23,7 +23,7 @@ things with three different homes and lifecycles:
 |---|---|---|---|
 | 1 | **Serve** — expose CafeAI's tools/agents *as* an MCP server | `app.helidon()` + Helidon `McpFeature` | routing registration, no module, no external state |
 | 2 | **Reach** — connect to an external MCP server | `cafeai-connect` `McpEndpoint` connector *(planned)* | persistent transport, three-state reachability, fallback policy — like Redis/Ollama/pgvector |
-| 3 | **Give** — make a reached server's tools callable by an agent | `cafeai-agents` — adapt a named MCP connection to a LangChain4j `ToolProvider` (ROADMAP-12) | built with the agent's `AiService`, disposable |
+| 3 | **Give** — make a reached server's tools callable by an agent | `cafeai-aiservices` — adapt a named MCP connection to a LangChain4j `ToolProvider` (ROADMAP-12) | built with the agent's `AiService`, disposable |
 
 This document covers **#1**. #2 is a follow-on connector in `cafeai-connect` (see ROADMAP-10);
 #3 is ROADMAP-12. There is no `cafeai-mcp` module in any of them.
@@ -162,7 +162,7 @@ The correct pattern for MCP *exposure* is Phase 2's `app.helidon()`.
 MCP *consumption* — reaching an external MCP server so its tools are available to agents —
 is a planned `cafeai-connect` connector: `app.connect(McpEndpoint.at(url).onUnavailable(...))`.
 It owns the `initialize` handshake, the persistent transport, health state, and the fallback
-policy. `cafeai-agents` then references it by name and adapts it to a LangChain4j
+policy. `cafeai-aiservices` then references it by name and adapts it to a LangChain4j
 `ToolProvider`. Tracked against `cafeai-connect` (ROADMAP-10), consumed by ROADMAP-12.
 
 ---

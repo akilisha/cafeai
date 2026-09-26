@@ -12,7 +12,7 @@ repositories { mavenCentral() }
 
 dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.4.0'
-    // add capability modules as needed — cafeai-config, cafeai-agents, cafeai-memory,
+    // add capability modules as needed — cafeai-config, cafeai-aiservices, cafeai-memory,
     // cafeai-rag, cafeai-guardrails, cafeai-observability, cafeai-security,
     // cafeai-connect, cafeai-views-mustache, cafeai-sentinel
 }
@@ -114,7 +114,7 @@ cafeai/
 ├── cafeai-rag/             ← RAG pipeline — ingestion, embedding, retrieval
 ├── cafeai-guardrails/      ← PII, jailbreak, toxicity, regulatory
 ├── cafeai-observability/   ← OpenTelemetry tracing, console logging
-├── cafeai-agents/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
+├── cafeai-aiservices/          ← app.agent() — binds LangChain4j AiServices (session, guardrails, RAG, observe)
 ├── cafeai-security/        ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/         ← Out-of-process services: Redis, Ollama, pgvector
 ├── cafeai-views-mustache/  ← Optional Mustache view engine
@@ -147,7 +147,7 @@ work with your own key:
 
 ```bash
 ./gradlew :cafeai-core:liveTest      # every provider you have a key for, and Ollama if it is running
-./gradlew :cafeai-agents:liveTest    # an agent that calls a tool, against the first provider available
+./gradlew :cafeai-aiservices:liveTest    # an agent that calls a tool, against the first provider available
 ```
 
 Live tests are tagged `@Tag("live")`, excluded from `test`, and skip themselves when a provider is not
@@ -204,7 +204,7 @@ Some providers add checks of their own:
 | NVIDIA | `NVIDIA_LIVE_REASONING_MODEL` enables the thinking-stream test (`.onThinking(...)` receives reasoning apart from the answer); `NVIDIA_LIVE_VISION_MODEL` enables vision |
 | Ollama | `OLLAMA_LIVE_VISION_MODEL` (for example `llava`) enables vision |
 | Jlama | runs the suite above with a larger `withMaxTokens` cap (Jlama's limit counts the prompt too), no `withTimeout` check (there is no call to time out) and no `summarise` check (a 0.5B model does not do the summarising task); adds a limit below the prompt failing with a clear message, `withTemperature(0)` repeatability and `Jlama.cachedIn(...)`. Run with `JLAMA_LIVE_MODEL=tjake/Qwen2.5-0.5B-Instruct-JQ4 ./gradlew :cafeai-core:liveTest --tests '*JlamaLiveTest*'`; `liveTest` already passes the Vector API flags Jlama needs. A 0.5B model is small, so try a larger one before suspecting the framework when a recall check fails |
-| agents (`:cafeai-agents:liveTest`) | the model calls a `@Tool` and answers from the result; session memory reaches the agent, tool calls included |
+| agents (`:cafeai-aiservices:liveTest`) | the model calls a `@Tool` and answers from the result; session memory reaches the agent, tool calls included |
 
 A small local model rewords things and gets simple questions wrong now and then, so a failure on a small
 model is worth reading before it is worth blaming. The checks use neutral facts (a secret word, a lucky
@@ -215,7 +215,7 @@ whether a small model connected it to "my name".
 
 To add a live test for another provider: extend `ProviderLiveSuite`, say why the suite cannot run
 (`skipReason()`) and how to build the provider (`provider()`), and add whatever only that provider can do.
-Make sure the module applies `gradle/live-tests.gradle` (`cafeai-core` and `cafeai-agents` already do).
+Make sure the module applies `gradle/live-tests.gradle` (`cafeai-core` and `cafeai-aiservices` already do).
 
 ## JVM Flags for Local Models (Jlama)
 

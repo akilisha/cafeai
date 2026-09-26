@@ -157,7 +157,7 @@ native `SearchMode.HYBRID` are future optimisations, not needed for the common c
 - [x] `./gradlew clean build` — BUILD SUCCESSFUL
 - [x] `./gradlew javadoc` — zero warnings
 - [x] `CHANGELOG.md` (`[0.2.0]`) + `MIGRATION.md` (0.1.3 → 0.2.0)
-- [x] Module version `0.2.0`; docs coords updated; `cafeai-agents` added to the set
+- [x] Module version `0.2.0`; docs coords updated; `cafeai-aiservices` added to the set
 - [x] `./gradlew publishToMavenCentral` + Publish — **done**
 - [x] Capstones consume `project(':cafeai-*')` in-tree (the `mavenLocal → mavenCentral`
       criterion is moot); `capstones/README.md` shows the standalone coord swap
@@ -168,7 +168,7 @@ native `SearchMode.HYBRID` are future optimisations, not needed for the common c
 ### Published modules
 ```groovy
 implementation 'com.akilisha.oss:cafeai-core:0.2.0'
-implementation 'com.akilisha.oss:cafeai-agents:0.2.0'
+implementation 'com.akilisha.oss:cafeai-aiservices:0.2.0'
 implementation 'com.akilisha.oss:cafeai-memory:0.2.0'
 implementation 'com.akilisha.oss:cafeai-rag:0.2.0'
 implementation 'com.akilisha.oss:cafeai-guardrails:0.2.0'

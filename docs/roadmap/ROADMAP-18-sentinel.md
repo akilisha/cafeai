@@ -21,7 +21,7 @@
 CafeAI demos so far are request/response webapps. `sentinel` is the honest test
 of the **agentic** path: the "investigate the failure" step is genuine multi-step,
 tool-using reasoning against a live system — not a wrapped single prompt. In one
-artifact it exercises `cafeai-agents` + `@Tool`, `WsSession.streamTokens` (the
+artifact it exercises `cafeai-aiservices` + `@Tool`, `WsSession.streamTokens` (the
 sink), `cafeai-guardrails` (PII in logs), `cafeai-observability`, `TokenBudget`,
 and the long-running `app.helidon()` process.
 

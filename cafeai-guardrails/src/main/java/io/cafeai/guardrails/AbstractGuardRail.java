@@ -94,7 +94,7 @@ public abstract class AbstractGuardRail implements GuardRail {
     protected CheckResult screenInput(String input) { return CheckResult.pass(); }
 
     // -- SPI bridges: CheckResult -> GuardRail.OutputCheckResult -------------
-    // So CafeAIApp / cafeai-agents can call checkInput()/checkOutput() without
+    // So CafeAIApp / cafeai-aiservices can call checkInput()/checkOutput() without
     // a compile dependency on cafeai-guardrails' CheckResult type.
 
     @Override

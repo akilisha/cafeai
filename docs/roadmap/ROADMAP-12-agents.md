@@ -1,7 +1,7 @@
 # ROADMAP-12: CafeAI Agents — HTTP Identity for LangChain4j AiServices
 
 **Maps to:** No Express equivalent — this is CafeAI's agent binding layer  
-**Modules:** `cafeai-agents` (new), `cafeai-core`  
+**Modules:** `cafeai-aiservices` (new), `cafeai-core`  
 **ADR Reference:** SPEC.md §13  
 **Depends On:** ROADMAP-11 Phase 1 (Helidon 4.4 + LangChain4j 1.11 complete ✅)  
 **Status:** 🟢 Complete — `app.agent()` wired (Phases 1–5), `AgentConfig.rag()` + `ObserveBridge` agent hooks added, all four capstones migrated in-tree (Phase 6). 14 binding tests green.
@@ -68,10 +68,10 @@ this signature in Phase 2 before anything is built against it.
 
 ### MCP scope for v1
 
-`cafeai-agents` v1 handles **Java `@Tool` objects only** (`.tool(new OrderLookupTool())`).
+`cafeai-aiservices` v1 handles **Java `@Tool` objects only** (`.tool(new OrderLookupTool())`).
 Consuming an external **MCP server's** tools is a follow-on: the *connection* (probe,
 reachability, fallback) belongs in `cafeai-connect` as an `McpEndpoint` connector, and
-`cafeai-agents` references it by name and adapts it to a `ToolProvider`. So `AgentConfig`
+`cafeai-aiservices` references it by name and adapts it to a `ToolProvider`. So `AgentConfig`
 must model tools as a list of **tool sources** (a `ToolProvider` is one source, a plain
 `@Tool` object is another) — not a hard-coded `List<Object>` — so the MCP source is additive.
 Exposing CafeAI's *own* tools/agents *as* an MCP server is unrelated — that is the
@@ -161,7 +161,7 @@ own configuration. The developer may override or extend anything.
 
 ---
 
-### Phase 2 — `cafeai-agents` Module Scaffold ✅ Complete
+### Phase 2 — `cafeai-aiservices` Module Scaffold ✅ Complete
 
 Delivered in `17fad1d`: module in `settings.gradle`, opted into `gradle/maven-central.gradle`,
 `ToolSource` sealed type + `AgentConfig<T>` in `cafeai-core`, corrected `AgentBridge` SPI
@@ -170,16 +170,16 @@ Delivered in `17fad1d`: module in `settings.gradle`, opted into `gradle/maven-ce
 
 **Goal:** Create the module skeleton. Compiles cleanly. No functional code yet.
 
-**Module:** `cafeai-agents`
+**Module:** `cafeai-aiservices`
 
 #### Tasks
-- [ ] Add `cafeai-agents` to `settings.gradle`
-- [ ] Create `cafeai-agents/build.gradle`:
+- [ ] Add `cafeai-aiservices` to `settings.gradle`
+- [ ] Create `cafeai-aiservices/build.gradle`:
   - `cafeai-core` dependency
   - `langchain4j` core (already on classpath via BOM — `AiServices`, `ChatMemory`,
     `@Tool`, `McpToolProvider`); tool + MCP support comes from LangChain4j directly,
     there is no separate `cafeai-tools` module
-- [ ] Create package `io.cafeai.agents`
+- [ ] Create package `io.cafeai.aiservices`
 - [ ] `AgentConfig<T>` **stays in `cafeai-core`** — `CafeAI.agent(name, iface)` returns it for
   chaining, and core already depends on `langchain4j` (so `Consumer<AiServices<T>>` is fine).
   Fix its `.configure()` doc (the arg *is* `AiServices<T>`, not a `.Builder`).
@@ -192,11 +192,11 @@ Delivered in `17fad1d`: module in `settings.gradle`, opted into `gradle/maven-ce
 - [ ] Create `AgentRegistry.java` implementing `AgentBridge` — methods throw
   `UnsupportedOperationException` (Phase 3/4 fill them in)
 - [ ] `META-INF/services/io.cafeai.core.spi.AgentBridge` → `AgentRegistry`
-- [ ] Verify: `./gradlew :cafeai-agents:compileJava` and full `build` → BUILD SUCCESSFUL
+- [ ] Verify: `./gradlew :cafeai-aiservices:compileJava` and full `build` → BUILD SUCCESSFUL
 
 #### Acceptance Criteria
 - [x] Module in `settings.gradle`, opted into `gradle/maven-central.gradle`
-- [x] No circular dependencies (`cafeai-agents` → `cafeai-core`; never the reverse)
+- [x] No circular dependencies (`cafeai-aiservices` → `cafeai-core`; never the reverse)
 - [x] Clean compile; corrected `AgentBridge` SPI signature
 
 ---
@@ -211,7 +211,7 @@ Delivered in `17fad1d` (+ `rag(...)` in the Phase 2 addendum): `system` / `model
 **Goal:** Define the fluent API the developer uses to configure an agent at registration time.
 Mirrors the feel of `GuardRail` builder — readable, chainable, self-documenting.
 
-**Module:** `cafeai-agents`
+**Module:** `cafeai-aiservices`
 
 #### Tasks
 - [ ] Implement `AgentConfig<T>`:
@@ -266,7 +266,7 @@ assembles `AiServices.builder(type)` from the config via adapters — no wrapper
 
 **Goal:** Store registered agents, build them on demand, manage per-session memory.
 
-**Module:** `cafeai-agents`
+**Module:** `cafeai-aiservices`
 
 #### Tasks
 - [ ] Implement `AgentRegistry` (the `AgentBridge` SPI impl):
@@ -301,13 +301,13 @@ Delivered in `33912e5`. Two forms only — the three-arg `agent(name, Class)` re
 identically, so invocation is always `agent(name, Class, sessionId)` with `sessionId` nullable
 for stateless. `CafeAIApp.discoverAgentBridge()` loads the SPI via `ServiceLoader` and lends it
 `chatModel` / `defaultProvider` / `observeBridge` / `defaultMemory`; registration after
-`listen()` throws; missing module throws with the `cafeai-agents` coordinate.
+`listen()` throws; missing module throws with the `cafeai-aiservices` coordinate.
 `AgentExample` (supervisor + delegating `@Tool` sub-agent, Jlama-backed) exercises the surface.
 
 **Goal:** Add `app.agent()` to the `CafeAI` interface. Two overloads — registration and
 invocation — same pattern as `app.prompt()`.
 
-**Module:** `cafeai-core`, `cafeai-agents`
+**Module:** `cafeai-core`, `cafeai-aiservices`
 
 #### Tasks
 - [ ] Add to `CafeAI` interface:
@@ -320,7 +320,7 @@ invocation — same pattern as `app.prompt()`.
   <T> T agent(String name, Class<T> type, String sessionId);
   ```
 - [ ] Implement in `CafeAIApp` via SPI (`AgentBridge` loaded by `ServiceLoader`)
-- [ ] If `cafeai-agents` absent: registration no-ops with WARN, invocation throws clear error
+- [ ] If `cafeai-aiservices` absent: registration no-ops with WARN, invocation throws clear error
 - [ ] Startup log: `Agent registered: {name} ({interface.simpleName})`
 
 #### Output — complete developer experience
@@ -344,7 +344,7 @@ app.post("/advise", (req, res, next) -> {
 - [x] Registration → invocation round-trip works end-to-end (`AgentExample` + `AgentRegistryTest`)
 - [x] Session memory persists across two sequential POST requests
 - [x] Output guardrail flags a violating response (PRE_LLM screening — see Phase 4 note)
-- [x] Missing `cafeai-agents` produces clear error message (with the Maven coordinate)
+- [x] Missing `cafeai-aiservices` produces clear error message (with the Maven coordinate)
 - [x] `app.agent()` after `listen()` throws `IllegalStateException`
 
 ---

@@ -12,7 +12,7 @@ include(
     'cafeai-session',
     'cafeai-views-mustache',
     'cafeai-connect',
-    'cafeai-agents',
+    'cafeai-aiservices',
     'cafeai-flight',
     'cafeai-sentinel',
     'cafeai-examples'

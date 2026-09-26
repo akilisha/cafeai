@@ -1,4 +1,4 @@
-package io.cafeai.agents.adapter;
+package io.cafeai.aiservices.adapter;
 
 import dev.langchain4j.observability.api.event.AiServiceCompletedEvent;
 import dev.langchain4j.observability.api.event.AiServiceErrorEvent;
@@ -23,7 +23,7 @@ import java.util.function.Consumer;
  */
 public final class AgentObserveListener {
 
-    private static final Logger log = LoggerFactory.getLogger("io.cafeai.agents");
+    private static final Logger log = LoggerFactory.getLogger("io.cafeai.aiservices");
 
     private AgentObserveListener() {}
 

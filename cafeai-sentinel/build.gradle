@@ -21,7 +21,7 @@ apply from: "$rootDir/gradle/maven-central.gradle"
 dependencies {
 
     api project(':cafeai-core')
-    api project(':cafeai-agents')
+    api project(':cafeai-aiservices')
 
     // PiiGuardRail.scrub — redact secrets/PII from cluster text before it reaches
     // the prompt or the incident (ROADMAP-18 Phase 4). Not exposed in the API.
