@@ -20,6 +20,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai-agentic`.** HTTP identity for `langchain4j-agentic` multi-agent workflows --
+  `CafeAgentic.agentBuilder(app, Type)` pre-wires the app's registered model, guardrails, and
+  observability into a real `AgenticServices.agentBuilder(Type)` instance, the same job
+  `cafeai-aiservices` does for plain `AiServices`. Only single-agent construction is pre-wired --
+  compose the returned agents with the library's own `sequenceBuilder`/`parallelBuilder`/
+  `loopBuilder`/`conditionalBuilder`/`supervisorBuilder` directly. `CafeAgenticMemory.of(strategy)`
+  is a `ChatMemoryProvider` backed by a CafeAI `MemoryStrategy`, for `@ChatMemoryProviderSupplier`.
+  `CafeAgenticMonitor.route(agentMonitor)` exposes a `MonitoredAgent`'s execution data as JSON --
+  the library itself ships no HTML topology report, so this is CafeAI's honest "HTTP identity"
+  for the one thing every `langchain4j-agentic` user wants to inspect. See DEVELOPER_GUIDE §26.
 - **`cafeai-session`.** `Middleware.session(SessionStore)` — Express `express-session`
   equivalent: the cookie carries only an opaque ID, the attribute data lives server-side.
   `SessionStore.inMemory()` is the zero-dependency dev/test rung; `SessionStore.sqlite()`

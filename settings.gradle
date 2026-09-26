@@ -13,6 +13,7 @@ include(
     'cafeai-views-mustache',
     'cafeai-connect',
     'cafeai-aiservices',
+    'cafeai-agentic',
     'cafeai-flight',
     'cafeai-sentinel',
     'cafeai-examples'

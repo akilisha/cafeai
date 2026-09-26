@@ -23,6 +23,7 @@ dependencies {
     implementation project(':cafeai-security')
     implementation project(':cafeai-connect')
     implementation project(':cafeai-aiservices')
+    implementation project(':cafeai-agentic')
     implementation project(':cafeai-session')
     implementation project(':cafeai-flight')
 

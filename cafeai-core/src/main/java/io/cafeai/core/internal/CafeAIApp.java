@@ -96,6 +96,12 @@ public final class CafeAIApp implements CafeAI {
     // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-aiservices
     private AgentBridge agentBridge;
 
+    // Multi-agent workflow binding -- loaded via ServiceLoader from cafeai-agentic.
+    // No CafeAI-facing methods use this directly; it exists purely so cafeai-agentic's
+    // own entry point (io.cafeai.agentic.CafeAgentic) can read the app's registered
+    // capabilities. See io.cafeai.core.spi.AgenticBridge.
+    private AgenticBridge agenticBridge;
+
     // Token budget and retry (ROADMAP-14 Phase 10)
     private TokenBudgetTracker budgetTracker;
     private RetryPolicy retryPolicy;
@@ -131,6 +137,7 @@ public final class CafeAIApp implements CafeAI {
         app.discoverModules();
         app.discoverConfigurers();
         app.discoverAgentBridge();
+        app.discoverAgenticBridge();
         return app;
     }
 
@@ -162,6 +169,13 @@ public final class CafeAIApp implements CafeAI {
         this.agentBridge = ServiceLoader.load(AgentBridge.class).findFirst().orElse(null);
         if (agentBridge != null) {
             agentBridge.init(new AgentSupportImpl());
+        }
+    }
+
+    private void discoverAgenticBridge() {
+        this.agenticBridge = ServiceLoader.load(AgenticBridge.class).findFirst().orElse(null);
+        if (agenticBridge != null) {
+            agenticBridge.init(new AgentSupportImpl());
         }
     }
 

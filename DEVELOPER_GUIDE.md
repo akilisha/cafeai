@@ -2876,3 +2876,178 @@ registers. CafeAI does not manage the OTel SDK lifecycle for either module;
 configure your own exporter the same way for both. No dashboard is shipped
 by `cafeai-flight` — point an existing OTel-compatible one (Grafana, etc.)
 at the same exporter and these metrics show up next to everything else.
+
+## 26. `cafeai-agentic` — HTTP Identity for LangChain4j Multi-Agent Workflows
+
+`cafeai-aiservices` (§11) binds one `AiServices` interface to the app's
+model/guardrails/observability. `langchain4j-agentic`
+(`dev.langchain4j:langchain4j-agentic`, still labeled experimental
+upstream) is a *different* LangChain4j library — multi-agent orchestration:
+sequencing, parallelism, loops, conditionals, and supervisor-style
+delegation over a shared `AgenticScope`. CafeAI does not reimplement any of
+that. `cafeai-agentic` is the same kind of binding `cafeai-aiservices`
+already does, aimed at this library instead.
+
+```java
+public interface MedicalExpert {
+    @Agent(name = "medicalExpert", outputKey = "medicalAdvice")
+    String assess(String question);
+}
+
+MedicalExpert medicalExpert = CafeAgentic.agentBuilder(app, MedicalExpert.class).build();
+```
+
+`CafeAgentic.agentBuilder(app, Type)` returns a real
+`AgenticServices.agentBuilder(Type)` instance — LangChain4j's own builder,
+not a wrapper — pre-wired with the app's default model (`app.ai(...)`),
+registered guardrails, and observability, the same job `AgentRegistry` does
+for plain `AiServices.builder(...)`. Add whatever the agent still needs
+(`.outputKey(...)`, `.tools(...)`, `.systemMessage(...)`) and call
+`.build()` yourself.
+
+**Only single-agent construction is pre-wired.** Compose the already-built,
+already-wired agents with `AgenticServices`' own `sequenceBuilder`/
+`parallelBuilder`/`loopBuilder`/`conditionalBuilder`/`supervisorBuilder`
+directly:
+
+```java
+Workflow workflow = AgenticServices.sequenceBuilder(Workflow.class)
+    .subAgents(medicalExpert, legalExpert)
+    .outputKey("legalAdvice")
+    .build();
+```
+
+The composer builders' own model/guardrail parity with `AgentBuilder` was
+never confirmed against the real library API, so `cafeai-agentic`
+deliberately does not guess at wrapping them — wrapping only what was
+verified keeps the binding honest.
+
+### 26.1 A parameter name is a contract across the whole chain
+
+A `sequenceBuilder` workflow resolves every agent's parameters against the
+shared `AgenticScope`, which after the entry call holds only the entry
+method's own parameters (under their own names) plus whatever prior agents
+wrote under their `outputKey`. A later agent's parameter name must match
+one of those exactly, or the call fails at *invocation* time with
+`MissingArgumentException`, not at build time:
+
+```java
+public interface MedicalExpert {
+    @Agent(name = "medicalExpert", outputKey = "medicalAdvice")
+    String assess(String question);
+}
+
+public interface LegalExpert {
+    // Must be "question" -- the entry call's own parameter name --
+    // not e.g. "followUpQuestion". Nothing in the scope is ever named that.
+    @Agent(name = "legalExpert", outputKey = "legalAdvice", summarizedContext = "medicalExpert")
+    String advise(String question);
+}
+```
+
+A null value is treated the same as a missing one: if a route handler
+forwards a body field that was never actually parsed (see the next note),
+the workflow fails the same way.
+
+### 26.2 Register JSON body parsing before calling a workflow
+
+`req.body(String key)` returns `null` until `app.filter(CafeAI.json())` has
+run — same as any other CafeAI route, but easy to miss when the interesting
+part of a handler is the agent call, not the request parsing:
+
+```java
+app.filter(CafeAI.json());   // must run before req.body("question") returns anything
+
+app.post("/consult", (req, res, next) ->
+    res.json(Map.of("answer", workflow.consult(req.body("question")))));
+```
+
+### 26.3 `summarizedContext` is the fix for cross-agent context loss
+
+Routing a follow-up from one specialist to another loses everything the
+first specialist was told, unless the second is explicitly pointed at the
+first's conversation. `langchain4j-agentic` already solves this —
+`@Agent(summarizedContext = "medicalExpert")` names another agent to pull a
+real, LLM-generated summary of its conversation into this agent's own
+context. `cafeai-agentic` does not build its own context-summarizer; this
+is a one-line, declarative library feature.
+
+That summary is produced by a genuine extra LLM call under the hood (its
+own system/user prompt, its own structured-output request) — not free, and
+its coherence depends on the model the same way any other call does. A
+model too small or too unreliable to produce clean structured output can
+fail the summarization step even when the main agent calls succeed —
+observed directly building `AgenticRoutingExample`: on a small,
+CPU-only, non-native-accelerated local model, this one extra call took
+several minutes and kept slowing down as its own context grew, long after
+the main agent chain had already answered correctly. Point at a real
+provider or an accelerated model for anything beyond confirming the wiring.
+
+### 26.4 `CafeAgenticMonitor` — the workflow's execution data as JSON
+
+Extend `MonitoredAgent` on a workflow's root interface and its `AgentMonitor`
+records every agent invocation — inputs, output, timing, token counts,
+nesting. The library itself has **no HTML topology report** — the "nice
+execution page" shown in LangChain4j's own conference demos is Quarkus Dev
+UI tooling, not part of the core `langchain4j-agentic` artifact.
+`CafeAgenticMonitor.route(...)` gives that same data an honest HTTP
+identity instead: JSON, at whatever path you mount it.
+
+```java
+public interface Consultation extends MonitoredAgent {
+    String consult(String question);
+}
+
+Consultation workflow = AgenticServices.sequenceBuilder(Consultation.class)
+    .subAgents(medicalExpert, legalExpert)
+    .outputKey("legalAdvice")
+    .build();
+
+app.get("/agentic/monitor", CafeAgenticMonitor.route(workflow.agentMonitor()));
+```
+
+An invocation still in flight when `/agentic/monitor` is hit is reported
+with `done: false` and no `output`/`duration`/`totalTokenCount` fields —
+the library itself throws if those are read before the call finishes, so
+the route omits them rather than erroring.
+
+### 26.5 Per-agent memory: `CafeAgenticMemory`
+
+`AgenticScope` has no persistence of its own — it is pure in-process
+workflow state (confirmed against the current library API and its
+outstanding, unimplemented GitHub RFC #4637 for a checkpoint/persistence
+SPI; do not design around a scope-level store existing). Per-agent
+conversation history is a separate concern, wired through a
+`ChatMemoryProvider` on `@ChatMemoryProviderSupplier`, the same
+`ChatMemoryProvider` type `AiServices` uses but a different wiring point:
+
+```java
+public interface MedicalExpert {
+    @Agent(name = "medicalExpert", outputKey = "medicalAdvice")
+    String assess(@MemoryId String sessionId, String question);
+
+    @ChatMemoryProviderSupplier
+    static ChatMemoryProvider memory() {
+        return CafeAgenticMemory.of(MemoryStrategy.inMemory());
+    }
+}
+```
+
+`cafeai.agent.memory.window` (default 20) governs the retained-message
+window for both this and `cafeai-aiservices`' own agent memory — one
+setting, shared meaning.
+
+### 26.6 Known rough edges (real, upstream, not CafeAI's to fix)
+
+- **`UntypedAgent` asymmetry** — `AgenticServices.loopBuilder()`/
+  `conditionalBuilder()` (no-arg form) return `UntypedAgent`, not a typed
+  interface, unlike every other composer. Prefer the `Class<T>`-argument
+  overloads where one exists.
+- **`typedOutputKey`** (`@Agent(typedOutputKey = SomeKey.class)`) is a
+  type-safe alternative to a string `outputKey` — prefer it in new code
+  over the stringly-typed form; CafeAI does not build a parallel typed-key
+  system since the library already ships one.
+- **Agent interfaces must be `public`** — a package-private interface
+  (fine for plain `cafeai-aiservices`/`AiServices` proxies) throws
+  `IllegalAccessException` from `langchain4j-agentic`'s own proxy
+  generation. Declare agent interfaces `public`, top-level or nested.

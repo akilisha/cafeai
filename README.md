@@ -55,6 +55,7 @@ dependencies {
     // add only what you use:
     implementation 'com.akilisha.oss:cafeai-config:0.4.0'         // application.properties/.yaml + profiles
     implementation 'com.akilisha.oss:cafeai-aiservices:0.4.0'         // app.agent() — LangChain4j AiServices
+    implementation 'com.akilisha.oss:cafeai-agentic:0.4.0'        // CafeAgentic — LangChain4j langchain4j-agentic workflows
     implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // tiered context memory
     implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // retrieval-augmented generation
     implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // PII, jailbreak, toxicity, regulatory
@@ -365,6 +366,7 @@ cafeai/
 ├── cafeai-core           ← Express-style API, routing, middleware chain, all AI primitives
 ├── cafeai-config         ← File-based config (application.properties/.yaml + profiles) for AppConfig
 ├── cafeai-aiservices         ← Binds LangChain4j AiServices to the HTTP server — app.agent()
+├── cafeai-agentic        ← Binds LangChain4j langchain4j-agentic multi-agent workflows — CafeAgentic
 ├── cafeai-memory         ← Tiered context memory (in-memory, FFM/SSD, Redis)
 ├── cafeai-rag            ← Document ingestion, chunking, embedding, retrieval, vector DBs
 ├── cafeai-guardrails     ← PII, jailbreak, toxicity, regulatory compliance
