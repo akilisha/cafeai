@@ -3037,7 +3037,49 @@ public interface MedicalExpert {
 window for both this and `cafeai-aiservices`' own agent memory — one
 setting, shared meaning.
 
-### 26.6 Known rough edges (real, upstream, not CafeAI's to fix)
+### 26.6 Supervisor: dynamic delegation across a pool of agents
+
+`sequenceBuilder` runs a fixed pipeline; `supervisorBuilder` instead makes an
+LLM-driven decision, per request, about which of a pool of specialists (or
+several, in sequence) actually fits. The specialists are still built the same
+way -- `CafeAgentic.agentBuilder(app, Type)` -- but `supervisorBuilder` is a
+composer, so, like `sequenceBuilder`, CafeAI does not pre-wire it:
+
+```java
+Consultation supervisor = AgenticServices.supervisorBuilder(Consultation.class)
+    .chatModel(CafeAgentic.chatModel(app))
+    .subAgents(medicalExpert, legalExpert, technicalExpert)
+    .build();
+```
+
+`CafeAgentic.chatModel(app)` is the one addition this pattern needed: every
+composer builder requires its own explicit `.chatModel(...)`, and CafeAI has
+no other public way to hand it the app's registered model without reaching
+into `cafeai-aiservices` internals. It is a plain accessor -- the same model
+`agentBuilder` already resolves internally, just exposed -- not a wrapper
+around the composer itself.
+
+**The entry parameter must be named `request`.** Unlike `sequenceBuilder`,
+which binds to whichever parameter name the entry method uses,
+`supervisorBuilder`'s planner falls back to reading the fixed `AgenticScope`
+key `"request"` by default, unless a method is annotated
+`@SupervisorRequest` or `.requestGenerator(...)` is set explicitly. Name the
+parameter anything else and the supervisor sees an empty request with no
+error -- it just makes a routing decision from nothing.
+
+**A supervisor asks more of the model than a single agent call does.**
+Confirmed directly building `SupervisorRoutingExample` against a small
+(Qwen2.5-0.5B), CPU-only local model: the routing *decision* itself was
+reliably correct (it picked the legal specialist for a liability question
+every time). The model then failed to construct that specialist's call
+*arguments* correctly, echoing the agent's own name/description back instead
+of a real argument value. Choosing the right specialist and filling in a
+correct, structured argument map are two separate demands on the model — a
+model clearing the first does not automatically clear the second. This is a
+model-capability ceiling, not a `cafeai-agentic` defect; use a real provider
+or a larger/accelerated model for a supervisor demo that completes reliably.
+
+### 26.7 Known rough edges (real, upstream, not CafeAI's to fix)
 
 - **`UntypedAgent` asymmetry** — `AgenticServices.loopBuilder()`/
   `conditionalBuilder()` (no-arg form) return `UntypedAgent`, not a typed

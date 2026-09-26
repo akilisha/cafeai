@@ -64,6 +64,19 @@ class CafeAgenticTest {
     }
 
     @Test
+    void chatModel_returnsTheAppsDefaultModel_forComposerBuildersThatNeedItDirectly() {
+        support.model = fixedModel("n/a");
+
+        assertThat(CafeAgentic.chatModel(app)).isSameAs(support.model);
+    }
+
+    @Test
+    void chatModel_nullApp_fails() {
+        assertThatThrownBy(() -> CafeAgentic.chatModel(null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void agentBuilder_appliesTheDefaultModel() {
         support.model = fixedModel("pong");
 
@@ -129,6 +142,24 @@ class CafeAgenticTest {
         assertThat(bridge.before).hasSize(2);
         assertThat(bridge.afterOk).hasSize(2);
         assertThat(bridge.afterErr).isEmpty();
+    }
+
+    @Test
+    void chatModel_wiresIntoASupervisorBuilder_withPreWiredSubAgents() {
+        support.model = fixedModel("n/a");
+
+        Upper upper = CafeAgentic.agentBuilder(app, Upper.class).build();
+        Reverser reverser = CafeAgentic.agentBuilder(app, Reverser.class).build();
+
+        // Build-time proof only: a supervisor's routing/argument-construction quality depends
+        // on the model actually reasoning about which agent to call, which a canned FixedModel
+        // response cannot exercise meaningfully -- see SupervisorRoutingExample's Javadoc.
+        Workflow supervisor = AgenticServices.supervisorBuilder(Workflow.class)
+            .chatModel(CafeAgentic.chatModel(app))
+            .subAgents(upper, reverser)
+            .build();
+
+        assertThat(supervisor).isNotNull();
     }
 
     // ── fakes ────────────────────────────────────────────────────────────────

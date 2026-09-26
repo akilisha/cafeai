@@ -107,6 +107,59 @@ app.agent("qualify", QualificationAgent.class)
 
 ---
 
+## Several agents, one workflow
+
+A single agent with several tools is still one system prompt trying to be a medical assistant, a legal reviewer and a systems technician at once — the instructions dilute as they cover more ground. `cafeai-agentic` binds a different LangChain4j library, `langchain4j-agentic`, built for composing several specialist agents into one workflow with its own shared state (an `AgenticScope`). LangChain4j owns the sequencing, delegation and that shared state; CafeAI's job is the same job it did for the single agent above — give the workflow the app's model, guardrails and observability, without repeating the wiring on every specialist.
+
+```java
+public interface MedicalExpert {
+    @Agent(name = "medicalExpert", outputKey = "medicalAdvice")
+    String assess(String question);
+}
+
+public interface LegalExpert {
+    @Agent(name = "legalExpert", outputKey = "legalAdvice", summarizedContext = "medicalExpert")
+    String advise(String question);
+}
+
+MedicalExpert medicalExpert = CafeAgentic.agentBuilder(app, MedicalExpert.class).build();
+LegalExpert legalExpert     = CafeAgentic.agentBuilder(app, LegalExpert.class).build();
+
+Consultation workflow = AgenticServices.sequenceBuilder(Consultation.class)
+    .subAgents(medicalExpert, legalExpert)
+    .outputKey("legalAdvice")
+    .build();
+```
+
+`CafeAgentic.agentBuilder` does for each specialist exactly what `app.agent(...)` did for the single agent above. What it deliberately does not do is wrap `sequenceBuilder` itself, or LangChain4j's other composers (`parallelBuilder`, `loopBuilder`, `conditionalBuilder`, `supervisorBuilder`): composing already-wired specialists carries their guardrails and observability with them, and CafeAI has not confirmed those composers share `AgentBuilder`'s own model/guardrail surface closely enough to pre-wire without guessing at it.
+
+**The problem this is really for:** route a follow-up question from one specialist to another and the second one starts from nothing — it never saw the first conversation. `@Agent(summarizedContext = "medicalExpert")` on `LegalExpert` is the fix: a real, LLM-generated summary of `medicalExpert`'s conversation is pulled into `legalExpert`'s own context before it answers. This is already built into `langchain4j-agentic`; `cafeai-agentic` does not implement its own summarizer.
+
+**Choosing the specialist, not fixing the order:** `sequenceBuilder` always runs every agent, in order. When which specialist fits depends on the request, `supervisorBuilder` decides at runtime instead:
+
+```java
+Consultation supervisor = AgenticServices.supervisorBuilder(Consultation.class)
+    .chatModel(CafeAgentic.chatModel(app))
+    .subAgents(medicalExpert, legalExpert, technicalExpert)
+    .build();
+```
+
+`supervisorBuilder` is a composer too, so it needs its own `.chatModel(...)` — `CafeAgentic.chatModel(app)` is the app's registered model, exposed directly for exactly this, since the composers aren't pre-wired the way a single agent is.
+
+**Watching it run:** extend `MonitoredAgent` on the workflow's root interface and every invocation — inputs, output, timing, token counts — is recorded. `langchain4j-agentic` has no HTML report for this (that tooling is Quarkus Dev UI, not the core library); `CafeAgenticMonitor.route(workflow.agentMonitor())` gives it a JSON one instead, mounted like any other route:
+
+```java
+app.get("/agentic/monitor", CafeAgenticMonitor.route(workflow.agentMonitor()));
+```
+
+A few things worth knowing before composing agents this way:
+
+- **A parameter name is a contract across the whole chain.** Each agent's parameters resolve against the shared scope, which holds only the entry call's own parameter names plus whatever earlier agents wrote under their `outputKey`. Name a later agent's parameter anything else and the call fails at invocation, not at build time.
+- **A supervisor's entry parameter must be named `request`.** Its planner reads a fixed scope key by default, unlike `sequenceBuilder`'s name-matching.
+- **Choosing well and arguing well are different asks of the model.** Building the supervisor example, a small model reliably picked the right specialist for a question and still failed to construct that specialist's call arguments correctly — it echoed the agent's own description back instead of a real value. Routing quality and argument-construction quality both need checking, not just one.
+
+---
+
 ## Limits worth knowing
 
 **The agent's retrieved documents are not screened.** With `app.prompt()`, `GuardRail.promptInjection()` also checks each retrieved document and drops one that carries an injected instruction. On the agent path, retrieval belongs to LangChain4j and CafeAI does not intercept it.

@@ -48,22 +48,8 @@ public final class CafeAgentic {
      * {@code .tools(...)}, or anything else the workflow needs, then call {@code .build()}.
      */
     public static <T> AgentBuilder<T, ?> agentBuilder(CafeAI app, Class<T> type) {
-        if (app == null) {
-            throw new IllegalArgumentException("app must not be null");
-        }
-        AgentBridge.AgentSupport support = AgenticSupportHolder.support();
-        if (support == null) {
-            throw new IllegalStateException(
-                "cafeai-agentic is not initialised — build the app via CafeAI.create().");
-        }
-
-        AiProvider provider = support.defaultProvider();
-        if (provider == null) {
-            throw new IllegalStateException(
-                "No default model registered. Call app.ai(...) before building an agentic agent, "
-                + "or set the model explicitly on the returned builder.");
-        }
-        ChatModel model = support.chatModel(provider);
+        AgentBridge.AgentSupport support = requireSupport(app);
+        ChatModel model = defaultChatModel(support);
 
         AgentBuilder<T, ?> builder = AgenticServices.agentBuilder(type).chatModel(model);
 
@@ -84,5 +70,40 @@ public final class CafeAgentic {
         builder.listener(new AgenticObserveListener(support.observeBridge()));
 
         return builder;
+    }
+
+    /**
+     * The app's default {@link ChatModel} -- the same one {@link #agentBuilder} resolves
+     * internally, exposed because {@code langchain4j-agentic}'s composer builders
+     * ({@code sequenceBuilder}, {@code supervisorBuilder}, ...) each require their own
+     * {@code .chatModel(...)} call and CafeAI does not wrap those builders (see class Javadoc),
+     * so there is otherwise no way to hand them the app's registered model without reaching
+     * into {@code cafeai-aiservices} internals. This is a plain accessor, not a builder --
+     * it adds no composition behavior of its own.
+     */
+    public static ChatModel chatModel(CafeAI app) {
+        return defaultChatModel(requireSupport(app));
+    }
+
+    private static AgentBridge.AgentSupport requireSupport(CafeAI app) {
+        if (app == null) {
+            throw new IllegalArgumentException("app must not be null");
+        }
+        AgentBridge.AgentSupport support = AgenticSupportHolder.support();
+        if (support == null) {
+            throw new IllegalStateException(
+                "cafeai-agentic is not initialised — build the app via CafeAI.create().");
+        }
+        return support;
+    }
+
+    private static ChatModel defaultChatModel(AgentBridge.AgentSupport support) {
+        AiProvider provider = support.defaultProvider();
+        if (provider == null) {
+            throw new IllegalStateException(
+                "No default model registered. Call app.ai(...) before building an agentic agent, "
+                + "or set the model explicitly on the returned builder.");
+        }
+        return support.chatModel(provider);
     }
 }
