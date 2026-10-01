@@ -2,6 +2,16 @@
 
 > *A foundational and composable framework for Gen AI in Java.*
 
+**Try it in ten seconds** — no clone, no build file, no project. With [JBang](https://www.jbang.dev):
+
+```bash
+jbang hello@akilisha/cafeai      # a web server in one file
+jbang ask@akilisha/cafeai        # an LLM behind POST /ask (Anthropic, OpenAI, or local Ollama)
+jbang init -t cafeai@akilisha/cafeai app.java   # start your own
+```
+
+The scripts are [`jbang/hello.java`](jbang/hello.java) and [`jbang/ask.java`](jbang/ask.java), each one file.
+
 **CafeAI is not an invention of anything new.** It is a deliberate re-orientation of familiar, battle-tested patterns and paradigms — Java's robustness, Express's composability, Langchain's AI primitives — unified into a foundational and composable framework for the AI age. Built for Java developers who refuse to trade understanding for convenience.
 
 ---

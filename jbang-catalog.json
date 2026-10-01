@@ -1,0 +1,20 @@
+{
+  "aliases": {
+    "hello": {
+      "script-ref": "jbang/hello.java",
+      "description": "A CafeAI web server in one file: routes, JSON, no API key"
+    },
+    "ask": {
+      "script-ref": "jbang/ask.java",
+      "description": "An LLM behind POST /ask in one file (Anthropic, OpenAI, or local Ollama)"
+    }
+  },
+  "templates": {
+    "cafeai": {
+      "file-refs": {
+        "{basename}.java": "jbang/hello.java"
+      },
+      "description": "A minimal CafeAI app to start from"
+    }
+  }
+}

@@ -132,7 +132,7 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
    ./gradlew publishToMavenCentral
    ```
 
-   Runs for every opted-in module (eleven libraries and `cafeai-bom`) in one invocation; the
+   Runs for every opted-in module (fourteen libraries and `cafeai-bom`) in one invocation; the
    plugin stages them together and uploads a bundle. Inter-module dependencies
    (`com.akilisha.oss:cafeai-core:<version>`, …) are wired automatically, with no
    ordering requirement.
@@ -145,6 +145,12 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
    To skip the manual gate, run `./gradlew publishAndReleaseToMavenCentral` (or
    change `publishToMavenCentral()` → `publishToMavenCentral(true)` in
    `gradle/maven-central.gradle`) and it releases itself once validation passes.
+
+6. **Bump the JBang scripts, last.** `jbang/*.java` pin a CafeAI version in their
+   `//DEPS` lines, and `jbang hello@akilisha/cafeai` runs them straight from `main`,
+   so they must only ever name a version Maven Central already serves. Once
+   `https://repo1.maven.org/maven2/com/akilisha/oss/cafeai-core/<version>/` answers,
+   update the `//DEPS` lines, run `jbang jbang/hello.java` once, and push.
 
 ---
 
