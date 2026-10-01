@@ -7,7 +7,7 @@ Ordinary features make people stay; these are meant to make people look.
 | # | Moonshot | Status |
 |---|----------|--------|
 | 1 | [The ten-second demo (JBang)](#1-the-ten-second-demo-jbang) | **Done** |
-| 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Round 1 done (vs Spring MVC) |
+| 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Rounds 1–4 done (7 frameworks, capped heaps, Vert.x/Micronaut) |
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | Idea |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | Idea |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
@@ -455,6 +455,63 @@ Each app was started once on the server before the run, which warms JBang's buil
 cache (no compile time in the first measured run) and confirms through
 `app.sh check` that it, and nothing else, serves the port. Idle memory at that
 start: Vert.x 104 MB, CafeAI 117 MB, Micronaut 129 MB.
+
+#### Results
+
+Raw files: `bench/results/2026-10-01-do-c4-run4`. All nine runs survived — no
+`OutOfMemoryError`, and the only timeouts were 140 for CafeAI on 256 MB at 8,000
+waiting requests.
+
+**Raw overhead — `GET /json`, 256 connections, default heap:**
+
+| | Ceiling (req/s) | Server CPU there | Memory there |
+|---|---|---|---|
+| **Vert.x** | **≥ 112,000** (not reached) | 88% | **250 MB** |
+| Micronaut | ~101,000 | 99% | 368 MB |
+| CafeAI | ~96,000 | 99% | 332 MB |
+
+Vert.x's ceiling was not found: at the suite's top rate (120,000 req/s) it served
+112,000 with its CPU 88% busy. The rig cannot ask for more, so its real ceiling
+is higher. Capped at 512 / 256 MB: Vert.x ~106–108k, CafeAI ~94–97k, Micronaut
+~89–90k.
+
+**Every request waits 100 ms — 4,000 and 8,000 connections:**
+
+| | 4,000 conns | 8,000 conns | Memory at 8,000 |
+|---|---|---|---|
+| **Vert.x** (`setTimer`, event loop) | **32,815/s, p50 101 ms, p99 111 ms** | **55,365/s, p50 151 ms** | **444 MB** |
+| CafeAI (`Thread.sleep`, virtual threads) | 32,762/s, p50 161 ms, p99 637 ms | 39,569/s, p50 6.7 s | 921 MB |
+| Micronaut (`Thread.sleep`, virtual threads) | 31,535/s, p50 861 ms, p99 2.8 s | 36,634/s, p50 7.5 s | 1,064 MB |
+
+At 512 MB and 256 MB Vert.x barely moves (32,814/s at 4,000 on both; 50–53k/s at
+8,000), CafeAI holds 32,538/s at 4,000 on 512 MB but drops to 26,341/s on 256 MB,
+and Micronaut falls to 28,864/s (512 MB) and 17,748/s (256 MB).
+
+**Reading it — the plain version:**
+
+- **Vert.x beats CafeAI on every measure here**: more throughput, lower latency,
+  half the memory under load, and it shrugs off a 256 MB heap. A request waiting
+  on a timer in Vert.x costs a small callback object; in CafeAI it costs a parked
+  virtual thread with its stack. That is the price of the programming model.
+- **That model is the real difference, and the test favours Vert.x on it.**
+  Vert.x waited with a non-blocking timer. A Vert.x app making a real *blocking*
+  call — JDBC, a blocking HTTP client — must not do it on the event loop; it hands
+  it to a worker pool (20 threads by default) or uses Vert.x's reactive clients
+  instead. CafeAI's claim is that you can write the blocking code and still get
+  this class of throughput, and against Micronaut — the same virtual-thread model
+  — it does: equal or better throughput at 4,000 and 8,000 waiting requests, a
+  fifth of Micronaut's median at 4,000, and less memory.
+- **Plain JSON: CafeAI is third of three.** Close to Micronaut (~96k vs ~101k),
+  clearly behind Vert.x (112k and more). Round 2's "highest JSON ceiling of the
+  whole field" was true of that field, which did not include these two.
+- **Run-to-run variance:** CafeAI's p50 at 4,000 waiting requests was 108 ms in
+  round 2 and 161 ms here; throughput agreed within 0.2%. Medians near
+  saturation move more than throughput does.
+
+**The fair next test:** Vert.x running the same *blocking* code — its
+virtual-thread verticles (`ThreadingModel.VIRTUAL_THREAD`) with `Thread.sleep`,
+and `executeBlocking` on its worker pool — which is the comparison CafeAI's
+"write blocking code" pitch actually rests on.
 
 ---
 
