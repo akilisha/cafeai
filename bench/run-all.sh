@@ -17,9 +17,15 @@ for app in "${APPS[@]}"; do
   # A "-x<MB>" suffix caps the JVM heap, and makes running out of it exit the JVM
   # (instead of limping on), so the run shows it: cafeai-x256 = cafeai, -Xmx256m.
   base=$app; heap=""
-  if [[ $app =~ ^(.*)-x([0-9]+)$ ]]; then
+  # An "-aot" suffix starts the app with the AOT cache bench/leyden/startup.sh
+  # trained for it; AOTMode=on makes an unusable cache fail instead of being ignored.
+  if [[ $base =~ ^(.*)-aot$ ]]; then
     base=${BASH_REMATCH[1]}
-    heap="-Xmx${BASH_REMATCH[2]}m -XX:+ExitOnOutOfMemoryError"
+    heap="-XX:AOTMode=on -XX:AOTCache=/root/leyden/$base.aot"
+  fi
+  if [[ $base =~ ^(.*)-x([0-9]+)$ ]]; then
+    base=${BASH_REMATCH[1]}
+    heap="$heap -Xmx${BASH_REMATCH[2]}m -XX:+ExitOnOutOfMemoryError"
   fi
   case $base in
     springmvc-tuned) START="springmvc -Dserver.tomcat.max-keep-alive-requests=-1 -Dserver.tomcat.max-connections=20000 -Dserver.tomcat.accept-count=10000" ;;

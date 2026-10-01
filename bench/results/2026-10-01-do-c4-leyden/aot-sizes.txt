@@ -1,0 +1,4 @@
+36589568 cafeai.aot
+47181824 micronaut.aot
+57626624 springmvc.aot
+31145984 vertx.aot

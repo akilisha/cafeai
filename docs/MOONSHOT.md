@@ -8,7 +8,7 @@ Ordinary features make people stay; these are meant to make people look.
 |---|----------|--------|
 | 1 | [The ten-second demo (JBang)](#1-the-ten-second-demo-jbang) | **Done** |
 | 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Rounds 1–4 done (7 frameworks, capped heaps, Vert.x/Micronaut) |
-| 3 | [Java that starts like Go](#3-java-that-starts-like-go) | Idea |
+| 3 | [Java that starts like Go](#3-java-that-starts-like-go) | AOT cache measured; native image next |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | Idea |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
@@ -520,15 +520,72 @@ and `executeBlocking` on its worker pool — which is the comparison CafeAI's
 **The pitch:** starts in tens of milliseconds, runs in tens of megabytes — so
 serverless and scale-to-zero stop being places Java loses.
 
-Two routes: a GraalVM native image, or Java 25's ahead-of-time cache (Project
-Leyden), which keeps the normal JVM and needs no reflection configuration.
-`hello.java` already reports ~0.8 s from JVM start to serving on a plain JVM;
-that is the baseline to beat.
+Two routes: Java's ahead-of-time cache (Project Leyden, JDK 24–25), which keeps
+the normal JVM and needs no code changes; and a GraalVM native image, which
+compiles the whole app to a binary.
 
-**Risk:** LangChain4j leans on reflection and dynamic proxies, which native image
-must be told about. Unknown how much survives. The AOT cache sidesteps most of it
-and is the cheaper first experiment.
+**Is CafeAI unusually well placed? Partly.** Native image analyses the program at
+build time, so it rewards code with no classpath scanning, reflection or runtime
+proxies — and Helidon SE, under CafeAI, has none of those. But Micronaut and
+Quarkus moved their wiring to compile time precisely for native image and have
+years of tooling for it; Vert.x, with no DI container, is as friendly as Helidon
+SE. "Among the best placed," not "the best placed." And the AOT cache rewards the
+*opposite* design: it saves startup work, so the more an app does at startup
+(Spring's scanning), the more it gains.
 
+What CafeAI inherits depends on the layer:
+
+| Layer | Native-image friendly? | Evidence |
+|---|---|---|
+| HTTP server (Helidon SE) | yes | no scanning, no DI container |
+| CafeAI's own code | mostly | modules found through `ServiceLoader` (supported when the registrations are on the build classpath); one reflection site, `SchemaHintBuilder` (`.returning(X.class)`); `res.json(...)` uses Jackson, which reflects over the app's own types |
+| AI stack (LangChain4j) | unknown — the hard part | `app.agent(...)` returns an `AiServices` dynamic proxy; Jackson throughout; Jlama and ONNX native libraries |
+
+Quarkus's LangChain4j extension already compiles AI apps to native images, so
+"the AI framework that runs native" is not open ground. A genuine claim would be
+measured: *a CafeAI app is a `main()`, compiles to a native binary with no
+framework build plugin and N lines of configuration, starts in X ms, serves in
+Y MB — here is what works native, what does not, and what it costs in
+throughput* (native images usually trade peak throughput for startup).
+
+### Step 1: the AOT cache (2026-10-01)
+
+Same droplets as #2; `bench/leyden/startup.sh`, raw results in
+`bench/results/2026-10-01-do-c4-leyden`. For each app: capture the exact `java`
+command JBang runs (so JBang's own startup is not timed); five cold starts timed
+from process start to the first 200 on `/json`; a training run with
+`-XX:AOTCacheOutput` driving `/json`, `/block` and `/thread`, stopped with SIGTERM
+so the JVM writes its cache; then five starts with `-XX:AOTMode=on
+-XX:AOTCache=...` — `AOTMode=on` makes an unusable cache fail instead of being
+silently ignored. Temurin 25.0.4, `c-4` droplet.
+
+**Time to first response (median of 5; spread in brackets) and memory at that moment:**
+
+| | No cache | AOT cache | Faster | Memory | Cache size |
+|---|---|---|---|---|---|
+| **Vert.x** | 926 ms (908–948) | **388 ms** (357–397) | 2.4× | 104 → 78 MB | 31 MB |
+| **CafeAI** | 1,228 ms (1,218–1,240) | **470 ms** (449–496) | 2.6× | 113 → 90 MB | 37 MB |
+| Micronaut | 1,689 ms (1,684–1,712) | 616 ms (596–652) | 2.7× | 125 → 109 MB | 47 MB |
+| Spring MVC | 2,899 ms (2,822–2,916) | 1,292 ms (1,267–1,310) | 2.2× | 183 → 159 MB | 58 MB |
+
+**Reading it:**
+
+- **The cache helps everyone by about the same factor** (2.2–2.7×), as expected:
+  it is not a CafeAI differentiator. In absolute terms Spring gains the most
+  (1.6 s); Vert.x is fastest with and without it; CafeAI is second both ways.
+- **It also cuts startup memory** by 15–25 MB (13–24%).
+- **No code changes, no build plugin, normal JVM** — a free win for any CafeAI
+  deployment that restarts often. The catch: the cache is tied to the exact JDK
+  and classpath, so it must be retrained whenever either changes.
+- **Nobody is near "tens of milliseconds."** That is native image's territory;
+  step 2.
+
+**Method notes:** time to first response includes the first request's own
+lazy initialisation, so it is longer than the "started" line frameworks log
+(Helidon logs ~0.86 s since JVM start for CafeAI). While the throughput suite
+below ran, one copy job of mine ran on the server for a few seconds (during
+CafeAI's warm-up or its first 20,000 req/s step, whose numbers look normal);
+the server should be left alone during runs.
 ---
 
 ## 4. Record and replay for LLM calls
