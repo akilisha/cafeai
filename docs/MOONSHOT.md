@@ -11,7 +11,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | Idea |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | Idea |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
-| 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Idea |
+| 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
 (The numbers are from the list these were picked from, kept so they stay stable.)
 
@@ -566,14 +566,118 @@ call it (a schema per route, or the request type's record components).
 
 ## 11. Express middleware on virtual threads
 
-**The pitch:** your existing Express middleware, running inside CafeAI.
+**The pitch, narrowed:** drop-in, unmodified npm middleware of the
+header-and-decision kind — `helmet`, `cors` — running inside a CafeAI app, so a
+team moving from Express keeps its exact security-header and CORS policy.
 
-GraalJS runs JavaScript on the JVM. Adapt Express's `(req, res, next)` to
-CafeAI's — which was modelled on it — and npm middleware could run in a Java
-server, on virtual threads.
+**How the idea came about:** by analogy, not research. CafeAI's middleware was
+modelled on Express's `(req, res, next)`, and GraalJS runs JavaScript inside the
+JVM, so an Express middleware function could in principle be handed CafeAI's
+request and response.
 
-**Risk:** probably impractical in full. Express middleware reaches into Node's
-`http` objects and streams, and those semantics differ in many small ways. A
-narrow version — pure functions of headers and body, like many auth and
-validation middlewares — might be real. Worth a spike to find where it breaks,
-because even a partial result is a headline.
+**Why the general version is not possible.** Express's `req` and `res` are not
+plain objects: they are Node's `http.IncomingMessage` and `http.ServerResponse`,
+streams and event emitters. Real middleware depends on that:
+
+- **Node's core modules** (`stream`, `events`, `buffer`, `crypto`, `zlib`). GraalJS
+  embedded in a Java app is plain ECMAScript without them. (GraalVM's Node.js
+  runtime has them, but it is Node hosting Java — the wrong way round.)
+- **Streams:** `body-parser` reads the request body through `raw-body`'s stream
+  events.
+- **Patching `res` at runtime:** `on-headers` and `on-finished`, used by
+  `express-session`, `compression` and `morgan`, replace `res.writeHead` and wait
+  for the response's `finish` event.
+- **The event loop:** `next()` is often called later, from a callback or promise,
+  while a GraalJS context may be used by only one thread at a time — and CafeAI
+  runs every request on its own virtual thread.
+
+Running *any* Express middleware means writing a Node compatibility layer —
+years of work for Bun and Deno. Not a feature; a project bigger than CafeAI.
+
+**What might work — three tiers, from the packages' own dependencies:**
+
+| Tier | Examples | Needs | Verdict |
+|---|---|---|---|
+| A | `helmet` (no dependencies), `cors` (`vary`, `object-assign`) | headers, method, path; `next()` or end | plausible |
+| B | basic-auth checks, request ids | `Buffer`, a little `crypto` | maybe, via polyfills or Java bridges |
+| C | `body-parser`, `express-session`, `compression`, `morgan`, `multer` | streams, `on-headers` / `on-finished` | no — and CafeAI has Java equivalents |
+
+**Costs to measure:** on a stock JDK, GraalJS runs JavaScript interpreted (its
+optimising compiler needs a GraalVM JDK), and each context is single-threaded,
+so a pool of contexts is needed.
+
+**The spike:** load `helmet` and `cors` from `node_modules` with GraalJS's
+CommonJS `require`, behind a minimal Express-shaped `req`/`res`; check the
+headers they produce against the same packages in real Express; measure the
+throughput cost; then try one Tier B package to find where it breaks.
+
+### Spike results (2026-10-01)
+
+Code: [`spikes/express-middleware`](../spikes/express-middleware) — `spike.java`
+(CafeAI + GraalJS 25.4.4.1.1), `adapter.js` (the Express-shaped `req`/`res`),
+`reference.js` (the same middleware in real Express 5.2.1), `compare.sh`, and
+`tierb.java`.
+
+**Tier A works, and matches Express exactly.** Unmodified `helmet` 8.3.0 and
+`cors` 2.8.6, loaded from `node_modules` with GraalJS's CommonJS `require`, run
+as CafeAI middleware on its virtual threads. Compared header by header against
+the same packages with the same options in real Express (ignoring only `Date`,
+`Connection`, `ETag` and body headers), all four cases are identical: an allowed
+origin (16 header lines), a foreign origin (15 — `cors` refuses it, as in
+Express), no origin, and a CORS preflight that `cors` answers itself with a 204
+(19 lines, including the echoed `Access-Control-Allow-Headers`).
+
+How it is built: each middleware keeps a pool of GraalJS contexts (a context is
+single-threaded) sharing one engine; a request borrows a context, the middleware
+runs against plain JS objects, and one result — next, end, or error, plus the
+headers and status it set — is applied to CafeAI's response. A middleware that
+returns without calling `next()` or ending the response is reported as
+unsupported rather than left hanging.
+
+**A false pass, caught.** The first comparison said "identical" for every GET —
+while the middleware was seeing *no request headers at all*: GraalJS's default
+host access does not let JavaScript index a Java array, so the adapter's header
+arrays read as empty. It passed because `cors` configured with a fixed origin
+string sends that origin to everyone. Only the preflight, which echoes a request
+header back, differed. Fixed by granting array access alone
+(`HostAccess.EXPLICIT` + `allowArrayAccess`), and the test now configures `cors`
+with an allow-list so it must read the request's `Origin`.
+
+**The cost** (laptop, k6 on the same machine — relative numbers only):
+
+| | req/s | p99 | vs. no middleware |
+|---|---|---|---|
+| Stock JDK 25, no middleware | 39,309 | 7.0 ms | — |
+| Stock JDK 25, CafeAI's Java `cors()` | 36,419 | 7.4 ms | −7% |
+| Stock JDK 25, npm `helmet` + `cors` (JS interpreted) | 16,926 | 20.3 ms | −57% |
+| GraalVM CE 25, no middleware | 35,008 | 7.9 ms | — |
+| GraalVM CE 25, npm `helmet` + `cors` (JS JIT-compiled) | 22,326 | 16.1 ms | −36% |
+
+On a stock JDK GraalJS runs JavaScript interpreted (`engine = Interpreted`); a
+GraalVM JDK compiles it (`engine = GraalVM CE`), which halves the cost but does
+not remove it. (`helmet` sets 13 headers the Java `cors()` does not, so the Java
+row is not like for like.) And GraalVM warns: *"Using polyglot contexts on Java
+virtual threads on HotSpot is experimental in this release"* — CafeAI runs every
+request on a virtual thread.
+
+**Tier B and C break exactly where predicted — on Node's core modules.**
+`express-basic-auth` and `morgan` both fail to load: `Cannot load module:
+'buffer'`. GraalJS can substitute a core module with an npm package
+(`js.commonjs-core-modules-replacements`), and each substitution exposes the next
+gap: with the `buffer` polyfill, `express-basic-auth` needs `assert` and `morgan`
+needs `tty`; with an `assert` polyfill too, `express-basic-auth` needs the
+`process` global. That treadmill is the Node compatibility layer this idea
+cannot afford.
+
+**Verdict:**
+
+- **Possible, narrowly:** unmodified header-and-decision middleware with no Node
+  dependencies (`helmet`, `cors`) runs inside CafeAI with output identical to
+  Express. That part of the idea is real.
+- **Expensive:** a third to a half of a simple route's throughput, on a path
+  (polyglot contexts on virtual threads) GraalVM calls experimental.
+- **Not general:** anything touching `Buffer`, `process` or streams needs a
+  growing set of shims, package by package.
+- **So:** a credible demo and an honest write-up ("helmet and cors, byte for byte
+  identical to Express, at a measured cost"), not a feature to ship. If it ever
+  became one, it would be an opt-in module limited to a tested list of packages.
