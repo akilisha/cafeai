@@ -1,0 +1,3 @@
+# Scripts that run on Linux must keep LF line endings, whatever core.autocrlf is.
+*.sh    text eol=lf
+gradlew text eol=lf

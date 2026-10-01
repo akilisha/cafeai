@@ -210,8 +210,9 @@ the connections could carry):
 
 - **Every ceiling is the server's CPU** (97–99%); the load generator never passed
   70%. So these measure the frameworks, not the rig.
-- **CafeAI does the same work for less than half the CPU.** That is the whole
-  story behind both ceilings: 2.6× less CPU per JSON request at the same rate.
+- **CafeAI does the same work for less CPU**, which is the story behind both
+  ceilings. (This run measured 2.6× less CPU per JSON request at 20,000 req/s;
+  round 2 shows that low-load figure varies between runs — see its correction.)
 - **Spring's default p99 of ~1 s at 1,000 connections is a setting, not a limit:**
   Tomcat closes keep-alive connections after 100 requests, and the reconnects
   queue. Tuning fixes it (131 ms). Tuning does not move the ceilings, because
@@ -278,6 +279,76 @@ number reflects that default as much as the framework.
   → the app) while it builds, so a pid captured at start can be the launcher. The
   app is identified by its session instead, with JBang's own processes excluded
   from memory.
+- The workstation running `run-all.sh` went into Modern Standby twice
+  (19:08–19:12 and 19:19–19:41 UTC). The suites carried on, since they run on the
+  load generator and the ssh sessions survived, but the next command waited for
+  the laptop to wake. A dropped ssh session would have killed a suite mid-run.
+  Next round: run the driver on the load generator itself, under `nohup`.
+
+#### Results
+
+Raw files: `bench/results/2026-10-01-do-c4-run2`. Every ceiling is the server's
+CPU (95–100%); the load generator never passed 70%. No run had a connect error or
+a non-2xx response. Memory is RSS, averaged over the run.
+
+**Raw overhead — `GET /json`, 256 connections:**
+
+| | Ceiling (req/s) | p99 at 40,000 req/s | Memory at the ceiling | Idle memory |
+|---|---|---|---|---|
+| **CafeAI** | **~97,000** | **2.8 ms** | 341 MB | 129 MB |
+| Gin | ~70,000 | 4.6 ms | **25 MB** | **9 MB** |
+| Javalin | ~55,000 | 4.8 ms | 624 MB | 143 MB |
+| Spring MVC, tuned | ~51,000 | 4.6 ms | 365 MB | 185 MB |
+| Spring MVC | ~49,000 | 12.7 ms | 375 MB | 185 MB |
+| Spring WebFlux | ~44,000 | 1,170 ms (already saturating) | 423 MB | 179 MB |
+| Express (4 workers) | ~31,000 | saturated at 31,000 | 636 MB | 328 MB |
+
+**Every request waits 100 ms, 4,000 connections** (36,000 req/s requested):
+
+| | Achieved | p50 | p99 | Memory |
+|---|---|---|---|---|
+| **CafeAI** | **32,808/s** | **108 ms** | **150 ms** | 691 MB |
+| **Gin** | **32,796/s** | **104 ms** | **164 ms** | **188 MB** |
+| Javalin | 30,000/s | 1.96 s | 2.84 s | 1,469 MB |
+| Spring WebFlux | 26,235/s | 3.87 s | 6.05 s | 870 MB |
+| Express | 25,649/s, 231 timeouts | 3.87 s | 8.47 s | 897 MB |
+| Spring MVC, tuned | 19,602/s | 8.15 s | 11.9 s | 2,230 MB |
+| Spring MVC | 18,898/s | 8.03 s | 12.1 s | 2,199 MB |
+
+**Every request waits 100 ms, 8,000 connections** (72,000 req/s requested):
+
+| | Achieved | Timeouts | Memory |
+|---|---|---|---|
+| **Gin** | **41,658/s** | 0 | **363 MB** |
+| **CafeAI** | **39,986/s** | 0 | 1,103 MB |
+| Javalin | 29,604/s | 0 | 1,891 MB |
+| Spring WebFlux | 27,487/s | 21,320 | 900 MB |
+| Express | 25,834/s | 27,137 | 948 MB |
+| Spring MVC, tuned | 16,185/s | 8,266 | 2,248 MB |
+| Spring MVC | 15,587/s | 15,103 | 2,226 MB |
+
+**Reading it:**
+
+- **On throughput, CafeAI leads the JVM field and the whole field on plain JSON**,
+  ~1.4× Gin and ~1.8–2× the other JVM frameworks. On waiting requests it ties Gin
+  — the two are the only ones still near the 100 ms floor at 4,000 connections.
+- **On memory, Gin is in a different class**: 9 MB idle, 25 MB at 70,000 req/s,
+  363 MB holding 8,000 waiting requests. CafeAI needs 3–14× more depending on the
+  load. That is mostly the JVM, not CafeAI — every JVM contender starts at
+  130–185 MB — but it is the honest price of the JVM.
+- **Among the JVMs, CafeAI has the lowest memory at every blocking level** (691 MB
+  at 4,000 connections, against 870 MB to 2.2 GB), and Spring MVC goes to the
+  2 GB default heap ceiling, where garbage collection eats the CPU the requests
+  needed — likely much of why it falls over there.
+- **JVM memory is partly a choice.** RSS shows what each JVM grew to with a 2 GB
+  heap available; it would run in less if told to. The next test should cap the
+  heap (say 256 MB and 512 MB) and see who still holds up.
+- **Repeatability:** CafeAI and Spring MVC came out within ~3% of round 1 on every
+  ceiling.
+- **A correction to round 1:** its "2.6× less CPU per JSON request" compared one
+  low-load sample (19.7% vs 51.5% at 20,000 req/s). Round 2 measured 35.8% vs
+  50.3% at the same rate, so CPU at low load varies run to run and that ratio is
+  not reliable. The ceilings are the solid figure: ~97–99k vs ~49–53k req/s.
 
 ---
 
