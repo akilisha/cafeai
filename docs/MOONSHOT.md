@@ -7,7 +7,7 @@ Ordinary features make people stay; these are meant to make people look.
 | # | Moonshot | Status |
 |---|----------|--------|
 | 1 | [The ten-second demo (JBang)](#1-the-ten-second-demo-jbang) | **Done** |
-| 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Pilot done |
+| 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Round 1 done (vs Spring MVC) |
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | Idea |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | Idea |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
@@ -107,6 +107,177 @@ threads for that.
    matters more than any single number — plus memory.
 5. **Everything public:** apps, load scripts, raw results, machine specs, and an
    invitation for each framework's maintainers to correct their entry.
+
+### Round 1 on DigitalOcean (2026-10-01)
+
+Everything needed to rerun this is in [`bench/`](../bench): the apps
+(`bench/apps`), the droplet boot scripts and app control script
+(`bench/droplets`), the load suite and CPU analysis (`bench/load`), and every raw
+result (`bench/results/2026-10-01-do-c4`).
+
+#### The machines
+
+Two **CPU-Optimized** droplets (`c-4`: 4 dedicated vCPU, 8 GB, $0.125/hour each)
+in `nyc1`, Ubuntu 24.04, talking over the private network. CPU-Optimized, not
+Basic: Basic droplets share CPU with other customers, which turns into noise.
+
+```bash
+doctl auth init                                   # once: paste an API token with write scope
+for n in server loadgen; do
+  doctl compute droplet create cafeai-bench-$n --region nyc1 --size c-4 \
+    --image ubuntu-24-04-x64 --ssh-keys <key-id> --tag-name cafeai-bench \
+    --user-data-file bench/droplets/$n-init.sh --enable-monitoring --wait
+done
+# ...and afterwards, so the meter stops:
+doctl compute droplet delete --tag-name cafeai-bench --force
+```
+
+- Both boot scripts raise kernel network limits (accept queue, open files,
+  client port range). The server gets Temurin 25 and JBang; the load generator
+  gets `wrk2` (built from source) and k6. `/var/log/bench-ready` appears when done
+  (about five minutes).
+- The server's firewall (`ufw`) allows port 8080 only from the private network.
+- `bench/droplets/app.sh start <app> [JVM options]` / `stop` runs an app and tracks
+  its pid; `bench/load/suite.sh <name> <host:port> <out-dir>` runs the suite from
+  the load generator; `mpstat 1` runs on the server alongside it.
+
+**What went wrong along the way (all fixed in the scripts):**
+
+- `c-4` is not offered in every region (`nyc3` refused it). Check with
+  `doctl compute region list -o json` and look for the size in each region's list.
+  This account's CPU-Optimized sizes stop at 4 vCPU, so the load generator cannot
+  be bigger than the server — which is why load-generator CPU is checked on every run.
+- cloud-init runs without `HOME`, so JBang installed itself under `/.jbang`.
+- k6's apt repository changed its signing key and the image has no `dirmngr` to
+  fetch keys; the script installs k6's release binary instead.
+- `pkill -f "java.*cafeai"` killed the ssh session running it — its own command
+  line matched. Hence `app.sh` and a pid file.
+- `wrk2` spends ~10 s calibrating; runs shorter than that are meaningless. The
+  suite uses 30 s runs and the CPU analysis skips each run's first 12 s.
+
+#### The first finding: CafeAI leaked every request
+
+The first run on the server died with `OutOfMemoryError` during warm-up, at
+20,000 requests/s. The laptop pilot never noticed, because a 64 GB machine gives
+the JVM a ~16 GB heap; the 8 GB droplet gives it ~2 GB.
+
+`jstat` showed the old generation growing ~50 MB/s and never shrinking — about
+2.6 KB kept per request. A class histogram showed exactly 761,588 live
+`HelidonRequest` and `HelidonResponse` objects and as many `WeakHashMap` entries:
+every request ever served.
+
+The cause was in `CafeAIApp`: each request's context lived in an app-wide
+`WeakHashMap` keyed by Helidon's request, but the value wrapped that same key, so
+no key could ever be released — and one global lock guarded the map on every
+filter and handler call. The context now lives in the Helidon request's own
+`context()`, freed with the request, with no shared lock.
+`RequestMemoryTest` fails on the old code and passes on the fix.
+
+| Same load, 40 s at ~19,900 req/s | Old generation | p99 latency |
+|---|---|---|
+| 0.5.0 | 1,864 MB and climbing, then out of memory | 1,560 ms |
+| 0.5.0 + fix | 9 MB, flat | 2.1 ms |
+
+All CafeAI numbers below are 0.5.0 with this fix.
+
+#### Results: CafeAI vs Spring MVC on virtual threads
+
+Same JDK (Temurin 25.0.4), same default heap, both confirmed running handlers on
+virtual threads (`GET /thread`). Spring Boot 4.1.1 is shown with its defaults and
+tuned: `max-keep-alive-requests=-1`, `max-connections=20000`, `accept-count=10000`.
+Every run is 30 s at a fixed request rate; no run had a connect error or a non-2xx
+response.
+
+**Raw overhead — `GET /json`, 256 connections:**
+
+| | Ceiling (req/s) | p99 at 40,000 req/s | Server CPU at 20,000 req/s |
+|---|---|---|---|
+| **CafeAI** | **~99,000** | **2.7 ms** | **19.7%** |
+| Spring MVC | ~50,000 | 4.3 ms | 51.5% |
+| Spring MVC, tuned | ~53,000 | 5.0 ms | 44.4% |
+
+**The virtual-thread case — every request blocks 100 ms** (requested: 90% of what
+the connections could carry):
+
+| Connections | CafeAI | Spring MVC | Spring MVC, tuned |
+|---|---|---|---|
+| 1,000 | 8,672/s, p99 106 ms | 8,671/s, p99 989 ms | 8,671/s, p99 131 ms |
+| 2,000 | 17,094/s, p99 110 ms | 17,065/s, p99 1,170 ms | 17,094/s, p99 193 ms |
+| 4,000 | **32,797/s, p99 162 ms** | 19,050/s, p99 12.3 s | 20,311/s, p99 11.0 s |
+| 8,000 | **41,027/s**, 0 timeouts | 16,663/s, 11,649 timeouts | 17,257/s, 13,869 timeouts |
+
+**Reading it:**
+
+- **Every ceiling is the server's CPU** (97–99%); the load generator never passed
+  70%. So these measure the frameworks, not the rig.
+- **CafeAI does the same work for less than half the CPU.** That is the whole
+  story behind both ceilings: 2.6× less CPU per JSON request at the same rate.
+- **Spring's default p99 of ~1 s at 1,000 connections is a setting, not a limit:**
+  Tomcat closes keep-alive connections after 100 requests, and the reconnects
+  queue. Tuning fixes it (131 ms). Tuning does not move the ceilings, because
+  those are CPU.
+- **Spring's 8,000-connection errors are timeouts, not refusals** — an overloaded
+  CPU answering too slowly, not a full accept queue.
+- **A blocking request costs ~2.4× the CPU of a JSON one in CafeAI** (81% for
+  32,800/s against 83% for 78,500/s): parking and waking a virtual thread per
+  request. Worth profiling; it is the next-cheapest throughput to win.
+
+#### Caveats before any of this is published
+
+- One run per configuration; the plan calls for several and the median.
+- 4 vCPU only. The shape may change on bigger machines.
+- The fix is unreleased: these CafeAI numbers are not what 0.5.0 on Maven Central
+  does (that runs out of memory). Publish only after the fixed release.
+- Spring was tuned by us, from its documentation. Its maintainers should get the
+  chance to tune it better.
+- Still to run: Spring WebFlux, Javalin, Express, and the PostgreSQL workload.
+
+### Round 2: the full field, plus memory (2026-10-01)
+
+Same droplets, same suite, every contender back to back with
+`bench/run-all.sh`. CafeAI and both Spring MVC configurations run again, which
+also gives them a second run.
+
+**The contenders**, each written the way its own users would write it — so each
+waits 100 ms its own idiomatic way:
+
+| App | Version | Runs on | Waits 100 ms with |
+|---|---|---|---|
+| CafeAI | 0.5.0 + leak fix | Helidon 4.5.5, virtual threads | `Thread.sleep` |
+| Spring MVC | Boot 4.1.1 | Tomcat, virtual threads (`spring.threads.virtual.enabled`) | `Thread.sleep` |
+| Spring MVC, tuned | Boot 4.1.1 | as above + keep-alive and connection limits raised | `Thread.sleep` |
+| Spring WebFlux | Boot 4.1.1 | Netty event loop | `Mono.delay` (sleeping would stall the event loop) |
+| Javalin | 7.2.3 | Jetty, virtual threads (`config.concurrency.useVirtualThreads`) | `Thread.sleep` |
+| Express | 5.2.1, Node 24.21 LTS | `cluster`, one worker per CPU (4) | `setTimeout` |
+| Gin | 1.12.0, Go 1.27.1 | release mode, no logger middleware | `time.Sleep` (one goroutine per request) |
+
+The JVM apps all run on Temurin 25.0.4 with the JVM's default heap sizing (a
+quarter of RAM, ~2 GB here) — what a team gets without tuning. Express runs as a
+cluster because one Node process uses one core; a single process on a 4-CPU box
+would not be a fair Express.
+
+**Memory** is the resident set size (RSS) of everything the app runs — for
+Express, the primary and all four workers — sampled every second
+(`app.sh memwatch`), averaged and peaked over each 30-second run after wrk2's
+calibration. For the JVMs, RSS includes heap the JVM has reserved and touched,
+not only live objects: a JVM given 2 GB will use a good part of it, and the
+number reflects that default as much as the framework.
+
+**What went wrong, and why `app.sh` is stricter now:**
+
+- The first smoke test of the new apps reported every one of them healthy —
+  because the tuned Spring server from round 1 had never been stopped and
+  answered every request. Leftover Gin and Express processes from that same smoke
+  test then held the port too: the new Gin could not bind and exited, and new
+  Express workers died, while the old ones kept answering.
+- Fix: each app now runs in its own session (`setsid`); stop kills the whole
+  session and then anything still on port 8080; **start refuses to run if the
+  port is taken**; and `app.sh check` shows which process actually serves the
+  port before every run.
+- JBang runs a script through a launcher chain (`bash` → `java -jar jbang.jar`
+  → the app) while it builds, so a pid captured at start can be the launcher. The
+  app is identified by its session instead, with JBang's own processes excluded
+  from memory.
 
 ---
 
