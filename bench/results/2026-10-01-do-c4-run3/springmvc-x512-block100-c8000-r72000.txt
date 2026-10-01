@@ -1,0 +1,31 @@
+Running 30s test @ http://10.116.0.2:8080/block?ms=100
+  4 threads and 8000 connections
+  Thread calibration: mean lat.: 748.318ms, rate sampling interval: 3567ms
+  Thread calibration: mean lat.: 732.061ms, rate sampling interval: 3532ms
+  Thread calibration: mean lat.: 688.786ms, rate sampling interval: 3428ms
+  Thread calibration: mean lat.: 755.899ms, rate sampling interval: 3590ms
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     -nanus    -nanus   0.00us    0.00%
+    Req/Sec     0.00      0.00     0.00    100.00%
+  Latency Distribution (HdrHistogram - Recorded Latency)
+ 50.000%    0.00us
+ 75.000%    0.00us
+ 90.000%    0.00us
+ 99.000%    0.00us
+ 99.900%    0.00us
+ 99.990%    0.00us
+ 99.999%    0.00us
+100.000%    0.00us
+
+  Detailed Percentile spectrum:
+       Value   Percentile   TotalCount 1/(1-Percentile)
+
+       0.000     1.000000            0          inf
+#[Mean    =         -nan, StdDeviation   =         -nan]
+#[Max     =        0.000, Total count    =            0]
+#[Buckets =           27, SubBuckets     =         2048]
+----------------------------------------------------------
+  53966 requests in 30.71s, 6.18MB read
+  Socket errors: connect 0, read 2687, write 1783566, timeout 26410
+Requests/sec:   1757.56
+Transfer/sec:    205.96KB

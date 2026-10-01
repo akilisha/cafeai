@@ -350,6 +350,112 @@ a non-2xx response. Memory is RSS, averaged over the run.
   50.3% at the same rate, so CPU at low load varies run to run and that ratio is
   not reliable. The ceilings are the solid figure: ~97–99k vs ~49–53k req/s.
 
+### Round 3: the JVMs on a capped heap (2026-10-01)
+
+Round 2's JVM memory was what each JVM grew to with ~2 GB of heap on offer — its
+appetite, not its need. Round 3 reruns the five JVM configurations with the heap
+capped at 256 MB and at 512 MB (`-Xmx256m` / `-Xmx512m`), the sizes a team picks
+for a small container, plus `-XX:+ExitOnOutOfMemoryError` so a JVM that runs out
+exits and the run shows it. Express and Gin are not JVMs; their round 2 numbers
+stand as the reference. Raw files: `bench/results/2026-10-01-do-c4-run3`.
+
+This round's driver ran on the load generator under `nohup`
+(`SV=<server private ip> LG=127.0.0.1`), with its own ssh key to the server, so
+the workstation could sleep.
+
+**Who survived.** A run "died" when the app's memory samples stop mid-suite;
+the surviving Spring MVC and Javalin logs show the cause:
+`Terminating due to java.lang.OutOfMemoryError: Java heap space` (the kernel
+killed nothing).
+
+| | 256 MB | 512 MB |
+|---|---|---|
+| **CafeAI** | **survived everything** | **survived everything** |
+| Spring WebFlux | survived | survived |
+| Javalin | died at 4,000 waiting requests | died at 8,000 |
+| Spring MVC | died at 4,000 | died at 8,000 |
+| Spring MVC, tuned | died at 4,000 | died at 8,000 |
+
+**Plain JSON barely notices the cap** — each request is done in about a
+millisecond, so little is alive at once. Ceilings at 256 MB: CafeAI ~95,700,
+Javalin ~51,800, Spring MVC ~48,000–50,900, WebFlux ~39,400 req/s. Holding many
+waiting requests is what needs memory, and that is where the field splits.
+
+**Every request waits 100 ms, 4,000 connections, 512 MB heap:**
+
+| | Achieved | p50 | Memory (RSS) |
+|---|---|---|---|
+| **CafeAI** | **32,773/s** | **134 ms** | 568 MB |
+| Spring WebFlux | 22,270/s | 6.75 s | 595 MB |
+| Javalin | 12,899/s | 12.0 s | 667 MB |
+| Spring MVC | 8,207/s, 7,614 timeouts | 14.7 s | 741 MB |
+| Spring MVC, tuned | 7,663/s, 9,920 timeouts | 14.9 s | 718 MB |
+| *Gin (no cap, round 2)* | *32,796/s* | *104 ms* | *188 MB* |
+| *Express (no cap, round 2)* | *25,649/s, 231 timeouts* | *3.87 s* | *897 MB* |
+
+**CafeAI across heap sizes, waiting requests:**
+
+| | 256 MB | 512 MB | default (~2 GB) |
+|---|---|---|---|
+| 2,000 connections | 17,095/s, RSS 364 MB | 17,095/s, RSS 348 MB | 17,095/s, RSS 404 MB |
+| 4,000 connections | 27,260/s, p50 3.5 s | **32,773/s, p50 134 ms** | 32,808/s, p50 108 ms |
+| 8,000 connections | 9,649/s, 1,904 timeouts | 30,025/s, 0 errors | 39,986/s, 0 errors |
+
+**Reading it:**
+
+- **At 512 MB, CafeAI gives up nothing up to 4,000 waiting requests** — the same
+  32,800 req/s as with 2 GB, in 568 MB of RSS instead of 691 MB — and still serves
+  8,000 with no errors. At 256 MB it holds 2,000 comfortably and degrades beyond,
+  but never falls over.
+- **Every other virtual-thread JVM falls over.** Javalin and both Spring MVC
+  configurations exhaust the heap at 4,000 (256 MB) or 8,000 (512 MB) waiting
+  requests. Before they die they slow to medians of 12–15 s: the garbage
+  collector is fighting for space.
+- **WebFlux survives but slows** — 22,270 req/s and a 6.75 s median at 4,000 on
+  512 MB. A reactive pipeline holds a waiting request in a small object rather
+  than a thread, which keeps it alive; it is just not fast.
+- **Against Gin, the honest comparison is now: same throughput, ~3× the memory.**
+  At 4,000 waiting requests CafeAI on 512 MB matches Gin's 32,800 req/s with
+  568 MB of RSS to Gin's 188 MB. With 2 GB on offer the gap looked like 3.7×; most
+  of that was the JVM using what it was given.
+- **The CafeAI memory leak would have been fatal here.** Any of these caps would
+  have killed 0.5.0 within seconds of steady traffic.
+
+**Caveats:** one run per configuration; RSS for a capped JVM still includes
+metaspace, JIT-compiled code and thread structures beyond the heap (hence 434 MB
+of RSS on a 256 MB heap); each JVM used its default collector (G1).
+
+**Next round:** each run now keeps its own app log (`<app>-app.log`), so a crash
+is recorded directly instead of inferred from where its memory samples stop —
+this round, logs were overwritten by the next run of the same app.
+
+### Round 4: head-to-head with Vert.x and Micronaut (2026-10-01)
+
+Spring and Express are not CafeAI's natural rivals; the lean, performance-minded
+JVM frameworks are. Round 4 puts CafeAI against **Vert.x 5.2.0** and **Micronaut
+5.2.1** on every measure so far — the JSON and waiting-request ladders, CPU, idle
+and loaded memory — at the default heap and capped at 512 MB and 256 MB. CafeAI
+runs again in the same session rather than reusing earlier numbers, and the nine
+runs are interleaved (all three at default, then all three at 512 MB, then all
+three at 256 MB) so any drift in the droplets lands on everyone alike.
+
+**How each is written** — the way its own documentation would have it:
+
+- **Vert.x**: non-blocking handlers on event loops, one verticle instance per
+  core (`DeploymentOptions.setInstances`), the wait is `vertx.setTimer`.
+- **Micronaut**: `/json` on the Netty event loop (Micronaut's default for a plain
+  controller); `/block` on virtual threads with `Thread.sleep` via
+  `@ExecuteOn(TaskExecutors.VIRTUAL)` — the same model as CafeAI, so the most
+  direct comparison of the three.
+- Micronaut generates code at compile time with annotation processors, and since
+  JDK 23 `javac` runs none unless asked, so its script carries
+  `//COMPILE_OPTIONS -proc:full`.
+
+Each app was started once on the server before the run, which warms JBang's build
+cache (no compile time in the first measured run) and confirms through
+`app.sh check` that it, and nothing else, serves the port. Idle memory at that
+start: Vert.x 104 MB, CafeAI 117 MB, Micronaut 129 MB.
+
 ---
 
 ## 3. Java that starts like Go

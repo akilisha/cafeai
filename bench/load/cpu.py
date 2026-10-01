@@ -31,4 +31,7 @@ for r in csv.DictReader(open('results.csv')):
     if r['app']!=app or r['test'].startswith('warmup'): continue
     s,e=int(r['start']),int(r['end'])
     m_avg,m_max=mem_stats(s,e)
+    if not r['achieved_rps']:
+        print(f"{r['test']:9} c={r['connections']:>5} req={r['requested_rps']:>6} got=       -  (server gone)")
+        continue
     print(f"{r['test']:9} c={r['connections']:>5} req={r['requested_rps']:>6} got={float(r['achieved_rps']):>8.0f}  server_cpu={avg(sv,s,e):5.1f}%  loadgen_cpu={avg(lg,s,e):5.1f}%  rss_avg={m_avg:6.0f}MB  rss_peak={m_max:6.0f}MB")

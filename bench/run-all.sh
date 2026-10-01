@@ -32,5 +32,7 @@ for app in "${APPS[@]}"; do
     nohup ./app.sh memwatch /root/$RUN/$app-server-mem.txt > /dev/null 2>&1 & \
     nohup mpstat 1 > /root/$RUN/$app-server-cpu.txt 2>&1 & echo \$! > /root/mpstat.pid"
   $SSH root@"$LG" "./suite.sh $app $PRIVATE:8080 /root/$RUN"
-  $SSH root@"$SV" "kill \$(cat /root/mpstat.pid); ./app.sh stop"
+  # Keep this run's app log: the next run of the same app overwrites it, and it is
+  # where a JVM's "Terminating due to java.lang.OutOfMemoryError" line lands.
+  $SSH root@"$SV" "kill \$(cat /root/mpstat.pid); cp /root/${START%% *}.log /root/$RUN/$app-app.log; ./app.sh stop"
 done
