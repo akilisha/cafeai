@@ -2408,31 +2408,30 @@ public final class CafeAIApp implements CafeAI {
      * Per-request context -- the single {@link HelidonRequest}/{@link HelidonResponse}
      * pair that flows through all filters AND the route handler for one HTTP request.
      *
-     * <p>Keyed by the Helidon {@link ServerRequest} instance, which is the same
-     * object throughout a single request lifecycle in Helidon 4. WeakHashMap
-     * ensures automatic cleanup when Helidon releases the ServerRequest after
-     * the response is committed -- no memory leak.
-     *
-     * <p>Synchronised externally only at creation time; all subsequent reads
-     * are key-equal lookups on the same reference, which is safe.
+     * <p>Stored in the Helidon request's own {@code context()}, so it lives and
+     * dies with that request: no app-wide map to outlive it and no lock shared
+     * by every request. (An app-wide {@code WeakHashMap} keyed by the request
+     * cannot work here -- the value wraps the key, so no entry is ever released.)
      */
-    private final WeakHashMap<ServerRequest, RequestContext> requestContexts =
-            new WeakHashMap<>();
+    private static final Object REQUEST_CONTEXT_KEY = new Object();
 
     private RequestContext getOrCreateContext(ServerRequest helidonReq,
                                               ServerResponse helidonRes) {
-        synchronized (requestContexts) {
-            return requestContexts.computeIfAbsent(helidonReq, k -> {
-                var req = new HelidonRequest(helidonReq, this);
-                var res = new HelidonResponse(helidonRes);
-                // Pair them: res.request(), req.response(), res.app() and res.format()
-                // (which reads the request's Accept header) all depend on this.
-                req.setPairedResponse(res);
-                res.setPairedRequest(req);
-                res.setApp(this);
-                return new RequestContext(req, res);
-            });
+        var context = helidonReq.context();
+        var existing = context.get(REQUEST_CONTEXT_KEY, RequestContext.class);
+        if (existing.isPresent()) {
+            return existing.get();
         }
+        var req = new HelidonRequest(helidonReq, this);
+        var res = new HelidonResponse(helidonRes);
+        // Pair them: res.request(), req.response(), res.app() and res.format()
+        // (which reads the request's Accept header) all depend on this.
+        req.setPairedResponse(res);
+        res.setPairedRequest(req);
+        res.setApp(this);
+        var created = new RequestContext(req, res);
+        context.register(REQUEST_CONTEXT_KEY, created);
+        return created;
     }
 
     private record RequestContext(HelidonRequest req, HelidonResponse res) {

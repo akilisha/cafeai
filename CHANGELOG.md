@@ -7,6 +7,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **CafeAI no longer keeps every request in memory.** Each request's context was held
+  in an app-wide `WeakHashMap` whose values referenced their own keys, so no entry was
+  ever released: a server under steady traffic grew its heap until it ran out of memory
+  (a 2 GB heap lasted about 40 seconds at 20,000 requests/s). The context now lives on
+  the request itself and is freed with it, and the app-wide lock every filter and
+  handler call went through is gone. Found by load testing; covered by `RequestMemoryTest`.
 - **Chroma no longer duplicates chunks on re-ingestion.** `Chroma.connect(...)` stores each
   chunk under its CafeAI chunk id, `upsert` replaces an existing chunk instead of adding a
   second copy, and `deleteBySource` removes the source's chunks (it did nothing before), so
