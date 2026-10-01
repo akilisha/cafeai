@@ -1,6 +1,6 @@
 # Migration Guide
 
-## 0.4.0 → Unreleased
+## 0.4.0 → 0.5.0
 
 ### `cafeai-agents` → `cafeai-aiservices`
 
@@ -13,8 +13,8 @@ version.
 // before
 implementation 'com.akilisha.oss:cafeai-agents:0.4.0'
 
-// after (version number set when this actually releases)
-implementation 'com.akilisha.oss:cafeai-aiservices'
+// after
+implementation 'com.akilisha.oss:cafeai-aiservices:0.5.0'
 ```
 
 If you referenced `io.cafeai.agents.*` classes directly (uncommon —

@@ -35,7 +35,7 @@ ext {
 // ── Shared Config for All Subprojects ───────────────────────
 subprojects {
     group   = 'com.akilisha.oss'
-    version = '0.4.0'
+    version = '0.5.0'
 }
 
 // Every subproject except the BOM is a Java library. cafeai-bom is a platform (no code, no

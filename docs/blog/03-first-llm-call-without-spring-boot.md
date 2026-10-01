@@ -41,14 +41,14 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(23) } }
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
-    implementation 'com.akilisha.oss:cafeai-memory:0.4.0'         // MemoryStrategy.mapped()
-    implementation 'com.akilisha.oss:cafeai-rag:0.4.0'            // embeddings, vector stores, ingestion
-    implementation 'com.akilisha.oss:cafeai-aiservices:0.4.0'         // app.agent(...) and tools
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.4.0'     // GuardRail.jailbreak(), topicBoundary(), ...
-    implementation 'com.akilisha.oss:cafeai-observability:0.4.0'  // app.observe(...)
-    implementation 'com.akilisha.oss:cafeai-security:0.4.0'       // AiSecurity audit events
-    implementation 'com.akilisha.oss:cafeai-connect:0.4.0'        // app.connect(Ollama...)
+    implementation 'com.akilisha.oss:cafeai-core:0.5.0'
+    implementation 'com.akilisha.oss:cafeai-memory:0.5.0'         // MemoryStrategy.mapped()
+    implementation 'com.akilisha.oss:cafeai-rag:0.5.0'            // embeddings, vector stores, ingestion
+    implementation 'com.akilisha.oss:cafeai-aiservices:0.5.0'         // app.agent(...) and tools
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.5.0'     // GuardRail.jailbreak(), topicBoundary(), ...
+    implementation 'com.akilisha.oss:cafeai-observability:0.5.0'  // app.observe(...)
+    implementation 'com.akilisha.oss:cafeai-security:0.5.0'       // AiSecurity audit events
+    implementation 'com.akilisha.oss:cafeai-connect:0.5.0'        // app.connect(Ollama...)
 }
 
 application {

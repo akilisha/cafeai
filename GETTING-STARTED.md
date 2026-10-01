@@ -11,7 +11,7 @@ for building or contributing to CafeAI itself.
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-core:0.5.0'
     // add capability modules as needed — cafeai-config, cafeai-aiservices, cafeai-memory,
     // cafeai-rag, cafeai-guardrails, cafeai-observability, cafeai-security,
     // cafeai-connect, cafeai-views-mustache, cafeai-sentinel
@@ -23,12 +23,12 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
-Using more than one module? Import `com.akilisha.oss:cafeai-bom:0.4.0` once (Gradle:
-`implementation platform('com.akilisha.oss:cafeai-bom:0.4.0')`; Maven: a `dependencyManagement` import
+Using more than one module? Import `com.akilisha.oss:cafeai-bom:0.5.0` once (Gradle:
+`implementation platform('com.akilisha.oss:cafeai-bom:0.5.0')`; Maven: a `dependencyManagement` import
 with `<type>pom</type>` and `<scope>import</scope>`) and declare the modules without versions. The README
 shows both.
 

@@ -1,6 +1,6 @@
 # CafeAI — Formal Specification
 
-> Version: `0.4.0` | Last updated September 2026
+> Version: `0.5.0` | Last updated October 2026
 
 ---
 

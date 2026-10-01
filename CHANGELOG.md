@@ -3,7 +3,7 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [Unreleased]
+## [0.5.0] — unreleased
 
 ### Breaking changes
 
@@ -25,7 +25,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   observability into a real `AgenticServices.agentBuilder(Type)` instance, the same job
   `cafeai-aiservices` does for plain `AiServices`. Only single-agent construction is pre-wired --
   compose the returned agents with the library's own `sequenceBuilder`/`parallelBuilder`/
-  `loopBuilder`/`conditionalBuilder`/`supervisorBuilder` directly. `CafeAgenticMemory.of(strategy)`
+  `loopBuilder`/`conditionalBuilder`/`supervisorBuilder` directly; those composers need their own
+  `.chatModel(...)`, and `CafeAgentic.chatModel(app)` returns the same model `agentBuilder`
+  resolves (the supervisor's planner reads the request from the scope key `request`, so name the
+  entry method's parameter `request`; see DEVELOPER_GUIDE §26.6). `CafeAgenticMemory.of(strategy)`
   is a `ChatMemoryProvider` backed by a CafeAI `MemoryStrategy`, for `@ChatMemoryProviderSupplier`.
   `CafeAgenticMonitor.route(agentMonitor)` exposes a `MonitoredAgent`'s execution data as JSON --
   the library itself ships no HTML topology report, so this is CafeAI's honest "HTTP identity"
