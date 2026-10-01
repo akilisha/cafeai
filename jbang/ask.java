@@ -1,6 +1,6 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //JAVA 23+
-//DEPS com.akilisha.oss:cafeai-core:0.5.0
+//DEPS com.akilisha.oss:cafeai-core:0.5.1
 //DEPS org.slf4j:slf4j-simple:2.0.19
 
 import io.cafeai.core.CafeAI;
