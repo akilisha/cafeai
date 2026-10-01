@@ -1,5 +1,7 @@
 package io.cafeai.rag;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -10,8 +12,17 @@ import io.cafeai.core.rag.VectorStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
 /**
  * Adapts LangChain4j's {@link ChromaEmbeddingStore} to CafeAI's {@link VectorStore}
@@ -29,15 +40,26 @@ import java.util.Map;
  * Chroma collection. The collection is created if it does not exist.
  * Use a stable, application-specific name so documents persist across
  * restarts.
+ *
+ * <p><strong>Ids:</strong> each chunk is stored under its CafeAI chunk id, so
+ * writing the same id again replaces the chunk instead of adding a second copy.
+ * {@link #exists} and {@link #count} call Chroma's v1 REST API directly, since
+ * {@code ChromaEmbeddingStore} has no lookup by id and no count.
  */
 final class ChromaVectorStoreAdapter implements VectorStore {
 
     private static final Logger log = LoggerFactory.getLogger(ChromaVectorStoreAdapter.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final ChromaEmbeddingStore store;
+    private final String baseUrl;
     private final String collectionName;
+    // HTTP/1.1: Chroma's server loses a POST body sent with the default h2c upgrade attempt.
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+    private volatile String collectionId;
 
     ChromaVectorStoreAdapter(String baseUrl, String collectionName) {
+        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.collectionName = collectionName;
         this.store = ChromaEmbeddingStore.builder()
                 .baseUrl(baseUrl)
@@ -50,16 +72,17 @@ final class ChromaVectorStoreAdapter implements VectorStore {
     @Override
     public void upsert(String id, String content, float[] embedding,
                        String sourceId, int chunkIndex) {
-        // ChromaEmbeddingStore.add(String, Embedding) does not accept a TextSegment.
-        // Store the CafeAI chunk ID, sourceId, and chunkIndex in metadata so
-        // they survive the round-trip through Chroma.
-        // Chroma auto-assigns its own internal ID; we track ours via metadata.
         Metadata metadata = Metadata.from(Map.of(
                 "cafeaiId",   id,
                 "sourceId",   sourceId,
                 "chunkIndex", String.valueOf(chunkIndex)));
 
-        store.add(Embedding.from(embedding), TextSegment.from(content, metadata));
+        // Chroma's add ignores an id it already holds, so remove first to replace.
+        store.removeAll(List.of(id));
+        store.addAll(
+                List.of(id),
+                List.of(Embedding.from(embedding)),
+                List.of(TextSegment.from(content, metadata)));
     }
 
     @Override
@@ -84,26 +107,57 @@ final class ChromaVectorStoreAdapter implements VectorStore {
 
     @Override
     public boolean exists(String id) {
-        // ChromaEmbeddingStore does not expose exists-by-id without a REST call.
-        // Returning false causes re-ingestion, which Chroma handles idempotently
-        // (same content + same embedding = same vector, no duplication in practice).
-        return false;
+        String body = "{\"ids\":" + toJson(List.of(id)) + ",\"include\":[]}";
+        JsonNode ids = send(HttpRequest.newBuilder(collectionUri("/get"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()).path("ids");
+        return ids.isArray() && !ids.isEmpty();
     }
 
     @Override
     public void deleteBySource(String sourceId) {
-        // Log and no-op — Chroma will overwrite on upsert.
-        // Full filter-based deletion requires ChromaEmbeddingStore.removeAll(Filter)
-        // which is available in newer LangChain4j builds.
-        log.debug("ChromaVectorStoreAdapter: deleteBySource('{}') -- " +
-                "skipped, Chroma upsert is idempotent", sourceId);
+        store.removeAll(metadataKey("sourceId").isEqualTo(sourceId));
     }
 
     @Override
     public long count() {
-        // ChromaEmbeddingStore does not expose count() directly.
-        // Return -1 to signal unknown — callers must not depend on this for Chroma.
-        return -1L;
+        return send(HttpRequest.newBuilder(collectionUri("/count")).GET().build()).asLong();
+    }
+
+    private URI collectionUri(String suffix) {
+        String id = collectionId;
+        if (id == null) {
+            String name = URLEncoder.encode(collectionName, StandardCharsets.UTF_8);
+            id = send(HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/collections/" + name))
+                    .GET().build()).path("id").asText();
+            collectionId = id;
+        }
+        return URI.create(baseUrl + "/api/v1/collections/" + id + suffix);
+    }
+
+    private JsonNode send(HttpRequest request) {
+        try {
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("Chroma " + request.method() + " " + request.uri()
+                        + " returned " + response.statusCode() + ": " + response.body());
+            }
+            return JSON.readTree(response.body());
+        } catch (IOException e) {
+            throw new IllegalStateException("Chroma request failed: " + request.uri(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted calling Chroma: " + request.uri(), e);
+        }
+    }
+
+    private static String toJson(Object value) {
+        try {
+            return JSON.writeValueAsString(value);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static int parseChunkIndex(String value) {

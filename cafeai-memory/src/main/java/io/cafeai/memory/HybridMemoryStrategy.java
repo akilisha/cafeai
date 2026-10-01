@@ -154,7 +154,6 @@ public final class HybridMemoryStrategy implements MemoryStrategy {
      * Scans the warm tier and demotes sessions idle longer than {@code demoteAfter}.
      *
      * <p>This is a maintenance operation — call it periodically from a background task.
-     * In a future release this will be triggered automatically on a configurable schedule.
      *
      * @return the number of sessions demoted
      */

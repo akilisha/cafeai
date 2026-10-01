@@ -108,7 +108,7 @@ app.memory(MemoryStrategy.hybrid()
     .build());
 ```
 
-Recent sessions (warm tier) served from local SSD. Sessions not accessed recently (cold tier) promoted from Redis. Idle sessions demoted from SSD to Redis on a configurable schedule.
+Recent sessions (warm tier) served from local SSD. Every write also goes to Redis (cold tier), asynchronously, and a read that misses the SSD is served from Redis and promoted back. `demoteAfter` is how long a session may sit idle before `demoteIdleSessions()` drops it from the SSD.
 
 This gives the latency profile of local SSD with the durability and cross-instance sharing of Redis.
 

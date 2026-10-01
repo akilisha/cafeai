@@ -3,6 +3,18 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
+## [0.5.1] — unreleased
+
+### Fixed
+
+- **Chroma no longer duplicates chunks on re-ingestion.** `Chroma.connect(...)` stores each
+  chunk under its CafeAI chunk id, `upsert` replaces an existing chunk instead of adding a
+  second copy, and `deleteBySource` removes the source's chunks (it did nothing before), so
+  ingesting a changed document no longer leaves its old chunks in retrieval results.
+  `exists(id)` and `count()` now answer from Chroma (they returned `false` and `-1`).
+  Re-ingesting a source once on 0.5.1 clears copies an earlier version left behind, since
+  those chunks carry the same `sourceId`.
+
 ## [0.5.0] — 2026-10-01
 
 ### Breaking changes

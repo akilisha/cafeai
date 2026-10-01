@@ -36,6 +36,8 @@ dependencies {
 
     // Chroma - lightweight local vector DB
     implementation 'dev.langchain4j:langchain4j-chroma'
+    // exists()/count() call Chroma's REST API directly (ChromaEmbeddingStore has neither)
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
 
     // Pinecone - managed cloud vector DB
     implementation 'dev.langchain4j:langchain4j-pinecone'
