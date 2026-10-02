@@ -1,0 +1,27 @@
+// ============================================================
+//  cafeai-test
+//  Testing support for CafeAI apps: record and replay model calls,
+//  so tests run without an API key, at no cost, with the same
+//  answer every run.
+//
+//  Add to your project (tests only):
+//    testImplementation 'com.akilisha.oss:cafeai-test'
+//
+//  Then wrap the provider your tests use:
+//    app.ai(Replay.of(OpenAI.of("gpt-4o-mini"), Path.of("src/test/resources/cassettes")));
+// ============================================================
+
+description = 'Testing support for CafeAI apps: record and replay model calls.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+apply from: "$rootDir/gradle/live-tests.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+
+    // Cassettes are JSON; LangChain4j's own message serialiser handles the messages.
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+
+    // The live test records and replays an agent too.
+    testImplementation project(':cafeai-aiservices')
+}

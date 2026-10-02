@@ -114,6 +114,8 @@ without a version — pin them to `0.5.1` (or import a version catalog).
     - [25.1 Adding cafeai-flight](#251-adding-cafeai-flight)
     - [25.2 Categories and thresholds](#252-categories-and-thresholds)
     - [25.3 Relationship to cafeai-observability](#253-relationship-to-cafeai-observability)
+26. [cafeai-agentic — HTTP Identity for LangChain4j Multi-Agent Workflows](#26-cafeai-agentic--http-identity-for-langchain4j-multi-agent-workflows)
+27. [cafeai-test — Record and Replay Model Calls](#27-cafeai-test--record-and-replay-model-calls)
 
 ---
 
@@ -1625,6 +1627,7 @@ cafeai-memory        ← optional; unlocks mapped, redis, hybrid memory
 cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
 cafeai-session       ← optional; unlocks SessionStore.sqlite() for Middleware.session() (§24)
 cafeai-flight        ← optional; JVM visibility via Flight Recorder → OTel metrics (§25)
+cafeai-test          ← tests only; record and replay model calls (§27)
 cafeai-examples      ← reference; not a runtime dependency
 ```
 
@@ -3093,3 +3096,83 @@ or a larger/accelerated model for a supervisor demo that completes reliably.
   (fine for plain `cafeai-aiservices`/`AiServices` proxies) throws
   `IllegalAccessException` from `langchain4j-agentic`'s own proxy
   generation. Declare agent interfaces `public`, top-level or nested.
+
+---
+
+## 27. `cafeai-test` — Record and Replay Model Calls
+
+A test that calls a real model needs an API key, costs money, is slow, and can
+get a different answer every run. `cafeai-test` records a provider's calls to
+files the first time and replays them afterwards: tests run with no key, at no
+cost, and the same answer every time.
+
+### 27.1 Adding it
+
+```groovy
+dependencies {
+    testImplementation 'com.akilisha.oss:cafeai-test:0.5.1'
+}
+```
+
+Wrap the provider your tests use:
+
+```java
+app.ai(Replay.of(OpenAI.of("gpt-4o-mini"), Path.of("src/test/resources/cassettes")));
+```
+
+`Replay` is itself an `AiProvider`, so everything that uses a provider goes
+through it unchanged: `app.prompt(...).call()` and `.stream(...)`, vision,
+history summaries, and agents from `cafeai-aiservices` and `cafeai-agentic`.
+Whisper transcription and text-to-speech, which CafeAI calls over plain HTTP,
+are not recorded.
+
+### 27.2 Modes
+
+| `cafeai.replay.mode` | A recording exists | No recording |
+|---|---|---|
+| `auto` (default) | replay it | call the model and record it |
+| `replay` | replay it | fail with `ReplayMissException`, naming the call |
+| `record` | call the model and re-record it | call the model and record it |
+
+Develop in `auto`; run CI with `-Dcafeai.replay.mode=replay` (or
+`CAFEAI_REPLAY_MODE=replay`) so a test can never reach a real model — a missing
+recording fails loudly instead. Both are honoured even without `cafeai-config`.
+`Replay.of(...).mode(ReplayMode.REPLAY)` fixes the mode in code instead.
+
+In `replay` mode the real provider is never built, so it needs no API key: a
+recording made on a developer's machine replays in CI as is.
+
+### 27.3 What makes two calls "the same"
+
+A call replays a recording when everything that decides its answer matches: the
+provider and model, the provider's temperature and max tokens, every message, and
+the request parameters (tools, response format, sampling). Change the prompt, the
+model or the temperature and it is a new recording.
+
+A prompt that carries a value which changes every run — a timestamp, an id —
+never matches. Blank such values before matching:
+
+```java
+Replay.of(provider, dir)
+      .normalize(s -> s.replaceAll("\\d{4}-\\d{2}-\\d{2}T[0-9:.]+Z?", "<time>"));
+```
+
+### 27.4 The cassettes
+
+One readable JSON file per call, named by its key: the request (provider, model,
+messages, parameters), the response (text, tool calls, finish reason, token
+usage), and for a streamed call the chunks in order — so a replayed stream
+streams, thinking chunks included. Commit them with the tests: a changed prompt
+shows up in review as a changed file. Re-record after changing a prompt or a
+model with `-Dcafeai.replay.mode=record`.
+
+### 27.5 Rough edges
+
+- **No native JSON-schema output for `AiServices` agents through `Replay`.**
+  The wrapper reports no model capabilities (asking the real model would build
+  it, which needs a key, and answers that differed by machine would change the
+  requests). Agents still return structured output — LangChain4j asks for it in
+  the prompt instead.
+- **A vision call's cassette holds the image**, base64-encoded, so it is as large
+  as the image.
+

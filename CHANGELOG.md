@@ -3,6 +3,23 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
+## [Unreleased]
+
+### Added
+
+- **`cafeai-test`: record and replay model calls.** `Replay.of(provider, dir)` wraps any
+  provider; the first call reaches the model and is saved to a readable JSON file, and the
+  same call afterwards replays it — tests run with no API key, at no cost, with the same
+  answer every time. Covers `app.prompt(...)` calls and streams (replayed as the same
+  chunks, thinking included), vision, history summaries, and agents. `cafeai.replay.mode`
+  (`auto`, `replay`, `record`; honoured as a system property or `CAFEAI_REPLAY_MODE` even
+  without `cafeai-config`) picks what happens to a call with no recording: in `replay` it
+  fails with `ReplayMissException` and never reaches a model, and the real provider is
+  never built, so no key is needed. `normalize(...)` blanks values that change every run.
+  See DEVELOPER_GUIDE §27.
+- **`LangchainBridge.chatModel(provider)` and `streamingChatModel(provider)`**, the models
+  CafeAI uses for a provider, for providers that wrap another (as `Replay` does).
+
 ## [0.5.1] — 2026-10-01
 
 ### Fixed

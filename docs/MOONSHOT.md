@@ -9,7 +9,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 1 | [The ten-second demo (JBang)](#1-the-ten-second-demo-jbang) | **Done** |
 | 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Rounds 1–4 done (7 frameworks, capped heaps, Vert.x/Micronaut) |
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | AOT cache measured; native image next |
-| 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | Idea |
+| 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | **Built** (`cafeai-test`, unreleased) |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
@@ -681,18 +681,31 @@ framework gets the same trade.
 **The pitch:** test your AI app in CI with no API key, no cost, and the same answer
 every run.
 
-In development, model calls are recorded to files ("cassettes"); in tests they
-are replayed. Ruby's VCR did this for HTTP. AI apps need it more: real model calls
-are slow, cost money, change between runs, and need secrets CI shouldn't hold —
-CafeAI's own cloud live tests sit blocked on keys and free-tier quotas today.
+**Built** in the new `cafeai-test` module (DEVELOPER_GUIDE §27):
 
-**Shape of it:** a provider wrapper — `Replay.of(provider, cassetteDir)` — keyed on
-the request (model, messages, parameters). Modes: record, replay, replay-or-fail.
-A missing cassette fails loudly rather than quietly calling the real model.
+```java
+app.ai(Replay.of(OpenAI.of("gpt-4o-mini"), Path.of("src/test/resources/cassettes")));
+```
 
-**Pairs with:** evals as tests. Model ids go stale, so models get swapped, and a
-swap is exactly when you want to know what changed.
+- `Replay` is an `AiProvider` wrapping another, plugged into the bridge seam every
+  model call already goes through — so calls, streams, vision, history summaries
+  and agents are all covered, with no change to the app. (Whisper and
+  text-to-speech, called over plain HTTP, are not.)
+- Modes via `cafeai.replay.mode`: `auto` (replay, record when missing), `replay`
+  (fail loudly when missing — for CI), `record` (re-record). The mode is a safety
+  switch, so the system property and environment variable work even without
+  `cafeai-config`.
+- In `replay` mode the real provider is never built, so CI needs no key; a
+  recording made on a laptop replays as is.
+- One readable JSON file per call, keyed by a hash of everything that decides the
+  answer; streamed calls keep their chunks so a replay streams. `normalize(...)`
+  blanks values that change every run.
 
+**Verified live against Ollama** (`ReplayOllamaLiveTest`): a call, a stream and an
+`AiServices` agent recorded from `llama3.2`, then replayed with the provider
+pointed at a dead port — identical answers, no model reached.
+
+**Pairs with:** evals as tests (#5), built next on top of it.
 ---
 
 ## 6. Every app is an MCP server

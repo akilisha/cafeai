@@ -16,6 +16,7 @@ include(
     'cafeai-agentic',
     'cafeai-flight',
     'cafeai-sentinel',
+    'cafeai-test',
     'cafeai-examples'
 )
 

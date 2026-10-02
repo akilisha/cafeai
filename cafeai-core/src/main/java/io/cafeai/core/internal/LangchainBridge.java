@@ -255,6 +255,20 @@ public final class LangchainBridge {
     }
 
     /**
+     * The {@link ChatModel} CafeAI would use for {@code provider}. For a provider that
+     * wraps another and must call the real model underneath it (as
+     * {@code cafeai-test}'s {@code Replay} does).
+     */
+    public static ChatModel chatModel(AiProvider provider) {
+        return INSTANCE.modelFor(provider);
+    }
+
+    /** The {@link StreamingChatModel} CafeAI would use for {@code provider}; see {@link #chatModel}. */
+    public static StreamingChatModel streamingChatModel(AiProvider provider) {
+        return INSTANCE.streamingModelFor(provider);
+    }
+
+    /**
      * Test seam interface. Any {@link AiProvider} that also implements this
      * interface will have its model used directly, bypassing environment variable
      * lookups and real API connections. Used by mock providers in tests.

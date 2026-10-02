@@ -132,7 +132,7 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
    ./gradlew publishToMavenCentral
    ```
 
-   Runs for every opted-in module (fourteen libraries and `cafeai-bom`) in one invocation; the
+   Runs for every opted-in module (fifteen libraries and `cafeai-bom`) in one invocation; the
    plugin stages them together and uploads a bundle. Inter-module dependencies
    (`com.akilisha.oss:cafeai-core:<version>`, …) are wired automatically, with no
    ordering requirement.

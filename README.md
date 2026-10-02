@@ -76,6 +76,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-session:0.5.1'        // SQLite-backed HTTP session store
     implementation 'com.akilisha.oss:cafeai-flight:0.5.1'         // JVM visibility via Flight Recorder -> OTel
     implementation 'com.akilisha.oss:cafeai-sentinel:0.5.1'       // AI Kubernetes/OpenShift incident pipeline
+    testImplementation 'com.akilisha.oss:cafeai-test:0.5.1'       // record and replay model calls in tests
 }
 ```
 
@@ -387,6 +388,7 @@ cafeai/
 ├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-flight         ← JVM-level visibility via Java Flight Recorder, surfaced as OTel metrics
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
+├── cafeai-test           ← Tests only: record and replay model calls — no API key, no cost
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder
 ```
 
