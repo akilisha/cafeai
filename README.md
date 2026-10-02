@@ -389,6 +389,7 @@ cafeai/
 ├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-flight         ← JVM-level visibility via Java Flight Recorder, surfaced as OTel metrics
 ├── cafeai-mcp            ← MCP server: chosen routes and @Tool objects as tools for AI agents
+├── cafeai-dev            ← Development only: save a file, the app reloads in about half a second
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 ├── cafeai-test           ← Tests only: record/replay model calls (no API key, no cost) and evals
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder

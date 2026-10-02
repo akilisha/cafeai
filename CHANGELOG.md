@@ -7,6 +7,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai-dev`: reload while you edit.** Save a source file and the running app is
+  replaced by the new code without restarting the JVM — about half a second for a
+  single-file app (`CafeDev app.java`, with its JBang `//DEPS`), about a second for a
+  small project (`CafeDev com.acme.App`, e.g. from a Gradle `dev` task). A save that
+  does not compile keeps the previous version running. Development only. A reload does
+  **not** stop threads the app starts itself, close resources held by the old code, or
+  pick up dependency changes; it says so on every start and names leftover threads
+  after a reload. See DEVELOPER_GUIDE §30.
 - **`cafeai-mcp`: an MCP server for your routes.** `app.mcp()` serves chosen routes —
   `.tool("get_order", "Look up an order", "GET /orders/:id")`, with a record describing a
   body or query — and LangChain4j `@Tool` objects (`.tools(...)`) as MCP tools AI agents can

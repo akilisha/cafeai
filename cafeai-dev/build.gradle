@@ -1,0 +1,23 @@
+// ============================================================
+//  cafeai-dev
+//  Development-time reload: save a source file and the running app
+//  is replaced by the new code in a fraction of a second, without
+//  restarting the JVM. Never a production dependency.
+//
+//  A single-file JBang app:
+//    jbang dev@akilisha/cafeai app.java
+//
+//  A Gradle project (see DEVELOPER_GUIDE "cafeai-dev"):
+//    ./gradlew dev
+//
+//  What reload does not handle is printed every time it starts,
+//  and warned about when it happens.
+// ============================================================
+
+description = 'Development-time reload for CafeAI apps: save, and the new code is live.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+}

@@ -58,3 +58,26 @@ application {
     applicationDefaultJvmArgs = jlamaJvmArgs
 }
 
+
+// ── Reload while you edit (cafeai-dev) ──────────────────────────────────────
+// Runs an example under cafeai-dev: save a source file and it restarts with the
+// new code, without restarting the JVM. cafeai-dev is a development dependency
+// only -- it is on this task's classpath, never the application's.
+//   ./gradlew :cafeai-examples:dev -PmainClass=io.cafeai.examples.SpaSessionExample
+configurations {
+    dev
+}
+
+dependencies {
+    dev project(':cafeai-dev')
+}
+
+tasks.register('dev', JavaExec) {
+    group       = 'application'
+    description = 'Runs an example under cafeai-dev: save a source file and it reloads. -PmainClass=...'
+    classpath   = sourceSets.main.runtimeClasspath + configurations.dev
+    mainClass   = 'io.cafeai.dev.CafeDev'
+    args        = [application.mainClass.get(), '--src', 'src/main/java', '--resources', 'src/main/resources']
+    jvmArgs     = jlamaJvmArgs
+    workingDir  = projectDir
+}

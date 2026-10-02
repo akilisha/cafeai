@@ -12,6 +12,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | **Built** (`cafeai-test`, unreleased) |
 | 5 | [Evals as tests](#5-evals-as-tests) | **Built** (`cafeai-test`, unreleased) |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | **Built** (`cafeai-mcp`, unreleased) |
+| 9 | [Reload while you edit](#9-reload-while-you-edit) | **Built** (`cafeai-dev`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
 (The numbers are from the list these were picked from, kept so they stay stable.)
@@ -765,6 +766,40 @@ of tool and calls each successfully.
 
 **Learned:** `@Tool` argument names need `javac -parameters` (or `@P`) — compiled
 without it, the Inspector saw `arg0`/`arg1`.
+
+---
+
+## 9. Reload while you edit
+
+**The pitch:** save a file and your change is live — the nodemon experience Express
+developers expect, which Java rarely gives.
+
+**Built** in `cafeai-dev` (DEVELOPER_GUIDE §30), development only:
+
+```bash
+jbang dev@akilisha/cafeai app.java        # a single-file app
+./gradlew dev                             # a project, via a JavaExec task
+```
+
+The JVM keeps running: changed source is compiled in-process (`javax.tools`), every
+CafeAI app the old version created is stopped (found through the `CafeAIConfigurer`
+SPI — no core change), and `main` runs again from a fresh class loader. Libraries stay
+loaded and warm, so starting the new version takes 13–20 ms. App classes load
+child-first, because a Gradle or IDE classpath also holds the previously compiled
+classes, and parent-first loading would keep running them.
+
+**Measured** (save → new code answering): 452–515 ms for a single-file app through the
+real command line; 1.3 s for `cafeai-examples` (16 files, all recompiled on every save).
+
+**Limits, stated up front** — printed on every start, in the guide's first subsection,
+and warned about when they happen: threads the app starts itself keep running old code
+(named after each reload), resources held by old code are only dropped, dependency
+changes need a restart (a changed `//DEPS` line is reported), development only. The
+leftover-thread warning counts a thread only when its stack holds an app class: a
+Helidon timer that merely inherited the old class loader was a false positive before
+that rule.
+
+**Next:** recompile only what changed, so reload time stops growing with the project.
 ---
 
 ## 11. Express middleware on virtual threads

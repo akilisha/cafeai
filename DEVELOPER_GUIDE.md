@@ -118,6 +118,7 @@ without a version — pin them to `0.5.1` (or import a version catalog).
 27. [cafeai-test — Record and Replay Model Calls](#27-cafeai-test--record-and-replay-model-calls)
 28. [cafeai-test — Evals as Tests](#28-cafeai-test--evals-as-tests)
 29. [cafeai-mcp — Your Routes as Tools for AI Agents](#29-cafeai-mcp--your-routes-as-tools-for-ai-agents)
+30. [cafeai-dev — Reload While You Edit](#30-cafeai-dev--reload-while-you-edit)
 
 ---
 
@@ -1630,6 +1631,7 @@ cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
 cafeai-session       ← optional; unlocks SessionStore.sqlite() for Middleware.session() (§24)
 cafeai-flight        ← optional; JVM visibility via Flight Recorder → OTel metrics (§25)
 cafeai-mcp           ← optional; serves routes and @Tool objects as MCP tools (§29)
+cafeai-dev           ← development only; reload on save, never on the app's classpath (§30)
 cafeai-test          ← tests only; record and replay model calls, evals (§27, §28)
 cafeai-examples      ← reference; not a runtime dependency
 ```
@@ -3340,3 +3342,80 @@ npx @modelcontextprotocol/inspector --cli http://localhost:8080/mcp --transport 
 npx @modelcontextprotocol/inspector --cli http://localhost:8080/mcp --transport http \
     --method tools/call --tool-name get_order --tool-arg id=A-17
 ```
+
+---
+
+## 30. `cafeai-dev` — Reload While You Edit
+
+Save a source file and the running app is replaced by the new code — about half a
+second for a single-file app, about a second for a 16-file project — without
+restarting the JVM. The changed code is compiled inside the running JVM, the app is
+stopped, and its `main` runs again from a fresh class loader; libraries stay loaded.
+
+### 30.1 Read this first: what a reload does not handle
+
+`cafeai-dev` prints this every time it starts, and warns when one of them happens.
+
+- **Threads and executors your app starts itself** (not through CafeAI) keep running
+  after a reload, still running the *old* code. Stop them yourself, or restart
+  `cafeai-dev`. After each reload `cafeai-dev` names any thread still executing the
+  old version's code:
+  ```
+  [cafeai-dev] WARNING: version 1 left 1 thread(s) running, still on the old code: leaky-worker
+  ```
+- **Static state, caches and open connections** held by the old code are not closed —
+  only dropped. An external resource (a socket, a file lock, a database pool) stays
+  open until it is garbage-collected. An app that opens such resources should close
+  them when its CafeAI app stops, or be restarted when they matter.
+- **A change to dependencies** (`//DEPS` lines, `build.gradle`, `pom.xml`) needs a full
+  restart of `cafeai-dev`. Only your own source is recompiled. A changed `//DEPS` line
+  is detected and reported.
+- **Every save recompiles all of your source,** so a reload takes longer as the project
+  grows (measured: ~0.5 s for one file, ~1.3 s for sixteen).
+- **Development only.** Never ship `cafeai-dev` or run it in production: keep it off
+  the application's classpath, as below.
+
+What a reload *does* handle: every CafeAI app the old version created is stopped
+(`app.stop()`) before the new version starts, so the port is free again; resource
+files under `src/main/resources` reload too.
+
+### 30.2 A single-file JBang app
+
+```bash
+jbang dev@akilisha/cafeai app.java
+```
+
+`app.java` is compiled with its `//DEPS` (resolved by JBang) and its class with a
+`main` is run.
+
+### 30.3 A Gradle project
+
+`cafeai-dev` goes on a separate configuration, so it never reaches the application:
+
+```groovy
+configurations { dev }
+
+dependencies {
+    dev 'com.akilisha.oss:cafeai-dev:0.5.1'
+}
+
+tasks.register('dev', JavaExec) {
+    classpath  = sourceSets.main.runtimeClasspath + configurations.dev
+    mainClass  = 'io.cafeai.dev.CafeDev'
+    args       = ['com.acme.App']          // your main class
+    workingDir = projectDir
+}
+```
+
+`./gradlew dev` then watches `src/main/java` and `src/main/resources` (change them with
+`--src DIR` / `--resources DIR`; app arguments go after `--`). `cafeai-examples` has the
+same task: `./gradlew :cafeai-examples:dev -PmainClass=io.cafeai.examples.SpaSessionExample`.
+
+### 30.4 What you see
+
+```
+[cafeai-dev] Reloaded version 3 in 324 ms (compile 323 ms, stop 1 ms)
+```
+
+A save that does not compile prints the errors and keeps the previous version running;
+fix it and save again.
