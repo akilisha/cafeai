@@ -11,7 +11,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | AOT cache measured; native image next |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | **Built** (`cafeai-test`, unreleased) |
 | 5 | [Evals as tests](#5-evals-as-tests) | **Built** (`cafeai-test`, unreleased) |
-| 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
+| 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | **Built** (`cafeai-mcp`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
 (The numbers are from the list these were picked from, kept so they stay stable.)
@@ -734,13 +734,37 @@ guide recommends a capable judge at temperature 0, plus a control case.
 **The pitch:** one line, and the routes you choose become tools any AI agent can
 call — with your guardrails, sessions, and observability already on them.
 
-Serving MCP already goes through Helidon's `McpFeature` (no module). The moonshot
-is the one-liner — `app.mcp()` — that derives tool definitions from routes the app
-opts in, so an existing CafeAI API is agent-ready without a second codebase.
+**Built** in the new `cafeai-mcp` module (DEVELOPER_GUIDE §29):
 
-**Open question:** how a route describes its inputs well enough for a model to
-call it (a schema per route, or the request type's record components).
+```java
+app.mcp()
+   .tool("create_order", "Create an order for a customer", "POST /orders", CreateOrder.class)
+   .tool("get_order", "Look up an order by its id", "GET /orders/:id")
+   .tools(new Calculator());
+```
 
+- **Helidon owns the protocol.** `cafeai-mcp` mounts Helidon's MCP server
+  (`helidon4-extensions-mcp-server` 1.2.0, plain Helidon SE) at `/mcp` and contributes
+  the tools.
+- **A route tool is a real HTTP call to the route**, over localhost, so the route's
+  filters, guardrails, authentication and sessions apply to agents exactly as to any
+  client. The caller's `Authorization` header goes with it; a 4xx/5xx is an error result.
+- **Inputs:** `:param`s are required strings; a record describes the rest (JSON body
+  for POST/PUT/PATCH, query for GET/DELETE), turned into a JSON schema by LangChain4j.
+- **`@Tool` objects** are served too; a throwing tool is an error result.
+- **Core gained** `app.mcp()` (through an SPI, like `app.agent()`), `app.port()`, and
+  `app.helidon().bypass(path)`: CafeAI's filters step aside for a path a Helidon feature
+  owns. Without it, any app using `CafeAI.json()` broke the endpoint — the body parser
+  consumed the request before the MCP server could read it.
+
+**Verified:** eight tests drive a real app through a raw MCP client on the wire
+(listing, GET and POST routes with `CafeAI.json()` installed, auth forwarding with and
+without a token, an app filter rejecting a call, error statuses, `@Tool` objects), and
+the official **MCP Inspector** CLI — a client we did not write — lists all three kinds
+of tool and calls each successfully.
+
+**Learned:** `@Tool` argument names need `javac -parameters` (or `@P`) — compiled
+without it, the Inspector saw `arg0`/`arg1`.
 ---
 
 ## 11. Express middleware on virtual threads

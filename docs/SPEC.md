@@ -125,7 +125,7 @@ graph TD
             Stream["Streaming Response\n(SSE / WebSocket)"]
         end
 
-        MCP["MCP Server\n(Helidon McpFeature via app.helidon())\nExposes registered tools + agents\nas discoverable nodes"]
+        MCP["MCP Server (cafeai-mcp)\napp.mcp() on Helidon's MCP server\nRoutes + @Tool objects\nas tools for AI agents"]
         Agents["Agent Registry (cafeai-aiservices)\nBinds LangChain4j AiServices\nHTTP identity + session + guardrails + RAG"]
 
         Router --> Auth --> Security --> GuardPre --> Cost --> RAG --> LLM
@@ -223,8 +223,8 @@ app.rag(Retriever.hybrid(topK))            // keyword + semantic fusion
 ### 3.5 Tool and MCP Primitives &nbsp;<sub>✅ shipped — `cafeai-aiservices` (ROADMAP-12)</sub>
 
 Tools and MCP clients attach to an agent through LangChain4j — `@Tool`-annotated
-Java methods and `McpToolProvider` — not a separate CafeAI primitive. Exposing CafeAI's own capabilities *as* an
-MCP server is the `app.helidon()` escape-hatch pattern (§12).
+Java methods and `McpToolProvider` — not a separate CafeAI primitive. Serving an app's own
+routes and `@Tool` objects *as* MCP tools is `app.mcp()` (`cafeai-mcp`).
 
 ```java
 app.agent("support", SupportAgent.class)
@@ -277,7 +277,7 @@ app.connect(McpEndpoint.at("http://mcp-host:3000"))   // 🚧 planned — extern
                                                        // agents adapt it to a ToolProvider
 ```
 
-MCP splits three ways: **serve** CafeAI as an MCP server → `app.helidon()` (§12); **reach**
+MCP splits three ways: **serve** CafeAI as an MCP server → `app.mcp()` (`cafeai-mcp`); **reach**
 an external MCP server → the `McpEndpoint` connection above; **give** its tools to an agent →
 `cafeai-aiservices` (ROADMAP-12).
 
@@ -348,7 +348,7 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | 7 | Security | `core` + `security` | Prompt-injection blocking with audit events |
 | 8 | Out-of-process services | `core` + `connect` | Redis, Ollama, pgvector with fallback policy |
 | 9 | Agents, tools, MCP | `core` + `agents` | LangChain4j `AiServices` + HTTP identity (ROADMAP-12) |
-| — | MCP server | `core` + `app.helidon()` | Expose capabilities to external orchestrators (§12) |
+| — | MCP server | `core` + `mcp` | `app.mcp()`: routes and `@Tool` objects as tools for AI agents |
 
 ---
 
@@ -364,7 +364,7 @@ day one. Each rung is independently valuable. Each rung composes naturally with 
 | Memory Tier 4–5 | Redis via Lettuce | 6.3 | Reactive, non-blocking distributed cache |
 | Vector DB | PgVector / Chroma | — | PgVector for enterprise; Chroma for local |
 | Embeddings | ONNX via FFM / OpenAI | — | Local via FFM; remote via API |
-| MCP Server | Helidon `McpFeature` via `app.helidon()` | 4.5.5 | Helidon owns the protocol; CafeAI contributes the tools |
+| MCP Server | Helidon MCP server (`helidon4-extensions-mcp-server`) | 1.2.0 | Helidon owns the protocol; `cafeai-mcp` contributes the tools |
 | Observability | OpenTelemetry | 1.40.0+ | Helidon SE has first-class OTel support |
 | Build | Gradle (Groovy DSL) | 9.7.1 | Standard Java toolchain |
 
@@ -432,8 +432,8 @@ cafeai/
 ```
 
 Exposing CafeAI capabilities as an MCP server is
-the `app.helidon()` escape-hatch pattern (§12); MCP *client* use is part of the
-agent layer via LangChain4j.
+`app.mcp()` (`cafeai-mcp`); MCP *client* use is part of the agent layer via
+LangChain4j.
 
 ---
 
@@ -490,7 +490,7 @@ Look at each CafeAI module and the pattern is identical:
 | `cafeai-memory` | Redis, in-memory stores | HTTP session identity (`X-Session-Id`) |
 | `cafeai-guardrails` | NLP classifiers, pattern matchers | Middleware identity in the HTTP pipeline |
 | `cafeai-aiservices` *(planned)* | LangChain4j `AiServices` | HTTP identity + session + guardrails for an agent |
-| `app.helidon()` | Helidon `McpFeature` | Seam to expose the tool/agent registry as an MCP server |
+| `cafeai-mcp` | Helidon's MCP server | Routes and `@Tool` objects as MCP tools, each call through the route's own HTTP pipeline |
 
 CafeAI never reimplements the AI capability. It gives the capability an HTTP-native home.
 
@@ -509,8 +509,8 @@ CafeAI never reimplements the AI capability. It gives the capability an HTTP-nat
 CafeAI rides deliberately on Helidon and LangChain4j advances. This is not a weakness — it is
 the correct strategic posture for a framework that owns the binding layer.
 
-Helidon 4.4 ships an MCP 1.1 server (`McpFeature`). CafeAI does not implement MCP — it reaches
-Helidon's feature through `app.helidon()` and contributes its tool/agent registry.
+Helidon ships an MCP server. CafeAI does not implement MCP — `cafeai-mcp` mounts Helidon's
+server and contributes the app's routes and `@Tool` objects as its tools.
 
 LangChain4j owns agent reasoning: `AiServices` runs the tool-call loop, chat memory, and
 `McpToolProvider`. CafeAI writes only the binding — a typed agent interface gets an HTTP
@@ -570,9 +570,8 @@ The question was whether CafeAI could *be* an MCP server — exposing its own to
 outward so an external orchestrator (n8n, Claude Desktop, Temporal) drives the graph while the
 JVM does all the AI work.
 
-Helidon 4.4 already ships a full MCP 1.1 server (`McpFeature`). CafeAI sits on Helidon and has
-a tool/agent registry. The bridge between them is the **`app.helidon()` escape hatch** (§12)
-— reach Helidon's `McpFeature` directly, register CafeAI's tools with it, keep the SE model intact.
+Helidon ships a full MCP server. CafeAI sits on Helidon, so `app.mcp()` (`cafeai-mcp`) mounts it
+and serves the app's chosen routes and `@Tool` objects as its tools — keeping the SE model intact.
 
 #### What It Means
 
@@ -586,10 +585,10 @@ provide the graph. Neither owns the other's domain.
 
 #### The Helidon Leverage
 
-CafeAI does not implement the MCP protocol — Helidon `McpFeature` does, including June 2025
+CafeAI does not implement the MCP protocol — Helidon's MCP server does, including the June 2025
 spec additions like Elicitation (a server requesting structured input mid-execution). CafeAI
-supplies the tool/agent registry; `app.helidon()` is the seam. Code surface: the bridge, not
-a module.
+supplies the tools: a route tool is a real HTTP call to the app's own route, so its filters,
+guardrails and authentication apply to agents as to any client.
 
 ### 11.2 Direction 2 — Agents (ROADMAP-12)
 
@@ -686,31 +685,23 @@ is preserved. Both methods return `HelidonConfig` for fluent chaining.
 | TLS / HTTPS | ❌ not abstracted | `.server(b -> b.tls(...))` |
 | HTTP/2 tuning | ❌ not abstracted | `.server(b -> b.connectionConfig(...))` |
 | gRPC endpoints | ❌ not abstracted | `.routing(r -> r.register("/grpc", svc))` |
-| MCP server | ❌ not abstracted | `.routing(r -> r.register("/mcp", mcpFeature))` |
+| MCP server | `app.mcp()` (`cafeai-mcp`) | — |
 | Native Helidon health | ❌ not abstracted | `.routing(r -> r.register(HealthFeature.create()))` |
 | Connection limits | ❌ not abstracted | `.server(b -> b.maxConcurrentRequests(n))` |
 
-### The MCP pattern
+### Features that read the request themselves
 
-The escape hatch resolves the question of how CafeAI exposes its tools as an MCP server.
-CafeAI does not own the MCP server — Helidon does. CafeAI contributes the tools:
+A Helidon feature mounted through the escape hatch may read the request itself — a
+protocol endpoint, for one. CafeAI's own filters (`app.filter(...)`, guardrails, body
+parsers) would get to it first, so hand its path to the feature untouched:
 
 ```java
-// CafeAI registers the tools
-
-// Helidon exposes them via MCP — using raw Helidon from here
 app.helidon()
-   .routing(routing -> {
-       McpFeature mcp = McpFeature.builder()
-           .build();
-       routing.register("/mcp", mcp);
-   });
-
-app.listen(8080);
+   .routing(r -> r.register("/proto", protocolFeature))
+   .bypass("/proto");      // CafeAI's filters do not run under /proto
 ```
 
-This is the correct separation of concerns. CafeAI provides the AI primitives. Helidon
-provides the protocol infrastructure. The escape hatch is the seam.
+`app.mcp()` (`cafeai-mcp`) mounts Helidon's MCP server this way.
 
 ### Design principle
 
@@ -757,7 +748,7 @@ Each module is a self-contained teachable unit. The project structure **is** the
 | 8 | **Ethical Guardrails as Middleware** — PII, Jailbreak, and Regulatory Compliance |
 | 9 | **Production-Grade AI Observability** — OpenTelemetry Tracing |
 | 10 | **AI Security Beyond Guardrails** — Prompt Injection and Audit Events |
-| 11 | **CafeAI as an MCP Server** — Exposing AI Capabilities via `app.helidon()` |
+| 11 | **CafeAI as an MCP Server** — Your Routes as Tools for AI Agents, via `app.mcp()` |
 | 12 | **Agents Without Magic** — Giving LangChain4j AiServices an HTTP Identity |
 | 13 | **The Multi-Agent Patterns** — Supervisor, Pipeline, Fan-out, and When to Use an Orchestrator |
 

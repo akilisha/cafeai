@@ -7,6 +7,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai-mcp`: an MCP server for your routes.** `app.mcp()` serves chosen routes —
+  `.tool("get_order", "Look up an order", "GET /orders/:id")`, with a record describing a
+  body or query — and LangChain4j `@Tool` objects (`.tools(...)`) as MCP tools AI agents can
+  call, at `/mcp`, on Helidon's MCP server. A route tool's call is a real HTTP request to
+  the route, so its filters, guardrails and authentication apply; the caller's
+  `Authorization` header goes with it (`forwardHeaders(...)` adds more), and a 4xx/5xx is
+  an error result. See DEVELOPER_GUIDE §29.
+- **`app.port()`** — the port the server is listening on, including after `listen(0)`.
+- **`app.helidon().bypass(path)`** — CafeAI's own filters step aside for requests under
+  `path`, for a Helidon feature that reads the request itself.
 - **`cafeai-test`: record and replay model calls.** `Replay.of(provider, dir)` wraps any
   provider; the first call reaches the model and is saved to a readable JSON file, and the
   same call afterwards replays it — tests run with no API key, at no cost, with the same

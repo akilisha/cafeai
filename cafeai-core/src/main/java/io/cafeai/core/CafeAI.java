@@ -3,6 +3,8 @@ package io.cafeai.core;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.*;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.mcp.McpConfig;
+import io.cafeai.core.mcp.McpModuleNotFoundException;
 import io.cafeai.core.internal.BuiltInMiddleware;
 import io.cafeai.core.internal.CafeAIApp;
 import io.cafeai.core.internal.SubRouter;
@@ -731,7 +733,27 @@ public interface CafeAI extends Router {
     CafeAI rag(Retriever retriever);
 
 
-    // ── Tools & MCP (ROADMAP-07 Phase 5) ─────────────────────────────────────
+    // ── MCP ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Serves MCP (the Model Context Protocol) from this app, so AI agents can call
+     * chosen routes -- and LangChain4j {@code @Tool} objects -- as tools:
+     *
+     * <pre>{@code
+     *   app.post("/orders", createOrder);
+     *   app.get("/orders/:id", getOrder);
+     *
+     *   app.mcp()
+     *      .tool("create_order", "Create an order for a customer", "POST /orders", CreateOrder.class)
+     *      .tool("get_order", "Look up an order by its id", "GET /orders/:id");
+     * }</pre>
+     *
+     * <p>Returns the same configuration every time. Requires
+     * {@code com.akilisha.oss:cafeai-mcp}.
+     *
+     * @throws McpModuleNotFoundException if {@code cafeai-mcp} is not on the classpath
+     */
+    McpConfig mcp();
 
 
 
@@ -1103,6 +1125,17 @@ public interface CafeAI extends Router {
          */
         HelidonConfig routing(
             Consumer<HttpRouting.Builder> consumer);
+
+        /**
+         * Hands requests under {@code pathPrefix} to whatever Helidon feature is
+         * mounted there, untouched: CafeAI's own filters ({@code app.filter(...)},
+         * guardrails, body parsers) do not run for them. For a feature that reads the
+         * request itself -- a protocol endpoint, say -- and must get it as sent.
+         *
+         * @param pathPrefix e.g. {@code "/mcp"}; matches that path and everything below it
+         * @return this, for chaining
+         */
+        HelidonConfig bypass(String pathPrefix);
     }
 
     // ── Server Lifecycle ──────────────────────────────────────────────────────
@@ -1131,4 +1164,10 @@ public interface CafeAI extends Router {
      * Returns {@code true} if the server is currently running and accepting connections.
      */
     boolean isRunning();
+
+    /**
+     * The port the server is listening on -- the real one, even after
+     * {@code listen(0)} picked a free port -- or {@code -1} before {@code listen()}.
+     */
+    int port();
 }

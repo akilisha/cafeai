@@ -75,6 +75,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-views-mustache:0.5.1' // Mustache view engine
     implementation 'com.akilisha.oss:cafeai-session:0.5.1'        // SQLite-backed HTTP session store
     implementation 'com.akilisha.oss:cafeai-flight:0.5.1'         // JVM visibility via Flight Recorder -> OTel
+    implementation 'com.akilisha.oss:cafeai-mcp:0.5.1'            // app.mcp(): routes as tools for AI agents
     implementation 'com.akilisha.oss:cafeai-sentinel:0.5.1'       // AI Kubernetes/OpenShift incident pipeline
     testImplementation 'com.akilisha.oss:cafeai-test:0.5.1'       // record/replay model calls, evals
 }
@@ -387,6 +388,7 @@ cafeai/
 ├── cafeai-views-mustache ← Optional Mustache view engine
 ├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-flight         ← JVM-level visibility via Java Flight Recorder, surfaced as OTel metrics
+├── cafeai-mcp            ← MCP server: chosen routes and @Tool objects as tools for AI agents
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 ├── cafeai-test           ← Tests only: record/replay model calls (no API key, no cost) and evals
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder

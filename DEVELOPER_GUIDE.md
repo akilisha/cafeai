@@ -117,6 +117,7 @@ without a version — pin them to `0.5.1` (or import a version catalog).
 26. [cafeai-agentic — HTTP Identity for LangChain4j Multi-Agent Workflows](#26-cafeai-agentic--http-identity-for-langchain4j-multi-agent-workflows)
 27. [cafeai-test — Record and Replay Model Calls](#27-cafeai-test--record-and-replay-model-calls)
 28. [cafeai-test — Evals as Tests](#28-cafeai-test--evals-as-tests)
+29. [cafeai-mcp — Your Routes as Tools for AI Agents](#29-cafeai-mcp--your-routes-as-tools-for-ai-agents)
 
 ---
 
@@ -1628,6 +1629,7 @@ cafeai-memory        ← optional; unlocks mapped, redis, hybrid memory
 cafeai-rag           ← optional; unlocks vectordb, embed, ingest, rag
 cafeai-session       ← optional; unlocks SessionStore.sqlite() for Middleware.session() (§24)
 cafeai-flight        ← optional; JVM visibility via Flight Recorder → OTel metrics (§25)
+cafeai-mcp           ← optional; serves routes and @Tool objects as MCP tools (§29)
 cafeai-test          ← tests only; record and replay model calls, evals (§27, §28)
 cafeai-examples      ← reference; not a runtime dependency
 ```
@@ -2567,6 +2569,20 @@ deployment-specific wiring. If you're adding a **reusable capability** (a new
 vector store, a new guardrail, a new memory tier) that other apps would want,
 write a module instead — see §22.
 
+### 21.5 Features that read the request themselves — `bypass`
+
+A Helidon feature mounted with `.routing(...)` may read the request itself — a
+protocol endpoint, for one. CafeAI's own filters would get to it first (a body parser
+such as `CafeAI.json()` consumes the body), so hand its path to the feature untouched:
+
+```java
+app.helidon()
+   .routing(r -> r.register("/proto", protocolFeature))
+   .bypass("/proto");     // CafeAI's filters do not run under /proto
+```
+
+`app.mcp()` (§29) mounts its endpoint this way.
+
 ---
 
 ## 22. Extending CafeAI — writing a module
@@ -3251,3 +3267,76 @@ Evals: 4/5 passed (80%)
         - judged "says shipping costs $10 on every order": The answer ...
 ```
 
+---
+
+## 29. `cafeai-mcp` — Your Routes as Tools for AI Agents
+
+MCP (the Model Context Protocol) is how AI agents — Claude, IDE assistants, agent
+frameworks — discover and call tools. `app.mcp()` serves chosen routes of your app,
+and LangChain4j `@Tool` objects, as MCP tools: your API becomes agent-ready with no
+second codebase.
+
+### 29.1 Adding it
+
+```groovy
+dependencies {
+    implementation 'com.akilisha.oss:cafeai-mcp:0.5.1'
+}
+```
+
+```java
+app.post("/orders", createOrder);
+app.get("/orders/:id", getOrder);
+
+app.mcp()                                   // served at /mcp
+   .tool("create_order", "Create an order for a customer", "POST /orders", CreateOrder.class)
+   .tool("get_order", "Look up an order by its id", "GET /orders/:id")
+   .tools(new Calculator());                // every @Tool method of the object
+
+app.listen(8080);
+```
+
+An agent connects to `http://host:8080/mcp`, lists the tools and calls them.
+Helidon's MCP server implements the protocol (Streamable HTTP, sessions); CafeAI
+contributes the tools.
+
+### 29.2 Route tools
+
+A route tool's call becomes a real HTTP request to that route on the same server, so
+everything already on the route runs for the agent exactly as for any other client:
+`app.filter(...)` middleware, guardrails, authentication, sessions, rate limits,
+observability.
+
+- **Arguments.** Each `:param` in the path is a required string argument. A record or
+  class given as the fourth argument describes the rest: sent as the JSON body for
+  `POST`, `PUT` and `PATCH`, as query parameters for `GET` and `DELETE`.
+- **Result.** The route's response body. A 4xx or 5xx status makes it an error
+  result carrying the status and body, which the agent sees as a failed call.
+- **Authentication.** The caller's `Authorization` header goes with every route call,
+  so a protected route stays protected: an agent without a valid token gets the same
+  401 as anyone else. Pass more headers with `.forwardHeaders("X-Tenant-Id")`.
+
+### 29.3 `@Tool` objects
+
+`.tools(object)` serves every public `@Tool` method — the same tools a
+`cafeai-aiservices` agent uses. A tool that throws returns an error result naming the
+exception. Argument names come from the method's parameters: compile with
+`-parameters` (as LangChain4j requires for agents too), or name them with `@P`.
+
+### 29.4 The endpoint
+
+`.path("/mcp")` (the default) sets where it is served, `.server(name, version)` what
+agents see. CafeAI's own filters do not run on the endpoint itself — Helidon's MCP
+server reads its requests directly, so a body parser such as `CafeAI.json()` must not
+touch them (`app.helidon().bypass(...)`, §21.5). Route calls still pass through every
+filter, so protect what the tools reach, as above.
+
+### 29.5 Trying it
+
+The MCP Inspector lists and calls tools from the command line:
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://localhost:8080/mcp --transport http --method tools/list
+npx @modelcontextprotocol/inspector --cli http://localhost:8080/mcp --transport http \
+    --method tools/call --tool-name get_order --tool-arg id=A-17
+```

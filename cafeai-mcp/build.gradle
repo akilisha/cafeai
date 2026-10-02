@@ -1,0 +1,28 @@
+// ============================================================
+//  cafeai-mcp
+//  Serves an app's routes, and LangChain4j @Tool objects, as MCP
+//  tools that AI agents can call -- through app.mcp().
+//
+//  Add to your project:
+//    implementation 'com.akilisha.oss:cafeai-mcp'
+//
+//  Then choose the tools:
+//    app.mcp()
+//       .tool("get_order", "Look up an order by its id", "GET /orders/:id");
+//
+//  Helidon's MCP server owns the protocol; this module maps CafeAI
+//  routes and tools onto it.
+// ============================================================
+
+description = 'Serves CafeAI routes and @Tool objects as MCP tools for AI agents.'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+
+    implementation "io.helidon.extensions.mcp:helidon4-extensions-mcp-server:${rootProject.ext.helidonMcpVersion}"
+
+    // Tool arguments and schemas are JSON.
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+}

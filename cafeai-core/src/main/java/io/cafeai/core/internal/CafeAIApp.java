@@ -124,6 +124,9 @@ public final class CafeAIApp implements CafeAI {
     // Helidon escape hatch — direct access to WebServer.Builder and HttpRouting.Builder
     private final List<Consumer<WebServerConfig.Builder>> helidonServerConsumers = new ArrayList<>();
     private final List<Consumer<HttpRouting.Builder>> helidonRoutingConsumers = new ArrayList<>();
+    // Path prefixes a Helidon feature owns: CafeAI's filters step aside for them.
+    private final List<String> bypassPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private io.cafeai.core.mcp.McpConfig mcpConfig;
 
     private WebServer server;
 
@@ -1725,6 +1728,37 @@ public final class CafeAIApp implements CafeAI {
             helidonRoutingConsumers.add(consumer);
             return this;
         }
+
+        @Override
+        public CafeAI.HelidonConfig bypass(String pathPrefix) {
+            Objects.requireNonNull(pathPrefix, "path prefix must not be null");
+            String p = pathPrefix.endsWith("/") && pathPrefix.length() > 1
+                    ? pathPrefix.substring(0, pathPrefix.length() - 1) : pathPrefix;
+            bypassPaths.add(p.startsWith("/") ? p : "/" + p);
+            return this;
+        }
+    }
+
+    /** True if {@code path} is under a prefix registered with {@code app.helidon().bypass(...)}. */
+    private boolean bypassed(String path) {
+        for (String prefix : bypassPaths) {
+            if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
+        }
+        return false;
+    }
+
+    // -- MCP ----------------------------------------------------------------------
+
+    @Override
+    public synchronized io.cafeai.core.mcp.McpConfig mcp() {
+        assertNotStarted("mcp()");
+        if (mcpConfig == null) {
+            io.cafeai.core.spi.McpBridge bridge = ServiceLoader.load(io.cafeai.core.spi.McpBridge.class)
+                    .findFirst()
+                    .orElseThrow(io.cafeai.core.mcp.McpModuleNotFoundException::new);
+            mcpConfig = bridge.create(this);
+        }
+        return mcpConfig;
     }
 
     @Override
@@ -2317,6 +2351,12 @@ public final class CafeAIApp implements CafeAI {
         return running.get();
     }
 
+    @Override
+    public int port() {
+        WebServer s = server;
+        return s != null && running.get() ? s.port() : -1;
+    }
+
     // -- Helidon Routing Builder -----------------------------------------------
 
     /**
@@ -2449,6 +2489,10 @@ public final class CafeAIApp implements CafeAI {
      */
     private Filter toHelidonFilter(Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
+            if (bypassed(routingReq.path().path())) {
+                chain.proceed();
+                return;
+            }
             var ctx = getOrCreateContext(routingReq,
                     routingRes);
             try {
@@ -2484,7 +2528,7 @@ public final class CafeAIApp implements CafeAI {
      */
     private Filter toPathScopedFilter(String pathPrefix, Middleware middleware) {
         return (chain, routingReq, routingRes) -> {
-            if (routingReq.path().path().startsWith(pathPrefix)) {
+            if (routingReq.path().path().startsWith(pathPrefix) && !bypassed(routingReq.path().path())) {
                 var ctx = getOrCreateContext(routingReq,
                         routingRes);
                 try {

@@ -14,6 +14,7 @@ include(
     'cafeai-connect',
     'cafeai-aiservices',
     'cafeai-agentic',
+    'cafeai-mcp',
     'cafeai-flight',
     'cafeai-sentinel',
     'cafeai-test',
