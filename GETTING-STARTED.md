@@ -15,7 +15,7 @@ dependencies {
     // add capability modules as needed — cafeai-config, cafeai-aiservices, cafeai-memory,
     // cafeai-rag, cafeai-guardrails, cafeai-observability, cafeai-security,
     // cafeai-connect, cafeai-views-mustache, cafeai-sentinel; and for tests,
-    // testImplementation cafeai-test (record and replay model calls)
+    // testImplementation cafeai-test (record and replay model calls, evals)
 }
 ```
 

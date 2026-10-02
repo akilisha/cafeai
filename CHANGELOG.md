@@ -17,6 +17,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   fails with `ReplayMissException` and never reaches a model, and the real provider is
   never built, so no key is needed. `normalize(...)` blanks values that change every run.
   See DEVELOPER_GUIDE §27.
+- **Evals as tests (`cafeai-test`).** `Evals.of(app)` (or `Evals.of(question -> ...)`)
+  runs saved questions through the app and checks the answers: `expectContains`,
+  `expectNotContains`, `expectMatches`, `expectMaxWords`, `expect(description, predicate)`,
+  `expectBlocked()` (an input or output guardrail stopped it), and `judgedBy(rubric)`,
+  graded by a judge model. `EvalReport` reads as a report, asserts with
+  `assertAllPassed()` / `assertPassRate(min)`, and `compare(before)` lists what now
+  fails, now passes, or is new — for prompt edits and model swaps. With `Replay` around
+  the app and the judge, a suite runs in CI with no key. See DEVELOPER_GUIDE §28.
 - **`LangchainBridge.chatModel(provider)` and `streamingChatModel(provider)`**, the models
   CafeAI uses for a provider, for providers that wrap another (as `Replay` does).
 

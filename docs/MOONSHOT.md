@@ -10,6 +10,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 2 | [Benchmarks that settle the argument](#2-benchmarks-that-settle-the-argument) | Rounds 1–4 done (7 frameworks, capped heaps, Vert.x/Micronaut) |
 | 3 | [Java that starts like Go](#3-java-that-starts-like-go) | AOT cache measured; native image next |
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | **Built** (`cafeai-test`, unreleased) |
+| 5 | [Evals as tests](#5-evals-as-tests) | **Built** (`cafeai-test`, unreleased) |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | Idea |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
@@ -705,7 +706,27 @@ app.ai(Replay.of(OpenAI.of("gpt-4o-mini"), Path.of("src/test/resources/cassettes
 `AiServices` agent recorded from `llama3.2`, then replayed with the provider
 pointed at a dead port — identical answers, no model reached.
 
-**Pairs with:** evals as tests (#5), built next on top of it.
+**Pairs with:** evals as tests (#5), built on top of it.
+
+---
+
+## 5. Evals as tests
+
+**The pitch:** swap from one model to another and know in 30 seconds what broke.
+
+**Built** in `cafeai-test` (DEVELOPER_GUIDE §28): saved questions with checks on
+the answers — contains / not contains, regex, length, blocked by a guardrail, your
+own predicate, and `judgedBy(rubric)`, graded by a judge model. The report reads as
+a report, asserts on a pass rate, and `compare(before)` lists what now fails, now
+passes, or is new. With `Replay` around the app and the judge, a suite runs in CI
+with no key and no cost.
+
+**Verified live against Ollama** (`EvalsOllamaLiveTest`): five cases against
+`llama3.2`, graded by `llama3.2`, then replayed with no model reachable to the same
+verdicts. A control case the answer must fail ("says shipping costs $10 on every
+order") did fail — the judge is not passing everything — though the small model's
+*reason* treated the rubric as a fact. Verdicts beat reasoning in small judges; the
+guide recommends a capable judge at temperature 0, plus a control case.
 ---
 
 ## 6. Every app is an MCP server

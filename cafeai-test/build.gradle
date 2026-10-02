@@ -2,16 +2,18 @@
 //  cafeai-test
 //  Testing support for CafeAI apps: record and replay model calls,
 //  so tests run without an API key, at no cost, with the same
-//  answer every run.
+//  answer every run; and evals, saved questions with checks on the
+//  answers, to see what a prompt edit or model swap changed.
 //
 //  Add to your project (tests only):
 //    testImplementation 'com.akilisha.oss:cafeai-test'
 //
-//  Then wrap the provider your tests use:
+//  Then wrap the provider your tests use, and run evals over the app:
 //    app.ai(Replay.of(OpenAI.of("gpt-4o-mini"), Path.of("src/test/resources/cassettes")));
+//    Evals.of(app).ask("What is the refund window?").expectContains("14 days").run().assertAllPassed();
 // ============================================================
 
-description = 'Testing support for CafeAI apps: record and replay model calls.'
+description = 'Testing support for CafeAI apps: record and replay model calls, and evals.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
 apply from: "$rootDir/gradle/live-tests.gradle"
