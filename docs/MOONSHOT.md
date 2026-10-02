@@ -111,7 +111,7 @@ JSON throughput.
   JSON. Its startup is second of four.
 
 **Still open:** native image (#3 step 2); repeat runs before publishing
-anything; larger machines (all of this is 4 vCPU).
+anything.
 
 The strongest thing CafeAI has, AI aside, is Helidon 4's virtual-thread server:
 handlers call JDBC or sleep or block on HTTP, and it still scales, without the
@@ -292,7 +292,6 @@ the connections could carry):
 #### Caveats before any of this is published
 
 - One run per configuration; the plan calls for several and the median.
-- 4 vCPU only. The shape may change on bigger machines.
 - The fix is unreleased: these CafeAI numbers are not what 0.5.0 on Maven Central
   does (that runs out of memory). Publish only after the fixed release.
 - Spring was tuned by us, from its documentation. Its maintainers should get the
