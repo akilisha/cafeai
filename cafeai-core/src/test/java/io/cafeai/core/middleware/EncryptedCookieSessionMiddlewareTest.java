@@ -120,8 +120,13 @@ class EncryptedCookieSessionMiddlewareTest {
     void tamperedCiphertextIsTreatedAsAbsent() throws Exception {
         var login = post("/login", null, "{\"name\":\"Alex\"}");
         String cookie = cookieFrom(login);
-        String tampered = cookie.substring(0, cookie.length() - 1)
-            + (cookie.charAt(cookie.length() - 1) == 'A' ? 'B' : 'A');
+        // Change a character in the middle of the ciphertext. Not the last one: base64's
+        // final character can carry unused padding bits, and changing only those leaves
+        // the decoded bytes -- and so the ciphertext -- exactly as they were.
+        int at = cookie.indexOf('.') + (cookie.length() - cookie.indexOf('.')) / 2;
+        String tampered = cookie.substring(0, at)
+            + (cookie.charAt(at) == 'A' ? 'B' : 'A')
+            + cookie.substring(at + 1);
 
         var whoami = get("/whoami", tampered);
 
