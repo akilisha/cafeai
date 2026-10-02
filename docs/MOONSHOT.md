@@ -48,6 +48,71 @@ them after a release, never before (step 6 in `distribution.md`).
 
 **The pitch:** *plain blocking code, reactive-level numbers* — with a chart.
 
+### Summary of everything measured (2026-10-01/02)
+
+Two `c-4` droplets (4 dedicated vCPU, 8 GB), wrk2 at fixed rates, every ceiling
+bound by the server's CPU unless stated. Details, method and raw files in the
+rounds below; how to rerun: [`bench/README.md`](../bench/README.md).
+
+**The finding that mattered most:** the first sustained run exposed a memory leak
+that kept every request CafeAI ever served — under any heap cap it ran out of
+memory within seconds of steady traffic. Fixed and released as **0.5.1**. Every
+CafeAI number below is with that fix.
+
+**Plain JSON — the most requests/s each can serve** (default heap):
+
+| | Ceiling | Memory there |
+|---|---|---|
+| Vert.x | ≥ 112,000 (rig limit; its CPU still 88%) | 250 MB |
+| Micronaut | ~101,000 | 368 MB |
+| **CafeAI** | **~96,000–99,000** | **332 MB** |
+| Gin | ~70,000 | 25 MB |
+| Javalin | ~55,000 | 624 MB |
+| Spring MVC (default / tuned) | ~49,000 / ~51,000 | 365–375 MB |
+| Spring WebFlux | ~44,000 | 423 MB |
+| Express (4 workers) | ~31,000 | 636 MB |
+
+**Every request waits 100 ms** (requested: 90% of what the connections could carry):
+
+| | 4,000 connections | 8,000 connections | Memory at 8,000 |
+|---|---|---|---|
+| Vert.x (non-blocking timer) | 32,815/s, p50 101 ms | 55,365/s | 444 MB |
+| Gin | 32,796/s, p50 104 ms | 41,658/s | 363 MB |
+| **CafeAI** | **~32,800/s, p50 108–161 ms** | **~40,000/s, 0 errors** | **921–1,103 MB** |
+| Micronaut | 31,535/s, p50 861 ms | 36,634/s | 1,064 MB |
+| Javalin | 30,000/s, p50 2.0 s | 29,604/s | 1,891 MB |
+| Spring WebFlux | 26,235/s, p50 3.9 s | 27,487/s, 21k timeouts | 900 MB |
+| Express | 25,649/s, p50 3.9 s | 25,834/s, 27k timeouts | 948 MB |
+| Spring MVC (tuned) | 19,602/s, p50 8.2 s | 16,185/s, 8k timeouts | 2,248 MB |
+
+**Idle memory:** Gin 9 MB · Vert.x 104 · CafeAI 117–129 · Micronaut 129 ·
+Javalin 143 · WebFlux 179 · Spring MVC 185 · Express 328 (five processes).
+
+**Heap capped at 512 / 256 MB** (JVMs only): CafeAI, Vert.x, Micronaut and
+WebFlux survived every run; Javalin and Spring MVC (both configurations) ran out
+of heap at 8,000 / 4,000 waiting requests. At 512 MB CafeAI keeps its full
+4,000-connection result (32,773/s, p50 134 ms) in 568 MB.
+
+**Startup** (time to first response): Vert.x 926 ms, CafeAI 1,228 ms, Micronaut
+1,689 ms, Spring MVC 2,899 ms; with the JDK 25 AOT cache 388 / 470 / 616 /
+1,292 ms — 2.2–2.7× faster for everyone, at a cost of ~5–10% of CafeAI's peak
+JSON throughput.
+
+**What CafeAI can honestly claim:**
+
+- **Plain blocking code at the top tier for waiting requests.** With ordinary
+  `Thread.sleep`-style blocking handlers, CafeAI matches Gin and Vert.x's
+  non-blocking timer at 4,000 waiting requests, and is clearly the best of the
+  virtual-thread JVM frameworks (Micronaut, Javalin, Spring MVC) on throughput,
+  latency and memory.
+- **Lean enough to survive a small heap** where Spring MVC and Javalin die.
+- **Not the fastest overall.** Vert.x beats it on every measure — written
+  non-blocking. Gin needs a fraction of its memory. Micronaut edges it on plain
+  JSON. Its startup is second of four.
+
+**Still open:** native image (#3 step 2); repeat runs before publishing
+anything; larger machines (all of this is 4 vCPU).
+
 The strongest thing CafeAI has, AI aside, is Helidon 4's virtual-thread server:
 handlers call JDBC or sleep or block on HTTP, and it still scales, without the
 callback chains of WebFlux or Vert.x. That claim is worth nothing as an
@@ -494,25 +559,15 @@ and Micronaut falls to 28,864/s (512 MB) and 17,748/s (256 MB).
   half the memory under load, and it shrugs off a 256 MB heap. A request waiting
   on a timer in Vert.x costs a small callback object; in CafeAI it costs a parked
   virtual thread with its stack. That is the price of the programming model.
-- **That model is the real difference, and the test favours Vert.x on it.**
-  Vert.x waited with a non-blocking timer. A Vert.x app making a real *blocking*
-  call — JDBC, a blocking HTTP client — must not do it on the event loop; it hands
-  it to a worker pool (20 threads by default) or uses Vert.x's reactive clients
-  instead. CafeAI's claim is that you can write the blocking code and still get
-  this class of throughput, and against Micronaut — the same virtual-thread model
-  — it does: equal or better throughput at 4,000 and 8,000 waiting requests, a
-  fifth of Micronaut's median at 4,000, and less memory.
+- **Against Micronaut — the same virtual-thread model as CafeAI — CafeAI comes
+  out ahead on waiting requests:** equal or better throughput at 4,000 and 8,000,
+  a fifth of Micronaut's median at 4,000, and less memory.
 - **Plain JSON: CafeAI is third of three.** Close to Micronaut (~96k vs ~101k),
   clearly behind Vert.x (112k and more). Round 2's "highest JSON ceiling of the
   whole field" was true of that field, which did not include these two.
 - **Run-to-run variance:** CafeAI's p50 at 4,000 waiting requests was 108 ms in
   round 2 and 161 ms here; throughput agreed within 0.2%. Medians near
   saturation move more than throughput does.
-
-**The fair next test:** Vert.x running the same *blocking* code — its
-virtual-thread verticles (`ThreadingModel.VIRTUAL_THREAD`) with `Thread.sleep`,
-and `executeBlocking` on its worker pool — which is the comparison CafeAI's
-"write blocking code" pitch actually rests on.
 
 ---
 
