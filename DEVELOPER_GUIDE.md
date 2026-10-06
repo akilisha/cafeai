@@ -119,6 +119,7 @@ without a version — pin them to `0.5.1` (or import a version catalog).
 28. [cafeai-test — Evals as Tests](#28-cafeai-test--evals-as-tests)
 29. [cafeai-mcp — Your Routes as Tools for AI Agents](#29-cafeai-mcp--your-routes-as-tools-for-ai-agents)
 30. [cafeai-dev — Reload While You Edit](#30-cafeai-dev--reload-while-you-edit)
+31. [Usage and Cost per Route](#31-usage-and-cost-per-route)
 
 ---
 
@@ -2491,6 +2492,21 @@ app.listen(8080);
 
 That is a fully observable, RAG-augmented LLM application. Every call produces an OTel span with token counts, latency and retrieved document count. Zero instrumentation code in the handler.
 
+
+### 20.6 Usage and cost metrics, by route
+
+With the OpenTelemetry strategy active, every model call also records:
+
+| Metric | Kind | Attributes |
+|---|---|---|
+| `gen_ai.client.token.usage` | histogram, `{token}` | `gen_ai.token.type` (`input` / `output`), `gen_ai.request.model`, `http.request.method`, `http.route` |
+| `cafeai.llm.cost` | counter, `USD` | `gen_ai.request.model`, `http.request.method`, `http.route` |
+
+`http.route` is the pattern that matched (`/orders/:id`), so a dashboard can answer
+"which route spends the most" without one series per id. Cost is recorded only for
+priced models (`app.pricing(...)`, §31). The same numbers, without OpenTelemetry, come
+from `app.usage()` (§31).
+
 ---
 
 ## 21. The Helidon Foundation — `app.helidon()`
@@ -3419,3 +3435,68 @@ same task: `./gradlew :cafeai-examples:dev -PmainClass=io.cafeai.examples.SpaSes
 
 A save that does not compile prints the errors and keeps the previous version running;
 fix it and save again.
+
+---
+
+## 31. Usage and Cost per Route
+
+Every model call an app makes is counted — tokens, and cost when the model is priced —
+and credited to the route of the request that made it. In `cafeai-core`; nothing to add.
+
+### 31.1 Prices
+
+```java
+app.pricing(Pricing.of("gpt-4o-mini", 0.15, 0.60)          // $ per million input / output tokens
+                   .and("claude-sonnet-4-5", 3.00, 15.00));
+```
+
+CafeAI ships no price list: prices change, like model ids, and the right numbers are
+the ones on your bill. A model matches its exact id, else the longest priced id it
+starts with (`gpt-4o-mini` prices a reported `gpt-4o-mini-2024-07-18`). A model with no
+price still has its tokens counted; its cost is reported as unknown, never as zero.
+
+### 31.2 Reading usage
+
+```java
+UsageReport usage = app.usage();
+usage.route("GET /orders/:id").ifPresent(r ->
+    System.out.printf("%d calls, %d+%d tokens, $%.6f%n",
+        r.calls(), r.inputTokens(), r.outputTokens(), r.cost()));
+usage.total();          // every route together
+```
+
+A route is the method and the pattern that matched, so `/orders/1` and `/orders/2` are
+one route. `costKnown()` is false when some calls were to unpriced models;
+`costPerCall()` is then empty. In a test, it bounds what an endpoint may spend:
+
+```java
+assertThat(app.usage().route("POST /summarise").orElseThrow().costPerCall())
+    .hasValueSatisfying(c -> assertThat(c).isLessThan(0.002));
+```
+
+### 31.3 What counts
+
+- **Every model call:** `app.prompt(...)` calls and streams (counted when the stream
+  completes), vision, history summaries, and each round trip of an agent's tool loop.
+- **Credited to the request's route** — including calls made by filters and guardrails
+  for that request — once its response has been sent.
+- **Calls outside a request** (at startup, from a background job) are under
+  `"(no request)"`.
+- **Not counted:** Whisper transcription and text-to-speech, which report no token usage.
+
+### 31.4 In a response header — for development
+
+`cafeai.usage.header=true` (a setting, so through `cafeai-config`) adds an
+`X-CafeAI-Usage` header to responses whose request made model calls:
+
+```
+X-CafeAI-Usage: calls=1; in=100; out=20; cost=$0.000140
+```
+
+It covers the calls made before the response started, so a streamed answer's own call,
+which finishes after, is not in it — `app.usage()` and the metrics have it.
+
+### 31.5 As metrics
+
+With `cafeai-observability` and the OpenTelemetry strategy, the same usage is exported
+as `gen_ai.client.token.usage` and `cafeai.llm.cost` by model and route (§20.6).

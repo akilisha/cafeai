@@ -7,6 +7,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Usage and cost per route.** Every model call — prompts, streams, vision, summaries,
+  and each round trip of an agent's tool loop — is counted and credited to the route of
+  the request that made it. `app.pricing(Pricing.of("gpt-4o-mini", 0.15, 0.60))` prices
+  models (dollars per million tokens; CafeAI ships no prices — an unpriced model's cost
+  is unknown, never zero); `app.usage()` reports calls, tokens and cost per route. With
+  `cafeai-observability`'s OpenTelemetry strategy, `gen_ai.client.token.usage` and
+  `cafeai.llm.cost` are exported by model and route; `cafeai.usage.header=true` adds an
+  `X-CafeAI-Usage` header for development. `ObserveBridge.onUsage(...)` carries each call.
+  See DEVELOPER_GUIDE §31.
 - **`cafeai-dev`: reload while you edit.** Save a source file and the running app is
   replaced by the new code without restarting the JVM — about half a second for a
   single-file app (`CafeDev app.java`, with its JBang `//DEPS`), about a second for a
@@ -45,6 +54,11 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the app and the judge, a suite runs in CI with no key. See DEVELOPER_GUIDE §28.
 - **`LangchainBridge.chatModel(provider)` and `streamingChatModel(provider)`**, the models
   CafeAI uses for a provider, for providers that wrap another (as `Replay` does).
+
+### Fixed
+
+- **`req.route().path()` is the pattern that matched** (`/orders/:id`), as in Express; it
+  returned the request's own path (`/orders/17`).
 
 ## [0.5.1] — 2026-10-01
 

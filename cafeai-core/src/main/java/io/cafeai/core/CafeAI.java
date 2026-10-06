@@ -733,6 +733,27 @@ public interface CafeAI extends Router {
     CafeAI rag(Retriever retriever);
 
 
+    // ── Usage and cost ─────────────────────────────────────────────────────────
+
+    /**
+     * What each model costs, so usage can be priced per route:
+     *
+     * <pre>{@code
+     *   app.pricing(Pricing.of("gpt-4o-mini", 0.15, 0.60));   // $ per million input / output tokens
+     * }</pre>
+     *
+     * CafeAI ships no prices. Without one, a model's tokens are still counted and its
+     * cost is reported as unknown.
+     */
+    CafeAI pricing(Pricing pricing);
+
+    /**
+     * Model usage so far, per route: calls, tokens and cost. Every model call counts --
+     * prompts, streams, vision, summaries, agents -- credited to the route of the request
+     * that made it, once its response is sent.
+     */
+    UsageReport usage();
+
     // ── MCP ───────────────────────────────────────────────────────────────────
 
     /**

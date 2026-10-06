@@ -43,6 +43,44 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         log.info("Observability strategy active: {}", s.getClass().getSimpleName());
     }
 
+    // -- usage and cost: OpenTelemetry metrics ------------------------------------
+
+    private static final io.opentelemetry.api.common.AttributeKey<String> MODEL =
+        io.opentelemetry.api.common.AttributeKey.stringKey("gen_ai.request.model");
+    private static final io.opentelemetry.api.common.AttributeKey<String> TOKEN_TYPE =
+        io.opentelemetry.api.common.AttributeKey.stringKey("gen_ai.token.type");
+    private static final io.opentelemetry.api.common.AttributeKey<String> METHOD =
+        io.opentelemetry.api.common.AttributeKey.stringKey("http.request.method");
+    private static final io.opentelemetry.api.common.AttributeKey<String> ROUTE =
+        io.opentelemetry.api.common.AttributeKey.stringKey("http.route");
+
+    /**
+     * One model call's usage as OpenTelemetry metrics, when the OTel strategy is active:
+     * {@code gen_ai.client.token.usage} (the GenAI semantic-convention histogram, by
+     * {@code gen_ai.token.type} input/output) and {@code cafeai.llm.cost} (dollars, priced
+     * models only), both by model, method and route.
+     */
+    @Override
+    public void onUsage(String route, String model, long inputTokens, long outputTokens, Double cost) {
+        if (!(strategy instanceof OtelObserveStrategy)) return;
+        var meter = GlobalOpenTelemetry.getMeter("io.cafeai");
+        var attrs = io.opentelemetry.api.common.Attributes.builder().put(MODEL, model);
+        int space = route.indexOf(' ');
+        if (space > 0 && !route.startsWith("(")) {
+            attrs.put(METHOD, route.substring(0, space)).put(ROUTE, route.substring(space + 1));
+        }
+        var base = attrs.build();
+        var tokens = meter.histogramBuilder("gen_ai.client.token.usage").ofLongs()
+            .setUnit("{token}").setDescription("Tokens used by model calls, by route").build();
+        tokens.record(inputTokens, base.toBuilder().put(TOKEN_TYPE, "input").build());
+        tokens.record(outputTokens, base.toBuilder().put(TOKEN_TYPE, "output").build());
+        if (cost != null) {
+            meter.counterBuilder("cafeai.llm.cost").ofDoubles()
+                .setUnit("USD").setDescription("What model calls cost, by route (priced models only)").build()
+                .add(cost, base);
+        }
+    }
+
     /**
      * Context object passed between beforePrompt and afterPrompt.
      * Carries both the start time (for console) and the OTel span (for otel).

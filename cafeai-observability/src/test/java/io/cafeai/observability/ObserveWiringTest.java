@@ -232,4 +232,40 @@ class ObserveWiringTest {
         assertThatThrownBy(() -> app.observe("otel")).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("ObserveStrategy");
     }
+
+    @Test @DisplayName("a priced call made by a route produces token and cost metrics by model and route")
+    void usageMetrics() throws Exception {
+        var app = observed();
+        app.pricing(io.cafeai.core.ai.Pricing.of("gpt-4o-mini", 1.0, 2.0));
+        app.get("/items/:id", (req, res, next) -> res.send(app.prompt("ping").call().text()));
+        var started = new java.util.concurrent.CountDownLatch(1);
+        app.listen(0, started::countDown);
+        try {
+            assertThat(started.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var http = java.net.http.HttpClient.newBuilder().version(java.net.http.HttpClient.Version.HTTP_1_1).build();
+            http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + app.port() + "/items/42")).build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (app.usage().route("GET /items/:id").isEmpty() && System.nanoTime() < deadline) Thread.sleep(20);
+
+            var metrics = TestOtel.metrics();
+            var tokens = metrics.stream().filter(m -> m.getName().equals("gen_ai.client.token.usage")).findFirst().orElseThrow();
+            var input = tokens.getHistogramData().getPoints().stream()
+                    .filter(p -> "input".equals(p.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("gen_ai.token.type"))))
+                    .filter(p -> "/items/:id".equals(p.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("http.route"))))
+                    .findFirst().orElseThrow();
+            assertThat(input.getSum()).isEqualTo(5);
+            assertThat(input.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("gen_ai.request.model"))).isEqualTo("gpt-4o-mini");
+            assertThat(input.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("http.request.method"))).isEqualTo("GET");
+
+            var cost = metrics.stream().filter(m -> m.getName().equals("cafeai.llm.cost")).findFirst().orElseThrow();
+            double total = cost.getDoubleSumData().getPoints().stream()
+                    .filter(p -> "/items/:id".equals(p.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("http.route"))))
+                    .mapToDouble(io.opentelemetry.sdk.metrics.data.DoublePointData::getValue).sum();
+            assertThat(total).isCloseTo((5 * 1.0 + 3 * 2.0) / 1_000_000, org.assertj.core.data.Offset.offset(1e-12));
+        } finally {
+            app.stop();
+        }
+    }
 }

@@ -2,6 +2,9 @@ package io.cafeai.observability;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
@@ -20,12 +23,15 @@ import java.util.Map;
 final class TestOtel {
 
     private static final InMemorySpanExporter EXPORTER = InMemorySpanExporter.create();
+    private static final InMemoryMetricReader METRICS = InMemoryMetricReader.create();
 
     static {
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
             .addSpanProcessor(SimpleSpanProcessor.create(EXPORTER))
             .build();
-        OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).buildAndRegisterGlobal();
+        SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(METRICS).build();
+        OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).setMeterProvider(meterProvider)
+            .buildAndRegisterGlobal();
     }
 
     private TestOtel() {}
@@ -33,6 +39,11 @@ final class TestOtel {
     /** Clears recorded spans; call before each test. */
     static void reset() {
         EXPORTER.reset();
+    }
+
+    /** Every metric recorded so far (cumulative). */
+    static java.util.Collection<MetricData> metrics() {
+        return METRICS.collectAllMetrics();
     }
 
     static List<SpanData> spans() {

@@ -92,6 +92,7 @@ public final class CafeAIApp implements CafeAI {
 
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private ObserveBridge observeBridge;
+    private final UsageMeter usageMeter = new UsageMeter(() -> observeBridge);
 
     // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-aiservices
     private AgentBridge agentBridge;
@@ -186,7 +187,7 @@ public final class CafeAIApp implements CafeAI {
     private final class AgentSupportImpl implements AgentBridge.AgentSupport {
         @Override
         public dev.langchain4j.model.chat.ChatModel chatModel(AiProvider provider) {
-            return LangchainBridge.INSTANCE.modelFor(provider);
+            return usageMeter.meter(LangchainBridge.INSTANCE.modelFor(provider), provider);
         }
         @Override public AiProvider     defaultProvider() { return aiProvider; }
         @Override public ObserveBridge  observeBridge()   { return observeBridge; }
@@ -348,7 +349,7 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 2. Get the Langchain4j ChatModel --------------------------
         ChatModel model =
-                LangchainBridge.INSTANCE.modelFor(provider);
+                usageMeter.meter(LangchainBridge.INSTANCE.modelFor(provider), provider);
 
         // -- 2b. Append schema hint for structured output -------------------
         // When returning(Class) / call(Class<T>) is used, a JSON schema hint
@@ -549,7 +550,7 @@ public final class CafeAIApp implements CafeAI {
             PromptResponse cached = cachedResponse(cacheNamespace, request.message(), request, provider);
             if (cached != null) return emitOnce(cached.text());
         }
-        StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
+        StreamingChatModel model = usageMeter.meter(LangchainBridge.INSTANCE.streamingModelFor(provider), provider);
 
         // -- Build message list: system + history + user ---------------------
         List<ChatMessage> messages = new ArrayList<>();
@@ -692,7 +693,7 @@ public final class CafeAIApp implements CafeAI {
                             "app.ai(OpenAI.of(gpt-4o)) or app.ai(Ollama.vision(llava))");
         }
 
-        ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
+        ChatModel model = usageMeter.meter(LangchainBridge.INSTANCE.modelFor(provider), provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
         applyPreLlmGuardrails(request.prompt(), "Vision");
@@ -861,7 +862,7 @@ public final class CafeAIApp implements CafeAI {
         List<ChatMessage> messages = VisionMessageBuilder.build(
                 request.prompt(), request.content(), request.mimeType(), sysPrompt, history);
 
-        StreamingChatModel model = LangchainBridge.INSTANCE.streamingModelFor(provider);
+        StreamingChatModel model = usageMeter.meter(LangchainBridge.INSTANCE.streamingModelFor(provider), provider);
 
         if (budgetTracker != null) budgetTracker.waitIfNeeded();
         Object observeCtx = observeBridge != null ? observeBridge.beforeVision(request) : null;
@@ -971,7 +972,7 @@ public final class CafeAIApp implements CafeAI {
                             "app.ai(OpenAI.of(gpt-4o)) or app.ai(OpenAI.whisper())");
         }
 
-        ChatModel model = LangchainBridge.INSTANCE.modelFor(provider);
+        ChatModel model = usageMeter.meter(LangchainBridge.INSTANCE.modelFor(provider), provider);
 
         // -- 2. PRE_LLM guardrail check on the text prompt --------------------
         applyPreLlmGuardrails(request.prompt(), "Audio");
@@ -1619,7 +1620,7 @@ public final class CafeAIApp implements CafeAI {
                 prompt.append("user".equalsIgnoreCase(m.role()) ? "User: " : "Assistant: ")
                       .append(m.content()).append('\n');
             }
-            String summary = LangchainBridge.INSTANCE.modelFor(provider).chat(prompt.toString());
+            String summary = usageMeter.meter(LangchainBridge.INSTANCE.modelFor(provider), provider).chat(prompt.toString());
             // The summary becomes part of the system prompt, so it goes through the input guardrails
             // like anything else a user's words end up in; a blocking guardrail cancels the summary.
             if (summary != null && !summary.isBlank()) {
@@ -1745,6 +1746,19 @@ public final class CafeAIApp implements CafeAI {
             if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
         }
         return false;
+    }
+
+    // -- Usage and cost -----------------------------------------------------------
+
+    @Override
+    public CafeAI pricing(io.cafeai.core.ai.Pricing pricing) {
+        usageMeter.pricing(Objects.requireNonNull(pricing, "pricing"));
+        return this;
+    }
+
+    @Override
+    public io.cafeai.core.ai.UsageReport usage() {
+        return usageMeter.report();
     }
 
     // -- MCP ----------------------------------------------------------------------
@@ -2428,7 +2442,7 @@ public final class CafeAIApp implements CafeAI {
             if (entry.method().equals("_SUBROUTER_")) continue;
 
             String fullPath = toHelidonPath(mountPrefix + entry.path());
-            Handler handler = toHelidonHandler(entry.handler());
+            Handler handler = toHelidonHandler(entry.handler(), mountPrefix + entry.path());
 
             switch (entry.method()) {
                 case "GET" -> builder.get(fullPath, handler);
@@ -2495,7 +2509,7 @@ public final class CafeAIApp implements CafeAI {
             }
             var ctx = getOrCreateContext(routingReq,
                     routingRes);
-            try {
+            try (var scope = usageMeter.enter(ctx.req(), ctx.res())) {
                 middleware.handle(ctx.req(), ctx.res(), () -> {
                     try {
                         chain.proceed();
@@ -2531,7 +2545,7 @@ public final class CafeAIApp implements CafeAI {
             if (routingReq.path().path().startsWith(pathPrefix) && !bypassed(routingReq.path().path())) {
                 var ctx = getOrCreateContext(routingReq,
                         routingRes);
-                try {
+                try (var scope = usageMeter.enter(ctx.req(), ctx.res())) {
                     middleware.handle(ctx.req(), ctx.res(), () -> {
                         try {
                             chain.proceed();
@@ -2556,10 +2570,12 @@ public final class CafeAIApp implements CafeAI {
      * first filter ran -- the body-parsing middleware will already have populated
      * {@code req.body()}, {@code req.bodyBytes()}, etc. on this instance.
      */
-    private Handler toHelidonHandler(Middleware middleware) {
+    private Handler toHelidonHandler(Middleware middleware, String routePattern) {
         return (helidonReq, helidonRes) -> {
             var ctx = getOrCreateContext(helidonReq, helidonRes);
-            try {
+            // req.route().path() is the pattern that matched (/orders/:id), as in Express.
+            ctx.req().setAttribute("_routePattern", routePattern);
+            try (var scope = usageMeter.enter(ctx.req(), ctx.res())) {
                 middleware.handle(ctx.req(), ctx.res(), () -> {
                 });
             } catch (Exception e) {

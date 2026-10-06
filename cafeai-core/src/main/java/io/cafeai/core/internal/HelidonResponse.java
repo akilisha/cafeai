@@ -53,6 +53,9 @@ public final class HelidonResponse implements Response {
             .withZone(java.time.ZoneOffset.UTC);
 
     private final ServerResponse helidonRes;
+
+    /** The underlying Helidon response, for package-internal hooks (usage metering). */
+    ServerResponse helidonServerResponse() { return helidonRes; }
     private final Map<String, Object> locals = new ConcurrentHashMap<>();
     private final List<Runnable> beforeSendHooks = new ArrayList<>();
 

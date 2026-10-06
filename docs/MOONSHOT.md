@@ -12,6 +12,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 4 | [Record and replay for LLM calls](#4-record-and-replay-for-llm-calls) | **Built** (`cafeai-test`, unreleased) |
 | 5 | [Evals as tests](#5-evals-as-tests) | **Built** (`cafeai-test`, unreleased) |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | **Built** (`cafeai-mcp`, unreleased) |
+| 7 | [Cost per route](#7-cost-per-route) | **Built** (`cafeai-core`, unreleased) |
 | 9 | [Reload while you edit](#9-reload-while-you-edit) | **Built** (`cafeai-dev`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
@@ -767,6 +768,42 @@ of tool and calls each successfully.
 **Learned:** `@Tool` argument names need `javac -parameters` (or `@P`) — compiled
 without it, the Inspector saw `arg0`/`arg1`.
 
+
+---
+
+## 7. Cost per route
+
+**The pitch:** the server knows what every request cost — "which route is burning
+the budget?" is a query, not an investigation.
+
+**Built** in `cafeai-core` (DEVELOPER_GUIDE §31, §20.6):
+
+```java
+app.pricing(Pricing.of("gpt-4o-mini", 0.15, 0.60));      // $ per million tokens; no built-in prices
+app.usage().route("GET /orders/:id");                      // calls, tokens, cost
+```
+
+- **Every model call counts** — prompts, streams (at completion), vision, summaries,
+  and each round trip of an agent's tool loop — because models are wrapped where the
+  app gets them. Each wrapper forwards every `chat` overload as received: a model may
+  implement any one of them, and the first version of the wrapper broke eleven tests
+  whose models implemented only the list form.
+- **Credited to the route that matched**, once the response is sent; calls made by
+  filters count for the request too. Streams start on another thread, so their wrapper
+  captures the request when the call is made.
+- **Exported** as `gen_ai.client.token.usage` and `cafeai.llm.cost` by model, method and
+  route with the OpenTelemetry strategy; `X-CafeAI-Usage` header for development.
+
+**Fixed on the way:** `req.route().path()` returned the request's own path instead of
+the pattern — which would have made one metric series per order id.
+
+**Verified live against Ollama:** two `/ask/:topic` requests with different topics land
+on one route (2 calls, 58 + 66 tokens, `$0.0000322` at test prices — the arithmetic
+checks), a stream and an agent on theirs.
+
+**Found, not part of #7:** a token stream (`res.stream(...)`) fails when the client
+attempts the cleartext HTTP/2 upgrade, as Java's `HttpClient` does by default — present
+in released 0.5.1. Browsers and curl do not attempt it; HTTP/1.1 works.
 ---
 
 ## 9. Reload while you edit

@@ -60,6 +60,14 @@ public interface ObserveBridge {
      * @param request the vision request about to be executed
      * @return an opaque context object passed to {@link #afterVision}
      */
+    /**
+     * One model call's usage, credited to the route of the request that made it
+     * ({@code "GET /orders/:id"}, or {@code "(no request)"}). {@code cost} is in
+     * dollars, or {@code null} when the model has no price ({@code app.pricing(...)}).
+     */
+    default void onUsage(String route, String model, long inputTokens, long outputTokens, Double cost) {
+    }
+
     default Object beforeVision(io.cafeai.core.ai.VisionRequest request) {
         return null;
     }
