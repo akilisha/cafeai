@@ -490,7 +490,8 @@ public final class HelidonResponse implements Response {
         assertNotCommitted();
         setHeader("Content-Type",  "text/event-stream");
         setHeader("Cache-Control", "no-cache");
-        setHeader("Connection",    "keep-alive");
+        // No Connection header: HTTP/2 forbids connection-specific headers, and a client
+        // resets a stream that carries one (PROTOCOL_ERROR). HTTP/1.1 keeps alive anyway.
         commit();
 
         // Helidon SE has a blocking, virtual-thread request model: the handler must

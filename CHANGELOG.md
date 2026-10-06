@@ -57,6 +57,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **A token stream (`res.stream(...)`) works over HTTP/2.** It sent a `Connection` header,
+  which HTTP/2 forbids, so a client that negotiated HTTP/2 — Java's `HttpClient` does by
+  default, through the cleartext upgrade — reset the stream and received nothing.
 - **`req.route().path()` is the pattern that matched** (`/orders/:id`), as in Express; it
   returned the request's own path (`/orders/17`).
 

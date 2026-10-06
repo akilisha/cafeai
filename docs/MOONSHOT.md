@@ -801,9 +801,10 @@ the pattern — which would have made one metric series per order id.
 on one route (2 calls, 58 + 66 tokens, `$0.0000322` at test prices — the arithmetic
 checks), a stream and an agent on theirs.
 
-**Found, not part of #7:** a token stream (`res.stream(...)`) fails when the client
-attempts the cleartext HTTP/2 upgrade, as Java's `HttpClient` does by default — present
-in released 0.5.1. Browsers and curl do not attempt it; HTTP/1.1 works.
+**Found on the way, and fixed separately:** a token stream (`res.stream(...)`) failed
+over HTTP/2 — it sent a `Connection` header, which HTTP/2 forbids, so a client that
+negotiated HTTP/2 (Java's `HttpClient` does by default) reset the stream. Present in
+released 0.5.1; `StreamingOverHttp2Test` now covers both protocols.
 ---
 
 ## 9. Reload while you edit

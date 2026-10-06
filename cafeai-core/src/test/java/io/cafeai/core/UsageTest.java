@@ -59,10 +59,7 @@ class UsageTest {
 
     private static final double ONE_CALL = (100 * 1.0 + 20 * 2.0) / 1_000_000;   // fixed-1 at $1 / $2 per million
 
-    // HTTP/1.1: a streamed response fails when the client attempts the h2c upgrade (a known,
-    // separate issue); browsers and curl do not attempt it.
-    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(2)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 
     private CafeAI started(CafeAI app) throws Exception {
         var latch = new CountDownLatch(1);
