@@ -310,9 +310,9 @@ HTTP middleware. (An earlier version of this guide, and the code, applied them o
 `audio` but not on `app.prompt()`; the middleware form of a guardrail runs after the route
 handler has already responded, so it could never stop an output.) A guardrail's `Action`
 decides the outcome: `BLOCK` throws `GuardRailViolationException` before any model call is made
-(and replaces a bad *output* with a refusal), `WARN`/`LOG` record and continue. A streamed
-response can't be retracted once tokens are sent, so for `.stream()` step 5 gates what is
-remembered, not what the client already received.
+(and replaces a bad *output* with a refusal), `WARN`/`LOG` record and continue. For
+`.stream()`, step 5 runs a sentence at a time before each sentence is sent, so a blocked
+answer stops at the last clean sentence and the flagged text never reaches the client.
 
 None of steps 1, 2, 3, or 6 exist in LangChain4j at the `ChatModel` level —
 they're `AiServices`-only concerns there. CafeAI's value here is applying

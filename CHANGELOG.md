@@ -7,6 +7,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **Screened streaming.** With output guardrails, a streamed answer is held until each
+  sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
+  sentence — followed by the refusal — and the flagged text never reaches the client. The
+  cost is the first sentence's latency; total time is unchanged. Apps without output
+  guardrails stream token by token as before; `cafeai.stream.screen=off` opts out. See
+  DEVELOPER_GUIDE §19.7.
 - **Usage and cost per route.** Every model call — prompts, streams, vision, summaries,
   and each round trip of an agent's tool loop — is counted and credited to the route of
   the request that made it. `app.pricing(Pricing.of("gpt-4o-mini", 0.15, 0.60))` prices

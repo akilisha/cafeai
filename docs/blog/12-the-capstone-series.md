@@ -80,7 +80,6 @@ Counts are `@Test` annotations, not executed cases, and a test count says how mu
 
 The framework's limits are listed in its documentation rather than discovered in production. The ones worth having in mind:
 
-- **`.stream()` cannot take back tokens already sent.** A POST_LLM guardrail that flags a streamed answer can only report it afterwards.
 - **An agent's retrieved documents are not screened.** LangChain4j owns that path; only `app.prompt()` screens what RAG retrieves.
 - **`regulatory()` checks input only.**
 - **The semantic cache is in-memory only.** There is no store-backed cache.

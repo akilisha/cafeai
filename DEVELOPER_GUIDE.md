@@ -2376,6 +2376,35 @@ app.post("/chat", safetyStack, myHandler);
 
 ---
 
+### 19.7 Streamed answers — screened streaming
+
+When the app has output guardrails (`POST_LLM` or `BOTH`), a streamed answer —
+`res.stream(app.prompt(...))`, `.stream(...)`, a vision stream — is screened a
+sentence at a time *before* it is sent: text is held until a sentence ends, the
+answer so far is checked by the output guardrails, and only then is the sentence
+released. A blocked answer stops there: the client has the sentences that passed,
+then the refusal, and the flagged text never leaves the server.
+
+```
+data: The Eiffel Tower is located in France.
+data: [Response blocked by guardrail: no-paris]
+data: [DONE]
+```
+
+- **The cost is the first sentence.** The answer starts arriving once its first
+  sentence is complete (measured with `llama3.2`: first text after 558 ms instead of
+  118 ms); the total time is unchanged. Text with no sentence end is released at a
+  word break every 400 characters.
+- **Chunks are sentences, not tokens.** A client sees one event per released sentence.
+- **Guardrails run once per sentence**, over the whole answer so far, so a phrase
+  split across sentences is still caught. A guardrail that calls a model (moderation)
+  is called that many times.
+- **`WARN` and `LOG`** let the whole answer through, a sentence at a time.
+- **Without output guardrails** nothing changes: tokens are sent as they arrive.
+- `cafeai.stream.screen=off` sends tokens as they arrive even with output guardrails;
+  they then screen only the finished answer, which gates what is remembered and cached
+  but not what the client already received.
+
 ## 20. Observability — Tracing
 
 ### 20.1 Why observability matters for LLM applications

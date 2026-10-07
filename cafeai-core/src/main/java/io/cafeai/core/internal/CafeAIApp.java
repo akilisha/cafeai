@@ -580,11 +580,13 @@ public final class CafeAIApp implements CafeAI {
                 try {
                     if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
+                    ScreenedStream screened = screenedStream(publisher::submit);
                     model.chat(messages, new StreamingChatResponseHandler() {
                         @Override
                         public void onPartialResponse(String token) {
                             assembled.append(token);
-                            publisher.submit(token);
+                            if (screened != null) screened.accept(token);
+                            else publisher.submit(token);
                         }
 
                         @Override
@@ -596,11 +598,20 @@ public final class CafeAIApp implements CafeAI {
 
                         @Override
                         public void onCompleteResponse(ChatResponse response) {
-                            // Tokens have already reached the subscriber, so POST_LLM cannot
+                            // Screened streaming released only text the output guardrails passed.
+                            // Without it, tokens already reached the subscriber, so POST_LLM cannot
                             // retract them; it gates what is remembered, exposed and cached.
-                            Screened screened = screenOutput(assembled.toString());
-                            String full = screened.text();
-                            if (cacheNamespace != null && !preFlagged && !screened.flagged()) {
+                            String full;
+                            boolean outputFlagged;
+                            if (screened != null) {
+                                full = screened.finish();
+                                outputFlagged = screened.flagged();
+                            } else {
+                                Screened s = screenOutput(assembled.toString());
+                                full = s.text();
+                                outputFlagged = s.flagged();
+                            }
+                            if (cacheNamespace != null && !preFlagged && !outputFlagged) {
                                 storeInCache(cacheNamespace, request.message(), full);
                             }
                             TokenUsage usage = response.tokenUsage();
@@ -871,11 +882,13 @@ public final class CafeAIApp implements CafeAI {
         AtomicReference<Throwable> error = new AtomicReference<>();
         StringBuilder assembled = new StringBuilder();
 
+        ScreenedStream screened = screenedStream(onChunk);
         model.chat(messages, new StreamingChatResponseHandler() {
             @Override
             public void onPartialResponse(String token) {
                 assembled.append(token);
-                onChunk.accept(token);
+                if (screened != null) screened.accept(token);
+                else onChunk.accept(token);
             }
 
             @Override
@@ -892,7 +905,7 @@ public final class CafeAIApp implements CafeAI {
                 int outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
                 if (budgetTracker != null) budgetTracker.recordUsage(promptTokens + outputTokens);
 
-                String full = applyPostLlmGuardrails(assembled.toString());
+                String full = screened != null ? screened.finish() : applyPostLlmGuardrails(assembled.toString());
 
                 if (observeBridge != null) {
                     VisionResponse partial = VisionResponse.builder()
@@ -1285,6 +1298,21 @@ public final class CafeAIApp implements CafeAI {
 
     /** The response after POST_LLM guardrails, and whether any guardrail flagged it at all. */
     private record Screened(String text, boolean flagged) {}
+
+    /**
+     * Screened streaming for a stream about to start, or null: only when the app has output
+     * guardrails and {@code cafeai.stream.screen} is not {@code off}.
+     */
+    private ScreenedStream screenedStream(java.util.function.Consumer<String> emit) {
+        boolean outputGuardrails = guardRails.stream().anyMatch(r ->
+                r.position() == GuardRail.Position.POST_LLM || r.position() == GuardRail.Position.BOTH);
+        if (!outputGuardrails) return null;
+        if ("off".equalsIgnoreCase(AppConfig.load().get(ScreenedStream.MODE).trim())) return null;
+        return new ScreenedStream(text -> {
+            Screened s = screenOutput(text);
+            return new ScreenedStream.Result(s.text(), s.flagged());
+        }, emit);
+    }
 
     private Screened screenOutput(String responseText) {
         if (guardRails.isEmpty() || responseText == null || responseText.isBlank()) {

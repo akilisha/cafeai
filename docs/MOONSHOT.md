@@ -13,6 +13,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 5 | [Evals as tests](#5-evals-as-tests) | **Built** (`cafeai-test`, unreleased) |
 | 6 | [Every app is an MCP server](#6-every-app-is-an-mcp-server) | **Built** (`cafeai-mcp`, unreleased) |
 | 7 | [Cost per route](#7-cost-per-route) | **Built** (`cafeai-core`, unreleased) |
+| 8 | [Streaming that never shows flagged text](#8-streaming-that-never-shows-flagged-text) | **Built** as screened streaming (`cafeai-core`, unreleased) |
 | 9 | [Reload while you edit](#9-reload-while-you-edit) | **Built** (`cafeai-dev`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
 
@@ -805,6 +806,31 @@ checks), a stream and an agent on theirs.
 over HTTP/2 — it sent a `Connection` header, which HTTP/2 forbids, so a client that
 negotiated HTTP/2 (Java's `HttpClient` does by default) reset the stream. Present in
 released 0.5.1; `StreamingOverHttp2Test` now covers both protocols.
+
+---
+
+## 8. Streaming that never shows flagged text
+
+**The problem:** a streamed answer reaches the client token by token, while an output
+guardrail can only judge text it has seen — so by the time it flags the answer, the
+user has read the flagged part.
+
+**The idea first considered** — the server retracting text it already sent — needs a
+client that knows how to erase it, which no SSE client, browser `EventSource` or LLM SDK
+does, so it would mean inventing a protocol and shipping a client library.
+
+**Built instead: screened streaming** (DEVELOPER_GUIDE §19.7), server-side only and
+invisible to clients. With output guardrails, text is held until a sentence ends, the
+answer so far is screened, and only then is the sentence sent; a blocked answer stops at
+the last clean sentence, then the refusal. Nothing ever needs retracting, because
+flagged text never leaves the server.
+
+**Verified live against Ollama** with a guardrail blocking "Paris": asked where the
+Eiffel Tower is and the country's capital, the client received "The Eiffel Tower is
+located in France." and the refusal — the sentence naming Paris was never sent.
+**The cost:** first text after 558 ms instead of 118 ms (the first sentence); total time
+1.89 s either way. Apps without output guardrails stream token by token as before;
+`cafeai.stream.screen=off` opts out.
 ---
 
 ## 9. Reload while you edit
