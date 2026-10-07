@@ -1,9 +1,9 @@
 // ============================================================
-//  cafeai-views-mustache
+//  cafeai-mustache
 //  Optional Mustache template engine for CafeAI.
 //
 //  Add to your project:
-//    implementation 'com.akilisha.oss:cafeai-views-mustache'
+//    implementation 'com.akilisha.oss:cafeai-mustache'
 //
 //  Then register in your app:
 //    app.engine("html", ResponseFormatter.mustache());

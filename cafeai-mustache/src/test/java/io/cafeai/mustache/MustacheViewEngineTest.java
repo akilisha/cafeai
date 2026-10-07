@@ -1,4 +1,4 @@
-package io.cafeai.views.mustache;
+package io.cafeai.mustache;
 
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ResponseFormatter;

@@ -72,7 +72,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-observability:0.5.1'  // OpenTelemetry tracing
     implementation 'com.akilisha.oss:cafeai-security:0.5.1'       // audit events for blocked prompt injection
     implementation 'com.akilisha.oss:cafeai-connect:0.5.1'        // Redis, Ollama, pgvector
-    implementation 'com.akilisha.oss:cafeai-views-mustache:0.5.1' // Mustache view engine
+    implementation 'com.akilisha.oss:cafeai-mustache:0.5.1'       // Mustache view engine
     implementation 'com.akilisha.oss:cafeai-session:0.5.1'        // SQLite-backed HTTP session store
     implementation 'com.akilisha.oss:cafeai-flight:0.5.1'         // JVM visibility via Flight Recorder -> OTel
     implementation 'com.akilisha.oss:cafeai-mcp:0.5.1'            // app.mcp(): routes as tools for AI agents
@@ -385,7 +385,7 @@ cafeai/
 ├── cafeai-observability  ← OpenTelemetry tracing, console logging
 ├── cafeai-security       ← Blocks prompt injection, raises audit events
 ├── cafeai-connect        ← Out-of-process services: Redis, Ollama, pgvector
-├── cafeai-views-mustache ← Optional Mustache view engine
+├── cafeai-mustache       ← Optional Mustache view engine
 ├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-flight         ← JVM-level visibility via Java Flight Recorder, surfaced as OTel metrics
 ├── cafeai-mcp            ← MCP server: chosen routes and @Tool objects as tools for AI agents

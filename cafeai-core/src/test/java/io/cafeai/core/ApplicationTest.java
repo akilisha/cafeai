@@ -338,11 +338,11 @@ class ApplicationTest {
     @Test
     @DisplayName("ResponseFormatter.mustache() throws RenderException when module absent")
     void mustache_withoutModule_throwsRenderException() {
-        // cafeai-views-mustache is not on the test classpath — ServiceLoader finds nothing
+        // cafeai-mustache is not on the test classpath — ServiceLoader finds nothing
         assertThatExceptionOfType(ResponseFormatter.RenderException.class)
             .isThrownBy(ResponseFormatter::mustache)
             .withMessageContaining("mustache")
-            .withMessageContaining("cafeai-views-mustache");
+            .withMessageContaining("cafeai-mustache");
     }
 
     @Test

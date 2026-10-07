@@ -10,7 +10,7 @@ include(
     'cafeai-observability',
     'cafeai-security',
     'cafeai-session',
-    'cafeai-views-mustache',
+    'cafeai-mustache',
     'cafeai-connect',
     'cafeai-aiservices',
     'cafeai-agentic',

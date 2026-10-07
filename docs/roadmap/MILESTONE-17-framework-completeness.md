@@ -176,7 +176,7 @@ implementation 'com.akilisha.oss:cafeai-observability:0.2.0'
 implementation 'com.akilisha.oss:cafeai-security:0.2.0'
 implementation 'com.akilisha.oss:cafeai-streaming:0.2.0'
 implementation 'com.akilisha.oss:cafeai-connect:0.2.0'
-implementation 'com.akilisha.oss:cafeai-views-mustache:0.2.0'
+implementation 'com.akilisha.oss:cafeai-mustache:0.2.0'
 ```
 
 ---

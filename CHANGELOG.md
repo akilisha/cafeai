@@ -432,7 +432,7 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   status and `error.type`, or logs the error. The documented span attributes are corrected to the names
   recorded (`gen_ai.*`, `cafeai.session.id`, `cafeai.rag.documents_retrieved`, `error.type`); the
   listed `cafeai.guardrail_triggered` was never recorded.
-- **`cafeai-views-mustache` (now tested)** rendered nothing on Windows: Mustache.java treated the absolute
+- **`cafeai-mustache` (now tested)** rendered nothing on Windows: Mustache.java treated the absolute
   template path (`D:\views\page.html`) as a URI and failed. Templates are now compiled by file name against
   their own directory, which also makes `{{>partial}}` resolve next to the including template on every
   OS. A template edited on disk is recompiled on its next render, without a restart.

@@ -1,4 +1,4 @@
-package io.cafeai.views.mustache;
+package io.cafeai.mustache;
 
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Mustache view engine provider for CafeAI.
  *
  * <p>Self-registers via {@link java.util.ServiceLoader}: adding
- * {@code com.akilisha.oss:cafeai-views-mustache} to the classpath makes
+ * {@code com.akilisha.oss:cafeai-mustache} to the classpath makes
  * {@code ResponseFormatter.mustache()} available, which you register with {@code app.engine(...)}.
  *
  * <p>Compiled templates are cached, and a template whose file has changed is recompiled on its next

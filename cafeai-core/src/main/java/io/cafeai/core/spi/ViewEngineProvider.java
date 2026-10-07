@@ -5,7 +5,7 @@ import io.cafeai.core.ResponseFormatter;
 /**
  * SPI for optional view engine modules.
  *
- * <p>Implement this interface in a module (e.g. {@code cafeai-views-mustache})
+ * <p>Implement this interface in a module (e.g. {@code cafeai-mustache})
  * to make a {@link ResponseFormatter} discoverable at runtime via
  * {@link java.util.ServiceLoader}. The implementation JAR declares itself in:
  * <pre>
@@ -16,7 +16,7 @@ import io.cafeai.core.ResponseFormatter;
  * makes the engine's factory (such as {@code ResponseFormatter.mustache()}) available. The
  * application still registers the result with {@code app.engine(ext, formatter)}.
  *
- * <p>Example implementation in {@code cafeai-views-mustache}:
+ * <p>Example implementation in {@code cafeai-mustache}:
  * <pre>{@code
  *   public class MustacheViewEngineProvider implements ViewEngineProvider {
  *       @Override public String engineId() { return "mustache"; }

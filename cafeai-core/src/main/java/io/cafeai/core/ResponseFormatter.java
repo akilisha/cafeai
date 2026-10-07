@@ -29,13 +29,13 @@ import java.util.ServiceLoader;
  *
  * <table>
  *   <tr><th>Method</th><th>Module</th><th>Dependency</th></tr>
- *   <tr><td>{@link #mustache()}</td><td>{@code cafeai-views-mustache}</td>
- *       <td>{@code com.akilisha.oss:cafeai-views-mustache}</td></tr>
+ *   <tr><td>{@link #mustache()}</td><td>{@code cafeai-mustache}</td>
+ *       <td>{@code com.akilisha.oss:cafeai-mustache}</td></tr>
  * </table>
  *
  * <pre>{@code
  *   // Register engines
- *   app.engine("html", ResponseFormatter.mustache());   // requires cafeai-views-mustache
+ *   app.engine("html", ResponseFormatter.mustache());   // requires cafeai-mustache
  *
  *   // Development only — no loops or escaping
  *   app.engine("txt",  ResponseFormatter.template());
@@ -68,17 +68,17 @@ public interface ResponseFormatter {
     /**
      * Returns a Mustache template formatter.
      *
-     * <p>Requires {@code com.akilisha.oss:cafeai-views-mustache} on the classpath.
+     * <p>Requires {@code com.akilisha.oss:cafeai-mustache} on the classpath.
      * That module self-registers via {@link ServiceLoader} — no code changes needed.
      * Supports {@code {{variable}}}, {@code {{#section}}}, {@code {{>partial}}} syntax.
      *
      * <p>If the module is not present, throws {@link RenderException} with a clear
      * message indicating which dependency to add.
      *
-     * @throws RenderException if {@code cafeai-views-mustache} is not on the classpath
+     * @throws RenderException if {@code cafeai-mustache} is not on the classpath
      */
     static ResponseFormatter mustache() {
-        return loadEngine("mustache", "com.akilisha.oss:cafeai-views-mustache");
+        return loadEngine("mustache", "com.akilisha.oss:cafeai-mustache");
     }
 
     /**
@@ -95,7 +95,7 @@ public interface ResponseFormatter {
      *   <li>No inheritance or blocks</li>
      * </ul>
      *
-     * <p>For production rendering, add {@code cafeai-views-mustache} and use
+     * <p>For production rendering, add {@code cafeai-mustache} and use
      * {@link #mustache()} instead.
      *
      * <pre>{@code

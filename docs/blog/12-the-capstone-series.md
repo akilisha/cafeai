@@ -64,8 +64,8 @@ It matters because it is not a chat application. It shows the same primitives (a
 
 | Metric | Value |
 |--------|-------|
-| Published modules | 11 (core, config, memory, rag, guardrails, observability, security, views-mustache, connect, agents, sentinel) |
-| Test methods | about 860 across those modules (core ~590, sentinel ~60, guardrails ~55, connect ~47, observability ~27, agents ~23, memory ~20, views-mustache ~17, security ~12, config ~8, rag ~4) |
+| Published modules | 11 (core, config, memory, rag, guardrails, observability, security, mustache, connect, agents, sentinel) |
+| Test methods | about 860 across those modules (core ~590, sentinel ~60, guardrails ~55, connect ~47, observability ~27, agents ~23, memory ~20, mustache ~17, security ~12, config ~8, rag ~4) |
 | Runnable capstones | 5 (plus `nova-tutor`, specified but not built) |
 | Entry points | `app.prompt()`, `app.vision()`, `app.audio()`, `app.synthesise()` |
 | Memory strategies | 4 (`inMemory`, `mapped`, `redis`, `hybrid`) |

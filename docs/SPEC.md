@@ -424,7 +424,7 @@ cafeai/
 ├── cafeai-observability/               ← OpenTelemetry tracing, console logging
 ├── cafeai-security/                    ← Blocks prompt injection, raises audit events
 ├── cafeai-connect/                     ← Out-of-process services: Redis, Ollama, pgvector
-├── cafeai-views-mustache/              ← Optional Mustache view engine
+├── cafeai-mustache/                    ← Optional Mustache view engine
 ├── cafeai-aiservices/                      ← binds LangChain4j AiServices to an HTTP identity
 │                                         — session, guardrails, RAG, observability (ROADMAP-12)
 ├── cafeai-sentinel/                    ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)

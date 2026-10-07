@@ -19,7 +19,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-core:0.5.1'
     // cafeai-config · cafeai-aiservices · cafeai-memory · cafeai-rag · cafeai-guardrails
     // cafeai-observability · cafeai-security · cafeai-connect
-    // cafeai-views-mustache · cafeai-sentinel
+    // cafeai-mustache · cafeai-sentinel
     // Several modules? `implementation platform('com.akilisha.oss:cafeai-bom:0.5.1')` once,
     // then list them without versions.
 }

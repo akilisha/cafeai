@@ -67,11 +67,11 @@
 - `ResponseFormatter.template()` — zero-dependency `{{variable}}` substitution,
   documented as **development/simple use only** — no loops, no escaping
 - `ResponseFormatter.mustache()` — ServiceLoader discovery; throws `RenderException`
-  with actionable dependency message if `cafeai-views-mustache` absent
+  with actionable dependency message if `cafeai-mustache` absent
 - `ResponseFormatter.markdown()` — same ServiceLoader pattern
 - `ResponseFormatter.RenderException` — clean error surface
 - `ViewEngineProvider.java` (SPI) — interface for optional engine modules to implement
-- `cafeai-views-mustache/` — full Mustache implementation module:
+- `cafeai-mustache/` — full Mustache implementation module:
   `MustacheViewEngineProvider`, `MustacheResponseFormatter` (thread-safe factory cache),
   `META-INF/services` registration
 - `app.engine(ext, formatter)` — registers formatter; normalises leading dot

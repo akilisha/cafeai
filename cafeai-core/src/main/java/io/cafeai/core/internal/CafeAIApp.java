@@ -2088,7 +2088,7 @@ public final class CafeAIApp implements CafeAI {
             throw new ResponseFormatter.RenderException(
                     "No engine registered for extension \"" + ext + "\". " +
                             "Call app.engine(\"" + ext + "\", ResponseFormatter.mustache()) " +
-                            "after adding com.akilisha.oss:cafeai-views-mustache to your dependencies.");
+                            "after adding com.akilisha.oss:cafeai-mustache to your dependencies.");
         }
     }
 

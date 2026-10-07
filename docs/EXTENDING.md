@@ -56,7 +56,7 @@ from the factory class named in the last column.
 | `GuardRailProvider` | real `GuardRail.pii()/jailbreak()/regulatory()/...` (throw `GuardRailModuleNotFoundException` without it) | `cafeai-guardrails` | `GuardRail` |
 | `ObserveBridge` | `app.observe(...)` tracing / spans | `cafeai-observability` | `CafeAIApp` |
 | `AgentBridge` | `app.agent(...)` | `cafeai-aiservices` | `CafeAIApp` |
-| `ViewEngineProvider` | `app.engine(...)` / `res.render(...)` | `cafeai-views-mustache` | `CafeAIApp` |
+| `ViewEngineProvider` | `app.engine(...)` / `res.render(...)` | `cafeai-mustache` | `CafeAIApp` |
 
 `app.connect(...)` needs no SPI at all: `Connection`, `HealthStatus`, and
 `Fallback` live in `io.cafeai.core.connect`, and a `Connection` implementation
