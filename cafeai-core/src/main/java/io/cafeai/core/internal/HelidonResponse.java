@@ -515,7 +515,7 @@ public final class HelidonResponse implements Response {
             @Override
             public void onNext(String token) {
                 try {
-                    out.write(("data: " + token + "\n\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(sseEvent(token).getBytes(StandardCharsets.UTF_8));
                     out.flush();
                 } catch (IOException e) {
                     subscription.cancel();
@@ -553,6 +553,20 @@ public final class HelidonResponse implements Response {
         try {
             out.close();
         } catch (IOException ignored) {}
+    }
+
+    /**
+     * One SSE event carrying {@code text}. Each line of the text gets its own
+     * {@code data:} field -- SSE treats CR, LF and CRLF all as line breaks, and a client
+     * joins an event's data lines back with LF -- so a token with a line break in it
+     * arrives whole instead of being cut at the break.
+     */
+    static String sseEvent(String text) {
+        StringBuilder event = new StringBuilder(text.length() + 8);
+        for (String line : text.split("\r\n|\r|\n", -1)) {
+            event.append("data: ").append(line).append('\n');
+        }
+        return event.append('\n').toString();
     }
 
     // -- Paired Request --------------------------------------------------------

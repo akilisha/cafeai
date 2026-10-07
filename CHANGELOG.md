@@ -57,6 +57,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **Streamed tokens keep their line breaks.** `res.stream(...)` wrote each token as a single
+  SSE `data:` field, so for a token with a line break in it — a paragraph, a list item, a
+  lone newline, all common in model output — an SSE client kept only the text before the
+  break. Each line now gets its own `data:` field, and the client rejoins them.
 - **A token stream (`res.stream(...)`) works over HTTP/2.** It sent a `Connection` header,
   which HTTP/2 forbids, so a client that negotiated HTTP/2 — Java's `HttpClient` does by
   default, through the cleartext upgrade — reset the stream and received nothing.
