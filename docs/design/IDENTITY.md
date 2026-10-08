@@ -212,14 +212,25 @@ A client cache keyed by identity is rejected:
 - **It weakens revocation.** A revoked person's credential sits in a long-lived object until
   something evicts it.
 
-The mechanism exists in LangChain4j 1.20, the version we're on. The OpenAI and Anthropic builders
-both take `customHeaders(Supplier<Map<String, String>>)` and `httpClientBuilder(HttpClientBuilder)`.
+The mechanism exists in LangChain4j 1.20, the version we're on: the OpenAI and Anthropic
+builders both take `customHeaders(Supplier<Map<String, String>>)`. Checked in the 1.20 sources:
 
-**To verify in a spike before relying on it:**
-1. The header supplier is called on every request, not once when the client is built.
-2. A per-request `Authorization` header **replaces** the `Authorization: Bearer <apiKey>` the
-   builder adds, rather than being sent next to it. If the supplier can't guarantee that, the
-   credential is set by wrapping the `httpClientBuilder`.
+- **The supplier is called on every request.** `DefaultOpenAiClient.buildRequestHeaders()` calls
+  it for each chat, streaming, completion and embedding request. `DefaultAnthropicClient` does
+  the same.
+- **Supplied headers replace the defaults.** Headers are a map where the last value wins, and the
+  supplied ones are applied after the client's defaults. The map is **case-sensitive**, though:
+  the header must be spelled exactly `Authorization`, or both credentials are sent. With no API
+  key set, the OpenAI client sends no default `Authorization` at all.
+- **Anthropic always sends `x-api-key`** with the builder's key. A per-request credential for an
+  Anthropic-protocol endpoint overrides that exact header name, and the builder still needs a key
+  value at build time.
+- **The supplier runs in the call that builds the request**, on the caller's thread, so
+  `Identity.current()` sees the request's identity. **Still to test:** that this holds for
+  streaming calls.
+
+No HTTP-client wrapper is needed. `httpClientBuilder(HttpClientBuilder)` remains available if a
+future provider needs one.
 
 A provider whose credential can't be expressed as a header (a request signed as a whole, for
 example) may cache per identity, as a documented exception for that provider only.
@@ -339,5 +350,5 @@ These can be added later without changing the design:
 3. **Which claim carries groups?** OpenID Connect doesn't standardise one. Make the claim name
    configurable, with no default?
 4. **Audit sink:** OpenTelemetry only, or also a dedicated, append-only audit log?
-5. **Order of work.** The two spikes in §8.1 decide whether the outbound design holds and should
-   come first. After that, `Identity` + `bearer` + the fake issuer is the smallest useful slice.
+5. **Order of work.** `Identity` + `bearer` + the fake issuer is the smallest useful slice. The
+   streaming-thread test in §8.1 belongs to the first outbound work.
