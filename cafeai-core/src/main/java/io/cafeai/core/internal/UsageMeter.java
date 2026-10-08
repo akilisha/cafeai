@@ -118,8 +118,23 @@ final class UsageMeter {
 
     /** Marks this thread as working for a captured scope; nothing to do when it is {@code null}. */
     Entered enter(Scope captured) {
+        return enterScope(captured);
+    }
+
+    /** Whatever request scope this thread is in, of any app, or {@code null}. */
+    static Scope currentScope() {
+        return CURRENT.get();
+    }
+
+    /** Puts this thread in a captured scope until closed; nothing to do when it is {@code null}. */
+    static Entered enterScope(Scope captured) {
         if (captured == null) return () -> { };
-        return enter(captured.req(), captured.res());
+        Scope previous = CURRENT.get();
+        CURRENT.set(captured);
+        return () -> {
+            if (previous == null) CURRENT.remove();
+            else CURRENT.set(previous);
+        };
     }
 
     /** The request this thread is running a filter or handler for, or {@code null}. */

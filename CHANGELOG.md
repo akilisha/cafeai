@@ -25,7 +25,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   middleware. Records hold metadata only, never prompt or answer text. With
   `cafeai-observability`'s OpenTelemetry strategy, spans carry `enduser.id` and
   `cafeai.enduser.issuer`; metrics never carry the caller. A streamed call now runs in its
-  request's scope, so its usage, audit records and span name the right caller. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
+  request's scope, so its usage, audit records and span name the right caller.
+- **Conversations belong to the caller who started them.** With a verified identity, a
+  conversation id is scoped to the caller (`ConversationKeys.forCurrentCaller(id)`): another
+  caller sending the same id gets a conversation of their own and never sees the first. This
+  covers prompts, streams, vision, audio, stateful agents (`cafeai-aiservices`) and
+  `CafeAgenticMemory`. Storage keys hold a hash, not the caller's name. Without identity, ids
+  work as before, except that ids starting with `cafeai-identity:` are reserved.
+- **`RequestScope`** carries the current request onto other threads: `RequestScope.wrap(task)`,
+  or `RequestScope.carrying(executor)` for an executor such as a parallel agentic workflow's, so
+  the caller's identity, conversation memory, usage and audit records go with the work. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The

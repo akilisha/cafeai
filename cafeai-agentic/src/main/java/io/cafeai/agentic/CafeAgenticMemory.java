@@ -6,6 +6,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import io.cafeai.agentic.internal.CafeAgenticChatMemoryStore;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.memory.ConversationKeys;
 import io.cafeai.core.memory.MemoryStrategy;
 
 /**
@@ -26,8 +27,10 @@ public final class CafeAgenticMemory {
     public static ChatMemoryProvider of(MemoryStrategy strategy) {
         CafeAgenticChatMemoryStore store = new CafeAgenticChatMemoryStore(strategy);
         int window = AppConfig.load().get(MEMORY_WINDOW);
+        // Keyed to the caller of the request the agent runs for. A parallel workflow runs agents
+        // on an executor: give it RequestScope.carrying(...) so the caller goes with them.
         return memoryId -> MessageWindowChatMemory.builder()
-            .id(memoryId)
+            .id(ConversationKeys.forCurrentCaller(String.valueOf(memoryId)))
             .maxMessages(window)
             .chatMemoryStore(store)
             .build();

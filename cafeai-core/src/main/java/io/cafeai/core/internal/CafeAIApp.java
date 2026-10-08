@@ -23,6 +23,7 @@ import io.cafeai.core.cache.CachedResponse;
 import io.cafeai.core.cache.SemanticCache;
 import io.cafeai.core.guardrails.GuardRailViolationException;
 import io.cafeai.core.memory.ConversationContext;
+import io.cafeai.core.memory.ConversationKeys;
 import io.cafeai.core.memory.HistoryPolicy;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.middleware.ErrorMiddleware;
@@ -384,7 +385,9 @@ public final class CafeAIApp implements CafeAI {
         List<ChatMessage> messages = new ArrayList<>();
 
         // Conversation history from memory, as the history policy selects it
-        HistoryView sessionHistory = loadHistory(request.sessionId());
+        // Keyed to the caller, here on the request's thread: some flows save from another.
+        String memoryKey = ConversationKeys.forCurrentCaller(request.sessionId());
+        HistoryView sessionHistory = loadHistory(memoryKey);
 
         // System prompt -- override or application default, plus a summary of any folded-away turns
         String sysPrompt = withSummary(request.systemOverride() != null
@@ -527,7 +530,7 @@ public final class CafeAIApp implements CafeAI {
         }
 
         // -- 5. Persist to memory ----------------------------------------------
-        recordExchange(request.sessionId(), request.message(), responseText,
+        recordExchange(memoryKey, request.message(), responseText,
                 promptTokens + outputTokens, provider);
 
         // -- 6. Return PromptResponse ------------------------------------------
@@ -571,7 +574,9 @@ public final class CafeAIApp implements CafeAI {
         // -- Build message list: system + history + user ---------------------
         List<ChatMessage> messages = new ArrayList<>();
 
-        HistoryView sessionHistory = loadHistory(request.sessionId());
+        // Keyed to the caller, here on the request's thread: some flows save from another.
+        String memoryKey = ConversationKeys.forCurrentCaller(request.sessionId());
+        HistoryView sessionHistory = loadHistory(memoryKey);
         String sysPrompt = withSummary(request.systemOverride() != null
                 ? request.systemOverride()
                 : systemPrompt, sessionHistory.summary());
@@ -642,7 +647,7 @@ public final class CafeAIApp implements CafeAI {
                                     request.httpRequest().setAttribute(
                                             Attributes.LLM_RESPONSE_TEXT, full);
                                 }
-                                recordExchange(request.sessionId(), request.message(), full,
+                                recordExchange(memoryKey, request.message(), full,
                                         promptTokens + outputTokens, provider);
                                 if (observeBridge != null) {
                                     PromptResponse pr = PromptResponse.builder()
@@ -728,7 +733,9 @@ public final class CafeAIApp implements CafeAI {
         applyPreLlmGuardrails(request.prompt(), "Vision");
 
         // -- 3. Build session history (text messages only) --------------------
-        HistoryView sessionHistory = loadHistory(request.sessionId());
+        // Keyed to the caller, here on the request's thread: some flows save from another.
+        String memoryKey = ConversationKeys.forCurrentCaller(request.sessionId());
+        HistoryView sessionHistory = loadHistory(memoryKey);
         List<ChatMessage> history = sessionHistory.messages();
 
         // -- 4. Determine system prompt ---------------------------------------
@@ -823,7 +830,7 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 9. Persist to session memory (text only — no binary content) -----
         // Text prompt only, never the bytes
-        recordExchange(request.sessionId(), request.prompt(), responseText,
+        recordExchange(memoryKey, request.prompt(), responseText,
                 promptTokens + outputTokens, provider);
 
         // -- 10. Return VisionResponse ----------------------------------------
@@ -883,7 +890,9 @@ public final class CafeAIApp implements CafeAI {
         applyPreLlmGuardrails(request.prompt(), "Vision");
 
         // -- Build history + system + multimodal message list --------------
-        HistoryView sessionHistory = loadHistory(request.sessionId());
+        // Keyed to the caller, here on the request's thread: some flows save from another.
+        String memoryKey = ConversationKeys.forCurrentCaller(request.sessionId());
+        HistoryView sessionHistory = loadHistory(memoryKey);
         List<ChatMessage> history = sessionHistory.messages();
         String sysPrompt = withSummary(request.systemOverride() != null
                 ? request.systemOverride()
@@ -935,7 +944,7 @@ public final class CafeAIApp implements CafeAI {
                     request.httpRequest().setAttribute(
                             Attributes.LLM_RESPONSE_TEXT, full);
                 }
-                recordExchange(request.sessionId(), request.prompt(), full,
+                recordExchange(memoryKey, request.prompt(), full,
                         promptTokens + outputTokens, provider);
                 done.countDown();
             }
@@ -1009,7 +1018,9 @@ public final class CafeAIApp implements CafeAI {
         applyPreLlmGuardrails(request.prompt(), "Audio");
 
         // -- 3. Build session history (text messages only) --------------------
-        HistoryView sessionHistory = loadHistory(request.sessionId());
+        // Keyed to the caller, here on the request's thread: some flows save from another.
+        String memoryKey = ConversationKeys.forCurrentCaller(request.sessionId());
+        HistoryView sessionHistory = loadHistory(memoryKey);
         List<ChatMessage> history = sessionHistory.messages();
 
         // -- 4. Determine system prompt ---------------------------------------
@@ -1166,7 +1177,7 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 9. Persist to session memory (text only — never audio bytes) -----
         // Text prompt only, never the audio
-        recordExchange(request.sessionId(), request.prompt(), responseText,
+        recordExchange(memoryKey, request.prompt(), responseText,
                 promptTokens + outputTokens, provider);
 
         // -- 10. Return AudioResponse -----------------------------------------

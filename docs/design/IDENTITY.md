@@ -198,9 +198,29 @@ OpenTelemetry gets the caller on **spans only**: `enduser.id` (the subject) and
 without bound.
 
 ### 7.4 Conversation memory: bound to identity
-Today the memory key is whatever id the client sends, so anyone with someone's id reads and
-continues their conversation. With identity on, the key becomes **issuer + subject + conversation
-id**. A request whose identity doesn't own the conversation is refused, never served.
+Without identity, the memory key is whatever id the client sends, so anyone with someone's id
+reads and continues their conversation. With a verified caller, the key is **scoped to issuer +
+subject**: `ConversationKeys.forCurrentCaller(id)` gives `cafeai-identity:<hash of issuer and
+subject>:<id>`.
+
+- **Isolated, not refused.** Another caller sending the same id gets a conversation of their own,
+  and never reads or continues the first. Refusing instead would need a record of who owns each
+  id, and its answer would tell a caller that someone else's conversation exists.
+- **No personal data in storage keys:** the scope is a hash, with a separator between issuer and
+  subject so neither can be shifted into the other.
+- **Anonymous callers** keep the id as given, as before identity existed, but an id that looks
+  like a scoped key is refused, so they can't name a caller's conversation.
+- **Everywhere memory is keyed:** prompts, streams, vision and audio in the engine (the key is
+  computed on the request's thread, since some flows save history from the provider's thread);
+  stateful agents in `cafeai-aiservices`, whose cached agent instances are scoped the same way;
+  and `CafeAgenticMemory`.
+
+Work a handler hands to another thread loses the request, and so the caller. CafeAI's own streams
+carry it. Anything else carries it with `RequestScope.wrap(task)` or
+`RequestScope.carrying(executor)`, e.g. a parallel agentic workflow's
+`.executor(RequestScope.carrying(...))`. **Known gap:** a parallel workflow without it keys its
+agents' memory by the bare id. Closing that gap means failing closed when an app that uses
+identity runs without a caller, which is Phase 5's rule (§8.3).
 
 ### 7.5 RAG: enforced by the store, under the user's identity
 Company documents are shared by permission. Without enforcement, RAG is a way to read any indexed

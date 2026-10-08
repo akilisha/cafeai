@@ -15,6 +15,7 @@ import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.memory.ConversationKeys;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.rag.EmbeddingProvider;
 import io.cafeai.core.rag.Retriever;
@@ -85,19 +86,23 @@ public final class AgentRegistry implements AgentBridge {
         MemoryStrategy memory = config.memoryStrategy() != null
             ? config.memoryStrategy() : support.defaultMemory();
         boolean stateful = memory != null;
-        String cacheKey = stateful ? name + "::" + sessionId : name;
+        // A stateful agent holds its conversation, so it belongs to one caller's conversation:
+        // another caller naming the same session gets an agent (and memory) of their own.
+        String memoryId = stateful
+            ? ConversationKeys.forCurrentCaller(sessionId == null ? "default" : sessionId) : null;
+        String cacheKey = stateful ? name + "::" + memoryId : name;
 
         Object cached = proxies.get(cacheKey);
         if (cached != null) {
             return (T) cached;
         }
-        T built = build(name, type, config, sessionId, memory);
+        T built = build(name, type, config, memoryId, memory);
         proxies.put(cacheKey, built);
         return built;
     }
 
     private <T> T build(String name, Class<T> type, AgentConfig<T> config,
-                        String sessionId, MemoryStrategy memory) {
+                        String memoryId, MemoryStrategy memory) {
 
         AiProvider provider = config.provider() != null ? config.provider() : support.defaultProvider();
         if (provider == null) {
@@ -151,7 +156,7 @@ public final class AgentRegistry implements AgentBridge {
         // -- memory ------------------------------------------------------
         if (memory != null) {
             builder.chatMemory(MessageWindowChatMemory.builder()
-                .id(sessionId == null ? "default" : sessionId)
+                .id(memoryId)
                 .maxMessages(AppConfig.load().get(MEMORY_WINDOW))
                 .chatMemoryStore(new CafeAiChatMemoryStore(memory))
                 .build());
