@@ -33,13 +33,18 @@ layer, and uses it for every outgoing call.
 
 **Goals**
 - Every request has a verified identity, whether it came from a browser, a CLI or another service.
-- Every model call, tool call, usage count, budget, guardrail event and audit record is
+- Every model call, tool call, usage count, guardrail event and audit record is
   attributable to that identity.
 - Access is revoked centrally: disabling someone at the issuer cuts them off everywhere.
 - Built only on open standards. Anything that implements them works.
 
 **Non-goals**
 - CafeAI is never an identity provider. It stores no users and no passwords.
+- **All access policy is external.** Roles live in the user's token, and data access is enforced
+  by the service that holds the data. CafeAI carries identity faithfully; it doesn't decide who
+  may see what.
+- No quotas. CafeAI is not the custodian or provider of any model; it reflects what the API
+  exposes (§7.2).
 - No code specific to any identity product. A product is named only where it is a defensible
   choice for testing (§12).
 - Single-user use doesn't change (§11).
@@ -56,6 +61,7 @@ layer, and uses it for every outgoing call.
 | Device authorization grant (RFC 8628) | CLI sign-in |
 | Client credentials grant (RFC 6749 §4.4) | The app calling something as itself |
 | Token exchange (RFC 8693) | The app calling something on behalf of the signed-in user |
+| JWT access token profile (RFC 9068) | Where roles are in a token: `scope`, `groups`, `roles`, `entitlements` (§6.3) |
 | Protected resource metadata (RFC 9728) | Required by the MCP authorization spec (§6.5) |
 | OpenTelemetry end-user attributes | Recording the identity on traces (§7.3) |
 
@@ -69,11 +75,11 @@ layer, and uses it for every outgoing call.
  request ──> [ identity: validate ] ──> Identity on the request
                                           │
               routes, guardrails, RAG, agents ...
-              (memory bound to identity, retrieval filtered by permission)
+              (memory bound to identity, retrieval under the user's identity)
                                           │
               outgoing call ──> [ credentials: per request ] ──> model / tool / MCP server
                                           │
-              usage · quota · audit, all keyed by issuer + subject
+              usage · audit, keyed by issuer + subject
 ```
 
 Browser, CLI and service sign-in are the same thing from the app's side: three ways of getting a
@@ -85,8 +91,9 @@ mechanism, not three.
 A small, immutable type in `cafeai-core`:
 
 - `issuer`, `subject`: **together they are the key.** A subject is only unique within its issuer,
-  so usage, quotas, memory and audit all use the pair.
-- `name`, `scopes`, `groups`, `claims`, `expiresAt`.
+  so usage, memory and audit all use the pair.
+- `name`, `expiresAt`, all `claims`, and the RFC 9068 `scope`, `groups`, `roles` and
+  `entitlements` (§6.3).
 - The raw access token. It isn't readable through the public API and is used only to obtain
   outgoing credentials (§8).
 
@@ -132,8 +139,13 @@ app.get("/admin", Identity.require(scope("admin")), handler);
 - Sign-out ends the session and calls the issuer's end-session endpoint.
 
 ### 6.3 `require(...)`: authorization
-Checks a scope, group or claim. It's ordinary middleware, so it goes on a route, a router or a
-filter.
+Checks a scope or role carried in the token. It's ordinary middleware, so it goes on a route, a
+router or a filter.
+
+The policy stays external: the issuer decides what a token carries, and `require` only reads it,
+as any OAuth-protected API does. It reads the RFC 9068 claims (`scope`, `groups`, `roles`,
+`entitlements`) and nothing else, so there is no claim-name setting. An issuer that puts roles
+elsewhere maps them to these claims in its own configuration.
 
 ### 6.4 CLI client helper
 Device authorization grant: the CLI shows a code and a link, and the user signs in in any browser
@@ -151,15 +163,16 @@ metadata tells MCP clients which issuer to sign in with.
 `app.usage()` reports per identity as well as per route. The existing `UsageMeter` tally gains the
 identity's key.
 
-### 7.2 Quotas
-A per-identity quota (tokens or cost in a time window) **refuses** a call once it's exceeded, with
-`429` and `Retry-After`. That's a different job from `TokenBudget`, which paces the whole app by
-pausing before a call. Both can be used together.
+### 7.2 Limits: passed through, not imposed
+CafeAI imposes no quotas. Limits belong to whoever provides the model or the data. When an API or
+gateway enforces one (a `429` with `Retry-After`), CafeAI passes it to the caller unchanged,
+without retrying it away or hiding it.
 
 ### 7.3 Audit
 One record per model call and per tool call: issuer + subject, route, model, tokens, cost,
 guardrail outcome, and time. It's emitted through the existing observability bridge with
-OpenTelemetry's end-user attributes.
+OpenTelemetry's end-user attributes, and through a pluggable sink interface for anyone who needs
+a dedicated audit store.
 
 Audit records are personal data. **By default they hold metadata only.** Prompt and answer text
 is opt-in, redacted (the `Redactor` in `cafeai-sentinel` is a starting point), and has its own
@@ -170,20 +183,24 @@ Today the memory key is whatever id the client sends, so anyone with someone's i
 continues their conversation. With identity on, the key becomes **issuer + subject + conversation
 id**. A request whose identity doesn't own the conversation is refused, never served.
 
-### 7.5 RAG: filtered by permission
-Company documents are shared, but by permission, not by person. Without filtering, RAG is a way to
-read any indexed document through the model.
+### 7.5 RAG: enforced by the store, under the user's identity
+Company documents are shared by permission. Without enforcement, RAG is a way to read any indexed
+document through the model. **The store enforces, not CafeAI.** The user's roles are in their
+token, the data service applies its own policies, and CafeAI stores no permission metadata.
 
-- At ingestion, each document carries permission metadata: the groups or principals allowed to
-  read it.
-- At retrieval, results are filtered against the current identity's groups **inside the vector
-  store query**, not after it. Filtering after retrieval returns too few results and is easy to
-  get wrong.
-- With identity on, a document without permission metadata is visible to no one, unless the
-  app explicitly marks it public.
-
-This is the largest change in the design. It touches `RagDocument`, `RagIngestion`, `Retriever`
-and each `VectorStore`.
+- **Retrieval runs under the user's identity.** CafeAI obtains a token for the store through token
+  exchange (§8.2), carrying the same user and roles, and queries with it. The user's own token is
+  never passed on (§8.2).
+- **A store that can't enforce access is refused.** With identity on, CafeAI won't start with a
+  vector store that has no notion of users (such as `InMemoryVectorStore`), unless the app
+  explicitly declares that store public, meaning every document in it may be read by anyone
+  signed in.
+- **Connection pools need a per-store decision.** A database that authenticates each user's
+  credential needs a connection per credential: the same pool-per-identity problem §8.1 rejects
+  for model clients. The usual alternative is one pool under the app's credential, with the
+  user's identity set on each connection for the database's own row-level policies to enforce.
+  That keeps enforcement in the database, but the database then trusts CafeAI's statement of who
+  the user is. Each `VectorStore` must document which model it uses (§14).
 
 ### 7.6 Semantic cache: one rule to keep
 ADR-013 already restricts the cache to answers that depend on nothing but the prompt. A call with
@@ -317,9 +334,10 @@ issuers (§12).
 
 - **Identity is opt-in.** With no issuer configured, CafeAI behaves exactly as it does today:
   static key, no identity, memory keyed by the supplied id.
-- **Once identity is on, it's enforced, not just available.** Memory binding (§7.4), permission
-  filtering (§7.5), fail-closed credentials (§8.3) and the cache rule (§7.6) all apply
-  automatically, and switching any of them off is explicit and logged at startup.
+- **Once identity is on, it's enforced, not just available.** Memory binding (§7.4), retrieval
+  under the user's identity and the refusal of stores that can't enforce access (§7.5),
+  fail-closed credentials (§8.3) and the cache rule (§7.6) all apply automatically. Switching any
+  of them off is explicit and logged at startup.
 
 ## 12. Development and testing
 
@@ -330,8 +348,9 @@ issuers (§12).
   supports token exchange and device grant, so every flow is tested against a real issuer.
   This is a test choice only; nothing in CafeAI depends on it.
 - **Security tests:** expired, not-yet-valid, wrong-issuer, wrong-audience and unsigned tokens;
-  a forged `state`; a replayed code; a conversation id belonging to someone else; a document
-  outside the caller's groups; a call with no identity under per-user credentials.
+  a forged `state`; a replayed code; a conversation id belonging to someone else; retrieval
+  reaching the store under the caller's exchanged identity; startup with a store that can't
+  enforce access; a call with no identity under per-user credentials.
 
 ## 13. Deferred
 
@@ -342,13 +361,19 @@ These can be added later without changing the design:
 - Protected resource metadata for ordinary routes, outside MCP.
 - Trusting several issuers at once.
 
-## 14. Open questions
+## 14. Decisions and open questions
 
-1. **Quota semantics:** tokens, cost or both, and over which windows?
-2. **RAG permission metadata:** groups only, or groups plus individual subjects, and where does
-   it come from at ingestion?
-3. **Which claim carries groups?** OpenID Connect doesn't standardise one. Make the claim name
-   configurable, with no default?
-4. **Audit sink:** OpenTelemetry only, or also a dedicated, append-only audit log?
-5. **Order of work.** `Identity` + `bearer` + the fake issuer is the smallest useful slice. The
-   streaming-thread test in §8.1 belongs to the first outbound work.
+**Decided**
+1. **No quotas.** CafeAI passes through the limits of whoever provides the model or data (§7.2).
+2. **Document access is enforced by the store,** under the user's identity obtained through token
+   exchange. Stores that can't enforce access are refused at startup unless declared public
+   (§7.5).
+3. **Roles come from the RFC 9068 claims.** `require` stays, as a check of what the token carries
+   (§6.3).
+4. **Audit:** OpenTelemetry, plus a pluggable sink (§7.3).
+5. **Order of work:** `Identity` + `bearer` + the fake issuer first. The streaming-thread test in
+   §8.1 belongs to the first outbound work.
+
+**Open**
+1. **Connection model per store.** For each `VectorStore`: a connection per user's credential, or
+   one pool with the user's identity set on each connection (§7.5)?
