@@ -1,5 +1,8 @@
 package io.cafeai.identity;
 
+import io.cafeai.core.middleware.Middleware;
+
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -29,5 +32,47 @@ public final class Auth {
      */
     public static BearerAuth bearer(Issuer issuer, String... audiences) {
         return new BearerAuth(issuer, Set.of(audiences));
+    }
+
+    /**
+     * Lets a request through only if its caller meets every requirement. Put it after
+     * {@link #bearer}, on a route, a router or a filter:
+     *
+     * <pre>{@code
+     *   app.filter(Auth.bearer(issuer, "orders-api"));
+     *   app.get("/orders", Auth.require(Auth.scope("orders:read")), listOrders);
+     *   app.post("/refunds", Auth.require(Auth.role("approver"), Auth.scope("orders:write")), refund);
+     *   app.get("/reports", Auth.require(Auth.anyOf(Auth.group("finance"), Auth.role("auditor"))), reports);
+     * }</pre>
+     *
+     * <p>An anonymous request gets {@code 401}; an identity that falls short gets {@code 403}.
+     */
+    public static Middleware require(Requirement... requirements) {
+        return new RequireAuth(List.of(requirements));
+    }
+
+    /** The token's {@code scope} must include {@code scope}. */
+    public static Requirement scope(String scope) {
+        return Requirement.scope(scope);
+    }
+
+    /** The token's {@code roles} must include {@code role} (RFC 9068). */
+    public static Requirement role(String role) {
+        return Requirement.role(role);
+    }
+
+    /** The token's {@code groups} must include {@code group} (RFC 9068). */
+    public static Requirement group(String group) {
+        return Requirement.group(group);
+    }
+
+    /** The token's {@code entitlements} must include {@code entitlement} (RFC 9068). */
+    public static Requirement entitlement(String entitlement) {
+        return Requirement.entitlement(entitlement);
+    }
+
+    /** At least one of {@code options} must hold. */
+    public static Requirement anyOf(Requirement... options) {
+        return Requirement.anyOf(List.of(options));
     }
 }
