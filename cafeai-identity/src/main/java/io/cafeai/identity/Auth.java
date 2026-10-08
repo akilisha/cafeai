@@ -1,8 +1,10 @@
 package io.cafeai.identity;
 
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.routing.Request;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -32,6 +34,31 @@ public final class Auth {
      */
     public static BearerAuth bearer(Issuer issuer, String... audiences) {
         return new BearerAuth(issuer, Set.of(audiences));
+    }
+
+    /**
+     * Browser sign-in with OpenID Connect (authorization code flow with PKCE). Tokens are kept in
+     * the server-side session, so register a session store first:
+     *
+     * <pre>{@code
+     *   app.filter(Middleware.session(store));
+     *   app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/auth/callback"));
+     * }</pre>
+     *
+     * @param clientId     this app's client id at the issuer
+     * @param clientSecret its client secret
+     * @param redirectUri  the absolute callback URL registered at the issuer; its path is served here
+     */
+    public static BrowserLogin login(Issuer issuer, String clientId, String clientSecret, String redirectUri) {
+        return new BrowserLogin(issuer, clientId, clientSecret, redirectUri);
+    }
+
+    /**
+     * The CSRF token of the request's signed-in browser session, for pages to put in an
+     * {@code X-CSRF-Token} header or a {@code _csrf} form field; empty when not signed in.
+     */
+    public static Optional<String> csrfToken(Request req) {
+        return BrowserLogin.csrfToken(req);
     }
 
     /**

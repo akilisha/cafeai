@@ -49,7 +49,17 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **Identity mode.** Once `Auth.bearer` is created, conversation memory used with no request in
   scope is refused (`IdentityRequiredException`) instead of being keyed by the bare id; carry the
   request with `RequestScope`.
-- **A provider's rate limit is a `429`**, no longer a `500`. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
+- **A provider's rate limit is a `429`**, no longer a `500`.
+- **Browser sign-in.** `app.filter(Auth.login(issuer, clientId, secret, redirectUri))`, behind
+  `Middleware.session(store)`, signs browsers in with OpenID Connect: the authorization code flow
+  with PKCE, `state` and `nonce`. Access, refresh and ID tokens stay in the server-side session;
+  the browser holds only the session cookie. Sign-in starts a new session id (no session
+  fixation), returns only to paths on this site, renews tokens before they expire, and signs out
+  here and at the issuer (`POST /auth/logout`). A signed-in session's state-changing requests
+  need its CSRF token (`Auth.csrfToken(req)`). `signInRequired()` sends browsers to sign in. A
+  model call made from a signed-in browser can use token exchange like an API call.
+- **`session.regenerate()`** moves a server-side session to a new id with its attributes and
+  destroys the old one: call it whenever a session's privilege changes. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The

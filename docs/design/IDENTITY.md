@@ -145,6 +145,29 @@ app.get("/admin", Identity.require(scope("admin")), handler);
   protected against CSRF (§10).
 - Sign-out ends the session and calls the issuer's end-session endpoint.
 
+As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
+- **Serves three paths:** `GET /auth/login?return=/path` starts sign-in; the redirect URI's
+  path finishes it; `POST /auth/logout` signs out. `return` must be a path on this site, and
+  anything else returns to `/`, so there is no open redirect.
+- **Starts a new session at sign-in.** `session.regenerate()`, new in core, moves the session
+  to a new id and destroys the old one, so an id planted or seen before sign-in never becomes
+  signed in (session fixation). A cookie-only session can't be regenerated, so sign-in refuses
+  to start without a server-side store.
+- **The caller's identity comes from the validated ID token** (issuer, audience = this client,
+  signature, expiry, nonce), and the access token is kept for token exchange (§8.2).
+- **CSRF:** a signed-in session's `POST`, `PUT`, `PATCH` and `DELETE` must carry the session's
+  synchronizer token in `X-CSRF-Token` or a `_csrf` form field (`Auth.csrfToken(req)`). A
+  request with an `Authorization` header is left to `Auth.bearer`, since it isn't
+  authenticated by cookie.
+- **`signInRequired()`:** a browser navigation is sent to sign in and back; other requests get
+  `401`.
+- **Limits:**
+  - Two requests renewing at the same moment both use the same refresh token. Where the issuer
+    rotates refresh tokens, the second renewal fails and that session is signed out.
+  - The session cookie's `Secure` flag is the session middleware's setting, off by default for
+    local development; production must turn it on.
+  - Refresh tokens aren't revoked at the issuer on sign-out (RFC 7009), only deleted here (§13).
+
 ### 6.3 `require(...)`: authorization
 Checks a scope or role carried in the token. It's ordinary middleware, so it goes on a route, a
 router or a filter.
@@ -458,6 +481,8 @@ These can be added later without changing the design:
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
   which reaches any OpenAI-compatible endpoint.
 - Passing the provider's `Retry-After` through with a `429` (§7.2).
+- Revoking the refresh token at the issuer on sign-out (RFC 7009 token revocation).
+- Serialising concurrent token renewals for one session (§6.2).
 
 ## 14. Decisions and open questions
 

@@ -344,22 +344,40 @@ public final class BuiltInMiddleware {
             }
             if (session == null) session = store.create();
 
-            final Session current = session;
-            current.bindInvalidationHook(() -> {
-                store.destroy(current.id());
-                res.clearCookie(cookieName, options.cookieOptions());
-            });
-            req.setAttribute(Attributes.HTTP_SESSION, current);
-
-            res.beforeSend(() -> {
-                if (current.isInvalidated()) return;
-                current.touch();
-                store.save(current);
-                res.cookie(cookieName, current.id(), options.cookieOptions());
-            });
-
+            bindSession(session, store, options, req, res);
             next.run();
         };
+    }
+
+    /**
+     * Makes {@code session} the request's session: invalidation clears the cookie at once,
+     * regeneration swaps in a new session under a new id, and the session is saved and its
+     * cookie set as the response is sent. A replaced or invalidated session is never saved, so
+     * only the latest session's cookie goes out.
+     */
+    private static void bindSession(Session session, SessionStore store, SessionOptions options,
+                                    io.cafeai.core.routing.Request req, io.cafeai.core.routing.Response res) {
+        String cookieName = options.cookieName();
+        session.bindInvalidationHook(() -> {
+            store.destroy(session.id());
+            res.clearCookie(cookieName, options.cookieOptions());
+        });
+        session.bindRegenerateHook(() -> {
+            Session fresh = store.create();
+            session.attributes().forEach(fresh::set);
+            session.markReplaced();
+            store.destroy(session.id());
+            bindSession(fresh, store, options, req, res);
+            return fresh;
+        });
+        req.setAttribute(Attributes.HTTP_SESSION, session);
+
+        res.beforeSend(() -> {
+            if (session.isInvalidated()) return;
+            session.touch();
+            store.save(session);
+            res.cookie(cookieName, session.id(), options.cookieOptions());
+        });
     }
 
     private static final int MIN_COOKIE_SESSION_SECRET_LENGTH = 32;

@@ -17,9 +17,11 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
@@ -66,6 +68,17 @@ public final class FakeIssuer implements AutoCloseable {
     private final AtomicInteger tokenRequests = new AtomicInteger();
     private final Map<String, String> clients = new ConcurrentHashMap<>();
     private volatile Duration issuedLifetime = Duration.ofHours(1);
+    private volatile String signedInAs;
+    private final Map<String, Code> codes = new ConcurrentHashMap<>();
+    private final Map<String, Refresh> refreshTokens = new ConcurrentHashMap<>();
+    private final List<String> signOuts = new CopyOnWriteArrayList<>();
+
+    /** An authorization code issued by {@code /authorize}, single use. */
+    private record Code(String clientId, String redirectUri, String challenge, String nonce, String subject,
+                        String scope) { }
+
+    /** A refresh token: whose, and for which client. Rotated on every use. */
+    private record Refresh(String clientId, String subject) { }
     private volatile SigningKey current;
     private volatile Issuer issuer;
 
@@ -77,6 +90,8 @@ public final class FakeIssuer implements AutoCloseable {
         server.createContext("/.well-known/openid-configuration", this::metadata);
         server.createContext("/jwks", this::jwks);
         server.createContext("/token", this::token);
+        server.createContext("/authorize", this::authorize);
+        server.createContext("/logout", this::endSession);
         server.start();
         log.warn("FakeIssuer started at {}. It signs tokens for anyone; development and tests only.", id);
     }
@@ -143,6 +158,26 @@ public final class FakeIssuer implements AutoCloseable {
         return this;
     }
 
+    /**
+     * Who the browser "signs in" as at {@code /authorize}: the next sign-in completes as this
+     * subject, with no page to fill in. {@code null} (the default) refuses sign-in, as a user
+     * cancelling at the issuer would ({@code error=access_denied}).
+     */
+    public FakeIssuer signInAs(String subject) {
+        this.signedInAs = subject;
+        return this;
+    }
+
+    /** Revokes every refresh token issued so far, as an administrator disabling users would. */
+    public void revokeRefreshTokens() {
+        refreshTokens.clear();
+    }
+
+    /** The {@code id_token_hint} of each sign-out at the issuer, in order. */
+    public List<String> signOuts() {
+        return List.copyOf(signOuts);
+    }
+
     /** How many times the token endpoint has been called, for tests of caching. */
     public int tokenRequests() {
         return tokenRequests.get();
@@ -164,6 +199,9 @@ public final class FakeIssuer implements AutoCloseable {
         String json = "{\"issuer\":\"" + id + "\","
                 + "\"jwks_uri\":\"" + id + "/jwks\","
                 + "\"token_endpoint\":\"" + id + "/token\","
+                + "\"authorization_endpoint\":\"" + id + "/authorize\","
+                + "\"end_session_endpoint\":\"" + id + "/logout\","
+                + "\"code_challenge_methods_supported\":[\"S256\"],"
                 + "\"grant_types_supported\":[\"client_credentials\","
                 + "\"urn:ietf:params:oauth:grant-type:token-exchange\"],"
                 + "\"response_types_supported\":[\"code\"],"
@@ -209,6 +247,25 @@ public final class FakeIssuer implements AutoCloseable {
             issued = issue(subject, form.get("audience"), form.get("scope"))
                     .addPayloadClaim("client_id", clientId)
                     .addPayloadClaim("act", JsonObject.builder().set("sub", clientId).build());
+        } else if (grant.equals("authorization_code")) {
+            Code code = codes.remove(form.getOrDefault("code", ""));
+            String verifier = form.get("code_verifier");
+            if (code == null || !code.clientId().equals(clientId)
+                    || !code.redirectUri().equals(form.get("redirect_uri"))
+                    || verifier == null || !s256(verifier).equals(code.challenge())) {
+                respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
+                return;
+            }
+            respondWithSignIn(exchange, clientId, code.subject(), code.nonce(), code.scope());
+            return;
+        } else if (grant.equals("refresh_token")) {
+            Refresh refresh = refreshTokens.remove(form.getOrDefault("refresh_token", ""));
+            if (refresh == null || !refresh.clientId().equals(clientId)) {
+                respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
+                return;
+            }
+            respondWithSignIn(exchange, clientId, refresh.subject(), null, null);
+            return;
         } else {
             respond(exchange, 400, "{\"error\":\"unsupported_grant_type\"}");
             return;
@@ -217,6 +274,83 @@ public final class FakeIssuer implements AutoCloseable {
         respond(exchange, 200, "{\"access_token\":\"" + token + "\",\"token_type\":\"Bearer\","
                 + "\"expires_in\":" + issuedLifetime.toSeconds() + ","
                 + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}");
+    }
+
+    /** Access, ID and (rotated) refresh tokens for a signed-in subject. */
+    private void respondWithSignIn(HttpExchange exchange, String clientId, String subject, String nonce,
+                                   String scope) throws IOException {
+        String access = SignedJwt.sign(issue(subject, clientId, scope).build(), current.jwk).tokenContent();
+        Jwt.Builder id = issue(subject, clientId, null).addPayloadClaim("name", subject);
+        if (nonce != null) id.nonce(nonce);
+        String idToken = SignedJwt.sign(id.build(), current.jwk).tokenContent();
+        String refresh = UUID.randomUUID().toString();
+        refreshTokens.put(refresh, new Refresh(clientId, subject));
+        respond(exchange, 200, "{\"access_token\":\"" + access + "\",\"token_type\":\"Bearer\","
+                + "\"expires_in\":" + issuedLifetime.toSeconds() + ","
+                + "\"id_token\":\"" + idToken + "\",\"refresh_token\":\"" + refresh + "\"}");
+    }
+
+    /**
+     * The authorization endpoint: signs the browser in as {@link #signInAs(String)} at once and
+     * sends it back with a code, or with {@code error=access_denied} when no one is set.
+     */
+    private void authorize(HttpExchange exchange) throws IOException {
+        String query = exchange.getRequestURI().getRawQuery();
+        Map<String, String> q = form(query == null ? "" : query);
+        String redirect = q.get("redirect_uri");
+        if (redirect == null || !clients.containsKey(q.getOrDefault("client_id", ""))) {
+            respond(exchange, 400, "{\"error\":\"invalid_request\"}");
+            return;
+        }
+        String sep = redirect.contains("?") ? "&" : "?";
+        String state = q.get("state") == null ? "" : "&state=" + encode(q.get("state"));
+        String who = signedInAs;
+        if (who == null) {
+            redirect(exchange, redirect + sep + "error=access_denied" + state);
+            return;
+        }
+        if (!"code".equals(q.get("response_type")) || !"S256".equals(q.get("code_challenge_method"))
+                || q.get("code_challenge") == null) {
+            redirect(exchange, redirect + sep + "error=invalid_request" + state);
+            return;
+        }
+        String code = UUID.randomUUID().toString();
+        codes.put(code, new Code(q.get("client_id"), redirect, q.get("code_challenge"), q.get("nonce"), who,
+                q.get("scope")));
+        redirect(exchange, redirect + sep + "code=" + encode(code) + state);
+    }
+
+    /** The end-session endpoint: records the sign-out and sends the browser on. */
+    private void endSession(HttpExchange exchange) throws IOException {
+        String query = exchange.getRequestURI().getRawQuery();
+        Map<String, String> q = form(query == null ? "" : query);
+        signOuts.add(q.getOrDefault("id_token_hint", ""));
+        String after = q.get("post_logout_redirect_uri");
+        if (after != null) {
+            redirect(exchange, after);
+        } else {
+            respond(exchange, 200, "{\"signed_out\":true}");
+        }
+    }
+
+    private static void redirect(HttpExchange exchange, String location) throws IOException {
+        exchange.getResponseHeaders().set("Location", location);
+        exchange.sendResponseHeaders(302, -1);
+        exchange.close();
+    }
+
+    private static String encode(String s) {
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    private static String s256(String verifier) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(verifier.getBytes(StandardCharsets.US_ASCII));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private Jwt.Builder issue(String subject, String audience, String scope) {

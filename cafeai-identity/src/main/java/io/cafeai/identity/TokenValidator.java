@@ -134,6 +134,15 @@ final class TokenValidator {
         return Result.ok(identity(issuer.id(), subject, exp, jwt.payloadClaimsJson()));
     }
 
+    /**
+     * The identity a token's claims describe, for a token already validated: an ID token kept
+     * server-side after sign-in is turned back into an identity this way on later requests.
+     */
+    static Identity identityOf(String token, Instant expiresAt) {
+        Jwt jwt = SignedJwt.parseToken(token).getJwt();
+        return identity(jwt.issuer().orElseThrow(), jwt.subject().orElseThrow(), expiresAt, jwt.payloadClaimsJson());
+    }
+
     private static Identity identity(String iss, String sub, Instant exp, Map<String, JsonValue> payload) {
         Map<String, Object> claims = new LinkedHashMap<>();
         payload.forEach((name, value) -> {

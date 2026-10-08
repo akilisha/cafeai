@@ -57,6 +57,11 @@ class SessionMiddlewareTest {
             res.json(Map.of("status", "ok"));
         });
 
+        app.post("/elevate", (req, res, next) -> {
+            req.session().regenerate();
+            res.json(Map.of("id", req.session().id()));
+        });
+
         app.post("/logout", (req, res, next) -> {
             req.session().invalidate();
             res.json(Map.of("status", "ok"));
@@ -143,6 +148,32 @@ class SessionMiddlewareTest {
         } finally {
             bare.stop();
         }
+    }
+
+    @Test
+    @DisplayName("regenerate() moves the session to a new id with its attributes; the old id is gone")
+    void regenerateMovesToANewId() throws Exception {
+        String before = sidFrom(post("/login", null, "{\"name\":\"Kim\"}"));
+
+        var elevate = post("/elevate", before, "{}");
+        var sessionCookies = elevate.headers().allValues("Set-Cookie").stream()
+            .filter(c -> c.startsWith("cafeai.sid=")).toList();
+        assertThat(sessionCookies).hasSize(1);
+        String after = sidFrom(elevate);
+
+        assertThat(after).isNotEqualTo(before);
+        assertThat(elevate.body()).contains("\"id\":\"" + after + "\"");
+        assertThat(get("/whoami", after).body()).contains("\"name\":\"Kim\"");
+        assertThat(get("/whoami", before).body()).contains("\"name\":\"null\"");
+    }
+
+    @Test
+    @DisplayName("a cookie session can't be regenerated: it has no server-side store")
+    void cookieSessionsCannotRegenerate() {
+        var session = new io.cafeai.core.session.Session("x");
+        assertThat(session.regenerable()).isFalse();
+        org.assertj.core.api.Assertions.assertThatThrownBy(session::regenerate)
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A single HTTP session's server-side data -- the opaque cookie ID plus an
@@ -41,6 +42,7 @@ public final class Session {
     private volatile Instant lastAccessedAt;
     private volatile boolean invalidated = false;
     private Runnable invalidationHook;
+    private Supplier<Session> regenerateHook;
 
     /** A new, unsaved session with the given opaque ID and no attributes. */
     public Session(String id) {
@@ -122,4 +124,34 @@ public final class Session {
     }
 
     public boolean isInvalidated() { return invalidated; }
+
+    /**
+     * Replaces this session with a new one under a new id, carrying its attributes over, and
+     * destroys this one. Call it whenever the session's privilege changes, above all at sign-in:
+     * an id an attacker planted or saw before sign-in then never becomes a signed-in session
+     * (session fixation). Read the session again through {@code req.session()} afterwards.
+     *
+     * @return the new session
+     * @throws UnsupportedOperationException for a session with no server-side store to give it a
+     *         new id ({@code Middleware.cookieSession(...)})
+     */
+    public Session regenerate() {
+        if (regenerateHook == null) {
+            throw new UnsupportedOperationException(
+                "This session can't be regenerated: it has no server-side store. Use Middleware.session(store).");
+        }
+        return regenerateHook.get();
+    }
+
+    /** Whether {@link #regenerate()} is supported: a session kept in a server-side store. */
+    public boolean regenerable() { return regenerateHook != null; }
+
+    /**
+     * Binds what {@link #regenerate()} runs. Wired internally by {@code Middleware.session(...)};
+     * see {@link #touch()} for why this is public.
+     */
+    public void bindRegenerateHook(Supplier<Session> hook) { this.regenerateHook = hook; }
+
+    /** Marks this session replaced by {@link #regenerate()}: no longer saved, cookie untouched. */
+    public void markReplaced() { this.invalidated = true; }
 }

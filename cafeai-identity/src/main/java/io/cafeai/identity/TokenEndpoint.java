@@ -29,8 +29,15 @@ final class TokenEndpoint {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
-    /** A token the endpoint issued, and when to stop using it. */
-    record Token(String value, Instant expiresAt) {
+    /**
+     * What the endpoint issued: the access token and when to stop using it, plus a refresh token
+     * and an ID token when the grant returns them ({@code null} otherwise).
+     */
+    record Token(String value, Instant expiresAt, String refreshToken, String idToken) {
+        Token(String value, Instant expiresAt) {
+            this(value, expiresAt, null, null);
+        }
+
         @Override public String toString() { return "Token[expiresAt=" + expiresAt + "]"; }
     }
 
@@ -85,7 +92,8 @@ final class TokenEndpoint {
             throw new IdentityException("The token endpoint " + uri + " returned no access_token");
         }
         long expiresIn = json.longValue("expires_in").orElse(300L);
-        return new Token(json.stringValue("access_token").get(), now.plusSeconds(expiresIn));
+        return new Token(json.stringValue("access_token").get(), now.plusSeconds(expiresIn),
+                json.stringValue("refresh_token").orElse(null), json.stringValue("id_token").orElse(null));
     }
 
     private static JsonObject parse(String body) {
