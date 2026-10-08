@@ -201,7 +201,7 @@ CafeAI is on Maven Central. In your project's `build.gradle`:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
 }
 ```
 

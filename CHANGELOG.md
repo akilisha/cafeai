@@ -3,7 +3,7 @@
 All notable changes to CafeAI. Format loosely follows [Keep a Changelog](https://keepachangelog.com/);
 versions are the Maven Central coordinates under `com.akilisha.oss`.
 
-## [Unreleased]
+## [0.6.0] — 2026-10-07
 
 ### Added
 
@@ -142,6 +142,11 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Changed
 
+- **The Mustache module is `cafeai-mustache`**, published until 0.5.1 as `cafeai-views-mustache`.
+  Change the coordinate; the API is unchanged. See MIGRATION.md.
+- **A rate limit from the model provider is answered with `429`**, where it was a `500`.
+- **`WsSession.isOpen()` reports `false` once the connection is closed**; it always returned
+  `true`. Code that relied on that, such as `streamTokens`, now stops sending to a closed socket.
 - **`cafeai-security`: `SecurityEvent` names the caller.** `caller()` is the issuer and
   subject of the request's verified identity, or `null` when anonymous. `InjectionAttempt`
   gains a fifth component; its four-argument constructor still works, but a record pattern

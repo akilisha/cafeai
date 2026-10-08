@@ -1,5 +1,43 @@
 # Migration Guide
 
+## 0.5.1 → 0.6.0
+
+### `cafeai-views-mustache` → `cafeai-mustache`
+
+The coordinate changed; the API didn't. The old coordinate is not published under 0.6.0.
+
+```groovy
+// before
+implementation 'com.akilisha.oss:cafeai-views-mustache:0.5.1'
+
+// after
+implementation 'com.akilisha.oss:cafeai-mustache:0.6.0'
+```
+
+### `SecurityEvent.InjectionAttempt` has a fifth component
+
+`caller()` (the verified identity's issuer and subject, or `null`). The four-argument
+constructor still works. A record pattern that deconstructs it needs the fifth component:
+
+```java
+// before
+case InjectionAttempt(var id, var at, var path, var input) -> ...
+// after
+case InjectionAttempt(var id, var at, var path, var input, var caller) -> ...
+```
+
+### Behaviour that changed
+
+- A rate limit from the model provider is answered with `429`, not `500`. Clients that retried
+  on `500` should retry on `429` (honouring their own backoff).
+- `WsSession.isOpen()` is `false` once the connection is closed (it was always `true`).
+- A conversation id starting with `cafeai-identity:` is refused when no verified caller is
+  present: that prefix is reserved for conversations of signed-in callers.
+
+Everything in `cafeai-identity` is new and opt-in: an app that doesn't create its middleware
+behaves as before. Its checks at startup (a vector store that can't enforce access, an
+unprotected MCP endpoint) apply only once identity is in use.
+
 ## 0.4.0 → 0.5.0
 
 ### `cafeai-agents` → `cafeai-aiservices`

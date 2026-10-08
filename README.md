@@ -60,24 +60,25 @@ On Maven Central under `com.akilisha.oss`. CafeAI is modular — start with
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
 
     // add only what you use:
-    implementation 'com.akilisha.oss:cafeai-config:0.5.1'         // application.properties/.yaml + profiles
-    implementation 'com.akilisha.oss:cafeai-aiservices:0.5.1'         // app.agent() — LangChain4j AiServices
-    implementation 'com.akilisha.oss:cafeai-agentic:0.5.1'        // CafeAgentic — LangChain4j langchain4j-agentic workflows
-    implementation 'com.akilisha.oss:cafeai-memory:0.5.1'         // tiered context memory
-    implementation 'com.akilisha.oss:cafeai-rag:0.5.1'            // retrieval-augmented generation
-    implementation 'com.akilisha.oss:cafeai-guardrails:0.5.1'     // PII, jailbreak, toxicity, regulatory
-    implementation 'com.akilisha.oss:cafeai-observability:0.5.1'  // OpenTelemetry tracing
-    implementation 'com.akilisha.oss:cafeai-security:0.5.1'       // audit events for blocked prompt injection
-    implementation 'com.akilisha.oss:cafeai-connect:0.5.1'        // Redis, Ollama, pgvector
-    implementation 'com.akilisha.oss:cafeai-mustache:0.5.1'       // Mustache view engine
-    implementation 'com.akilisha.oss:cafeai-session:0.5.1'        // SQLite-backed HTTP session store
-    implementation 'com.akilisha.oss:cafeai-flight:0.5.1'         // JVM visibility via Flight Recorder -> OTel
-    implementation 'com.akilisha.oss:cafeai-mcp:0.5.1'            // app.mcp(): routes as tools for AI agents
-    implementation 'com.akilisha.oss:cafeai-sentinel:0.5.1'       // AI Kubernetes/OpenShift incident pipeline
-    testImplementation 'com.akilisha.oss:cafeai-test:0.5.1'       // record/replay model calls, evals
+    implementation 'com.akilisha.oss:cafeai-config:0.6.0'         // application.properties/.yaml + profiles
+    implementation 'com.akilisha.oss:cafeai-aiservices:0.6.0'         // app.agent() — LangChain4j AiServices
+    implementation 'com.akilisha.oss:cafeai-agentic:0.6.0'        // CafeAgentic — LangChain4j langchain4j-agentic workflows
+    implementation 'com.akilisha.oss:cafeai-memory:0.6.0'         // tiered context memory
+    implementation 'com.akilisha.oss:cafeai-rag:0.6.0'            // retrieval-augmented generation
+    implementation 'com.akilisha.oss:cafeai-guardrails:0.6.0'     // PII, jailbreak, toxicity, regulatory
+    implementation 'com.akilisha.oss:cafeai-observability:0.6.0'  // OpenTelemetry tracing
+    implementation 'com.akilisha.oss:cafeai-security:0.6.0'       // audit events for blocked prompt injection
+    implementation 'com.akilisha.oss:cafeai-connect:0.6.0'        // Redis, Ollama, pgvector
+    implementation 'com.akilisha.oss:cafeai-mustache:0.6.0'       // Mustache view engine
+    implementation 'com.akilisha.oss:cafeai-session:0.6.0'        // SQLite-backed HTTP session store
+    implementation 'com.akilisha.oss:cafeai-flight:0.6.0'         // JVM visibility via Flight Recorder -> OTel
+    implementation 'com.akilisha.oss:cafeai-identity:0.6.0'       // verified callers (OIDC/OAuth); model calls without API keys
+    implementation 'com.akilisha.oss:cafeai-mcp:0.6.0'            // app.mcp(): routes as tools for AI agents
+    implementation 'com.akilisha.oss:cafeai-sentinel:0.6.0'       // AI Kubernetes/OpenShift incident pipeline
+    testImplementation 'com.akilisha.oss:cafeai-test:0.6.0'       // record/replay model calls, evals
 }
 ```
 
@@ -86,7 +87,7 @@ dependencies {
 <dependency>
   <groupId>com.akilisha.oss</groupId>
   <artifactId>cafeai-core</artifactId>
-  <version>0.5.1</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -96,7 +97,7 @@ supported combination):
 
 ```groovy
 dependencies {
-    implementation platform('com.akilisha.oss:cafeai-bom:0.5.1')
+    implementation platform('com.akilisha.oss:cafeai-bom:0.6.0')
     implementation 'com.akilisha.oss:cafeai-core'
     implementation 'com.akilisha.oss:cafeai-guardrails'
     implementation 'com.akilisha.oss:cafeai-aiservices'
@@ -109,7 +110,7 @@ dependencies {
     <dependency>
       <groupId>com.akilisha.oss</groupId>
       <artifactId>cafeai-bom</artifactId>
-      <version>0.5.1</version>
+      <version>0.6.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>

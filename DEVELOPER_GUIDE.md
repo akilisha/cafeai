@@ -1,6 +1,6 @@
 # CafeAI Developer Guide
 
-**Version:** 0.5.1  
+**Version:** 0.6.0  
 **Java:** 23+  
 **Runtime:** Helidon SE 4.5  
 **Last updated:** September 2026
@@ -16,17 +16,17 @@ CafeAI is on Maven Central under `com.akilisha.oss`. It is modular — pull
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
     // cafeai-config · cafeai-aiservices · cafeai-memory · cafeai-rag · cafeai-guardrails
     // cafeai-observability · cafeai-security · cafeai-connect
     // cafeai-mustache · cafeai-sentinel
-    // Several modules? `implementation platform('com.akilisha.oss:cafeai-bom:0.5.1')` once,
+    // Several modules? `implementation platform('com.akilisha.oss:cafeai-bom:0.6.0')` once,
     // then list them without versions.
 }
 ```
 
 Requires **Java 23+**. Snippets throughout this guide use `com.akilisha.oss:cafeai-*`
-without a version — pin them to `0.5.1` (or import a version catalog).
+without a version — pin them to `0.6.0` (or import a version catalog).
 
 ---
 
@@ -1719,8 +1719,8 @@ with their defaults.
 
 ```groovy
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
-    implementation 'com.akilisha.oss:cafeai-config:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
+    implementation 'com.akilisha.oss:cafeai-config:0.6.0'
 }
 ```
 
@@ -2744,8 +2744,8 @@ limit.
 
 ```groovy
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
-    implementation 'com.akilisha.oss:cafeai-sentinel:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
+    implementation 'com.akilisha.oss:cafeai-sentinel:0.6.0'
 }
 ```
 
@@ -2801,8 +2801,8 @@ on the classpath.
 
 ```groovy
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
-    implementation 'com.akilisha.oss:cafeai-session:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
+    implementation 'com.akilisha.oss:cafeai-session:0.6.0'
 }
 ```
 
@@ -2904,8 +2904,8 @@ memory strategies are.
 
 ```groovy
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-core:0.5.1'
-    implementation 'com.akilisha.oss:cafeai-flight:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-core:0.6.0'
+    implementation 'com.akilisha.oss:cafeai-flight:0.6.0'
 }
 ```
 
@@ -3175,7 +3175,7 @@ cost, and the same answer every time.
 
 ```groovy
 dependencies {
-    testImplementation 'com.akilisha.oss:cafeai-test:0.5.1'
+    testImplementation 'com.akilisha.oss:cafeai-test:0.6.0'
 }
 ```
 
@@ -3328,7 +3328,7 @@ second codebase.
 
 ```groovy
 dependencies {
-    implementation 'com.akilisha.oss:cafeai-mcp:0.5.1'
+    implementation 'com.akilisha.oss:cafeai-mcp:0.6.0'
 }
 ```
 
@@ -3442,7 +3442,7 @@ jbang dev@akilisha/cafeai app.java
 configurations { dev }
 
 dependencies {
-    dev 'com.akilisha.oss:cafeai-dev:0.5.1'
+    dev 'com.akilisha.oss:cafeai-dev:0.6.0'
 }
 
 tasks.register('dev', JavaExec) {
