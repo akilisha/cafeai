@@ -64,6 +64,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   containers. Tokens are cached per user (`~/.cafeai/tokens/`, owner-only where the file system
   allows) and renewed with the refresh token, so the user signs in once; `signOut()` forgets
   them.
+- **RAG under the caller's identity.** `VectorStore.access()` says whether a store enforces who
+  may read what (`PER_CALLER`), holds documents declared public
+  (`VectorStore.everyoneMayRead(store)`), or can't tell callers apart (`UNENFORCED`, the
+  default). An app that serves verified callers refuses to start with an `UNENFORCED` store.
+  `PgVectorConfig.rowLevelSecurity(true)` gives every pgvector connection the caller's claims in
+  `request.jwt.claims` (as PostgREST and Supabase do) for PostgreSQL row-level security
+  policies; it is reset on every hand-out and return of a pooled connection, and the store
+  refuses to start if PostgreSQL wouldn't enforce the policy for its role.
 - **`session.regenerate()`** moves a server-side session to a new id with its attributes and
   destroys the old one: call it whenever a session's privilege changes. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each

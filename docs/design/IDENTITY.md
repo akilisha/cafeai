@@ -285,6 +285,41 @@ token, the data service applies its own policies, and CafeAI stores no permissio
   owner. `ChromaVectorStoreAdapter` has no per-row access control to hand them to, so with
   identity on it is refused unless declared public, like `InMemoryVectorStore`.
 
+As built:
+- **Stores find the caller themselves.** CafeAI passes no token or identity through the
+  `VectorStore` interface: a store reads `Identity.current()` on the thread that searches. A
+  store behind a token-authenticated service obtains a token for it with
+  `OAuthCredentials.tokenExchange(...)`; PgVector over JDBC passes the caller's claims instead
+  (the trust trade-off above: PostgreSQL relies on CafeAI's statement of who the caller is).
+- **`VectorStore.access()`** is `UNENFORCED` (the default: the store can't tell callers apart),
+  `PUBLIC` (wrapped by `VectorStore.everyoneMayRead(store)`) or `PER_CALLER`. Once identity mode
+  is on, `listen()` refuses an `UNENFORCED` store.
+- **PgVector with `PgVectorConfig.rowLevelSecurity(true)`:** every connection the pool hands
+  out first sets `request.jwt.claims` to the caller's verified claims as JSON, the setting
+  PostgREST and Supabase use, so their policy patterns apply as they are. It is empty with no
+  caller. The setting is written on every hand-out and cleared on every return, so a pooled
+  connection never carries one caller's claims into another's query.
+- **The policy can stay entirely in the database.** Every chunk row carries its source in
+  `metadata->>'sourceId'`, so a policy can join it to a table of who may read each source:
+
+  ```sql
+  CREATE POLICY read_by_group ON cafeai_chunks FOR SELECT USING (EXISTS (
+    SELECT 1 FROM source_acl a
+    WHERE a.source_id = cafeai_chunks.metadata->>'sourceId'
+      AND a.grp IN (SELECT jsonb_array_elements_text(COALESCE(
+            NULLIF(current_setting('request.jwt.claims', true), '')::jsonb -> 'groups', '[]'::jsonb)))));
+  ```
+- **No false promises.** At startup the adapter checks that PostgreSQL will really apply the
+  policy to the connecting role: row-level security enabled on the table, and the role not a
+  superuser, not `BYPASSRLS`, and not the owner of a table that isn't
+  `FORCE ROW LEVEL SECURITY`. Otherwise it refuses to start.
+- **Ingestion runs with no caller**, so its claims are empty. Ingest with a role allowed to
+  insert (the table's owner, or a role with an `INSERT` policy): a policy for reads only blocks
+  inserts by the app role.
+- **Tested against PostgreSQL 16 with pgvector**, through a real app with a single pooled
+  connection, so one caller's claims would show up in the next query if the reset failed.
+  Mutation-checked: removing both resets makes that test fail.
+
 ### 7.6 Semantic cache: one rule to keep
 ADR-013 already restricts the cache to answers that depend on nothing but the prompt. A call with
 a conversation or with RAG bypasses it (`CafeAIApp.cacheable`), so sharing between identities is

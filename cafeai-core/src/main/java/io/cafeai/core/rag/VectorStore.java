@@ -3,6 +3,7 @@ package io.cafeai.core.rag;
 import io.cafeai.core.spi.RagProvider;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
@@ -65,6 +66,53 @@ public interface VectorStore {
      * Returns the total number of chunks stored.
      */
     long count();
+
+    // ── Access by caller ─────────────────────────────────────────────────────
+
+    /**
+     * What a store can do about who may read what. CafeAI enforces no document permissions
+     * itself: the store does, or every document is readable by everyone.
+     */
+    enum Access {
+        /** The store can't tell callers apart, so every document is readable by anyone. */
+        UNENFORCED,
+        /** Declared readable by every caller ({@link #everyoneMayRead(VectorStore)}). */
+        PUBLIC,
+        /** The store decides, per caller, which documents each may read. */
+        PER_CALLER
+    }
+
+    /**
+     * What this store can do about who may read what. Default {@link Access#UNENFORCED}.
+     *
+     * <p>An app that serves verified callers ({@code cafeai-identity}) refuses to start with an
+     * {@code UNENFORCED} store: RAG would put any indexed document into any caller's answer.
+     * Either use a store that enforces access per caller (PgVector with
+     * {@code PgVectorConfig.rowLevelSecurity(true)}), or declare the documents public.
+     */
+    default Access access() {
+        return Access.UNENFORCED;
+    }
+
+    /**
+     * {@code store}, declared to hold only documents every caller may read: product manuals, a
+     * public FAQ. Required for a store that can't enforce access per caller, in an app that serves
+     * verified callers.
+     */
+    static VectorStore everyoneMayRead(VectorStore store) {
+        Objects.requireNonNull(store, "store");
+        return new VectorStore() {
+            @Override public void upsert(String id, String content, float[] embedding, String sourceId, int chunkIndex) {
+                store.upsert(id, content, embedding, sourceId, chunkIndex);
+            }
+            @Override public List<RagDocument> search(float[] queryEmbedding, int topK) { return store.search(queryEmbedding, topK); }
+            @Override public boolean exists(String id)              { return store.exists(id); }
+            @Override public void deleteBySource(String sourceId)   { store.deleteBySource(sourceId); }
+            @Override public long count()                           { return store.count(); }
+            @Override public Access access()                        { return Access.PUBLIC; }
+            @Override public String toString()                      { return "everyoneMayRead(" + store + ")"; }
+        };
+    }
 
     // ── Factory methods ───────────────────────────────────────────────────────
 

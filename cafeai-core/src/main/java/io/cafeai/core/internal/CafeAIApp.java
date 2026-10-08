@@ -2415,6 +2415,18 @@ public final class CafeAIApp implements CafeAI {
 
         log.info("[coffee] CafeAI starting on port {}...", port);
 
+        // An app that serves verified callers must not let RAG put any document into any
+        // caller's answer: the store enforces access per caller, or its documents are public.
+        if (io.cafeai.core.identity.IdentityMode.enabled() && vectorStore != null
+                && vectorStore.access() == VectorStore.Access.UNENFORCED) {
+            started.set(false);
+            throw new IllegalStateException("The vector store " + vectorStore.getClass().getSimpleName()
+                    + " can't tell callers apart, so RAG would give every caller every document. "
+                    + "Use a store that enforces access per caller (PgVector with "
+                    + "PgVectorConfig.rowLevelSecurity(true)), or declare its documents public with "
+                    + "app.vectordb(VectorStore.everyoneMayRead(store)).");
+        }
+
         var routingBuilder = buildRouting();
 
         // Apply any raw Helidon routing consumers registered via app.helidon().routing()

@@ -41,6 +41,7 @@ public final class PgVectorConfig {
     private final boolean useIndex;
     private final int     indexListSize;
     private final int     maxPoolSize;
+    private final boolean rowLevelSecurity;
 
     private PgVectorConfig(Builder b) {
         this.host          = Objects.requireNonNull(b.host, "host");
@@ -53,6 +54,7 @@ public final class PgVectorConfig {
         this.useIndex      = b.useIndex;
         this.indexListSize = b.indexListSize;
         this.maxPoolSize   = b.maxPoolSize;
+        this.rowLevelSecurity = b.rowLevelSecurity;
         if (dimension <= 0) {
             throw new IllegalArgumentException(
                 "dimension must be set to the EmbeddingProvider's vector size (e.g. 384 for local, 1536 for OpenAI)");
@@ -69,6 +71,9 @@ public final class PgVectorConfig {
     public boolean useIndex()      { return useIndex; }
     public int     indexListSize() { return indexListSize; }
     public int     maxPoolSize()   { return maxPoolSize; }
+
+    /** Whether PostgreSQL enforces, per caller, which rows each may read. See {@link Builder#rowLevelSecurity}. */
+    public boolean rowLevelSecurity() { return rowLevelSecurity; }
 
     public String jdbcUrl() {
         return "jdbc:postgresql://" + host + ":" + port + "/" + database;
@@ -89,6 +94,7 @@ public final class PgVectorConfig {
         private boolean useIndex      = false;
         private int     indexListSize = 100;
         private int     maxPoolSize   = 8;
+        private boolean rowLevelSecurity = false;
 
         public Builder host(String v)        { this.host = v; return this; }
         public Builder port(int v)           { this.port = v; return this; }
@@ -100,6 +106,21 @@ public final class PgVectorConfig {
         public Builder useIndex(boolean v)   { this.useIndex = v; return this; }
         public Builder indexListSize(int v)  { this.indexListSize = v; return this; }
         public Builder maxPoolSize(int v)    { this.maxPoolSize = v; return this; }
+
+        /**
+         * PostgreSQL decides which rows each caller may read, with row-level security policies
+         * written by the database's owner. Every connection is given the caller's verified claims,
+         * as JSON, in {@code request.jwt.claims} (empty when there is no caller), the setting
+         * PostgREST and Supabase use, so a policy reads them as
+         * {@code current_setting('request.jwt.claims', true)::jsonb}. A policy can join the row's
+         * {@code metadata->>'sourceId'} to a table of who may read each source; CafeAI stores no
+         * permissions itself.
+         *
+         * <p>At startup the table must have row-level security enabled, and the connecting role
+         * must be subject to it (not a superuser, not {@code BYPASSRLS}, and not the table's owner
+         * unless it is {@code FORCE ROW LEVEL SECURITY}); otherwise the store refuses to start.
+         */
+        public Builder rowLevelSecurity(boolean v) { this.rowLevelSecurity = v; return this; }
 
         public PgVectorConfig build() {
             return new PgVectorConfig(this);
