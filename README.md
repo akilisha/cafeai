@@ -368,6 +368,28 @@ product: it ends at "incident published," fanned out to a log, a webhook, an
 SSE stream, or your own `IncidentSink`. See `docs/roadmap/ROADMAP-18-sentinel.md`
 and the runnable `capstones/cluster-sentinel` companion.
 
+### `cafeai-identity` — Callers, Not API Keys
+```java
+var issuer = Issuer.discover("https://issuer.example.com/realms/acme");
+app.filter(Auth.bearer(issuer, "orders-api"));                       // or Auth.login(...) for browsers
+app.get("/reports", Auth.require(Auth.group("finance")), reports);
+
+app.ai(OpenAI.of("<model-id>").withBaseUrl("https://models.internal.example.com/v1")
+        .withCredentials(OAuthCredentials.tokenExchange(issuer, "orders-api", secret, "model-gateway")));
+```
+Static API keys are banned in most companies: nothing ties a call to a person, and no one person's
+access can be revoked. With `cafeai-identity`, every request has a verified caller from any
+OpenID Connect issuer, and that caller goes everywhere:
+- **Sign-in:** API tokens, browser sign-in (tokens kept server-side), or terminal sign-in.
+- **Model calls:** made on the caller's behalf (RFC 8693 token exchange), with no API key.
+- **Conversations and records:** conversations belong to whoever started them, and usage and
+  audit records name the caller.
+- **RAG:** the database decides what each caller may read (PostgreSQL row-level security).
+- **MCP and WebSockets:** both are protected the same way.
+
+Built on open standards only, and tested against Keycloak. See DEVELOPER_GUIDE §32 and
+`docs/design/IDENTITY.md`.
+
 ---
 
 ## Module Structure
@@ -388,6 +410,7 @@ cafeai/
 ├── cafeai-mustache       ← Optional Mustache view engine
 ├── cafeai-session        ← HTTP session store for Middleware.session() (SQLite, single-instance)
 ├── cafeai-flight         ← JVM-level visibility via Java Flight Recorder, surfaced as OTel metrics
+├── cafeai-identity       ← Verified callers (OpenID Connect, OAuth 2.0) through the AI layer; no API keys
 ├── cafeai-mcp            ← MCP server: chosen routes and @Tool objects as tools for AI agents
 ├── cafeai-dev            ← Development only: save a file, the app reloads in about half a second
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)

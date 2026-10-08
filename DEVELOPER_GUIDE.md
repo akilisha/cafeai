@@ -120,6 +120,7 @@ without a version — pin them to `0.5.1` (or import a version catalog).
 29. [cafeai-mcp — Your Routes as Tools for AI Agents](#29-cafeai-mcp--your-routes-as-tools-for-ai-agents)
 30. [cafeai-dev — Reload While You Edit](#30-cafeai-dev--reload-while-you-edit)
 31. [Usage and Cost per Route](#31-usage-and-cost-per-route)
+32. [cafeai-identity — Callers, Not API Keys](#32-cafeai-identity--callers-not-api-keys)
 
 ---
 
@@ -3529,3 +3530,215 @@ which finishes after, is not in it — `app.usage()` and the metrics have it.
 
 With `cafeai-observability` and the OpenTelemetry strategy, the same usage is exported
 as `gen_ai.client.token.usage` and `cafeai.llm.cost` by model and route (§20.6).
+
+---
+
+## 32. `cafeai-identity` — Callers, Not API Keys
+
+Without identity, every request reaches the model under one static API key, and nothing knows
+who is calling. Companies ban that: no accountability per person, no way to revoke one person's
+access. `cafeai-identity` gives each request a verified caller from any OpenID Connect issuer,
+carries that caller through the AI layer, and uses it for every outgoing call. It is built on
+open standards only (OpenID Connect, OAuth 2.0 and its RFCs), so any conforming issuer works.
+The design and its reasons: `docs/design/IDENTITY.md`.
+
+```groovy
+implementation 'com.akilisha.oss:cafeai-identity'
+```
+
+Identity is opt-in: an app that never creates its middleware behaves exactly as before.
+
+### 32.1 Verifying callers — `Auth.bearer`
+
+```java
+var issuer = Issuer.discover("https://issuer.example.com/realms/acme");   // OpenID Connect Discovery
+app.filter(Auth.bearer(issuer, "orders-api"));                             // this API's audience
+
+app.get("/me", (req, res, next) -> {
+    Identity who = req.identity().orElseThrow();
+    res.json(Map.of("subject", who.subject(), "groups", who.groups()));
+});
+```
+
+Every request must carry an access token from the issuer in `Authorization: Bearer`. The
+signature is checked against the issuer's published keys (cached; a rotated key is picked up the
+first time it's seen), asymmetric algorithms only, then issuer, subject, expiry, not-before and
+audience. The audience is required: without it, a token issued for any other service would be
+accepted. Refusals are standard RFC 6750 responses: `401` with `WWW-Authenticate: Bearer`, or
+`400` for a malformed header.
+
+`Identity` is keyed by issuer and subject together (`who.key()`), and carries the token's
+`scope`, `groups`, `roles` and `entitlements` (RFC 9068) and all its claims. Options:
+`.optional()` lets anonymous requests through (a bad token is still refused);
+`.requireAccessTokenType()` accepts only `typ: at+jwt`; `.algorithms(...)` narrows the list.
+
+### 32.2 What the issuer granted — `Auth.require`
+
+```java
+app.get("/orders", Auth.require(Auth.scope("orders:read")), listOrders);
+app.post("/refunds", Auth.require(Auth.role("approver"), Auth.scope("orders:write")), refund);
+app.get("/reports", Auth.require(Auth.anyOf(Auth.group("finance"), Auth.role("auditor"))), reports);
+```
+
+Every requirement must hold, or one of an `anyOf`. Anonymous: `401`. Short: `403`, naming only
+missing scopes (`error="insufficient_scope"`), never roles or groups. CafeAI decides no policy:
+the issuer decides what a token carries, and `require` reads it.
+
+### 32.3 Browser sign-in — `Auth.login`
+
+```java
+app.filter(Middleware.session(store));      // tokens are kept server-side, in the session
+app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/auth/callback")
+        .afterSignOut("https://orders.example.com/"));
+```
+
+- `GET /auth/login?return=/path` starts sign-in: the authorization code flow with PKCE, `state`
+  and `nonce`. `return` must be a path on this site.
+- The redirect URI's path finishes it, validates the ID token, and **starts a new session id**
+  (`session.regenerate()`), so an id planted before sign-in stays signed out.
+- **Tokens never reach the browser.** The session holds them; the browser holds only the
+  session cookie. They are renewed with the refresh token before they expire.
+- `POST /auth/logout` signs out here and at the issuer.
+- A signed-in session's `POST`, `PUT`, `PATCH` and `DELETE` need its CSRF token, in
+  `X-CSRF-Token` or a `_csrf` form field: `Auth.csrfToken(req)` gives it to your pages.
+- `.signInRequired()` sends browsers to sign in and back; other requests get `401`.
+
+In production, make the session cookie `Secure`:
+`SessionOptions.builder().cookieOptions(CookieOptions.builder().secure(true).build())`.
+
+### 32.4 Terminal sign-in — `DeviceLogin`
+
+For a CLI or JBang script that calls a CafeAI service, the device authorization grant
+(RFC 8628): it shows a code and a link, the user signs in on any device, and the program gets a
+token. It works over SSH and in containers.
+
+```java
+var login = DeviceLogin.of(issuer, "orders-cli").scope("openid", "orders:read");
+String token = login.accessToken();   // signs in only when it must
+```
+
+Tokens are cached per user in `~/.cafeai/tokens/` (owner-only where the file system has
+permissions) and renewed with the refresh token; `login.signOut()` forgets them.
+
+### 32.5 Model calls without API keys
+
+```java
+app.ai(OpenAI.of("<model-id>")
+        .withBaseUrl("https://models.internal.example.com/v1")   // any OpenAI-compatible endpoint
+        .withCredentials(OAuthCredentials.tokenExchange(issuer, "orders-api", secret, "model-gateway")));
+```
+
+`withCredentials` resolves the credential **for each call** instead of reading
+`OPENAI_API_KEY` once; the provider's client stays one shared object.
+
+- `OAuthCredentials.tokenExchange(...)` (RFC 8693) calls on behalf of the signed-in caller: the
+  model endpoint gets a token naming that caller, issued for it, marked as this app acting for
+  them. Such calls skip the semantic cache, so no caller is answered from another's call.
+- `OAuthCredentials.clientCredentials(...)` calls as the app itself, for work that is the app's.
+- `Credentials.staticKey(key)` sets a key in code.
+
+**Fail closed.** A per-caller credential with no verified caller is refused with `401`; the
+model is never called with some other credential. Tokens are cached until shortly before they
+expire. `withBaseUrl` also reaches a company's own open-model server or a hosted open-weight
+model. `withCredentials` is on the OpenAI provider; the Anthropic provider doesn't support it yet.
+
+### 32.6 The caller through the AI layer
+
+- **`Identity.current()`** gives code below a handler (a tool, a service) the request's caller.
+  Work handed to another thread loses it unless carried: `RequestScope.wrap(task)` or
+  `RequestScope.carrying(executor)`, for example a parallel agentic workflow's `.executor(...)`.
+  CafeAI's own streams carry it.
+- **Conversations belong to the caller who started them.** A conversation id is scoped to the
+  caller (`ConversationKeys`): another caller sending the same id gets a conversation of their
+  own. This covers prompts, streams, stateful agents and agentic memory.
+- **Usage per caller:** `app.usage().callers()`, next to the per-route totals.
+- **Audit records:** `app.audit(sink)` receives every model call and every guardrail flag, each
+  naming the caller. Metadata only, never prompt or answer text.
+- **Traces:** with the OpenTelemetry strategy, spans carry `enduser.id`; metrics never carry the
+  caller.
+
+### 32.7 RAG — the store decides who reads what
+
+CafeAI enforces no document permissions itself. A `VectorStore` says what it can do
+(`access()`): `PER_CALLER`, `PUBLIC`, or `UNENFORCED` (the default). An app that serves verified
+callers refuses to start with an `UNENFORCED` store. Declare public documents with
+`app.vectordb(VectorStore.everyoneMayRead(store))`, or let PostgreSQL decide:
+
+```java
+app.vectordb(PgVector.connect(PgVectorConfig.builder()
+        .database("cafeai").dimension(384).rowLevelSecurity(true).build()));
+```
+
+Every connection then carries the caller's claims in `request.jwt.claims` (as PostgREST and
+Supabase set it), for row-level security policies the database's owner writes. Each chunk records
+its source, so a policy can join it to a table of who may read each source:
+
+```sql
+ALTER TABLE cafeai_chunks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY read_by_group ON cafeai_chunks FOR SELECT USING (EXISTS (
+  SELECT 1 FROM source_acl a
+  WHERE a.source_id = cafeai_chunks.metadata->>'sourceId'
+    AND a.grp IN (SELECT jsonb_array_elements_text(COALESCE(
+          NULLIF(current_setting('request.jwt.claims', true), '')::jsonb -> 'groups', '[]'::jsonb)))));
+```
+
+The store refuses to start unless PostgreSQL would apply the policy to its role (not a superuser,
+not `BYPASSRLS`, not an owner without `FORCE ROW LEVEL SECURITY`). Ingestion runs with no caller:
+ingest with a role allowed to insert.
+
+### 32.8 MCP — `Auth.mcp`
+
+The `app.mcp()` endpoint sits outside CafeAI's filters, so `Auth.bearer` doesn't cover it:
+
+```java
+app.mcp().tools(new OrderTools());
+Auth.mcp(app, issuer, "https://orders.example.com/mcp").scope("orders:read");
+```
+
+Tokens must be issued for the endpoint's own URL, and
+`/.well-known/oauth-protected-resource/mcp` serves RFC 9728 metadata naming the issuer, so MCP
+clients find where to sign in. An app that serves verified callers refuses to start with its MCP
+endpoint unprotected. Route tools forward the caller's token to their route, so that route's
+`Auth.bearer` must accept the endpoint's URL as an audience too.
+
+### 32.9 WebSockets
+
+The app's filters run on the upgrade request, so `Auth.bearer` and browser sign-in guard
+WebSockets like any route. Every callback then runs as that request: `session.identity()` and
+`Identity.current()` name the caller, and memory, usage, audit and per-caller model calls work
+inside handlers. When the identity expires, the connection is closed with `1008`; the client
+signs in again and reconnects.
+
+### 32.10 Developing and testing — `FakeIssuer`
+
+```java
+try (var fake = FakeIssuer.start().client("orders-api", "s3cret").publicClient("orders-cli")) {
+    app.filter(Auth.bearer(fake.issuer(), "orders-api"));
+    String token = fake.token().subject("alice").audience("orders-api").groups("finance").sign();
+}
+```
+
+An issuer on the loopback interface that signs tokens for anyone: discovery, keys, the token
+endpoint (client credentials, token exchange, authorization code with PKCE, refresh, device),
+and switches for tests (`signInAs`, `approveDevice`, `rotateKey`, ...). **Development and tests
+only.** CafeAI's own suite also runs every flow against Keycloak in Docker
+(`KeycloakIntegrationTest`).
+
+### 32.11 What identity enforces
+
+Once identity middleware exists, these are refused rather than allowed to run unscoped:
+
+| Refused | Because |
+|---|---|
+| A model call on a caller's behalf with no caller | It would run with the app's authority |
+| Conversation memory with no request in scope | It would be keyed by the bare id |
+| Starting with an `UNENFORCED` vector store | RAG would give every caller every document |
+| Starting with the MCP endpoint unprotected | Its tools would be open to anyone |
+
+### 32.12 Limits
+
+- Two requests renewing a browser session's tokens at the same moment can sign it out, where the
+  issuer rotates refresh tokens.
+- `@Tool` objects called over MCP don't see `Identity.current()`; route tools do.
+- `withCredentials` is not yet on the Anthropic provider, and a provider's `Retry-After` isn't
+  passed on with a `429`.

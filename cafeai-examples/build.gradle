@@ -26,6 +26,7 @@ dependencies {
     implementation project(':cafeai-agentic')
     implementation project(':cafeai-session')
     implementation project(':cafeai-flight')
+    implementation project(':cafeai-identity')
 
     // FlightRecorderExample prints OTel metrics to the console for the demo --
     // a real deployment would point an OTLP exporter at a real backend instead.

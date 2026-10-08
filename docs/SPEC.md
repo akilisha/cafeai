@@ -330,6 +330,33 @@ your own) — no dashboard, incident store, or remediation. See
 `docs/roadmap/ROADMAP-18-sentinel.md` and the runnable `capstones/cluster-sentinel`
 companion.
 
+### 3.12 Identity Primitives &nbsp;<sub>✅ built — `cafeai-identity` (ROADMAP-19), not yet released</sub>
+
+```java
+var issuer = Issuer.discover("https://issuer.example.com/realms/acme");
+app.filter(Auth.bearer(issuer, "orders-api"));                    // API callers
+app.filter(Auth.login(issuer, "orders-web", secret, callbackUrl)); // browsers, tokens kept server-side
+app.get("/reports", Auth.require(Auth.group("finance")), reports);
+
+app.ai(OpenAI.of("<model-id>").withBaseUrl(gateway)
+        .withCredentials(OAuthCredentials.tokenExchange(issuer, "orders-api", secret, "model-gateway")));
+Auth.mcp(app, issuer, "https://orders.example.com/mcp");
+String token = DeviceLogin.of(issuer, "orders-cli").accessToken();   // a CLI signing in
+```
+
+Every request carries a verified `Identity` (`req.identity()`, `Identity.current()`, keyed by
+issuer and subject) from any OpenID Connect issuer, and the caller goes everywhere:
+- **Model calls:** made per call on the caller's behalf (RFC 8693) or as the app (client
+  credentials), with no API key.
+- **Records:** conversations are scoped to the caller, and usage and audit records name them
+  (`app.usage().callers()`, `app.audit(sink)`).
+- **RAG:** retrieval is enforced by the store, with PostgreSQL row-level security over the
+  caller's claims.
+- **WebSockets:** they run as the caller who opened them.
+
+CafeAI decides no access policy: the issuer and the data's store do. Open standards only. See
+`docs/design/IDENTITY.md` and `docs/roadmap/ROADMAP-19-identity.md`.
+
 ---
 
 ## 4. Incremental Adoption Ladder
@@ -428,6 +455,7 @@ cafeai/
 ├── cafeai-aiservices/                      ← binds LangChain4j AiServices to an HTTP identity
 │                                         — session, guardrails, RAG, observability (ROADMAP-12)
 ├── cafeai-sentinel/                    ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
+├── cafeai-identity/                    ← Verified callers (OpenID Connect, OAuth 2.0) through the AI layer (ROADMAP-19)
 └── cafeai-examples/                    ← Runnable adoption ladder — the tutorial as code
 ```
 
