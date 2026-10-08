@@ -34,7 +34,22 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   work as before, except that ids starting with `cafeai-identity:` are reserved.
 - **`RequestScope`** carries the current request onto other threads: `RequestScope.wrap(task)`,
   or `RequestScope.carrying(executor)` for an executor such as a parallel agentic workflow's, so
-  the caller's identity, conversation memory, usage and audit records go with the work. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
+  the caller's identity, conversation memory, usage and audit records go with the work.
+- **Model credentials per call, without API keys.** `OpenAI.of(id).withCredentials(credentials)`
+  authenticates each model call with a token resolved for that call, instead of
+  `OPENAI_API_KEY` read once. The provider's client stays one shared object. `cafeai-identity`'s
+  `OAuthCredentials.clientCredentials(...)` calls as the app (RFC 6749 client credentials), and
+  `OAuthCredentials.tokenExchange(...)` calls on behalf of the signed-in caller (RFC 8693), so the
+  model endpoint sees who each call is for. Tokens are cached until shortly before they expire. A
+  per-caller credential with no verified caller is refused with `401`, never sent with another
+  credential, and such calls skip the semantic cache so no caller is answered from another's call.
+  `Credentials.staticKey(key)` sets a key in code.
+- **`withBaseUrl(url)`** points the OpenAI provider at any OpenAI-compatible endpoint: a company's
+  own model server or gateway, or a hosted open-weight model.
+- **Identity mode.** Once `Auth.bearer` is created, conversation memory used with no request in
+  scope is refused (`IdentityRequiredException`) instead of being keyed by the bare id; carry the
+  request with `RequestScope`.
+- **A provider's rate limit is a `429`**, no longer a `500`. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The

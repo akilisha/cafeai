@@ -1,6 +1,9 @@
 package io.cafeai.core.memory;
 
 import io.cafeai.core.identity.Identity;
+import io.cafeai.core.identity.IdentityMode;
+import io.cafeai.core.identity.IdentityRequiredException;
+import io.cafeai.core.internal.CurrentRequest;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -33,8 +36,18 @@ public final class ConversationKeys {
      * @return {@code null} when {@code conversationId} is {@code null} (no conversation)
      * @throws IllegalArgumentException if an id supplied without identity starts with
      *         {@link #SCOPED_PREFIX}
+     * @throws IdentityRequiredException if identity mode is on ({@link IdentityMode}) and no
+     *         request is in scope, so the caller is unknown
      */
     public static String forCurrentCaller(String conversationId) {
+        if (conversationId != null && IdentityMode.enabled() && CurrentRequest.get().isEmpty()) {
+            // Most likely work handed to another thread without its request: keying it by the
+            // bare id would put one caller's conversation where another can reach it.
+            throw new IdentityRequiredException("Conversation memory was used with no request in scope, "
+                    + "in an app that serves verified callers. Carry the request to this thread with "
+                    + "RequestScope.wrap(...) or RequestScope.carrying(executor), or key the conversation "
+                    + "explicitly with ConversationKeys.forCaller(identity, id).");
+        }
         return forCaller(Identity.current().orElse(null), conversationId);
     }
 

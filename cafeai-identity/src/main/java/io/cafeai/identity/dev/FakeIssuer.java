@@ -5,6 +5,8 @@ import com.sun.net.httpserver.HttpServer;
 import io.cafeai.identity.Issuer;
 import io.helidon.security.jwt.Jwt;
 import io.helidon.security.jwt.SignedJwt;
+import io.helidon.json.JsonObject;
+import io.helidon.security.jwt.jwk.JwkKeys;
 import io.helidon.security.jwt.jwk.JwkRSA;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,7 @@ import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -59,6 +63,9 @@ public final class FakeIssuer implements AutoCloseable {
     private final String id;
     private final List<SigningKey> keys = new CopyOnWriteArrayList<>();
     private final AtomicInteger jwksRequests = new AtomicInteger();
+    private final AtomicInteger tokenRequests = new AtomicInteger();
+    private final Map<String, String> clients = new ConcurrentHashMap<>();
+    private volatile Duration issuedLifetime = Duration.ofHours(1);
     private volatile SigningKey current;
     private volatile Issuer issuer;
 
@@ -69,6 +76,7 @@ public final class FakeIssuer implements AutoCloseable {
         keys.add(current);
         server.createContext("/.well-known/openid-configuration", this::metadata);
         server.createContext("/jwks", this::jwks);
+        server.createContext("/token", this::token);
         server.start();
         log.warn("FakeIssuer started at {}. It signs tokens for anyone; development and tests only.", id);
     }
@@ -120,6 +128,26 @@ public final class FakeIssuer implements AutoCloseable {
         keys.removeIf(k -> k != current);
     }
 
+    /**
+     * Registers a confidential client that may use the token endpoint (client credentials and
+     * token exchange), authenticating with HTTP Basic.
+     */
+    public FakeIssuer client(String clientId, String clientSecret) {
+        clients.put(clientId, clientSecret);
+        return this;
+    }
+
+    /** How long tokens issued by the token endpoint last (default one hour). */
+    public FakeIssuer issuedLifetime(Duration lifetime) {
+        this.issuedLifetime = lifetime;
+        return this;
+    }
+
+    /** How many times the token endpoint has been called, for tests of caching. */
+    public int tokenRequests() {
+        return tokenRequests.get();
+    }
+
     /** How many times the key set has been fetched, for tests of caching. */
     public int keySetRequests() {
         return jwksRequests.get();
@@ -135,6 +163,9 @@ public final class FakeIssuer implements AutoCloseable {
     private void metadata(HttpExchange exchange) throws IOException {
         String json = "{\"issuer\":\"" + id + "\","
                 + "\"jwks_uri\":\"" + id + "/jwks\","
+                + "\"token_endpoint\":\"" + id + "/token\","
+                + "\"grant_types_supported\":[\"client_credentials\","
+                + "\"urn:ietf:params:oauth:grant-type:token-exchange\"],"
                 + "\"response_types_supported\":[\"code\"],"
                 + "\"subject_types_supported\":[\"public\"],"
                 + "\"id_token_signing_alg_values_supported\":[\"RS256\"]}";
@@ -148,10 +179,107 @@ public final class FakeIssuer implements AutoCloseable {
         respond(exchange, "{\"keys\":[" + String.join(",", published) + "]}");
     }
 
+    /**
+     * The token endpoint: client credentials (RFC 6749 4.4) and token exchange (RFC 8693). An
+     * exchanged token names the same subject, is issued for the requested audience, and carries
+     * {@code act} naming the client acting for the subject.
+     */
+    private void token(HttpExchange exchange) throws IOException {
+        tokenRequests.incrementAndGet();
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            respond(exchange, 405, "{\"error\":\"invalid_request\"}");
+            return;
+        }
+        String clientId = authenticatedClient(exchange.getRequestHeaders().getFirst("Authorization"));
+        if (clientId == null) {
+            respond(exchange, 401, "{\"error\":\"invalid_client\"}");
+            return;
+        }
+        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        String grant = form.getOrDefault("grant_type", "");
+        Jwt.Builder issued;
+        if (grant.equals("client_credentials")) {
+            issued = issue(clientId, form.get("audience"), form.get("scope")).addPayloadClaim("client_id", clientId);
+        } else if (grant.equals("urn:ietf:params:oauth:grant-type:token-exchange")) {
+            String subject = verifiedSubject(form.get("subject_token"));
+            if (subject == null || form.get("audience") == null) {
+                respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
+                return;
+            }
+            issued = issue(subject, form.get("audience"), form.get("scope"))
+                    .addPayloadClaim("client_id", clientId)
+                    .addPayloadClaim("act", JsonObject.builder().set("sub", clientId).build());
+        } else {
+            respond(exchange, 400, "{\"error\":\"unsupported_grant_type\"}");
+            return;
+        }
+        String token = SignedJwt.sign(issued.build(), current.jwk).tokenContent();
+        respond(exchange, 200, "{\"access_token\":\"" + token + "\",\"token_type\":\"Bearer\","
+                + "\"expires_in\":" + issuedLifetime.toSeconds() + ","
+                + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}");
+    }
+
+    private Jwt.Builder issue(String subject, String audience, String scope) {
+        Instant now = Instant.now();
+        Jwt.Builder jwt = Jwt.builder()
+                .algorithm(JwkRSA.ALG_RS256)
+                .keyId(current.kid)
+                .issuer(id)
+                .subject(subject)
+                .issueTime(now)
+                .expirationTime(now.plus(issuedLifetime))
+                .jwtId(UUID.randomUUID().toString());
+        if (audience != null) jwt.audience(List.of(audience));
+        if (scope != null) jwt.addPayloadClaim("scope", scope);
+        return jwt;
+    }
+
+    /** The subject of an unexpired token this issuer signed, or {@code null}. */
+    private String verifiedSubject(String token) {
+        if (token == null) return null;
+        try {
+            SignedJwt signed = SignedJwt.parseToken(token);
+            var keySet = JwkKeys.builder();
+            for (SigningKey k : keys) keySet.addKey(k.jwk);
+            if (!signed.verifySignature(keySet.build()).isValid()) return null;
+            Jwt jwt = signed.getJwt();
+            if (!id.equals(jwt.issuer().orElse(null))) return null;
+            if (jwt.expirationTime().map(exp -> !Instant.now().isBefore(exp)).orElse(true)) return null;
+            return jwt.subject().orElse(null);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private String authenticatedClient(String authorization) {
+        if (authorization == null || !authorization.startsWith("Basic ")) return null;
+        String decoded = new String(Base64.getDecoder().decode(authorization.substring(6)), StandardCharsets.UTF_8);
+        int colon = decoded.indexOf(':');
+        if (colon < 0) return null;
+        String clientId = URLDecoder.decode(decoded.substring(0, colon), StandardCharsets.UTF_8);
+        String secret = URLDecoder.decode(decoded.substring(colon + 1), StandardCharsets.UTF_8);
+        return secret.equals(clients.get(clientId)) ? clientId : null;
+    }
+
+    private static Map<String, String> form(String body) {
+        Map<String, String> form = new LinkedHashMap<>();
+        for (String pair : body.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            form.put(URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8),
+                    URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8));
+        }
+        return form;
+    }
+
     private static void respond(HttpExchange exchange, String json) throws IOException {
+        respond(exchange, 200, json);
+    }
+
+    private static void respond(HttpExchange exchange, int status, String json) throws IOException {
         byte[] body = json.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
-        exchange.sendResponseHeaders(200, body.length);
+        exchange.sendResponseHeaders(status, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
         }

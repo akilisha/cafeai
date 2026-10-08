@@ -11,6 +11,7 @@ import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.ai.Credentials;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
 
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Internal factory that converts a CafeAI {@link AiProvider} into a Langchain4j
@@ -100,12 +102,14 @@ public final class LangchainBridge {
         return switch (provider.type()) {
             case OPENAI -> {
                 var builder = OpenAiStreamingChatModel.builder()
-                    .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
                     .modelName(provider.modelId())
                     .timeout(timeout(provider));
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
                 if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
+                if (provider.baseUrl() != null)     builder.baseUrl(provider.baseUrl());
+                if (provider.credentials() != null) builder.customHeaders(perCallAuthorization(provider.credentials()));
+                else                                builder.apiKey(resolveApiKey("OPENAI_API_KEY", provider));
                 yield builder.build();
             }
 
@@ -150,7 +154,6 @@ public final class LangchainBridge {
         return switch (provider.type()) {
             case OPENAI -> {
                 var builder = OpenAiChatModel.builder()
-                    .apiKey(resolveApiKey("OPENAI_API_KEY", provider))
                     .modelName(provider.modelId())
                     .timeout(timeout(provider))
                     .logRequests(false)
@@ -158,6 +161,9 @@ public final class LangchainBridge {
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
                 if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
+                if (provider.baseUrl() != null)     builder.baseUrl(provider.baseUrl());
+                if (provider.credentials() != null) builder.customHeaders(perCallAuthorization(provider.credentials()));
+                else                                builder.apiKey(resolveApiKey("OPENAI_API_KEY", provider));
                 yield builder.build();
             }
 
@@ -200,6 +206,17 @@ public final class LangchainBridge {
                 ". Supported: OPENAI, ANTHROPIC, OLLAMA, JLAMA. " +
                 "For other providers, implement AiProvider and wire Langchain4j manually.");
         };
+    }
+
+    /**
+     * The {@code Authorization} header, asked for on every request rather than fixed when the
+     * client is built, so one shared client serves every caller with their own, current
+     * credential. Spelled exactly as the client's own: LangChain4j's header map is
+     * case-sensitive, and a differently cased name would be sent beside it, not instead of it.
+     * No API key is set on such a client, so there is no other to replace.
+     */
+    private static Supplier<Map<String, String>> perCallAuthorization(Credentials credentials) {
+        return () -> Map.of("Authorization", "Bearer " + credentials.token());
     }
 
     /**

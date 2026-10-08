@@ -7,6 +7,7 @@ import dev.langchain4j.model.openai.OpenAiModerationModel;
 import io.cafeai.core.internal.LangchainBridge;
 
 import java.time.Duration;
+import java.util.Objects;
 
 /**
  * Factory for OpenAI LLM providers.
@@ -29,7 +30,7 @@ public final class OpenAI {
 
     /** An OpenAI provider for the given chat model id (e.g. {@code "gpt-4o"}). */
     public static AiProvider of(String modelId) {
-        return new OpenAiProvider(modelId, null, null, null);
+        return new OpenAiProvider(modelId, null, null, null, null, null);
     }
 
     /**
@@ -93,11 +94,27 @@ public final class OpenAI {
         return OpenAiModerationModel.builder().apiKey(key).modelName(modelId).build();
     }
 
-    private record OpenAiProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout)
+    /**
+     * {@code baseUrl} points it at any OpenAI-compatible endpoint; {@code credentials}, when set,
+     * authenticate each call in place of {@code OPENAI_API_KEY}.
+     */
+    private record OpenAiProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout,
+                                  String baseUrl, Credentials credentials)
             implements AiProvider {
-        @Override public AiProvider withTemperature(double t) { return new OpenAiProvider(modelId, t, maxTokens, timeout); }
-        @Override public AiProvider withMaxTokens(int n)      { return new OpenAiProvider(modelId, temperature, n, timeout); }
-        @Override public AiProvider withTimeout(Duration d)   { return new OpenAiProvider(modelId, temperature, maxTokens, d); }
+        @Override public AiProvider withTemperature(double t) { return new OpenAiProvider(modelId, t, maxTokens, timeout, baseUrl, credentials); }
+        @Override public AiProvider withMaxTokens(int n)      { return new OpenAiProvider(modelId, temperature, n, timeout, baseUrl, credentials); }
+        @Override public AiProvider withTimeout(Duration d)   { return new OpenAiProvider(modelId, temperature, maxTokens, d, baseUrl, credentials); }
+
+        @Override public AiProvider withBaseUrl(String url) {
+            Objects.requireNonNull(url, "baseUrl");
+            if (url.isBlank()) throw new IllegalArgumentException("baseUrl must not be blank");
+            return new OpenAiProvider(modelId, temperature, maxTokens, timeout, url, credentials);
+        }
+
+        @Override public AiProvider withCredentials(Credentials c) {
+            return new OpenAiProvider(modelId, temperature, maxTokens, timeout, baseUrl,
+                    Objects.requireNonNull(c, "credentials"));
+        }
 
         @Override public String       name()          { return "openai"; }
         @Override public ProviderType type()          { return ProviderType.OPENAI; }

@@ -1,6 +1,7 @@
 package io.cafeai.identity;
 
 import io.cafeai.core.Attributes;
+import io.cafeai.core.identity.IdentityMode;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
@@ -35,6 +36,13 @@ public final class BearerAuth implements Middleware {
 
     private static final Logger log = LoggerFactory.getLogger(BearerAuth.class);
 
+    /**
+     * The request attribute holding the caller's validated access token, for exchanging it on
+     * the caller's behalf ({@link OAuthCredentials#tokenExchange}). The same token the caller
+     * sent in its {@code Authorization} header; never logged.
+     */
+    static final String ACCESS_TOKEN = "cafeai.identity.access_token";
+
     private final Issuer issuer;
     private final Set<String> audiences;
     private final Set<String> algorithms = new LinkedHashSet<>(TokenValidator.DEFAULT_ALGORITHMS);
@@ -53,6 +61,8 @@ public final class BearerAuth implements Middleware {
                     + "Without it, a token issued for any other service would be accepted here.");
         }
         this.audiences = Set.copyOf(audiences);
+        // This app serves verified callers: caller-scoped work with no caller is refused from now on.
+        IdentityMode.enable();
     }
 
     /**
@@ -161,6 +171,7 @@ public final class BearerAuth implements Middleware {
         }
 
         req.setAttribute(Attributes.IDENTITY, result.identity());
+        req.setAttribute(ACCESS_TOKEN, token);
         next.run();
     }
 

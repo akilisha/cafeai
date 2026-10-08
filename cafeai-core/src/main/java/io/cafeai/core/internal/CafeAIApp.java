@@ -375,7 +375,7 @@ public final class CafeAIApp implements CafeAI {
 
         // -- 2c. Semantic cache lookup ----------------------------------------
         // After PRE_LLM guardrails: a request that was blocked never reaches the cache.
-        String cacheNamespace = cacheable(request) ? cacheNamespace(provider, request) : null;
+        String cacheNamespace = cacheable(provider, request) ? cacheNamespace(provider, request) : null;
         if (cacheNamespace != null) {
             PromptResponse cached = cachedResponse(cacheNamespace, effectiveMessage, request, provider);
             if (cached != null) return cached;
@@ -561,7 +561,7 @@ public final class CafeAIApp implements CafeAI {
         AiProvider provider = resolveProvider(request);
         // Eager, so a blocked prompt fails at .stream(), before anything is subscribed.
         boolean preFlagged = applyPreLlmGuardrails(request.message(), "Prompt");
-        String cacheNamespace = cacheable(request) ? cacheNamespace(provider, request) : null;
+        String cacheNamespace = cacheable(provider, request) ? cacheNamespace(provider, request) : null;
         if (cacheNamespace != null) {
             PromptResponse cached = cachedResponse(cacheNamespace, request.message(), request, provider);
             if (cached != null) return emitOnce(cached.text());
@@ -1294,6 +1294,14 @@ public final class CafeAIApp implements CafeAI {
      * Checks exception class name and message for common rate-limit indicators since
      * LangChain4j doesn't expose a typed RateLimitException.
      */
+    /** Whether {@code error}, or anything in its cause chain, is a {@code type}. */
+    private static boolean causedBy(Throwable error, Class<? extends Throwable> type) {
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (type.isInstance(t)) return true;
+        }
+        return false;
+    }
+
     private static boolean isRateLimitException(Throwable t) {
         if (t == null) return false;
         String className = t.getClass().getSimpleName().toLowerCase();
@@ -1461,11 +1469,14 @@ public final class CafeAIApp implements CafeAI {
     // The cache lets one caller's request decide what another is told, so a call is eligible
     // only when its answer depends on nothing but the prompt (see SemanticCache).
 
-    private boolean cacheable(PromptRequest request) {
+    private boolean cacheable(AiProvider provider, PromptRequest request) {
         return semanticCache != null
                 && !request.cacheBypassed()
                 && request.sessionId() == null                                 // conversation-dependent
-                && !(retriever != null && vectorStore != null && embeddingModel != null); // RAG-dependent
+                && !(retriever != null && vectorStore != null && embeddingModel != null) // RAG-dependent
+                // Reached with the caller's own credential: the endpoint decides per caller whether
+                // the call is allowed, so no caller may be answered from another caller's call.
+                && !(provider.credentials() != null && provider.credentials().perCaller());
     }
 
     /**
@@ -2244,6 +2255,28 @@ public final class CafeAIApp implements CafeAI {
             try {
                 res.status(input ? 400 : 500).json(Map.of("error",
                         input ? "Request blocked by guardrail" : "Response blocked by guardrail"));
+            } catch (Exception ignored) {
+                // Response may already be committed -- swallow
+            }
+            return;
+        }
+        // Caller-scoped work with no verified caller: refused, never done some other way.
+        if (!res.headersSent() && causedBy(error, io.cafeai.core.identity.IdentityRequiredException.class)) {
+            log.warn("Refused for want of a verified caller: {}", error.getMessage());
+            try {
+                res.status(401).set("WWW-Authenticate", "Bearer").json(Map.of("error", "Sign-in required"));
+            } catch (Exception ignored) {
+                // Response may already be committed -- swallow
+            }
+            return;
+        }
+        // The model provider (or a gateway in front of it) limited the rate: say so, as a 429,
+        // rather than hiding it in a 500. Retrying is the app's choice (app.retry(...)).
+        if (!res.headersSent() && (causedBy(error, RetryPolicy.RateLimitExceededException.class)
+                || causedBy(error, dev.langchain4j.exception.RateLimitException.class))) {
+            log.warn("Model call rate-limited: {}", error.getMessage());
+            try {
+                res.status(429).json(Map.of("error", "Rate limited by the model provider"));
             } catch (Exception ignored) {
                 // Response may already be committed -- swallow
             }

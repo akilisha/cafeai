@@ -97,6 +97,44 @@ public interface AiProvider {
     }
 
     /**
+     * The endpoint to call instead of the provider's own, or {@code null} for the default. Set
+     * with {@link #withBaseUrl(String)}.
+     */
+    default String baseUrl() { return null; }
+
+    /**
+     * A copy of this provider that calls {@code baseUrl}: an organisation's own model server or
+     * gateway, or any service that speaks this provider's API.
+     *
+     * <pre>{@code
+     *   app.ai(OpenAI.of("<model-id>").withBaseUrl("https://models.internal.example.com/v1"));
+     * }</pre>
+     *
+     * @throws UnsupportedOperationException if this provider does not support it
+     */
+    default AiProvider withBaseUrl(String baseUrl) {
+        throw new UnsupportedOperationException(
+            "Provider '" + name() + "' does not support withBaseUrl");
+    }
+
+    /**
+     * Where the credential comes from, asked on every call, or {@code null} for the provider's
+     * environment variable. Set with {@link #withCredentials(Credentials)}.
+     */
+    default Credentials credentials() { return null; }
+
+    /**
+     * A copy of this provider that authenticates each call with {@code credentials}, resolved
+     * per call instead of read once from the environment. See {@link Credentials}.
+     *
+     * @throws UnsupportedOperationException if this provider does not support it
+     */
+    default AiProvider withCredentials(Credentials credentials) {
+        throw new UnsupportedOperationException(
+            "Provider '" + name() + "' does not support withCredentials");
+    }
+
+    /**
      * Returns {@code true} if this provider may accept multimodal (vision) input.
      *
      * <p>CafeAI does not track per-model capabilities (model ids change), so this

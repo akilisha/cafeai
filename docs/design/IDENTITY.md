@@ -174,8 +174,9 @@ in the route totals only.
 
 ### 7.2 Limits: passed through, not imposed
 CafeAI imposes no quotas. Limits belong to whoever provides the model or the data. When an API or
-gateway enforces one (a `429` with `Retry-After`), CafeAI passes it to the caller unchanged,
-without retrying it away or hiding it.
+gateway enforces one, the caller gets a `429`, not a `500` that hides it. CafeAI retries only if
+the app asked it to (`app.retry(...)`). The provider's `Retry-After` is not passed on:
+LangChain4j's rate-limit exception doesn't carry the response's headers.
 
 ### 7.3 Audit
 `app.audit(sink)` receives an `AuditEvent` for:
@@ -218,9 +219,9 @@ subject>:<id>`.
 Work a handler hands to another thread loses the request, and so the caller. CafeAI's own streams
 carry it. Anything else carries it with `RequestScope.wrap(task)` or
 `RequestScope.carrying(executor)`, e.g. a parallel agentic workflow's
-`.executor(RequestScope.carrying(...))`. **Known gap:** a parallel workflow without it keys its
-agents' memory by the bare id. Closing that gap means failing closed when an app that uses
-identity runs without a caller, which is Phase 5's rule (§8.3).
+`.executor(RequestScope.carrying(...))`. A thread the request was not carried to fails closed
+(§8.3): in an app that serves verified callers, conversation memory used with no request in scope
+is refused with `IdentityRequiredException`, never keyed by the bare id.
 
 ### 7.5 RAG: enforced by the store, under the user's identity
 Company documents are shared by permission. Without enforcement, RAG is a way to read any indexed
@@ -252,6 +253,12 @@ a conversation or with RAG bypasses it (`CafeAIApp.cacheable`), so sharing betwe
 safe. That rule now has one more case: **any input that depends on the identity must bypass the
 cache.** Any later feature that adds per-identity input to a prompt call (tools called with the
 user's credentials, a per-user system prompt) must make the call bypass the cache.
+
+Per-caller credentials are such a case. With token exchange the model endpoint decides, per
+caller, whether a call is allowed, so serving one caller another caller's cached answer would skip
+that decision. A provider whose `Credentials.perCaller()` is true therefore never uses the cache.
+The app's own credentials (client credentials, a static key) are the same for everyone and cache as
+before.
 
 ### 7.7 Guardrail and security events
 `SecurityEvent`s carry the caller (`caller()`), and guardrail outcomes are audit records (§7.3),
@@ -288,8 +295,8 @@ builders both take `customHeaders(Supplier<Map<String, String>>)`. Checked in th
   Anthropic-protocol endpoint overrides that exact header name, and the builder still needs a key
   value at build time.
 - **The supplier runs in the call that builds the request**, on the caller's thread, so
-  `Identity.current()` sees the request's identity. **Still to test:** that this holds for
-  streaming calls.
+  `Identity.current()` sees the request's identity. Verified for streaming calls too: a stream
+  runs in its request's scope (§7.1), so a streamed call carries its own caller's token.
 
 No HTTP-client wrapper is needed. `httpClientBuilder(HttpClientBuilder)` remains available if a
 future provider needs one.
@@ -324,6 +331,14 @@ startup. There `Identity.current()` is empty. A call configured for per-user cre
 **refuses** to run without an identity. It never falls back to a static key, which would turn
 anonymous calls into calls with the app's authority. Work that legitimately belongs to the app
 uses `clientCredentials`, chosen explicitly.
+
+As built:
+- A per-caller credential with no verified caller throws `IdentityRequiredException`, and a
+  request answers it with `401` and `WWW-Authenticate: Bearer`. The model is never reached.
+- `IdentityMode`: creating `Auth.bearer` marks the JVM as serving verified callers. From then
+  on, caller-scoped work with no request in scope (conversation memory, so far) is refused
+  instead of running unscoped. This is JVM-wide, like the rest of an app's process-global
+  wiring.
 
 ### 8.4 Open models in a company
 A shared open-model server (any OpenAI-compatible inference server) behind the same issuer is an
@@ -438,6 +453,11 @@ These can be added later without changing the design:
 - Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
 - Audit records for tool executions themselves (today the model calls around them are audited).
+- `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
+  `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),
+  so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
+  which reaches any OpenAI-compatible endpoint.
+- Passing the provider's `Retry-After` through with a `429` (§7.2).
 
 ## 14. Decisions and open questions
 
