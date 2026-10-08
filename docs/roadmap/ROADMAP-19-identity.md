@@ -4,7 +4,7 @@
 > AI layer, and uses it for every outgoing call. The design, with its decisions and the reasons
 > for them, is `docs/design/IDENTITY.md`; this file tracks the work.
 >
-> **Status (2026-10-07):** 🟡 Phases 0–11 done: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in, terminal sign-in, RAG enforced by the store (PostgreSQL row-level security), the MCP endpoint protected, WebSockets that know their caller and close at expiry; every flow verified against Keycloak 26.4. The comparison with a recorded `kimi login`, and the Kimi call (which needs a key), are left for a person to run.
+> **Status (2026-10-07):** 🟡 Phases 0–11 done, phase 12 written and waiting to be released: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in, terminal sign-in, RAG enforced by the store (PostgreSQL row-level security), the MCP endpoint protected, WebSockets that know their caller and close at expiry; every flow verified against Keycloak 26.4. The comparison with a recorded `kimi login`, and the Kimi call (which needs a key), are left for a person to run.
 
 ---
 
@@ -41,4 +41,4 @@ CafeAI behaves exactly as before.
 | 9 | ✅ MCP: `bearer` on the MCP endpoint plus protected resource metadata (RFC 9728) | an MCP client discovers the issuer and connects |
 | 10 | ✅ WebSockets and long streams at token expiry | a WebSocket closes when its identity expires |
 | 11 | ✅ Keycloak integration suite; Kimi credential-header test | all flows against a real issuer |
-| 12 | Developer guide, examples, release | published |
+| 12 | Developer guide ✅ (§32), README and SPEC ✅, example ✅ (`IdentityExample`), release: waiting for the go-ahead | published |
