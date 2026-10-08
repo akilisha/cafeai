@@ -74,7 +74,30 @@ class StaticFilesIntegrationTest {
             .method(method, HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(10));
         for (int i = 0; i < headers.length; i += 2) b.header(headers[i], headers[i + 1]);
         // Bounded: HttpRequest.timeout covers the headers, not a body that never finishes.
-        return http.sendAsync(b.build(), HttpResponse.BodyHandlers.ofByteArray()).get(15, TimeUnit.SECONDS);
+        var pending = http.sendAsync(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+        try {
+            return pending.get(15, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            dumpThreads();
+            throw e;
+        }
+    }
+
+    /**
+     * The full download of the 9 MiB file has twice timed out during a full parallel build and
+     * never otherwise (not alone, not in 96 downloads under CPU load). If it stalls again, this
+     * leaves a dump of every thread, virtual ones included, in {@code build/stall-threads-*.txt}.
+     */
+    private static void dumpThreads() {
+        try {
+            java.nio.file.Path dump = java.nio.file.Path.of("build", "stall-threads-" + System.nanoTime() + ".txt")
+                    .toAbsolutePath();
+            new ProcessBuilder("jcmd", Long.toString(ProcessHandle.current().pid()), "Thread.dump_to_file",
+                    "-format=text", dump.toString()).inheritIO().start().waitFor(30, TimeUnit.SECONDS);
+            System.out.println("Download stalled; threads dumped to " + dump);
+        } catch (Exception dumpFailed) {
+            System.out.println("Download stalled; could not dump threads: " + dumpFailed);
+        }
     }
 
     private HttpResponse<byte[]> get(String path, String... headers) throws Exception {
