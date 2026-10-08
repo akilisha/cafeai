@@ -7,6 +7,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai-identity`: verified caller identity.** `app.filter(Auth.bearer(issuer, "orders-api"))`
+  makes an app an OAuth 2.0 resource server over any OpenID Connect issuer
+  (`Issuer.discover(url)`): each request must carry a valid access token, and the caller
+  reaches handlers as `req.identity()`, keyed by issuer and subject and carrying the token's
+  scopes, groups, roles and entitlements (RFC 9068). `Identity.current()` finds it from code
+  below a handler. Signatures are checked with Helidon's JWT library against the issuer's
+  published keys (cached; rotated keys picked up on first sight), asymmetric algorithms only;
+  refusals are standard RFC 6750 responses. `FakeIssuer` signs tokens for tests and local
+  development. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The
