@@ -24,4 +24,10 @@ dependencies {
     // web server CafeAI runs on. Not Helidon's security framework (see IDENTITY.md section 9).
     implementation 'io.helidon.security:helidon-security-jwt'
     implementation 'io.helidon.json:helidon-json'
+
+    // McpAuth guards the MCP endpoint, which is mounted on Helidon's routing outside CafeAI's filters.
+    implementation 'io.helidon.webserver:helidon-webserver'
+
+    testImplementation project(':cafeai-mcp')
+    testImplementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
 }

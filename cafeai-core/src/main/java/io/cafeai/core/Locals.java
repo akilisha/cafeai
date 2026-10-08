@@ -54,6 +54,13 @@ public final class Locals {
      */
     public static final String CONNECTIONS      = "__cafeai.connect.connections";
 
+    /**
+     * Key set by {@code cafeai-identity}'s {@code Auth.mcp(...)} once it guards the MCP endpoint;
+     * the value is the guarded path. {@code cafeai-mcp} refuses to serve an unguarded endpoint in
+     * an app that serves verified callers.
+     */
+    public static final String MCP_PROTECTED    = "__cafeai.mcp.protected";
+
     // -- Internals -------------------------------------------------------------
 
     /**

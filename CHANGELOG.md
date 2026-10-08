@@ -72,6 +72,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `request.jwt.claims` (as PostgREST and Supabase do) for PostgreSQL row-level security
   policies; it is reset on every hand-out and return of a pooled connection, and the store
   refuses to start if PostgreSQL wouldn't enforce the policy for its role.
+- **A protected MCP endpoint.** `Auth.mcp(app, issuer, "https://<host>/mcp")` makes the
+  `app.mcp()` endpoint an OAuth resource server as the MCP authorization specification asks:
+  tokens must be issued for the endpoint's own URL, and
+  `/.well-known/oauth-protected-resource/mcp` serves RFC 9728 metadata naming the issuer, so MCP
+  clients find where to sign in. The endpoint sits outside CafeAI's filters, so `Auth.bearer`
+  never covered it; an app that serves verified callers now refuses to start with it unprotected.
 - **`session.regenerate()`** moves a server-side session to a new id with its attributes and
   destroys the old one: call it whenever a session's privilege changes. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each

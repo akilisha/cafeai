@@ -1,5 +1,6 @@
 package io.cafeai.identity;
 
+import io.cafeai.core.CafeAI;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Request;
 
@@ -51,6 +52,17 @@ public final class Auth {
      */
     public static BrowserLogin login(Issuer issuer, String clientId, String clientSecret, String redirectUri) {
         return new BrowserLogin(issuer, clientId, clientSecret, redirectUri);
+    }
+
+    /**
+     * Protects the app's MCP endpoint ({@code app.mcp()}) per the MCP authorization
+     * specification: tokens must be issued for {@code resourceUri} itself, and the endpoint's
+     * Protected Resource Metadata (RFC 9728) tells MCP clients which issuer to sign in with.
+     *
+     * @param resourceUri the MCP endpoint's absolute URL, e.g. {@code https://orders.example.com/mcp}
+     */
+    public static McpAuth mcp(CafeAI app, Issuer issuer, String resourceUri) {
+        return new McpAuth(app, issuer, resourceUri);
     }
 
     /**

@@ -4,7 +4,7 @@
 > AI layer, and uses it for every outgoing call. The design, with its decisions and the reasons
 > for them, is `docs/design/IDENTITY.md`; this file tracks the work.
 >
-> **Status (2026-10-07):** 🟡 Phases 0–8 done: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in, terminal sign-in, RAG enforced by the store (PostgreSQL row-level security). The Keycloak halves of phases 6–7 run with phase 11; the comparison with a recorded `kimi login` needs a person to run it.
+> **Status (2026-10-07):** 🟡 Phases 0–9 done: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in, terminal sign-in, RAG enforced by the store (PostgreSQL row-level security), the MCP endpoint protected. The Keycloak halves of phases 6–7 run with phase 11; the comparison with a recorded `kimi login` needs a person to run it.
 
 ---
 
@@ -38,7 +38,7 @@ CafeAI behaves exactly as before.
 | 6 | ✅ Browser sign-in: code flow + PKCE, tokens held server-side in the session, refresh, sign-out, CSRF protection | full sign-in against the fake issuer and Keycloak |
 | 7 | ✅ CLI helper: device authorization grant (RFC 8628) | sign-in from a terminal against Keycloak; compared with a recorded `kimi login` |
 | 8 | ✅ RAG under the user's identity: stores read the caller (`Identity.current()`), a token-authenticated store exchanges for its own token; stores that can't enforce access are refused unless declared public; `PgVectorStoreAdapter` passes claims for row-level security | refusal at startup tested; row-level security enforced in PostgreSQL |
-| 9 | MCP: `bearer` on the MCP endpoint plus protected resource metadata (RFC 9728) | an MCP client discovers the issuer and connects |
+| 9 | ✅ MCP: `bearer` on the MCP endpoint plus protected resource metadata (RFC 9728) | an MCP client discovers the issuer and connects |
 | 10 | WebSockets and long streams at token expiry | a WebSocket closes when its identity expires |
 | 11 | Keycloak integration suite; Kimi credential-header test | all flows against a real issuer |
 | 12 | Developer guide, examples, release | published |

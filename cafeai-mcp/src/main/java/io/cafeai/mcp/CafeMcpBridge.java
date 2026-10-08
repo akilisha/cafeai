@@ -1,6 +1,8 @@
 package io.cafeai.mcp;
 
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.Locals;
+import io.cafeai.core.identity.IdentityMode;
 import io.cafeai.core.mcp.McpConfig;
 import io.cafeai.core.spi.McpBridge;
 import io.helidon.extensions.mcp.server.McpServerFeature;
@@ -97,6 +99,13 @@ public final class CafeMcpBridge implements McpBridge {
 
         /** Runs at listen(): mounts the MCP server, keeping CafeAI's filters off its path. */
         private void install(HttpRouting.Builder routing) {
+            // The endpoint is outside CafeAI's filters: in an app that serves verified callers,
+            // nothing but Auth.mcp(...) would stop anyone listing and calling its tools.
+            if (IdentityMode.enabled() && !path.equals(app.local(Locals.MCP_PROTECTED))) {
+                throw new IllegalStateException("The MCP endpoint " + path + " is not protected, in an app "
+                        + "that serves verified callers: CafeAI's filters (Auth.bearer) don't cover it. "
+                        + "Add Auth.mcp(app, issuer, \"https://<host>" + path + "\") from cafeai-identity.");
+            }
             helidon.bypass(path);
             String prefix = path;
             routing.addFilter((chain, req, res) -> {

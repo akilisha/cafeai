@@ -202,6 +202,23 @@ The MCP authorization spec uses OAuth 2.1 and requires protected resource metada
 `cafeai-mcp` gets both from this module: `bearer(issuer)` protects the MCP endpoint, and the
 metadata tells MCP clients which issuer to sign in with.
 
+As built, `Auth.mcp(app, issuer, "https://orders.example.com/mcp").scope(...)`:
+- **Found while building:** the MCP endpoint is mounted outside CafeAI's filter chain, so
+  `app.filter(Auth.bearer(...))` never covered it. Route tools happened to stay safe, since they
+  forward the caller's token to a route that checks it, but `@Tool` objects could be listed and
+  called with no credential. `Auth.mcp` guards the endpoint itself, at the Helidon level.
+- **Audience-bound tokens:** a token's `aud` must be the endpoint's own URL, as the MCP
+  specification requires, so a token issued for another service can't be replayed here. A
+  route behind `Auth.bearer` that route tools call must accept that URL as an audience too.
+- **Discovery:** `GET /.well-known/oauth-protected-resource/mcp` serves the RFC 9728 metadata
+  (resource, issuer, scopes), and every refusal points at it:
+  `401` with `WWW-Authenticate: Bearer resource_metadata="..."`, or `403` with
+  `insufficient_scope`.
+- **Enforced:** an app that serves verified callers refuses to start with its MCP endpoint
+  unprotected, or protected at a different path than the one it is mounted on.
+- **Limit:** `@Tool` objects run outside a CafeAI request, so `Identity.current()` is empty in
+  them; a tool that needs the caller should be a route tool (§13).
+
 ## 7. Identity in the AI layer
 
 ### 7.1 Usage
@@ -533,6 +550,7 @@ These can be added later without changing the design:
 - Passing the provider's `Retry-After` through with a `429` (§7.2).
 - Revoking the refresh token at the issuer on sign-out (RFC 7009 token revocation).
 - Serialising concurrent token renewals for one session (§6.2).
+- The verified caller inside `@Tool` objects called over MCP (`Identity.current()`), as route tools already have it (§6.5).
 
 ## 14. Decisions and open questions
 
