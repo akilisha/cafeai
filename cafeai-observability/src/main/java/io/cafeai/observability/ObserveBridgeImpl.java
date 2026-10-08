@@ -1,6 +1,7 @@
 package io.cafeai.observability;
 
 import io.cafeai.core.ai.*;
+import io.cafeai.core.identity.Identity;
 import io.cafeai.core.spi.CafeAIModule;
 import io.cafeai.core.spi.ObserveBridge;
 import io.opentelemetry.api.GlobalOpenTelemetry;
@@ -104,6 +105,9 @@ public final class ObserveBridgeImpl implements ObserveBridge {
         static final String CACHE_HIT = "cafeai.cache_hit";
         static final String RAG_DOCS  = "cafeai.rag.documents_retrieved";
         static final String TOTAL_TOK = "cafeai.usage.total_tokens";
+        // OpenTelemetry end-user attribute, plus the issuer behind it (CafeAI extension)
+        static final String ENDUSER_ID     = "enduser.id";
+        static final String ENDUSER_ISSUER = "cafeai.enduser.issuer";
 
         /** Best-effort provider system from a model id; {@code null} when unrecognised. */
         static String system(String modelId) {
@@ -124,6 +128,19 @@ public final class ObserveBridgeImpl implements ObserveBridge {
             if (sys != null) span.setAttribute(SYSTEM, sys);
         }
 
+        /**
+         * The verified caller, when the request has one: {@code enduser.id} (OpenTelemetry's
+         * end-user attribute) is the subject, and {@code cafeai.enduser.issuer} the issuer that
+         * vouches for it. Set on spans only, never on metrics: one series per person would make
+         * metrics unboundedly large.
+         */
+        static void caller(Span span) {
+            Identity.current().ifPresent(id -> {
+                span.setAttribute(ENDUSER_ID, id.subject());
+                span.setAttribute(ENDUSER_ISSUER, id.issuer());
+            });
+        }
+
         static void error(Span span, Throwable error) {
             span.setStatus(StatusCode.ERROR, error.getMessage());
             span.setAttribute(ERROR_TYPE, error.getClass().getName());
@@ -140,6 +157,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            Sem.caller(span);
             span.setAttribute(Sem.OP, "chat");
             if (request.sessionId() != null) {
                 span.setAttribute(Sem.SESSION, request.sessionId());
@@ -174,6 +192,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            Sem.caller(span);
             span.setAttribute(Sem.OP, "chat");
             span.setAttribute("cafeai.input.type",        "vision");
             span.setAttribute("cafeai.input.mime_type",   request.mimeType());
@@ -278,6 +297,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            Sem.caller(span);
             span.setAttribute(Sem.OP, "transcribe");
             span.setAttribute("cafeai.input.mime_type",      request.mimeType());
             span.setAttribute("cafeai.input.content_bytes",  request.content().length);
@@ -317,6 +337,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            Sem.caller(span);
             span.setAttribute(Sem.OP, "invoke_agent");
             span.setAttribute("gen_ai.agent.name", agentName);
         }
@@ -364,6 +385,7 @@ public final class ObserveBridgeImpl implements ObserveBridge {
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(Context.current())
                 .startSpan();
+            Sem.caller(span);
             span.setAttribute(Sem.OP, "retrieve");
             span.setAttribute("db.system", "vector_db");
             span.setAttribute("cafeai.rag.query_length", query != null ? query.length() : 0);

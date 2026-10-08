@@ -1,6 +1,7 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.Attributes;
+import io.cafeai.core.audit.AuditEvent;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
@@ -69,6 +70,8 @@ public abstract class AbstractGuardRail implements GuardRail {
                 if (!result.passes()) {
                     log.warn("POST_LLM guardrail '{}' triggered on response: {}",
                         name(), result.reason());
+                    // The stored response is always replaced, whatever the action: a block.
+                    audit(req, AuditEvent.Stage.RESPONSE, Action.BLOCK);
                     // Replace the stored response with a safe refusal
                     req.setAttribute(Attributes.LLM_RESPONSE_TEXT,
                         "[Response blocked by guardrail: " + name() + "]");
@@ -174,10 +177,19 @@ public abstract class AbstractGuardRail implements GuardRail {
         return null; // unterminated string
     }
 
+    /** Records the flag in the app's audit trail (a request outside an app has none). */
+    private void audit(Request req, AuditEvent.Stage stage, Action taken) {
+        var app = req.app();
+        if (app != null) {
+            app.audit().record(AuditEvent.GuardrailFlag.forRequest(req, name(), stage, taken));
+        }
+    }
+
     private void onViolation(Request req, Response res, CheckResult result) {
         req.setAttribute(Attributes.GUARDRAIL_NAME,  name());
         req.setAttribute(Attributes.GUARDRAIL_SCORE, result.score());
         log.warn("Guardrail '{}' triggered: {}", name(), result.reason());
+        audit(req, AuditEvent.Stage.REQUEST, action);
 
         switch (action) {
             // The guardrail's name only. Its reason (logged above) can tell an attacker which

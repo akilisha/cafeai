@@ -167,8 +167,10 @@ metadata tells MCP clients which issuer to sign in with.
 ## 7. Identity in the AI layer
 
 ### 7.1 Usage
-`app.usage()` reports per identity as well as per route. The existing `UsageMeter` tally gains the
-identity's key.
+`app.usage()` reports per caller (`callers()`, `caller(key)`) as well as per route. Each model
+call records the identity of the request it was made for, including calls a request makes on
+another thread, such as a stream. Anonymous calls, and calls with no request behind them, count
+in the route totals only.
 
 ### 7.2 Limits: passed through, not imposed
 CafeAI imposes no quotas. Limits belong to whoever provides the model or the data. When an API or
@@ -176,14 +178,24 @@ gateway enforces one (a `429` with `Retry-After`), CafeAI passes it to the calle
 without retrying it away or hiding it.
 
 ### 7.3 Audit
-One record per model call and per tool call: issuer + subject, route, model, tokens, cost,
-guardrail outcome, and time. It's emitted through the existing observability bridge with
-OpenTelemetry's end-user attributes, and through a pluggable sink interface for anyone who needs
-a dedicated audit store.
+`app.audit(sink)` receives an `AuditEvent` for:
+- **every model call** (`ModelCall`): caller, route, model, tokens, cost and time. Each round
+  trip of an agent's tool loop is a model call;
+- **every guardrail flag** (`GuardrailFlag`): caller, route, guardrail, what it was screening
+  (request, response or retrieved document) and what it did (block, warn or log). This covers
+  both the engine's guardrails and guardrails used as middleware.
 
-Audit records are personal data. **By default they hold metadata only.** Prompt and answer text
-is opt-in, redacted (the `Redactor` in `cafeai-sentinel` is a starting point), and has its own
-retention setting.
+Several sinks may be registered. Each is called synchronously and must be quick, and a sink that
+throws is logged and skipped.
+
+**Audit records hold metadata only.** They never contain prompt, answer or document text, nor a
+guardrail's reason, which can quote what was flagged. They name people, so they are personal
+data, and what is kept and for how long is the sink's decision. Capturing text, redacted and
+opt-in, is deferred (§13).
+
+OpenTelemetry gets the caller on **spans only**: `enduser.id` (the subject) and
+`cafeai.enduser.issuer`. Never on metrics, where one series per person would make them grow
+without bound.
 
 ### 7.4 Conversation memory: bound to identity
 Today the memory key is whatever id the client sends, so anyone with someone's id reads and
@@ -222,7 +234,8 @@ cache.** Any later feature that adds per-identity input to a prompt call (tools 
 user's credentials, a per-user system prompt) must make the call bypass the cache.
 
 ### 7.7 Guardrail and security events
-`SecurityEvent`s and guardrail outcomes carry the identity, so a blocked prompt is attributable.
+`SecurityEvent`s carry the caller (`caller()`), and guardrail outcomes are audit records (§7.3),
+so a blocked prompt is attributable.
 
 ## 8. Outbound credentials
 
@@ -403,6 +416,8 @@ These can be added later without changing the design:
 - CLI sign-in through a browser on the same machine with a localhost redirect (RFC 8252).
 - Protected resource metadata for ordinary routes, outside MCP.
 - Trusting several issuers at once.
+- Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
+- Audit records for tool executions themselves (today the model calls around them are audited).
 
 ## 14. Decisions and open questions
 

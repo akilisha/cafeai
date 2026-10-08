@@ -16,10 +16,14 @@ import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Pricing;
 import io.cafeai.core.ai.UsageReport;
+import io.cafeai.core.audit.AuditEvent;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
+import io.cafeai.core.identity.Identity;
 import io.cafeai.core.spi.ObserveBridge;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +58,8 @@ final class UsageMeter {
     /** The request a filter or handler is running for. */
     record Scope(UsageMeter meter, HelidonRequest req, HelidonResponse res) { }
 
-    private record Call(String model, long in, long out) { }
+    /** One model call: when, for whom ({@code null} when anonymous), and its tokens. */
+    private record Call(Instant at, Identity.Key caller, String model, long in, long out) { }
 
     private static final class Totals {
         final LongAdder calls = new LongAdder();
@@ -71,12 +76,15 @@ final class UsageMeter {
     }
 
     private final Map<String, Totals> routes = new ConcurrentHashMap<>();
+    private final Map<Identity.Key, Totals> callers = new ConcurrentHashMap<>();
     private final Supplier<ObserveBridge> observe;
+    private final AuditSink audit;
     private final boolean header = AppConfig.load().get(HEADER);
     private volatile Pricing pricing;
 
-    UsageMeter(Supplier<ObserveBridge> observe) {
+    UsageMeter(Supplier<ObserveBridge> observe, AuditSink audit) {
         this.observe = observe;
+        this.audit = audit;
     }
 
     void pricing(Pricing pricing) {
@@ -100,6 +108,20 @@ final class UsageMeter {
         };
     }
 
+    /**
+     * This thread's request scope, to carry onto another thread with {@link #enter(Scope)}:
+     * work a request hands to its own thread (a stream) is still that request's work.
+     */
+    Scope capture() {
+        return scope();
+    }
+
+    /** Marks this thread as working for a captured scope; nothing to do when it is {@code null}. */
+    Entered enter(Scope captured) {
+        if (captured == null) return () -> { };
+        return enter(captured.req(), captured.res());
+    }
+
     /** The request this thread is running a filter or handler for, or {@code null}. */
     static HelidonRequest currentRequest() {
         Scope s = CURRENT.get();
@@ -119,7 +141,9 @@ final class UsageMeter {
         long out = usage == null || usage.outputTokenCount() == null ? 0 : usage.outputTokenCount();
         String model = provider.modelId() != null ? provider.modelId()
                      : response != null && response.modelName() != null ? response.modelName() : provider.name();
-        Call call = new Call(model, in, out);
+        Identity.Key caller = scope == null ? null
+                : scope.req().identity().map(Identity::key).orElse(null);
+        Call call = new Call(Instant.now(), caller, model, in, out);
 
         if (scope == null) {
             credit(UsageReport.NO_REQUEST, List.of(call));
@@ -160,19 +184,24 @@ final class UsageMeter {
     }
 
     private void credit(String route, List<Call> calls) {
-        Totals totals = routes.computeIfAbsent(route, r -> new Totals());
         ObserveBridge bridge = observe.get();
         for (Call c : calls) {
             OptionalDouble cost = pricing == null ? OptionalDouble.empty() : pricing.cost(c.model(), c.in(), c.out());
-            totals.calls.increment();
-            totals.in.add(c.in());
-            totals.out.add(c.out());
-            if (cost.isPresent()) totals.cost.add(cost.getAsDouble());
-            else totals.unpriced.increment();
-            if (bridge != null) {
-                bridge.onUsage(route, c.model(), c.in(), c.out(), cost.isPresent() ? cost.getAsDouble() : null);
-            }
+            Double dollars = cost.isPresent() ? cost.getAsDouble() : null;
+            if (bridge != null) bridge.onUsage(route, c.model(), c.in(), c.out(), dollars);
+            audit.record(new AuditEvent.ModelCall(c.at(), c.caller(), route, c.model(), c.in(), c.out(), dollars));
+            // Totals last: once app.usage() shows a call, its metric and audit record exist too.
+            if (c.caller() != null) add(callers.computeIfAbsent(c.caller(), k -> new Totals()), c, cost);
+            add(routes.computeIfAbsent(route, r -> new Totals()), c, cost);
         }
+    }
+
+    private static void add(Totals totals, Call c, OptionalDouble cost) {
+        totals.calls.increment();
+        totals.in.add(c.in());
+        totals.out.add(c.out());
+        if (cost.isPresent()) totals.cost.add(cost.getAsDouble());
+        else totals.unpriced.increment();
     }
 
     private static String routeOf(HelidonRequest req) {
@@ -200,7 +229,10 @@ final class UsageMeter {
         List<UsageReport.RouteUsage> list = new ArrayList<>();
         routes.forEach((route, t) -> list.add(new UsageReport.RouteUsage(route,
                 t.calls.sum(), t.in.sum(), t.out.sum(), t.cost.sum(), t.unpriced.sum())));
-        return new UsageReport(list);
+        List<UsageReport.CallerUsage> byCaller = new ArrayList<>();
+        callers.forEach((caller, t) -> byCaller.add(new UsageReport.CallerUsage(caller,
+                t.calls.sum(), t.in.sum(), t.out.sum(), t.cost.sum(), t.unpriced.sum())));
+        return new UsageReport(list, byCaller);
     }
 
     // -- the wrapped models --------------------------------------------------------------

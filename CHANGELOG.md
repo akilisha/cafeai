@@ -17,7 +17,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   refusals are standard RFC 6750 responses. `Auth.require(Auth.scope("orders:read"))` checks
   what the issuer granted on a route: scopes, roles, groups, entitlements, or `anyOf` them
   (`401` when anonymous, `403` when short, naming only missing scopes). `FakeIssuer` signs
-  tokens for tests and local development. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
+  tokens for tests and local development.
+- **Usage per caller and audit records.** `app.usage().callers()` reports model calls, tokens
+  and cost per verified identity, alongside the per-route totals. `app.audit(sink)` receives an
+  `AuditEvent` for every model call (caller, route, model, tokens, cost) and every guardrail flag
+  (caller, route, guardrail, stage, action), from the engine and from guardrails used as
+  middleware. Records hold metadata only, never prompt or answer text. With
+  `cafeai-observability`'s OpenTelemetry strategy, spans carry `enduser.id` and
+  `cafeai.enduser.issuer`; metrics never carry the caller. A streamed call now runs in its
+  request's scope, so its usage, audit records and span name the right caller. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The
@@ -71,6 +79,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the app and the judge, a suite runs in CI with no key. See DEVELOPER_GUIDE §28.
 - **`LangchainBridge.chatModel(provider)` and `streamingChatModel(provider)`**, the models
   CafeAI uses for a provider, for providers that wrap another (as `Replay` does).
+
+### Changed
+
+- **`cafeai-security`: `SecurityEvent` names the caller.** `caller()` is the issuer and
+  subject of the request's verified identity, or `null` when anonymous. `InjectionAttempt`
+  gains a fifth component; its four-argument constructor still works, but a record pattern
+  that deconstructs it (`case InjectionAttempt(var id, var at, var path, var input)`) needs
+  the fifth component added.
 
 ### Fixed
 

@@ -2,6 +2,7 @@ package io.cafeai.core;
 
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.*;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.mcp.McpConfig;
 import io.cafeai.core.mcp.McpModuleNotFoundException;
@@ -750,9 +751,30 @@ public interface CafeAI extends Router {
     /**
      * Model usage so far, per route: calls, tokens and cost. Every model call counts --
      * prompts, streams, vision, summaries, agents -- credited to the route of the request
-     * that made it, once its response is sent.
+     * that made it, once its response is sent. Calls made for a verified identity are also
+     * credited to that caller ({@link UsageReport#callers()}).
      */
     UsageReport usage();
+
+    // ── Audit ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Sends audit events to {@code sink}: every model call and every guardrail flag, each
+     * naming the caller's verified identity (when there is one), the route and the time.
+     * Metadata only: never prompt, answer or document text. Several sinks may be registered.
+     *
+     * <pre>{@code
+     *   app.audit(event -> auditLog.append(json(event)));
+     * }</pre>
+     */
+    CafeAI audit(AuditSink sink);
+
+    /**
+     * The app's audit trail, for a module or middleware to record into:
+     * {@code req.app().audit().record(event)}. Forwards to every registered sink; does
+     * nothing when none is.
+     */
+    AuditSink audit();
 
     // ── MCP ───────────────────────────────────────────────────────────────────
 

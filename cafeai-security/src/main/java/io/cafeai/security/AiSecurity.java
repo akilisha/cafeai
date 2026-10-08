@@ -1,6 +1,7 @@
 package io.cafeai.security;
 
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.identity.Identity;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.routing.Request;
 import io.cafeai.guardrails.PromptInjectionGuardRail;
@@ -62,7 +63,8 @@ public final class AiSecurity {
             String input = extractInput(req);
             if (input != null && detector.checkInput(input).isViolation()) {
                 String path = req.path();
-                SecurityEvent event = SecurityEvent.injection(path, truncate(input));
+                SecurityEvent event = SecurityEvent.injection(path, truncate(input),
+                        req.identity().map(Identity::key).orElse(null));
                 emit(event);
                 log.warn("SECURITY prompt injection blocked -- path={} eventId={}", path, event.eventId());
                 res.status(400).json(Map.of(

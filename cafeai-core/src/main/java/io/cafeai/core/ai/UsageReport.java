@@ -1,12 +1,14 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.identity.Identity;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Model usage so far, per route: how many model calls each route's requests made, their
- * tokens, and what they cost. From {@code app.usage()}.
+ * Model usage so far, per route and per caller: how many model calls each route's requests
+ * made, their tokens, and what they cost. From {@code app.usage()}.
  *
  * <p>Every model call counts -- prompts, streams, vision, history summaries, and each
  * round trip of an agent's tool loop -- credited to the route of the request that made
@@ -14,13 +16,36 @@ import java.util.Optional;
  * {@link #NO_REQUEST}. Whisper transcription and text-to-speech are not counted: they
  * report no token usage.
  */
-public record UsageReport(List<RouteUsage> routes) {
+public record UsageReport(List<RouteUsage> routes, List<CallerUsage> callers) {
 
     /** The route name for model calls made outside any HTTP request. */
     public static final String NO_REQUEST = "(no request)";
 
     public UsageReport {
         routes = routes.stream().sorted(Comparator.comparing(RouteUsage::route)).toList();
+        callers = callers.stream()
+                .sorted(Comparator.comparing((CallerUsage c) -> c.caller().issuer())
+                        .thenComparing(c -> c.caller().subject()))
+                .toList();
+    }
+
+    /**
+     * One caller's usage: the model calls made for requests carrying that verified identity
+     * (see {@code cafeai-identity}). Anonymous calls, and calls made outside a request, are in
+     * the route totals only.
+     */
+    public record CallerUsage(Identity.Key caller, long calls, long inputTokens, long outputTokens,
+                              double cost, long unpricedCalls) {
+
+        /** Every call was to a priced model, so {@code cost} is the whole cost. */
+        public boolean costKnown() {
+            return unpricedCalls == 0;
+        }
+    }
+
+    /** One caller's usage, by the identity's key. */
+    public Optional<CallerUsage> caller(Identity.Key caller) {
+        return callers.stream().filter(c -> c.caller().equals(caller)).findFirst();
     }
 
     /**

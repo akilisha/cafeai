@@ -16,6 +16,8 @@ import io.cafeai.core.ai.*;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.connect.Connection;
 import io.cafeai.core.connect.HealthStatus;
+import io.cafeai.core.audit.AuditEvent;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.cache.CachedResponse;
 import io.cafeai.core.cache.SemanticCache;
@@ -92,7 +94,18 @@ public final class CafeAIApp implements CafeAI {
 
     // Observability bridge (ROADMAP-07 Phase 9) -- loaded via ServiceLoader
     private ObserveBridge observeBridge;
-    private final UsageMeter usageMeter = new UsageMeter(() -> observeBridge);
+    // Audit sinks (ROADMAP-19): every model call and guardrail flag, metadata only
+    private final List<AuditSink> auditSinks = new CopyOnWriteArrayList<>();
+    private final AuditSink auditTrail = event -> {
+        for (AuditSink sink : auditSinks) {
+            try {
+                sink.record(event);
+            } catch (RuntimeException e) {
+                log.warn("Audit sink {} failed on {}: {}", sink, event.getClass().getSimpleName(), e.toString());
+            }
+        }
+    };
+    private final UsageMeter usageMeter = new UsageMeter(() -> observeBridge, auditTrail);
 
     // ROADMAP-12: agent binding -- loaded via ServiceLoader from cafeai-aiservices
     private AgentBridge agentBridge;
@@ -551,6 +564,9 @@ public final class CafeAIApp implements CafeAI {
             if (cached != null) return emitOnce(cached.text());
         }
         StreamingChatModel model = usageMeter.meter(LangchainBridge.INSTANCE.streamingModelFor(provider), provider);
+        // The stream runs on its own thread but is still this request's work: its caller,
+        // route and observability context come along.
+        var requestScope = usageMeter.capture();
 
         // -- Build message list: system + history + user ---------------------
         List<ChatMessage> messages = new ArrayList<>();
@@ -576,82 +592,84 @@ public final class CafeAIApp implements CafeAI {
             StringBuilder assembled = new StringBuilder();
 
             Thread.ofVirtual().name("cafeai-prompt-stream").start(() -> {
-                Object observeCtx = observeBridge != null ? observeBridge.beforePrompt(request) : null;
-                try {
-                    if (budgetTracker != null) budgetTracker.waitIfNeeded();
+                try (var inRequest = usageMeter.enter(requestScope)) {
+                    Object observeCtx = observeBridge != null ? observeBridge.beforePrompt(request) : null;
+                    try {
+                        if (budgetTracker != null) budgetTracker.waitIfNeeded();
 
-                    ScreenedStream screened = screenedStream(publisher::submit);
-                    model.chat(messages, new StreamingChatResponseHandler() {
-                        @Override
-                        public void onPartialResponse(String token) {
-                            assembled.append(token);
-                            if (screened != null) screened.accept(token);
-                            else publisher.submit(token);
+                        ScreenedStream screened = screenedStream(publisher::submit);
+                        model.chat(messages, new StreamingChatResponseHandler() {
+                            @Override
+                            public void onPartialResponse(String token) {
+                                assembled.append(token);
+                                if (screened != null) screened.accept(token);
+                                else publisher.submit(token);
+                            }
+
+                            @Override
+                            public void onPartialThinking(PartialThinking thinking) {
+                                if (request.thinkingConsumer() != null) {
+                                    request.thinkingConsumer().accept(thinking.text());
+                                }
+                            }
+
+                            @Override
+                            public void onCompleteResponse(ChatResponse response) {
+                                // Screened streaming released only text the output guardrails passed.
+                                // Without it, tokens already reached the subscriber, so POST_LLM cannot
+                                // retract them; it gates what is remembered, exposed and cached.
+                                String full;
+                                boolean outputFlagged;
+                                if (screened != null) {
+                                    full = screened.finish();
+                                    outputFlagged = screened.flagged();
+                                } else {
+                                    Screened s = screenOutput(assembled.toString());
+                                    full = s.text();
+                                    outputFlagged = s.flagged();
+                                }
+                                if (cacheNamespace != null && !preFlagged && !outputFlagged) {
+                                    storeInCache(cacheNamespace, request.message(), full);
+                                }
+                                TokenUsage usage = response.tokenUsage();
+                                int promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
+                                int outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
+
+                                if (budgetTracker != null) {
+                                    budgetTracker.recordUsage(promptTokens + outputTokens);
+                                }
+                                if (request.httpRequest() != null) {
+                                    request.httpRequest().setAttribute(
+                                            Attributes.LLM_RESPONSE_TEXT, full);
+                                }
+                                recordExchange(request.sessionId(), request.message(), full,
+                                        promptTokens + outputTokens, provider);
+                                if (observeBridge != null) {
+                                    PromptResponse pr = PromptResponse.builder()
+                                            .text(full)
+                                            .promptTokens(promptTokens)
+                                            .outputTokens(outputTokens)
+                                            .modelId(provider.modelId())
+                                            .build();
+                                    observeBridge.afterPrompt(observeCtx, request, pr, null);
+                                }
+                                publisher.close();
+                            }
+
+                            @Override
+                            public void onError(Throwable error) {
+                                if (observeBridge != null) {
+                                    observeBridge.afterPrompt(observeCtx, request, null, error);
+                                }
+                                publisher.closeExceptionally(error);
+                            }
+                        });
+                    } catch (Throwable t) {
+                        if (observeBridge != null) {
+                            observeBridge.afterPrompt(observeCtx, request, null, t);
                         }
-
-                        @Override
-                        public void onPartialThinking(PartialThinking thinking) {
-                            if (request.thinkingConsumer() != null) {
-                                request.thinkingConsumer().accept(thinking.text());
-                            }
-                        }
-
-                        @Override
-                        public void onCompleteResponse(ChatResponse response) {
-                            // Screened streaming released only text the output guardrails passed.
-                            // Without it, tokens already reached the subscriber, so POST_LLM cannot
-                            // retract them; it gates what is remembered, exposed and cached.
-                            String full;
-                            boolean outputFlagged;
-                            if (screened != null) {
-                                full = screened.finish();
-                                outputFlagged = screened.flagged();
-                            } else {
-                                Screened s = screenOutput(assembled.toString());
-                                full = s.text();
-                                outputFlagged = s.flagged();
-                            }
-                            if (cacheNamespace != null && !preFlagged && !outputFlagged) {
-                                storeInCache(cacheNamespace, request.message(), full);
-                            }
-                            TokenUsage usage = response.tokenUsage();
-                            int promptTokens = tokens(usage != null ? usage.inputTokenCount() : null);
-                            int outputTokens = tokens(usage != null ? usage.outputTokenCount() : null);
-
-                            if (budgetTracker != null) {
-                                budgetTracker.recordUsage(promptTokens + outputTokens);
-                            }
-                            if (request.httpRequest() != null) {
-                                request.httpRequest().setAttribute(
-                                        Attributes.LLM_RESPONSE_TEXT, full);
-                            }
-                            recordExchange(request.sessionId(), request.message(), full,
-                                    promptTokens + outputTokens, provider);
-                            if (observeBridge != null) {
-                                PromptResponse pr = PromptResponse.builder()
-                                        .text(full)
-                                        .promptTokens(promptTokens)
-                                        .outputTokens(outputTokens)
-                                        .modelId(provider.modelId())
-                                        .build();
-                                observeBridge.afterPrompt(observeCtx, request, pr, null);
-                            }
-                            publisher.close();
-                        }
-
-                        @Override
-                        public void onError(Throwable error) {
-                            if (observeBridge != null) {
-                                observeBridge.afterPrompt(observeCtx, request, null, error);
-                            }
-                            publisher.closeExceptionally(error);
-                        }
-                    });
-                } catch (Throwable t) {
-                    if (observeBridge != null) {
-                        observeBridge.afterPrompt(observeCtx, request, null, t);
+                        publisher.closeExceptionally(t);
                     }
-                    publisher.closeExceptionally(t);
                 }
             });
         };
@@ -1308,13 +1326,19 @@ public final class CafeAIApp implements CafeAI {
                 r.position() == GuardRail.Position.POST_LLM || r.position() == GuardRail.Position.BOTH);
         if (!outputGuardrails) return null;
         if ("off".equalsIgnoreCase(AppConfig.load().get(ScreenedStream.MODE).trim())) return null;
+        // Screening runs on the stream's thread; audit flags belong to the request that started it.
+        var request = CurrentRequest.get();
         return new ScreenedStream(text -> {
-            Screened s = screenOutput(text);
+            Screened s = screenOutput(text, request);
             return new ScreenedStream.Result(s.text(), s.flagged());
         }, emit);
     }
 
     private Screened screenOutput(String responseText) {
+        return screenOutput(responseText, CurrentRequest.get());
+    }
+
+    private Screened screenOutput(String responseText, Optional<io.cafeai.core.routing.Request> request) {
         if (guardRails.isEmpty() || responseText == null || responseText.isBlank()) {
             return new Screened(responseText, false);
         }
@@ -1327,6 +1351,7 @@ public final class CafeAIApp implements CafeAI {
             GuardRail.OutputCheckResult result = rail.checkOutput(responseText);
             if (result == null || !result.isViolation()) continue;
             flagged = true;
+            auditFlag(rail, AuditEvent.Stage.RESPONSE, request);
             switch (actionOf(rail)) {
                 case BLOCK -> {
                     log.warn("POST_LLM guardrail '{}' blocked the response: {}",
@@ -1363,6 +1388,7 @@ public final class CafeAIApp implements CafeAI {
             GuardRail.OutputCheckResult result = rail.checkInput(text);
             if (result == null || !result.isViolation()) continue;
             flagged = true;
+            auditFlag(rail, AuditEvent.Stage.REQUEST, CurrentRequest.get());
             switch (actionOf(rail)) {
                 case BLOCK -> {
                     log.warn("{} PRE_LLM guardrail '{}' blocked the request: {}",
@@ -1399,6 +1425,7 @@ public final class CafeAIApp implements CafeAI {
                 }
                 GuardRail.OutputCheckResult result = rail.checkRetrieved(text);
                 if (result == null || !result.isViolation()) continue;
+                auditFlag(rail, AuditEvent.Stage.RETRIEVED, CurrentRequest.get());
                 if (actionOf(rail) == GuardRail.Action.BLOCK) {
                     log.warn("Guardrail '{}' dropped retrieved document #{} ({}); answering without it",
                             rail.name(), i + 1, result.reason());
@@ -1787,6 +1814,25 @@ public final class CafeAIApp implements CafeAI {
     @Override
     public io.cafeai.core.ai.UsageReport usage() {
         return usageMeter.report();
+    }
+
+    // -- Audit --------------------------------------------------------------------
+
+    @Override
+    public CafeAI audit(AuditSink sink) {
+        auditSinks.add(Objects.requireNonNull(sink, "sink"));
+        return this;
+    }
+
+    @Override
+    public AuditSink audit() {
+        return auditTrail;
+    }
+
+    /** Records a guardrail flag for {@code req}, the request it was screening for (if any). */
+    private void auditFlag(GuardRail rail, AuditEvent.Stage stage, Optional<io.cafeai.core.routing.Request> req) {
+        if (auditSinks.isEmpty()) return;
+        auditTrail.record(AuditEvent.GuardrailFlag.forRequest(req.orElse(null), rail.name(), stage, actionOf(rail)));
     }
 
     // -- MCP ----------------------------------------------------------------------
