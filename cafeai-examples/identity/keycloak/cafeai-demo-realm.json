@@ -1,0 +1,125 @@
+{
+  "realm": "cafeai-demo",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "groups": [
+    { "name": "finance" },
+    { "name": "staff" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Liddell",
+      "credentials": [ { "type": "password", "value": "alice", "temporary": false } ],
+      "groups": [ "/finance" ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@example.com",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "credentials": [ { "type": "password", "value": "bob", "temporary": false } ],
+      "groups": [ "/staff" ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "chat-web",
+      "name": "The chat app's browser sign-in",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "chat-web-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [ "http://localhost:8080/*" ],
+      "webOrigins": [ "http://localhost:8080" ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "chat-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "chat-api", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": { "claim.name": "groups", "full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "chat-api",
+      "name": "The chat app as a client: exchanges a user's token for the model gateway",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "chat-api-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": { "standard.token.exchange.enabled": "true" },
+      "protocolMappers": [
+        {
+          "name": "model-gateway audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "model-gateway", "access.token.claim": "true", "id.token.claim": "false" }
+        }
+      ]
+    },
+    {
+      "clientId": "model-gateway",
+      "name": "Stands for the company's model endpoint",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "model-gateway-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "orders-api",
+      "name": "The orders API (an audience, not a sign-in client)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "orders-api-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "orders-cli",
+      "name": "The orders CLI: signs in from a terminal (device code)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "attributes": { "oauth2.device.authorization.grant.enabled": "true" },
+      "protocolMappers": [
+        {
+          "name": "orders-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "orders-api", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": { "claim.name": "groups", "full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true" }
+        }
+      ]
+    }
+  ]
+}

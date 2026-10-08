@@ -1,0 +1,17 @@
+# Keycloak for the identity examples: a real OpenID Connect issuer on http://localhost:8180,
+# realm "cafeai-demo", users alice/alice (finance) and bob/bob (staff).
+#
+#   docker compose -f cafeai-examples/identity/docker-compose.yml up
+#
+# Development only: plain http, demo passwords, client secrets in the realm file.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm", "--http-port=8180"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro

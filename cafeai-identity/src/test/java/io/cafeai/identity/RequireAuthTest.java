@@ -130,6 +130,23 @@ class RequireAuthTest {
         assertThat(call("GET", "/beta", fake.token()).statusCode()).isEqualTo(403);
     }
 
+    @Test @DisplayName("signedIn: any verified caller passes, whatever the token grants; anonymous gets 401")
+    void signedIn() throws Exception {
+        app.stop();
+        app = CafeAI.create();
+        app.filter(Auth.bearer(fake.issuer(), AUDIENCE).optional());
+        app.get("/inbox", Auth.signedIn(), (req, res, next) -> res.send("mail"));
+        var started = new CountDownLatch(1);
+        app.listen(0, started::countDown);
+        assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+        base = "http://localhost:" + app.port();
+
+        assertThat(call("GET", "/inbox", fake.token()).body()).isEqualTo("mail");
+        var anonymous = call("GET", "/inbox", null);
+        assertThat(anonymous.statusCode()).isEqualTo(401);
+        assertThat(challenge(anonymous)).isEqualTo("Bearer");
+    }
+
     @Test @DisplayName("names must be usable: no blank values, scopes are RFC 6749 scope tokens")
     void validation() {
         assertThatThrownBy(() -> Auth.require()).isInstanceOf(IllegalArgumentException.class);

@@ -90,6 +90,24 @@ public final class Auth {
         return new RequireAuth(List.of(requirements));
     }
 
+    /**
+     * Lets a request through only if it has a verified caller, whatever the token grants;
+     * anonymous requests get {@code 401}. For routes where being signed in is the requirement:
+     *
+     * <pre>{@code
+     *   app.post("/chat", Auth.signedIn(), chat);
+     * }</pre>
+     */
+    public static Middleware signedIn() {
+        return (req, res, next) -> {
+            if (req.identity().isEmpty()) {
+                res.status(401).set("WWW-Authenticate", "Bearer").end();
+                return;
+            }
+            next.run();
+        };
+    }
+
     /** The token's {@code scope} must include {@code scope}. */
     public static Requirement scope(String scope) {
         return Requirement.scope(scope);
