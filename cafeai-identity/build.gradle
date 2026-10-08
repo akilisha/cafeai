@@ -1,0 +1,27 @@
+// ============================================================
+//  cafeai-identity
+//  Verified caller identity for CafeAI from any OpenID Connect issuer:
+//  OAuth 2.0 bearer-token validation today; sign-in flows and outbound
+//  credentials follow (docs/design/IDENTITY.md, ROADMAP-19).
+//
+//  Add to your project:
+//    implementation 'com.akilisha.oss:cafeai-identity'
+//
+//  Then register in your app:
+//    var issuer = Issuer.discover("https://issuer.example.com/");
+//    app.filter(Auth.bearer(issuer, "orders-api"));
+// ============================================================
+
+description = 'Verified caller identity for CafeAI from any OpenID Connect issuer ' +
+    '(OAuth 2.0 bearer tokens).'
+
+apply from: "$rootDir/gradle/maven-central.gradle"
+
+dependencies {
+    api project(':cafeai-core')
+
+    // JWT signature and JWK handling: Helidon's own library, on the same release train as the
+    // web server CafeAI runs on. Not Helidon's security framework (see IDENTITY.md section 9).
+    implementation 'io.helidon.security:helidon-security-jwt'
+    implementation 'io.helidon.json:helidon-json'
+}

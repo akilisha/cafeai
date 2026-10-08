@@ -2,10 +2,12 @@ package io.cafeai.core.routing;
 
 import io.cafeai.core.Attributes;
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.identity.Identity;
 import io.cafeai.core.session.Session;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The per-request HTTP request object.
@@ -359,6 +361,24 @@ public interface Request {
                 "before req.session() is used.");
         }
         return attribute(Attributes.HTTP_SESSION, Session.class);
+    }
+
+    // ── Identity ─────────────────────────────────────────────────────────────
+
+    /**
+     * The verified identity of the caller, or empty when the request is anonymous.
+     * Set by {@code cafeai-identity}'s middleware ({@code Auth.bearer(...)}) after it has
+     * validated the caller's token; nothing else sets it.
+     *
+     * <pre>{@code
+     *   app.filter(Auth.bearer(issuer, "orders-api"));
+     *   app.get("/me", (req, res, next) ->
+     *       res.json(Map.of("subject", req.identity().orElseThrow().subject())));
+     * }</pre>
+     */
+    default Optional<Identity> identity() {
+        return Optional.ofNullable(
+                attribute(Attributes.IDENTITY, Identity.class));
     }
 
     // ── CafeAI Extensions (no Express equivalent) ─────────────────────────────

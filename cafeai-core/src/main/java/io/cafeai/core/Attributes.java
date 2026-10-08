@@ -30,6 +30,13 @@ public final class Attributes {
      */
     public static final String AUTH_PRINCIPAL   = "cafeai.auth.principal";
 
+    /**
+     * The verified identity of the caller, set by {@code cafeai-identity}'s middleware.
+     * Read it with {@code req.identity()} rather than through this key.
+     * Type: {@link io.cafeai.core.identity.Identity}
+     */
+    public static final String IDENTITY         = "cafeai.identity";
+
     // -- Guardrails ------------------------------------------------------------
 
     /**

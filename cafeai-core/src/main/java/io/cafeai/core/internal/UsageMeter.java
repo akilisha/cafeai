@@ -100,6 +100,12 @@ final class UsageMeter {
         };
     }
 
+    /** The request this thread is running a filter or handler for, or {@code null}. */
+    static HelidonRequest currentRequest() {
+        Scope s = CURRENT.get();
+        return s == null ? null : s.req();
+    }
+
     private Scope scope() {
         Scope s = CURRENT.get();
         return s != null && s.meter() == this ? s : null;

@@ -17,6 +17,7 @@ include(
     'cafeai-mcp',
     'cafeai-dev',
     'cafeai-flight',
+    'cafeai-identity',
     'cafeai-sentinel',
     'cafeai-test',
     'cafeai-examples'
