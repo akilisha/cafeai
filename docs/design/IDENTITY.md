@@ -347,6 +347,20 @@ issuers (§12).
 - **Keycloak for integration tests.** It's open source, a CNCF project, OpenID-certified, and
   supports token exchange and device grant, so every flow is tested against a real issuer.
   This is a test choice only; nothing in CafeAI depends on it.
+- **Kimi as a real-world reference.** Kimi Code CLI's terminal login (`kimi login`) is a public
+  RFC 8628 device-code flow, and Kimi's API takes its OAuth token only as
+  `Authorization: Bearer`, rejecting it as `x-api-key`. Kimi's terms reserve OAuth sign-in for
+  its own CLI and IDE extension, forbid changing the client identifier, and expect third-party
+  tools to use an API key. So CafeAI never signs in with Kimi's client id and never reads the
+  token Kimi Code saves. Within those terms:
+  1. **Device flow, compared against the reference.** Record a `kimi login` session run by a
+     person: endpoints, polling interval, `slow_down` and expiry handling, refresh. Check that the
+     §6.4 helper behaves the same against Keycloak.
+  2. **Credential header.** Call Kimi with a Kimi platform API key through the per-request
+     credential (§8.1). Check that the credential arrives in exactly the header Kimi expects, with
+     no stray `x-api-key` next to it. This is the Anthropic-protocol case from §8.1.
+  3. **End to end, later.** If Kimi opens OAuth client registration to third parties: terminal
+     login, token, model call. Not allowed until then.
 - **Security tests:** expired, not-yet-valid, wrong-issuer, wrong-audience and unsigned tokens;
   a forged `state`; a replayed code; a conversation id belonging to someone else; retrieval
   reaching the store under the caller's exchanged identity; startup with a store that can't
