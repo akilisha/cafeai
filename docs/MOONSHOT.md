@@ -16,6 +16,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 8 | [Streaming that never shows flagged text](#8-streaming-that-never-shows-flagged-text) | **Built** as screened streaming (`cafeai-core`, unreleased) |
 | 9 | [Reload while you edit](#9-reload-while-you-edit) | **Built** (`cafeai-dev`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
+| 12 | [A low-code Java tool for IntelliJ and VS Code](#12-a-low-code-java-tool-for-intellij-and-vs-code) | Idea; waits on identity (ROADMAP-19) |
 
 (The numbers are from the list these were picked from, kept so they stay stable.)
 
@@ -644,39 +645,39 @@ lazy initialisation, so it is longer than the "started" line frameworks log
 (Helidon logs ~0.86 s since JVM start for CafeAI). While the throughput suite
 below ran, one copy job of mine ran on the server for a few seconds (during
 CafeAI's warm-up or its first 20,000 req/s step, whose numbers look normal);
-the server should be left alone during runs.
-
-**Throughput with the cache** (raw files: `bench/results/2026-10-01-do-c4-run5-aot`
-and `...-run6-aot-repeat`). The same suite as #2, each app started with its
-cache (`-XX:AOTMode=on`). Requests that wait 100 ms: unchanged within run-to-run
-variance for all four apps. Plain JSON: Vert.x unchanged (~111k), but CafeAI,
-Micronaut and Spring MVC came in 4–8% lower than their uncached rounds. A
-cross-session comparison could be drift, so CafeAI was rerun with and without
-the cache interleaved in one session:
-
-| CafeAI, plain JSON | at 100k req/s requested | at 120k req/s requested |
-|---|---|---|
-| no cache, run 1 | 96,108/s | 97,975/s |
-| **cache, run 1** | **92,202/s** | **93,035/s** |
-| no cache, run 2 | 97,330/s | 95,058/s |
-| **cache, run 2** | **86,324/s** | **87,796/s** |
-
-With the earlier cached run (~89,000/s), all three cached runs fall below all
-three uncached ones: **the cache costs CafeAI about 5–10% of its peak JSON
-throughput.** Waiting requests are unaffected at 4,000 connections and perhaps
-3–5% lower at 8,000.
-
-*Why* is not established. JDK 25's cache also stores method profiles from the
-training run (JEP 515), and the training here was tiny — ~500 requests from one
-`curl` loop, nothing like 100,000 req/s over 256 connections. Profiles from an
-unrepresentative workload could steer the JIT to worse code under real load.
-The test: train under realistic `wrk2` load and rerun.
-
-**So, for #3:** the AOT cache is a startup tool with a small price — 2.6×
-faster to first response and ~20% less startup memory, against 5–10% of peak
-JSON throughput unless better training removes it. Worth it for services that
-restart often or scale to zero; worth measuring first for long-running services
-pushed to their limit. Either way it is no CafeAI differentiator: every JVM
+the server should be left alone during runs.
+
+**Throughput with the cache** (raw files: `bench/results/2026-10-01-do-c4-run5-aot`
+and `...-run6-aot-repeat`). The same suite as #2, each app started with its
+cache (`-XX:AOTMode=on`). Requests that wait 100 ms: unchanged within run-to-run
+variance for all four apps. Plain JSON: Vert.x unchanged (~111k), but CafeAI,
+Micronaut and Spring MVC came in 4–8% lower than their uncached rounds. A
+cross-session comparison could be drift, so CafeAI was rerun with and without
+the cache interleaved in one session:
+
+| CafeAI, plain JSON | at 100k req/s requested | at 120k req/s requested |
+|---|---|---|
+| no cache, run 1 | 96,108/s | 97,975/s |
+| **cache, run 1** | **92,202/s** | **93,035/s** |
+| no cache, run 2 | 97,330/s | 95,058/s |
+| **cache, run 2** | **86,324/s** | **87,796/s** |
+
+With the earlier cached run (~89,000/s), all three cached runs fall below all
+three uncached ones: **the cache costs CafeAI about 5–10% of its peak JSON
+throughput.** Waiting requests are unaffected at 4,000 connections and perhaps
+3–5% lower at 8,000.
+
+*Why* is not established. JDK 25's cache also stores method profiles from the
+training run (JEP 515), and the training here was tiny — ~500 requests from one
+`curl` loop, nothing like 100,000 req/s over 256 connections. Profiles from an
+unrepresentative workload could steer the JIT to worse code under real load.
+The test: train under realistic `wrk2` load and rerun.
+
+**So, for #3:** the AOT cache is a startup tool with a small price — 2.6×
+faster to first response and ~20% less startup memory, against 5–10% of peak
+JSON throughput unless better training removes it. Worth it for services that
+restart often or scale to zero; worth measuring first for long-running services
+pushed to their limit. Either way it is no CafeAI differentiator: every JVM
 framework gets the same trade.
 ---
 
@@ -983,3 +984,15 @@ cannot afford.
 - **So:** a credible demo and an honest write-up ("helmet and cors, byte for byte
   identical to Express, at a measured cost"), not a feature to ship. If it ever
   became one, it would be an opt-in module limited to a tested list of packages.
+
+---
+
+## 12. A low-code Java tool for IntelliJ and VS Code
+
+**The pitch:** build a working Java AI app without writing the plumbing, through a web-based
+interface that works alongside IntelliJ IDEA and VS Code alike.
+
+**Status:** an idea, and deliberately not started. It depends on identity
+(`docs/design/IDENTITY.md`, ROADMAP-19): a tool that builds apps for a company is only useful once
+those apps can serve more than one person, with each call traceable to someone and revocable.
+Identity is designed on its own terms and owes nothing to this idea; this one waits for it.
