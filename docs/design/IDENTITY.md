@@ -547,6 +547,33 @@ issuers (§12).
   reaching the store under the caller's exchanged identity; startup with a store that can't
   enforce access; a call with no identity under per-user credentials.
 
+As built:
+- **Keycloak 26.4, in Docker, configured by an imported realm**
+  (`src/test/resources/keycloak/cafeai-realm.json`), with no admin steps.
+  `KeycloakIntegrationTest` passes for:
+  - bearer validation, including groups and names from Keycloak's mappers, and `require`;
+  - RFC 8693 token exchange, where the model endpoint gets a Keycloak-issued token naming the
+    same user, for `model-server`, requested by `orders-api`;
+  - client credentials;
+  - the full browser sign-in through Keycloak's own login page, including token renewal and
+    sign-out at Keycloak;
+  - the device grant through Keycloak's own device and login pages.
+
+  Every flow worked against Keycloak as built. The only problems were in the test client:
+  - Java's `CookieManager` won't send `Secure` cookies over http, though browsers do on
+    localhost; a small cookie jar stands in.
+  - A device-page walk that silently missed a step left the CLI polling until the code expired
+    (ten minutes by default). The realm now uses a 60-second code, and the test has its own
+    timeout.
+- **Not run against Keycloak:** the MCP endpoint. Its audience must be the endpoint's URL, which
+  depends on the test's port, and the realm is fixed at import. MCP is tested against the fake
+  issuer (§6.5).
+- **Kimi:** `KimiCredentialsTest` makes a real chat call through `withBaseUrl` and a per-call
+  credential when `KIMI_API_KEY` and `KIMI_MODEL` are set, and is skipped otherwise. It covers
+  Kimi's OpenAI-compatible endpoint. The Anthropic-protocol case (item 2 above) waits for
+  `withCredentials` on the Anthropic provider (§13). Comparing the device flow with a recorded
+  `kimi login` (item 1) needs a person to run `kimi login`.
+
 ## 13. Deferred
 
 These can be added later without changing the design:

@@ -30,4 +30,8 @@ dependencies {
 
     testImplementation project(':cafeai-mcp')
     testImplementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.ext.jacksonVersion}"
+
+    // Phase 11: every flow against a real Keycloak (skipped where Docker isn't available).
+    testImplementation "org.testcontainers:testcontainers:${rootProject.ext.testcontainersVersion}"
+    testImplementation "org.testcontainers:junit-jupiter:${rootProject.ext.testcontainersVersion}"
 }
