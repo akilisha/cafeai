@@ -1,5 +1,8 @@
 package io.cafeai.core.routing;
 
+import io.cafeai.core.identity.Identity;
+
+import java.util.Optional;
 import java.util.concurrent.Flow;
 
 /**
@@ -60,6 +63,18 @@ public interface WsSession {
      * Returns {@code true} if the connection is currently open.
      */
     boolean isOpen();
+
+    /**
+     * The verified identity of whoever opened the connection: the identity the upgrade request
+     * carried through the app's filters ({@code Auth.bearer}, browser sign-in). Empty for an
+     * anonymous connection. {@code Identity.current()} returns the same inside every callback.
+     *
+     * <p>When the identity expires, the connection is closed with {@code 1008} (policy
+     * violation): a client signs in again and reconnects.
+     */
+    default Optional<Identity> identity() {
+        return Optional.empty();
+    }
 
     // -- Token streaming ------------------------------------------------------
 

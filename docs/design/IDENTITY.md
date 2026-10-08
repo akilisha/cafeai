@@ -491,6 +491,20 @@ issuers (§12).
 - **WebSockets and long streams** are checked when they open, but can outlive the token. A
   WebSocket is closed (or asked to re-authenticate) when its identity expires. A stream carries
   the credential obtained when it started, and a new stream needs a valid identity.
+
+  As built:
+  - The app's filters (`Auth.bearer`, browser sign-in) run on the WebSocket upgrade request,
+    so an upgrade without a valid identity is refused like any request. Verified, since it is
+    Helidon's routing that decides it.
+  - Helidon calls `onHttpUpgrade` inside the filters, while the request is in scope. The scope
+    is taken there, but only if it belongs to the very request being upgraded, and every
+    callback of that connection runs in it. So `WsSession.identity()` and `Identity.current()`
+    name the caller, and conversation memory, usage, audit records and per-caller model
+    credentials work inside WebSocket handlers.
+  - When the identity expires, the connection is closed with `1008` (policy violation), by a
+    timer, or at the next message if that comes first. The client signs in again and
+    reconnects; there is no re-authentication over an open socket.
+  - Fixed on the way: `WsSession.isOpen()` always returned `true`.
 - **Revocation.** Access tokens are short-lived and validated locally. Disabling someone at the
   issuer cuts them off within the token lifetime, and signing out ends the server-side session
   immediately.

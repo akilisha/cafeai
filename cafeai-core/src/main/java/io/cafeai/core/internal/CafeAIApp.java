@@ -2683,7 +2683,7 @@ public final class CafeAIApp implements CafeAI {
                             dispatchError(e, ctx.req(), ctx.res());
                         }
                     });
-                } catch (Exception e) {
+                    } catch (Exception e) {
                     dispatchError(e, ctx.req(), ctx.res());
                 }
                 finishIfStreamed(chain, ctx);
@@ -2802,36 +2802,75 @@ public final class CafeAIApp implements CafeAI {
         return new io.helidon.websocket.WsListener() {
 
             @Override
+            public java.util.Optional<io.helidon.http.Headers> onHttpUpgrade(
+                    io.helidon.http.HttpPrologue prologue, io.helidon.http.Headers headers) {
+                WsScopes.upgrading(prologue);
+                return java.util.Optional.empty();
+            }
+
+            @Override
             public void onOpen(io.helidon.websocket.WsSession helidonSession) {
-                handler.onOpen(new HelidonWsSession(helidonSession));
+                WsScopes.State state = WsScopes.opened(helidonSession,
+                        () -> closeExpired(helidonSession));
+                inScope(state, () -> handler.onOpen(new HelidonWsSession(helidonSession, state)));
             }
 
             @Override
             public void onMessage(io.helidon.websocket.WsSession helidonSession,
                                   String text, boolean last) {
-                handler.onMessage(new HelidonWsSession(helidonSession), text);
+                WsScopes.State state = live(helidonSession);
+                if (state == null) return;
+                inScope(state, () -> handler.onMessage(new HelidonWsSession(helidonSession, state), text));
             }
 
             @Override
             public void onMessage(io.helidon.websocket.WsSession helidonSession,
                                   io.helidon.common.buffers.BufferData buffer, boolean last) {
-                handler.onBinaryMessage(new HelidonWsSession(helidonSession),
-                        buffer.readBytes());
+                WsScopes.State state = live(helidonSession);
+                if (state == null) return;
+                byte[] data = buffer.readBytes();
+                inScope(state, () -> handler.onBinaryMessage(new HelidonWsSession(helidonSession, state), data));
             }
 
             @Override
             public void onClose(io.helidon.websocket.WsSession helidonSession,
                                 int status, String reason) {
-                handler.onClose(
-                        new HelidonWsSession(helidonSession),
-                        status,
-                        reason);
+                WsScopes.State state = WsScopes.OPEN.get(helidonSession);
+                WsScopes.closed(helidonSession);
+                WsScopes.State s = state != null ? state : new WsScopes.State(null);
+                s.closed = true;
+                inScope(s, () -> handler.onClose(new HelidonWsSession(helidonSession, s), status, reason));
             }
 
             @Override
             public void onError(io.helidon.websocket.WsSession helidonSession,
                                 Throwable error) {
-                handler.onError(new HelidonWsSession(helidonSession), error);
+                WsScopes.State state = WsScopes.OPEN.get(helidonSession);
+                WsScopes.State s = state != null ? state : new WsScopes.State(null);
+                inScope(s, () -> handler.onError(new HelidonWsSession(helidonSession, s), error));
+            }
+
+            /** The connection's state, or {@code null} once its identity expired (it is closed). */
+            private WsScopes.State live(io.helidon.websocket.WsSession helidonSession) {
+                WsScopes.State state = WsScopes.OPEN.get(helidonSession);
+                if (state == null) state = new WsScopes.State(null);
+                if (state.expired()) {
+                    closeExpired(helidonSession);
+                    return null;
+                }
+                return state;
+            }
+
+            private void closeExpired(io.helidon.websocket.WsSession helidonSession) {
+                WsScopes.State state = WsScopes.OPEN.get(helidonSession);
+                if (state != null) state.closed = true;
+                helidonSession.close(WsScopes.EXPIRED, "Sign-in expired");
+            }
+
+            private void inScope(WsScopes.State state, Runnable callback) {
+                try (var in = UsageMeter.enterScope(state.scope)) {
+                    callback.run();
+                }
             }
         };
     }
@@ -2840,10 +2879,12 @@ public final class CafeAIApp implements CafeAI {
             implements WsSession {
 
         private final io.helidon.websocket.WsSession delegate;
+        private final WsScopes.State state;
         private final String id;
 
-        HelidonWsSession(io.helidon.websocket.WsSession delegate) {
+        HelidonWsSession(io.helidon.websocket.WsSession delegate, WsScopes.State state) {
             this.delegate = delegate;
+            this.state = state;
             this.id = Integer.toHexString(System.identityHashCode(delegate));
         }
 
@@ -2859,6 +2900,7 @@ public final class CafeAIApp implements CafeAI {
 
         @Override
         public void close(int code, String reason) {
+            state.closed = true;
             delegate.close(code, reason);
         }
 
@@ -2869,7 +2911,12 @@ public final class CafeAIApp implements CafeAI {
 
         @Override
         public boolean isOpen() {
-            return true;
+            return !state.closed;
+        }
+
+        @Override
+        public java.util.Optional<io.cafeai.core.identity.Identity> identity() {
+            return state.identity();
         }
     }
 }

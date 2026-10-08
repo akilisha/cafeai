@@ -78,6 +78,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `/.well-known/oauth-protected-resource/mcp` serves RFC 9728 metadata naming the issuer, so MCP
   clients find where to sign in. The endpoint sits outside CafeAI's filters, so `Auth.bearer`
   never covered it; an app that serves verified callers now refuses to start with it unprotected.
+- **WebSockets know their caller.** `WsSession.identity()` is the verified identity the upgrade
+  request carried through the app's filters, and every WebSocket callback runs as that request,
+  so `Identity.current()`, conversation memory, usage, audit records and per-caller model
+  credentials work inside handlers. When the identity expires, the connection is closed with
+  `1008`. `WsSession.isOpen()` now reports `false` once a connection is closed; it always
+  returned `true`.
 - **`session.regenerate()`** moves a server-side session to a new id with its attributes and
   destroys the old one: call it whenever a session's privilege changes. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
