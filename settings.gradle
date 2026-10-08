@@ -31,5 +31,6 @@ include(
     'capstones:support-desk',
     'capstones:meridian-qualify',
     'capstones:acme-claims',
-    'capstones:cluster-sentinel'
+    'capstones:cluster-sentinel',
+    'capstones:acme-desk'
 )

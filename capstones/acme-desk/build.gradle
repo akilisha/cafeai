@@ -1,0 +1,33 @@
+// ============================================================
+//  Capstone 7 — acme-desk
+//  A team knowledge desk where what you can read decides what the
+//  AI tells you: identity through browser sign-in, a WebSocket chat,
+//  RAG under PostgreSQL row-level security, per-caller model calls
+//  (token exchange), and an MCP tool for agents with their own
+//  identity. Needs docker-compose up -d (Keycloak + pgvector) and a
+//  local Ollama.
+// ============================================================
+
+description = 'Capstone: a knowledge desk whose answers depend on who is asking — identity end to end.'
+
+apply from: "$rootDir/gradle/capstone.gradle"
+
+dependencies {
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-identity')
+    implementation project(':cafeai-rag')
+    implementation project(':cafeai-mcp')
+    implementation "org.postgresql:postgresql:${rootProject.ext.postgresqlVersion}"
+}
+
+application {
+    mainClass = 'io.cafeai.desk.DeskApp'
+}
+
+// The whole story without a browser: alice and bob ask the same question, an agent asks over MCP.
+tasks.register('demo', JavaExec) {
+    group = 'application'
+    description = 'Runs the acme-desk story end to end against the running Keycloak, PostgreSQL and Ollama.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.cafeai.desk.DeskDemo'
+}

@@ -1,0 +1,116 @@
+{
+  "realm": "acme-desk",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 600,
+  "groups": [
+    { "name": "finance" },
+    { "name": "staff" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@acme.example",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Liddell",
+      "credentials": [ { "type": "password", "value": "alice", "temporary": false } ],
+      "groups": [ "/finance" ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@acme.example",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "credentials": [ { "type": "password", "value": "bob", "temporary": false } ],
+      "groups": [ "/staff" ]
+    },
+    {
+      "username": "service-account-desk-agent",
+      "enabled": true,
+      "serviceAccountClientId": "desk-agent",
+      "groups": [ "/staff" ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "desk-web",
+      "name": "The desk's browser sign-in",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "desk-web-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [ "http://localhost:8090/*" ],
+      "webOrigins": [ "http://localhost:8090" ],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:8090/*" },
+      "protocolMappers": [
+        {
+          "name": "desk-api audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "desk-api", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+          "config": { "claim.name": "groups", "full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "desk-api",
+      "name": "The desk as a client: exchanges a caller's token for the model gateway",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "desk-api-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": { "standard.token.exchange.enabled": "true" },
+      "protocolMappers": [
+        {
+          "name": "model-gateway audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "model-gateway", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+          "config": { "claim.name": "groups", "full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "clientId": "model-gateway",
+      "name": "Stands for the company's model endpoint",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "model-gateway-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "desk-agent",
+      "name": "An AI agent that uses the desk over MCP, with its own identity (staff)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "desk-agent-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "MCP endpoint audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "http://localhost:8090/mcp", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "desk-api audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "desk-api", "access.token.claim": "true", "id.token.claim": "false" }
+        },
+        {
+          "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+          "config": { "claim.name": "groups", "full.path": "false", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true" }
+        }
+      ]
+    }
+  ]
+}

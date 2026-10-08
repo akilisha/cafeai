@@ -17,6 +17,8 @@ run those harnesses.
 | 4 | `invoice-processor` | AP / vendor invoices | batch job (no HTTP), `app.vision()` extraction, a reconciliation agent, Gmail |
 | 5 | `cluster-sentinel` | Kubernetes/OpenShift incident response | `cafeai-sentinel` — rule-based triage, agentic investigation, secret/PII redaction, SSE dashboard (ROADMAP-18) |
 | 6 | `nova-tutor` | AI tutor / presenter | **spec only** — see `docs/roadmap/CAPSTONE-5-nova-tutor.md` |
+| 7 | `acme-desk` | Team knowledge desk | identity end to end: browser sign-in, a WebSocket chat as the caller, RAG under PostgreSQL row-level security, per-caller model calls (token exchange), an MCP tool for agents with their own identity |
+| 7 | `acme-desk` | Team knowledge desk | identity end to end: browser sign-in, a WebSocket chat as the caller, RAG under PostgreSQL row-level security, per-caller model calls (token exchange), an MCP tool for agents with their own identity |
 
 ## Running
 
@@ -28,9 +30,11 @@ From the repository root:
 ./gradlew :capstones:acme-claims:run          # needs docker-compose up -d (Redis + Chroma)
 ./gradlew :capstones:invoice-processor:run -Pdry
 SENTINEL_NAMESPACE=demo ./gradlew :capstones:cluster-sentinel:run   # see its own README for cluster setup
+./gradlew :capstones:acme-desk:demo           # needs docker-compose up -d (Keycloak + pgvector) and Ollama
 ```
 
-Each needs `OPENAI_API_KEY` (or a local Ollama for 1–3). `acme-claims` and the
+Capstones 1–5 need `OPENAI_API_KEY` (or a local Ollama for 1–3); `acme-desk` uses no API
+key at all, only Ollama and the caller's own identity. `acme-claims` and the
 Ollama-backed apps ship a `docker-compose.yml`. `invoice-processor` needs Gmail
 OAuth2 credentials placed under its `src/main/resources/credentials/` (gitignored).
 
@@ -52,6 +56,8 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-security:0.6.0'
     implementation 'com.akilisha.oss:cafeai-connect:0.6.0'
     implementation 'com.akilisha.oss:cafeai-sentinel:0.6.0'   // cluster-sentinel only
+    implementation 'com.akilisha.oss:cafeai-identity:0.6.0'   // acme-desk only
+    implementation 'com.akilisha.oss:cafeai-mcp:0.6.0'        // acme-desk only
     // invoice-processor also: the Gmail API client + jakarta.mail
 }
 ```

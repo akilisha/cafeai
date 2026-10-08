@@ -1,0 +1,27 @@
+# acme-desk's infrastructure: Keycloak on :8280 (realm acme-desk: alice/alice in finance,
+# bob/bob in staff, and the desk-agent service account in staff) and PostgreSQL with pgvector
+# on :5433. Development only: plain http, demo passwords.
+#
+#   docker compose -f capstones/acme-desk/docker-compose.yml up -d
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm", "--http-port=8280"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8280:8280"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: desk
+      POSTGRES_USER: desk_owner
+      POSTGRES_PASSWORD: desk_owner
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
