@@ -182,6 +182,21 @@ Device authorization grant: the CLI shows a code and a link, and the user signs 
 on any device. This also works over SSH with no local browser. Tokens are cached for the user and
 refreshed. It's for any Java tool or JBang script that calls a CafeAI service.
 
+As built, `DeviceLogin.of(issuer, clientId).scope(...).accessToken()`:
+- **A public client** (no secret: a program on someone's machine can't keep one), naming itself
+  with `client_id` (RFC 6749 2.3.1).
+- **Polls as RFC 8628 3.5 says:** at the issuer's interval; `authorization_pending` keeps
+  waiting, `slow_down` adds five seconds to every later wait, and `access_denied` and
+  `expired_token` end it. It also stops by itself when the code's lifetime runs out.
+- **Signs in once:** tokens are cached in `~/.cafeai/tokens/` (one file per issuer, client and
+  scope, with a hashed name), written to a temporary file and moved into place, and readable by
+  the owner only where the file system has permissions. On Windows the user's profile directory
+  is already private, so the owner-only test is skipped there. An expired token is renewed with
+  the refresh token, and a sign-in that can't be renewed asks the user again. `signOut()` deletes
+  the file.
+- **The prompt is pluggable** (`onPrompt`): by default two lines on standard error, with
+  `verification_uri_complete` too when the issuer gives one.
+
 ### 6.5 MCP
 The MCP authorization spec uses OAuth 2.1 and requires protected resource metadata (RFC 9728).
 `cafeai-mcp` gets both from this module: `bearer(issuer)` protects the MCP endpoint, and the

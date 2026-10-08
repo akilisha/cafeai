@@ -89,7 +89,7 @@ public final class BrowserLogin implements Middleware {
     BrowserLogin(Issuer issuer, String clientId, String clientSecret, String redirectUri) {
         this.issuer = Objects.requireNonNull(issuer, "issuer");
         this.clientId = clientId;
-        this.tokens = new TokenEndpoint(issuer, clientId, clientSecret);
+        this.tokens = TokenEndpoint.confidential(issuer, clientId, clientSecret);
         this.authorizationEndpoint = issuer.endpoint("authorization_endpoint").orElseThrow(() ->
                 new IdentityException("Issuer " + issuer.id() + " publishes no authorization_endpoint"));
         URI uri;

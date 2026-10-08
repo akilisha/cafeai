@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -41,59 +42,114 @@ final class TokenEndpoint {
         @Override public String toString() { return "Token[expiresAt=" + expiresAt + "]"; }
     }
 
+    /**
+     * The endpoint refused, with an OAuth error code ({@code invalid_grant},
+     * {@code authorization_pending}, ...: RFC 6749 5.2, RFC 8628 3.5).
+     */
+    static final class Refused extends IdentityException {
+        final String error;
+
+        Refused(String message, String error) {
+            super(message);
+            this.error = error;
+        }
+    }
+
     private final URI uri;
+    private final URI deviceUri;
     private final String clientId;
     private final String clientSecret;
 
-    TokenEndpoint(Issuer issuer, String clientId, String clientSecret) {
+    /** {@code clientSecret} is {@code null} for a public client. */
+    private TokenEndpoint(Issuer issuer, String clientId, String clientSecret) {
         Objects.requireNonNull(issuer, "issuer");
         this.uri = issuer.endpoint("token_endpoint").orElseThrow(() -> new IdentityException(
                 "Issuer " + issuer.id() + " publishes no token_endpoint in its metadata"));
+        this.deviceUri = issuer.endpoint("device_authorization_endpoint").orElse(null);
         this.clientId = requireText(clientId, "clientId");
-        this.clientSecret = requireText(clientSecret, "clientSecret");
+        this.clientSecret = clientSecret;
+    }
+
+    /**
+     * A public client, with no secret to keep (a CLI on someone's machine can't keep one): it
+     * names itself with {@code client_id} in each request (RFC 6749 2.3.1, RFC 8628 3.1).
+     */
+    static TokenEndpoint publicClient(Issuer issuer, String clientId) {
+        return new TokenEndpoint(issuer, clientId, null);
+    }
+
+    /** A confidential client, authenticating with its secret (HTTP Basic). */
+    static TokenEndpoint confidential(Issuer issuer, String clientId, String clientSecret) {
+        return new TokenEndpoint(issuer, clientId, requireText(clientSecret, "clientSecret"));
     }
 
     /**
      * Requests a token with {@code form} (which names the grant).
      *
-     * @throws IdentityException if the endpoint can't be reached or refuses
+     * @throws Refused if the endpoint refuses, naming its OAuth error
+     * @throws IdentityException if the endpoint can't be reached or answers nonsense
      */
     Token request(Map<String, String> form, Instant now) {
-        String body = form.entrySet().stream()
-                .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
-                .collect(Collectors.joining("&"));
-        String basic = Base64.getEncoder().encodeToString(
-                (encode(clientId) + ":" + encode(clientSecret)).getBytes(StandardCharsets.UTF_8));
-        HttpResponse<String> response;
-        try {
-            response = HTTP.send(HttpRequest.newBuilder(uri)
-                            .timeout(TIMEOUT)
-                            .header("Content-Type", "application/x-www-form-urlencoded")
-                            .header("Accept", "application/json")
-                            .header("Authorization", "Basic " + basic)
-                            .POST(HttpRequest.BodyPublishers.ofString(body))
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IdentityException("Interrupted while requesting a token from " + uri, e);
-        } catch (Exception e) {
-            throw new IdentityException("Could not request a token from " + uri + ": " + e.getMessage(), e);
-        }
-
-        JsonObject json = parse(response.body());
-        if (response.statusCode() != 200) {
-            // RFC 6749 5.2: "error" names what went wrong; the description is the issuer's own.
-            String error = json == null ? "HTTP " + response.statusCode()
-                    : json.stringValue("error").orElse("HTTP " + response.statusCode());
-            throw new IdentityException("The token endpoint " + uri + " refused the request: " + error);
-        }
-        if (json == null || json.stringValue("access_token").isEmpty()) {
+        JsonObject json = post(uri, form, "a token");
+        if (json.stringValue("access_token").isEmpty()) {
             throw new IdentityException("The token endpoint " + uri + " returned no access_token");
         }
         long expiresIn = json.longValue("expires_in").orElse(300L);
         return new Token(json.stringValue("access_token").get(), now.plusSeconds(expiresIn),
                 json.stringValue("refresh_token").orElse(null), json.stringValue("id_token").orElse(null));
+    }
+
+    /**
+     * Starts a device authorization (RFC 8628 3.1): the device code, the code the user enters,
+     * and where they enter it.
+     *
+     * @throws IdentityException if the issuer has no device authorization endpoint, or refuses
+     */
+    JsonObject deviceAuthorization(Map<String, String> form) {
+        if (deviceUri == null) {
+            throw new IdentityException("The issuer publishes no device_authorization_endpoint: "
+                    + "it doesn't support signing in from a terminal (RFC 8628)");
+        }
+        return post(deviceUri, form, "a device code");
+    }
+
+    /** POSTs {@code form} as this client and returns the JSON answer of a {@code 200}. */
+    private JsonObject post(URI target, Map<String, String> form, String what) {
+        Map<String, String> fields = new LinkedHashMap<>(form);
+        HttpRequest.Builder request = HttpRequest.newBuilder(target)
+                .timeout(TIMEOUT)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "application/json");
+        if (clientSecret != null) {
+            String basic = Base64.getEncoder().encodeToString(
+                    (encode(clientId) + ":" + encode(clientSecret)).getBytes(StandardCharsets.UTF_8));
+            request.header("Authorization", "Basic " + basic);
+        } else {
+            fields.put("client_id", clientId);
+        }
+        String body = fields.entrySet().stream()
+                .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
+                .collect(Collectors.joining("&"));
+
+        HttpResponse<String> response;
+        try {
+            response = HTTP.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IdentityException("Interrupted while requesting " + what + " from " + target, e);
+        } catch (Exception e) {
+            throw new IdentityException("Could not request " + what + " from " + target + ": " + e.getMessage(), e);
+        }
+        JsonObject json = parse(response.body());
+        if (response.statusCode() != 200) {
+            // RFC 6749 5.2: "error" names what went wrong; the description is the issuer's own.
+            String error = json == null ? "HTTP " + response.statusCode()
+                    : json.stringValue("error").orElse("HTTP " + response.statusCode());
+            throw new Refused(target + " refused the request: " + error, error);
+        }
+        if (json == null) throw new IdentityException(target + " answered with something other than a JSON object");
+        return json;
     }
 
     private static JsonObject parse(String body) {

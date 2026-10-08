@@ -45,7 +45,7 @@ public final class OAuthCredentials {
      * Combine with the audit trail ({@code app.audit}) to tie each call to the caller it served.
      */
     public static ClientCredentials clientCredentials(Issuer issuer, String clientId, String clientSecret) {
-        return new ClientCredentials(new TokenEndpoint(issuer, clientId, clientSecret), Clock.systemUTC());
+        return new ClientCredentials(TokenEndpoint.confidential(issuer, clientId, clientSecret), Clock.systemUTC());
     }
 
     /**
@@ -61,7 +61,7 @@ public final class OAuthCredentials {
      */
     public static TokenExchange tokenExchange(Issuer issuer, String clientId, String clientSecret,
                                               String audience) {
-        return new TokenExchange(new TokenEndpoint(issuer, clientId, clientSecret), audience, Clock.systemUTC());
+        return new TokenExchange(TokenEndpoint.confidential(issuer, clientId, clientSecret), audience, Clock.systemUTC());
     }
 
     /** Client credentials: one token for the app, renewed before it expires. */

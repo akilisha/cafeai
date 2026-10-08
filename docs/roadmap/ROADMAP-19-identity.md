@@ -4,7 +4,7 @@
 > AI layer, and uses it for every outgoing call. The design, with its decisions and the reasons
 > for them, is `docs/design/IDENTITY.md`; this file tracks the work.
 >
-> **Status (2026-10-07):** 🟡 Phases 0–6 done: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in. The Keycloak half of phase 6's gate runs with phase 11.
+> **Status (2026-10-07):** 🟡 Phases 0–7 done: `Identity` in core, `Issuer`, `Auth.bearer`, `FakeIssuer`, `Auth.require`, usage per caller, audit records, conversations scoped to the caller, per-call model credentials (OAuth client credentials, token exchange), browser sign-in, terminal sign-in. The Keycloak halves of phases 6–7 run with phase 11; the comparison with a recorded `kimi login` needs a person to run it.
 
 ---
 
@@ -36,7 +36,7 @@ CafeAI behaves exactly as before.
 | 4 | ✅ Conversation memory bound to issuer + subject; `RequestScope` carries the request onto other threads | another identity naming the conversation gets its own, never the first one's |
 | 5 | ✅ Outbound `Credentials` (`staticKey`, `clientCredentials`, `tokenExchange`) through LangChain4j's per-request header supplier; `OpenAI.withBaseUrl`; fail closed with no identity; `429`s passed through | per-request header verified for chat and streaming (including the streaming-thread test); one shared client per provider |
 | 6 | ✅ Browser sign-in: code flow + PKCE, tokens held server-side in the session, refresh, sign-out, CSRF protection | full sign-in against the fake issuer and Keycloak |
-| 7 | CLI helper: device authorization grant (RFC 8628) | sign-in from a terminal against Keycloak; compared with a recorded `kimi login` |
+| 7 | ✅ CLI helper: device authorization grant (RFC 8628) | sign-in from a terminal against Keycloak; compared with a recorded `kimi login` |
 | 8 | RAG under the user's identity: the store receives the exchanged token; stores that can't enforce access are refused unless declared public; `PgVectorStoreAdapter` passes claims for row-level security | refusal at startup tested; row-level security enforced in PostgreSQL |
 | 9 | MCP: `bearer` on the MCP endpoint plus protected resource metadata (RFC 9728) | an MCP client discovers the issuer and connects |
 | 10 | WebSockets and long streams at token expiry | a WebSocket closes when its identity expires |

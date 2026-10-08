@@ -23,6 +23,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
@@ -34,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -79,6 +81,30 @@ public final class FakeIssuer implements AutoCloseable {
 
     /** A refresh token: whose, and for which client. Rotated on every use. */
     private record Refresh(String clientId, String subject) { }
+
+    private final Set<String> publicClients = ConcurrentHashMap.newKeySet();
+    private final Map<String, Device> devices = new ConcurrentHashMap<>();   // by device code
+    private volatile Duration deviceCodeLifetime = Duration.ofMinutes(10);
+    private volatile boolean slowDownNextPoll;
+
+    /** A device authorization (RFC 8628) waiting for the user, then approved or denied. */
+    private static final class Device {
+        final String clientId;
+        final String userCode;
+        final String scope;
+        final Instant expiresAt;
+        volatile String approvedAs;
+        volatile boolean denied;
+        volatile boolean used;   // a device code ends its life once: success, denial or expiry
+        int polls;
+
+        Device(String clientId, String userCode, String scope, Instant expiresAt) {
+            this.clientId = clientId;
+            this.userCode = userCode;
+            this.scope = scope;
+            this.expiresAt = expiresAt;
+        }
+    }
     private volatile SigningKey current;
     private volatile Issuer issuer;
 
@@ -92,6 +118,7 @@ public final class FakeIssuer implements AutoCloseable {
         server.createContext("/token", this::token);
         server.createContext("/authorize", this::authorize);
         server.createContext("/logout", this::endSession);
+        server.createContext("/device_authorization", this::deviceAuthorization);
         server.start();
         log.warn("FakeIssuer started at {}. It signs tokens for anyone; development and tests only.", id);
     }
@@ -168,6 +195,46 @@ public final class FakeIssuer implements AutoCloseable {
         return this;
     }
 
+    /**
+     * Registers a public client: one with no secret, as a CLI is, naming itself with
+     * {@code client_id}. It may use the device grant and refresh its tokens.
+     */
+    public FakeIssuer publicClient(String clientId) {
+        publicClients.add(clientId);
+        return this;
+    }
+
+    /** The user, on their own device, enters {@code userCode} and signs in as {@code subject}. */
+    public void approveDevice(String userCode, String subject) {
+        device(userCode).approvedAs = subject;
+    }
+
+    /** The user, on their own device, refuses the sign-in for {@code userCode}. */
+    public void denyDevice(String userCode) {
+        device(userCode).denied = true;
+    }
+
+    /** How long device codes stay valid (default ten minutes). */
+    public FakeIssuer deviceCodeLifetime(Duration lifetime) {
+        this.deviceCodeLifetime = lifetime;
+        return this;
+    }
+
+    /** The next device poll is answered {@code slow_down}, as an issuer polled too fast would. */
+    public void slowDownNextPoll() {
+        this.slowDownNextPoll = true;
+    }
+
+    /** How many times the device code for {@code userCode} has been polled. */
+    public int devicePolls(String userCode) {
+        return device(userCode).polls;
+    }
+
+    private Device device(String userCode) {
+        return devices.values().stream().filter(d -> d.userCode.equals(userCode)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No device authorization for " + userCode));
+    }
+
     /** Revokes every refresh token issued so far, as an administrator disabling users would. */
     public void revokeRefreshTokens() {
         refreshTokens.clear();
@@ -201,6 +268,7 @@ public final class FakeIssuer implements AutoCloseable {
                 + "\"token_endpoint\":\"" + id + "/token\","
                 + "\"authorization_endpoint\":\"" + id + "/authorize\","
                 + "\"end_session_endpoint\":\"" + id + "/logout\","
+                + "\"device_authorization_endpoint\":\"" + id + "/device_authorization\","
                 + "\"code_challenge_methods_supported\":[\"S256\"],"
                 + "\"grant_types_supported\":[\"client_credentials\","
                 + "\"urn:ietf:params:oauth:grant-type:token-exchange\"],"
@@ -228,12 +296,12 @@ public final class FakeIssuer implements AutoCloseable {
             respond(exchange, 405, "{\"error\":\"invalid_request\"}");
             return;
         }
-        String clientId = authenticatedClient(exchange.getRequestHeaders().getFirst("Authorization"));
+        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        String clientId = client(exchange, form);
         if (clientId == null) {
             respond(exchange, 401, "{\"error\":\"invalid_client\"}");
             return;
         }
-        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
         String grant = form.getOrDefault("grant_type", "");
         Jwt.Builder issued;
         if (grant.equals("client_credentials")) {
@@ -257,6 +325,26 @@ public final class FakeIssuer implements AutoCloseable {
                 return;
             }
             respondWithSignIn(exchange, clientId, code.subject(), code.nonce(), code.scope());
+            return;
+        } else if (grant.equals("urn:ietf:params:oauth:grant-type:device_code")) {
+            Device device = devices.get(form.getOrDefault("device_code", ""));
+            if (device == null || device.used || !device.clientId.equals(clientId)) {
+                respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
+                return;
+            }
+            device.polls++;
+            String error = !Instant.now().isBefore(device.expiresAt) ? "expired_token"
+                    : slowDownNextPoll ? "slow_down"
+                    : device.denied ? "access_denied"
+                    : device.approvedAs == null ? "authorization_pending" : null;
+            if (error != null) {
+                slowDownNextPoll = false;
+                if (!error.equals("authorization_pending") && !error.equals("slow_down")) device.used = true;
+                respond(exchange, 400, "{\"error\":\"" + error + "\"}");
+                return;
+            }
+            device.used = true;
+            respondWithSignIn(exchange, clientId, device.approvedAs, null, device.scope);
             return;
         } else if (grant.equals("refresh_token")) {
             Refresh refresh = refreshTokens.remove(form.getOrDefault("refresh_token", ""));
@@ -383,6 +471,39 @@ public final class FakeIssuer implements AutoCloseable {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /** The calling client: a confidential one by HTTP Basic, or a public one by {@code client_id}. */
+    private String client(HttpExchange exchange, Map<String, String> form) {
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authorization != null) return authenticatedClient(authorization);
+        String id = form.get("client_id");
+        return id != null && publicClients.contains(id) ? id : null;
+    }
+
+    /** RFC 8628 3.1-3.2: a device code, the code the user enters, and where to enter it. */
+    private void deviceAuthorization(HttpExchange exchange) throws IOException {
+        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        String clientId = client(exchange, form);
+        if (clientId == null) {
+            respond(exchange, 401, "{\"error\":\"invalid_client\"}");
+            return;
+        }
+        String deviceCode = UUID.randomUUID().toString();
+        String letters = "BCDFGHJKLMNPQRSTVWXZ";   // RFC 8628 6.1: no vowels, no look-alikes
+        StringBuilder code = new StringBuilder();
+        SecureRandom random = new SecureRandom();
+        for (int i = 0; i < 8; i++) {
+            if (i == 4) code.append('-');
+            code.append(letters.charAt(random.nextInt(letters.length())));
+        }
+        String userCode = code.toString();
+        devices.put(deviceCode, new Device(clientId, userCode, form.get("scope"), Instant.now().plus(deviceCodeLifetime)));
+        respond(exchange, 200, "{\"device_code\":\"" + deviceCode + "\","
+                + "\"user_code\":\"" + userCode + "\","
+                + "\"verification_uri\":\"" + id + "/device\","
+                + "\"verification_uri_complete\":\"" + id + "/device?user_code=" + userCode + "\","
+                + "\"expires_in\":" + deviceCodeLifetime.toSeconds() + ",\"interval\":5}");
     }
 
     private String authenticatedClient(String authorization) {
