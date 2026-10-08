@@ -1,6 +1,6 @@
-# Identity: CafeAI for more than one person
+# Identity: CafeAI beyond the API key
 
-**Status:** Draft design, nothing built
+**Status:** Design complete; being built (ROADMAP-19)
 **Date:** 7 October 2026
 **Module:** `cafeai-identity` (new), plus changes to `cafeai-core`
 
@@ -8,8 +8,14 @@
 
 ## 1. The problem
 
-CafeAI is *identityless*. It serves many concurrent requests, but every one of them reaches the
-model under a single identity: whoever's API key is in the environment.
+CafeAI was built for one way of accessing models: an API key. Companies ban static API keys
+for security reasons, so as it stands **CafeAI itself is unusable in a company**, however good
+its other features are. It works on a solo developer's laptop and nowhere that has access
+requirements.
+
+The cause is that CafeAI has no notion of identity at all. It serves many concurrent requests,
+but every one of them reaches the model under a single credential: whoever's API key is in the
+environment.
 
 - Providers read a static key when their client is built
   (`.apiKey(resolveApiKey("OPENAI_API_KEY", provider))` in `LangchainBridge`), and the client is
@@ -18,16 +24,17 @@ model under a single identity: whoever's API key is in the environment.
 - `app.usage()` counts per route, not per person.
 - Conversation memory is keyed by an id the client supplies (`.session(req.header("X-Session-Id"))`).
 
-The two ways CafeAI reaches a model today don't survive a company:
+The two ways CafeAI reaches a model today are both unacceptable in a shared environment:
 
-| Today | Why it fails in a company |
+| Today | Why it is unacceptable |
 |---|---|
-| A static API key | No accountability or traceability per person, and no way to revoke one person's access |
+| A static API key | Banned: no accountability or traceability per person, and no way to revoke one person's access |
 | A local open model per user | Large memory per user; viable only centrally, behind the same sign-in as everything else |
 
-Without identity, every other CafeAI feature (guardrails, usage, RAG, Flight, memory) serves
-an audience of one. This design gives each request a verified identity, carries it through the AI
-layer, and uses it for every outgoing call.
+**The goal is to make CafeAI usable beyond a solo developer's laptop:** in collaborative, shared
+environments whose access requirements it meets, which means access through anything other than
+API keys. This design gives each request a verified identity, carries it through the AI layer,
+and uses it for every outgoing call.
 
 ## 2. Goals and non-goals
 

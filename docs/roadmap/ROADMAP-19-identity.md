@@ -10,10 +10,15 @@
 
 ## Why this exists
 
-CafeAI is identityless. Every request reaches the model under one static key, nothing knows who
-is calling, and conversation memory is keyed by an id the client supplies. That limits every
-other feature to an audience of one. Companies need each call traceable to a person and access
-revocable centrally, through open standards (OpenID Connect, OAuth 2.0).
+CafeAI was built only for API-key access to models, and companies ban static API keys for
+security reasons. As it stands, CafeAI itself is unusable anywhere with access requirements: it
+works on a solo developer's laptop and nowhere else. It has no notion of identity: every request
+reaches the model under one static key, nothing knows who is calling, and conversation memory is
+keyed by an id the client supplies.
+
+This roadmap adds that capability, so CafeAI can be used in collaborative, shared environments
+through acceptable access (anything other than API keys), built on open standards (OpenID
+Connect, OAuth 2.0).
 
 ---
 

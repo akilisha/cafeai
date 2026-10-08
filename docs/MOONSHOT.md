@@ -16,7 +16,7 @@ Ordinary features make people stay; these are meant to make people look.
 | 8 | [Streaming that never shows flagged text](#8-streaming-that-never-shows-flagged-text) | **Built** as screened streaming (`cafeai-core`, unreleased) |
 | 9 | [Reload while you edit](#9-reload-while-you-edit) | **Built** (`cafeai-dev`, unreleased) |
 | 11 | [Express middleware on virtual threads](#11-express-middleware-on-virtual-threads) | Spike done: Tier A works, at a cost |
-| 12 | [A low-code Java tool for IntelliJ and VS Code](#12-a-low-code-java-tool-for-intellij-and-vs-code) | Idea; waits on identity (ROADMAP-19) |
+| 12 | [A low-code Java tool for IntelliJ and VS Code](#12-a-low-code-java-tool-for-intellij-and-vs-code) | Idea; after identity (ROADMAP-19) |
 
 (The numbers are from the list these were picked from, kept so they stay stable.)
 
@@ -992,7 +992,6 @@ cannot afford.
 **The pitch:** build a working Java AI app without writing the plumbing, through a web-based
 interface that works alongside IntelliJ IDEA and VS Code alike.
 
-**Status:** an idea, and deliberately not started. It depends on identity
-(`docs/design/IDENTITY.md`, ROADMAP-19): a tool that builds apps for a company is only useful once
-those apps can serve more than one person, with each call traceable to someone and revocable.
-Identity is designed on its own terms and owes nothing to this idea; this one waits for it.
+**Status:** an idea, and deliberately not started. It comes after identity
+(`docs/design/IDENTITY.md`, ROADMAP-19), which makes CafeAI itself usable in shared environments
+that ban API keys.
