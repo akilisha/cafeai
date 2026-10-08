@@ -74,7 +74,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-observability:0.4.0'
     implementation 'com.akilisha.oss:cafeai-security:0.4.0'
     implementation 'com.akilisha.oss:cafeai-connect:0.4.0'
-    implementation 'com.akilisha.oss:cafeai-mustache:0.4.0'
+    implementation 'com.akilisha.oss:cafeai-views-mustache:0.4.0'
     implementation 'com.akilisha.oss:cafeai-sentinel:0.4.0'
 }
 ```
@@ -301,7 +301,7 @@ dependencies {
     implementation 'com.akilisha.oss:cafeai-security:0.2.0'
     implementation 'com.akilisha.oss:cafeai-streaming:0.2.0'
     implementation 'com.akilisha.oss:cafeai-connect:0.2.0'
-    implementation 'com.akilisha.oss:cafeai-mustache:0.2.0'
+    implementation 'com.akilisha.oss:cafeai-views-mustache:0.2.0'
 }
 ```
 
