@@ -195,12 +195,17 @@ token, the data service applies its own policies, and CafeAI stores no permissio
   vector store that has no notion of users (such as `InMemoryVectorStore`), unless the app
   explicitly declares that store public, meaning every document in it may be read by anyone
   signed in.
-- **Connection pools need a per-store decision.** A database that authenticates each user's
-  credential needs a connection per credential: the same pool-per-identity problem §8.1 rejects
-  for model clients. The usual alternative is one pool under the app's credential, with the
-  user's identity set on each connection for the database's own row-level policies to enforce.
-  That keeps enforcement in the database, but the database then trusts CafeAI's statement of who
-  the user is. Each `VectorStore` must document which model it uses (§14).
+- **Database concerns stay outside CafeAI's core.** Row-level access is validated by the database
+  itself (as Supabase does with PostgreSQL row-level security over the caller's JWT claims), or
+  by the `VectorStore` adapter wrapping the database client. CafeAI's core hands the store the
+  caller's exchanged token on every query and does nothing else: no connection pools, no
+  policies, no row filtering. How the adapter connects (a connection per credential, or a shared
+  pool that sets the caller's claims on each connection for the database's policies) is the
+  adapter's own decision, and each adapter documents it.
+- **The built-in adapters follow the same rule.** `PgVectorStoreAdapter` (`cafeai-rag`) passes
+  the caller's claims to PostgreSQL for row-level security policies written by the database's
+  owner. `ChromaVectorStoreAdapter` has no per-row access control to hand them to, so with
+  identity on it is refused unless declared public, like `InMemoryVectorStore`.
 
 ### 7.6 Semantic cache: one rule to keep
 ADR-013 already restricts the cache to answers that depend on nothing but the prompt. A call with
@@ -284,6 +289,23 @@ uses `clientCredentials`, chosen explicitly.
 A shared open-model server (any OpenAI-compatible inference server) behind the same issuer is an
 ordinary endpoint with `Credentials`. This is how open models become viable in a company: one
 central server, not one per laptop.
+
+**This needs a base URL on the OpenAI provider, which it doesn't have today.** `OpenAI.of(modelId)`
+holds only the model id, temperature, max tokens and timeout, and `Nvidia` is OpenAI-compatible
+but fixed to NVIDIA's URL. The provider gains `withBaseUrl(url)`, an immutable copy like
+`withTemperature`:
+
+```java
+app.ai(OpenAI.of("<model-id>")
+        .withBaseUrl("https://models.internal.example.com/v1")
+        .credentials(Credentials.tokenExchange("model-server")));
+```
+
+One generic provider then reaches every OpenAI-compatible endpoint: a company's own model
+server, a gateway, and hosted open-weight models (Kimi, Qwen, DeepSeek, GLM, MiniMax all offer an
+OpenAI-compatible API). **There is no provider class per vendor.** It would add maintenance and
+nothing else, for the same reason providers take a model id string instead of named model
+constants.
 
 ## 9. Libraries
 
@@ -388,6 +410,12 @@ These can be added later without changing the design:
 5. **Order of work:** `Identity` + `bearer` + the fake issuer first. The streaming-thread test in
    §8.1 belongs to the first outbound work.
 
+6. **Database concerns stay outside CafeAI's core.** The database or the `VectorStore` adapter
+   validates row-level access and chooses its connection model. CafeAI hands it the caller's
+   exchanged token (§7.5).
+7. **One generic OpenAI-compatible provider** with a base URL; no provider class per vendor
+   (§8.4).
+
 **Open**
-1. **Connection model per store.** For each `VectorStore`: a connection per user's credential, or
-   one pool with the user's identity set on each connection (§7.5)?
+
+None at present.
