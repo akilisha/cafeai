@@ -44,7 +44,7 @@ import java.util.Set;
  *       (a new id, so a session id planted before sign-in is worthless) and returns to
  *       {@code return}, which must be a path on this site;</li>
  *   <li>{@code POST /auth/logout}: signs out, here and, when the issuer supports it, at the
- *       issuer.</li>
+ *       issuer: the refresh token is revoked (RFC 7009) and the issuer's session ended.</li>
  * </ul>
  *
  * <p>On every other request, a signed-in session puts the caller's {@link Identity} on the
@@ -278,7 +278,10 @@ public final class BrowserLogin implements Middleware {
         res.redirect(302, String.valueOf(pending.get("return")));
     }
 
-    /** Signs out: here (the session and its tokens go), then at the issuer if it supports it. */
+    /**
+     * Signs out: here (the session and its tokens go, the refresh token revoked at the issuer when
+     * it supports RFC 7009), then the issuer's own session, if it supports ending it.
+     */
     private void logout(Request req, Response res) {
         if (!req.method().equals("POST")) {
             res.status(405).end();
@@ -291,6 +294,15 @@ public final class BrowserLogin implements Middleware {
             return;
         }
         session.invalidate();
+
+        String refreshToken = string(login, "refresh_token");
+        if (refreshToken != null) {
+            try {
+                tokens.revoke(refreshToken, "refresh_token");
+            } catch (IdentityException e) {
+                log.warn("Could not revoke a signed-out session's refresh token at the issuer: {}", e.getMessage());
+            }
+        }
 
         Optional<URI> endSession = issuer.endpoint("end_session_endpoint");
         if (login != null && endSession.isPresent()) {

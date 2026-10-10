@@ -149,6 +149,11 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
 - **Serves three paths:** `GET /auth/login?return=/path` starts sign-in; the redirect URI's
   path finishes it; `POST /auth/logout` signs out. `return` must be a path on this site, and
   anything else returns to `/`, so there is no open redirect.
+- **Signs out in three steps:** the session goes; its refresh token is revoked at the issuer's
+  `revocation_endpoint` (RFC 7009), so a copy of it can't renew anything; and the browser is
+  sent to the issuer's `end_session_endpoint`, which ends the issuer's own session. Each step
+  the issuer doesn't publish an endpoint for is skipped, and a failed revocation is logged
+  without stopping the sign-out.
 - **Starts a new session at sign-in.** `session.regenerate()`, new in core, moves the session
   to a new id and destroys the old one, so an id planted or seen before sign-in never becomes
   signed in (session fixation). A cookie-only session can't be regenerated, so sign-in refuses
@@ -166,7 +171,6 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
     rotates refresh tokens, the second renewal fails and that session is signed out.
   - The session cookie's `Secure` flag is the session middleware's setting, off by default for
     local development; production must turn it on.
-  - Refresh tokens aren't revoked at the issuer on sign-out (RFC 7009), only deleted here (§13).
 
 ### 6.3 `require(...)`: authorization
 Checks a scope or role carried in the token. It's ordinary middleware, so it goes on a route, a
@@ -192,8 +196,13 @@ As built, `DeviceLogin.of(issuer, clientId).scope(...).accessToken()`:
   scope, with a hashed name), written to a temporary file and moved into place, and readable by
   the owner only where the file system has permissions. On Windows the user's profile directory
   is already private, so the owner-only test is skipped there. An expired token is renewed with
-  the refresh token, and a sign-in that can't be renewed asks the user again. `signOut()` deletes
-  the file.
+  the refresh token, and a sign-in that can't be renewed asks the user again.
+- **`signOut()` revokes, then forgets:** the refresh token is revoked at the issuer (RFC 7009)
+  and the file deleted. It returns what happened: `REVOKED`, `FORGOTTEN` (deleted here only,
+  because the issuer has no revocation endpoint or couldn't be reached) or `NOT_SIGNED_IN`. It
+  doesn't end the user's session in their browser. That session is shared by every app they
+  use, and a CLI has no business ending it; the next sign-in may be approved by it without a
+  password, so signing in as someone else takes a private window.
 - **The prompt is pluggable** (`onPrompt`): by default two lines on standard error, with
   `verification_uri_complete` too when the issuer gives one.
 
@@ -589,7 +598,6 @@ These can be added later without changing the design:
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
   which reaches any OpenAI-compatible endpoint.
 - Passing the provider's `Retry-After` through with a `429` (§7.2).
-- Revoking the refresh token at the issuer on sign-out (RFC 7009 token revocation).
 - Serialising concurrent token renewals for one session (§6.2).
 - The verified caller inside `@Tool` objects called over MCP (`Identity.current()`), as route tools already have it (§6.5).
 

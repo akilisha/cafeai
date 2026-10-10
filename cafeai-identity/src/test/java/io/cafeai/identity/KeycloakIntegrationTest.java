@@ -24,6 +24,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -31,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Every flow against a real issuer: Keycloak, an open-source, OpenID-certified identity provider,
@@ -233,7 +235,8 @@ class KeycloakIntegrationTest {
         var browser = HttpClient.newBuilder().cookieHandler(new LocalhostCookieJar())
                 .followRedirects(HttpClient.Redirect.NEVER).build();
         var lastPage = new java.util.concurrent.atomic.AtomicReference<String>("");
-        var login = DeviceLogin.of(issuer, "orders-cli").scope("openid").noCache()
+        java.nio.file.Path cache = java.nio.file.Files.createTempDirectory("cafeai-device").resolve("tokens.json");
+        var login = DeviceLogin.of(issuer, "orders-cli").scope("openid").cache(cache)
                 .onPrompt(prompt -> {
                     // The user, on another device: open the link, sign in, approve.
                     try {
@@ -252,6 +255,17 @@ class KeycloakIntegrationTest {
             throw new AssertionError("no sign-in within 60s; Keycloak's last page was:\n" + lastPage.get(), e);
         }
         assertThat(claims(token)).contains("\"preferred_username\":\"bob\"").contains("\"azp\":\"orders-cli\"");
+
+        // Sign-out revokes the refresh token at Keycloak (RFC 7009): a copy kept from before can't renew.
+        String refreshToken = new String(java.nio.file.Files.readAllBytes(cache), StandardCharsets.UTF_8)
+                .replaceAll("(?s).*\"refresh_token\":\"([^\"]+)\".*", "$1");
+        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.REVOKED);
+        assertThat(cache).doesNotExist();
+        Map<String, String> renew = new java.util.LinkedHashMap<>();
+        renew.put("grant_type", "refresh_token");
+        renew.put("refresh_token", refreshToken);
+        assertThatThrownBy(() -> TokenEndpoint.publicClient(issuer, "orders-cli").request(renew, java.time.Instant.now()))
+                .isInstanceOf(TokenEndpoint.Refused.class).hasMessageContaining("invalid_grant");
     }
 
     /**

@@ -5,7 +5,8 @@
 
 // A terminal client for the orders API that signs in like `gh auth login` or `az login`: it shows
 // a code and a link, you sign in on any device, and it calls the API with your token. The token
-// is cached in ~/.cafeai/tokens/, so you sign in once; `logout` forgets it.
+// is cached in ~/.cafeai/tokens/, so you sign in once; `logout` revokes it at Keycloak and
+// forgets it here.
 //
 //   jbang cafeai-examples/identity/orders-cli.java me       # who the API sees
 //   jbang cafeai-examples/identity/orders-cli.java orders   # any signed-in user
@@ -15,8 +16,10 @@
 // Needs the demo Keycloak (cafeai-examples/identity/docker-compose.yml) and IdentityOrdersApi.
 
 import io.cafeai.identity.DeviceLogin;
+import io.cafeai.identity.IdentityException;
 import io.cafeai.identity.Issuer;
 
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -25,6 +28,15 @@ import java.net.http.HttpResponse;
 class orders_cli {
 
     public static void main(String[] args) throws Exception {
+        try {
+            run(args);
+        } catch (IdentityException e) {
+            System.out.println("Sign-in failed: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    static void run(String[] args) throws Exception {
         String issuer = System.getenv().getOrDefault("ISSUER", "http://localhost:8180/realms/cafeai-demo");
         String api = System.getenv().getOrDefault("ORDERS_API", "http://localhost:8081");
         String command = args.length > 0 ? args[0] : "me";
@@ -39,15 +51,29 @@ class orders_cli {
             });
 
         if (command.equals("logout")) {
-            login.signOut();
-            System.out.println("Signed out.");
+            System.out.println(switch (login.signOut()) {
+                case REVOKED -> "Signed out of orders-cli: its sign-in is revoked at Keycloak and forgotten here.";
+                case FORGOTTEN -> "Signed out of orders-cli here; Keycloak couldn't be told, so its sign-in lives until it expires.";
+                case NOT_SIGNED_IN -> "orders-cli wasn't signed in.";
+            });
+            System.out.println("Your browser may still be signed in to Keycloak, and would approve the next sign-in"
+                + " as the same person. To sign in as someone else, open the link in a private window.");
             return;
         }
 
         String token = login.accessToken();   // asks you to sign in only when it must
-        var response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder(URI.create(api + "/" + command)).header("Authorization", "Bearer " + token).build(),
-            HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(api + "/" + command)).header("Authorization", "Bearer " + token).build(),
+                HttpResponse.BodyHandlers.ofString());
+        } catch (ConnectException e) {
+            System.out.println("Signed in, but can't reach the orders API at " + api
+                + ": is IdentityOrdersApi running?");
+            System.out.println("  ./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.IdentityOrdersApi");
+            System.exit(1);
+            return;
+        }
         System.out.println(response.statusCode() + " " + response.body());
     }
 }

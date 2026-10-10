@@ -151,12 +151,42 @@ class DeviceLoginTest {
         assertThat(prompt.get()).as("asked to sign in again").isNotNull();
     }
 
-    @Test @DisplayName("signOut forgets the cached sign-in")
-    void signOut() {
+    @Test @DisplayName("signOut revokes the refresh token at the issuer and forgets the cached sign-in")
+    void signOut() throws Exception {
         var login = login("grace", 1);
         login.accessToken();
         assertThat(cache).exists();
-        login.signOut();
+        Path copy = dir.resolve("stolen.json");
+        Files.copy(cache, copy);
+        int revokedBefore = fake.revocations();
+
+        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.REVOKED);
+        assertThat(cache).doesNotExist();
+        assertThat(fake.revocations() - revokedBefore).isEqualTo(1);
+
+        // A copy of the cache made before sign-out can't renew: the user is asked to sign in again.
+        Files.copy(copy, cache);
+        clock.advance(Duration.ofHours(2));
+        prompt.set(null);
+        sleeps.clear();
+        assertThat(subjectOf(login("grace", 1).accessToken())).contains("\"sub\":\"grace\"");
+        assertThat(prompt.get()).as("asked to sign in again").isNotNull();
+    }
+
+    @Test @DisplayName("signOut with nothing cached says so")
+    void signOutNotSignedIn() {
+        assertThat(login("heidi", 1).signOut()).isEqualTo(DeviceLogin.SignedOut.NOT_SIGNED_IN);
+    }
+
+    @Test @DisplayName("signOut while the issuer is unreachable still forgets the sign-in here")
+    void signOutIssuerDown() {
+        var gone = FakeIssuer.start().publicClient(CLIENT);
+        var login = DeviceLogin.of(gone.issuer(), CLIENT).cache(cache).clock(clock).onPrompt(prompt::set)
+                .sleeper(d -> gone.approveDevice(prompt.get().userCode(), "ivan"));
+        login.accessToken();
+        gone.close();
+
+        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.FORGOTTEN);
         assertThat(cache).doesNotExist();
     }
 

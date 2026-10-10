@@ -3598,7 +3598,8 @@ app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/
   (`session.regenerate()`), so an id planted before sign-in stays signed out.
 - **Tokens never reach the browser.** The session holds them; the browser holds only the
   session cookie. They are renewed with the refresh token before they expire.
-- `POST /auth/logout` signs out here and at the issuer.
+- `POST /auth/logout` signs out here and at the issuer: the refresh token is revoked
+  (RFC 7009) and the issuer's session ended.
 - A signed-in session's `POST`, `PUT`, `PATCH` and `DELETE` need its CSRF token, in
   `X-CSRF-Token` or a `_csrf` form field: `Auth.csrfToken(req)` gives it to your pages.
 - `.signInRequired()` sends browsers to sign in and back; other requests get `401`.
@@ -3618,7 +3619,10 @@ String token = login.accessToken();   // signs in only when it must
 ```
 
 Tokens are cached per user in `~/.cafeai/tokens/` (owner-only where the file system has
-permissions) and renewed with the refresh token; `login.signOut()` forgets them.
+permissions) and renewed with the refresh token. `login.signOut()` revokes the refresh token
+at the issuer (RFC 7009) and deletes the cache. It leaves the user's browser signed in to the
+issuer, as `gh auth logout` does, so the next sign-in may be approved without a password; to
+sign in as someone else, open the link in a private window.
 
 ### 32.5 Model calls without API keys
 

@@ -40,8 +40,8 @@ import java.util.function.Consumer;
  *
  * <p>Tokens are cached in a file only the user can read ({@code ~/.cafeai/tokens/}, one per
  * issuer, client and scope) and renewed with the refresh token, so the user signs in once, not on
- * every run. {@link #signOut()} deletes the file. The client is a public one: a program on
- * someone's machine can't keep a secret.
+ * every run. {@link #signOut()} revokes the sign-in at the issuer and deletes the file. The
+ * client is a public one: a program on someone's machine can't keep a secret.
  */
 public final class DeviceLogin {
 
@@ -147,14 +147,45 @@ public final class DeviceLogin {
         return save(signIn()).value();
     }
 
-    /** Forgets the cached sign-in. */
-    public void signOut() {
-        if (!caching) return;
+    /**
+     * Signs this program out: revokes the cached refresh token at the issuer (RFC 7009), so a copy
+     * of it can't renew anything, then deletes the cache file. The file is deleted even when the
+     * issuer can't be told.
+     *
+     * <p>It doesn't sign the user out of their browser. The issuer's session there is the user's,
+     * shared by every app they use, and the next {@link #accessToken()} may be approved by it
+     * without a password. To sign in as someone else, open the link in a private window.
+     */
+    public SignedOut signOut() {
+        if (!caching) return SignedOut.NOT_SIGNED_IN;
+        TokenEndpoint.Token cached = load();
+        SignedOut result = cached == null ? SignedOut.NOT_SIGNED_IN : SignedOut.FORGOTTEN;
+        if (cached != null && cached.refreshToken() != null) {
+            try {
+                if (tokens.revoke(cached.refreshToken(), "refresh_token")) result = SignedOut.REVOKED;
+            } catch (IdentityException e) {
+                log.warn("Could not revoke the sign-in at the issuer; forgetting it here only: {}", e.getMessage());
+            }
+        }
         try {
             Files.deleteIfExists(cacheFile());
         } catch (IOException e) {
             throw new IdentityException("Could not delete the cached sign-in at " + cacheFile(), e);
         }
+        return result;
+    }
+
+    /** What {@link #signOut()} did. */
+    public enum SignedOut {
+        /** Revoked at the issuer and deleted here. */
+        REVOKED,
+        /**
+         * Deleted here only: the issuer publishes no {@code revocation_endpoint}, couldn't be
+         * reached, or there was no refresh token. Its refresh token lives until it expires.
+         */
+        FORGOTTEN,
+        /** There was no cached sign-in. */
+        NOT_SIGNED_IN
     }
 
     /** The device flow: ask for a code, show it, poll until the user has signed in (RFC 8628 3.4, 3.5). */

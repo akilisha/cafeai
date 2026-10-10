@@ -55,15 +55,16 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   with PKCE, `state` and `nonce`. Access, refresh and ID tokens stay in the server-side session;
   the browser holds only the session cookie. Sign-in starts a new session id (no session
   fixation), returns only to paths on this site, renews tokens before they expire, and signs out
-  here and at the issuer (`POST /auth/logout`). A signed-in session's state-changing requests
+  here and at the issuer (`POST /auth/logout`: the refresh token revoked, the issuer's session
+  ended). A signed-in session's state-changing requests
   need its CSRF token (`Auth.csrfToken(req)`). `signInRequired()` sends browsers to sign in. A
   model call made from a signed-in browser can use token exchange like an API call.
 - **Terminal sign-in.** `DeviceLogin.of(issuer, clientId).accessToken()` signs a CLI or JBang
   script in with the OAuth device authorization grant (RFC 8628): it shows a code and a link,
   the user signs in on any device, and the program gets a token. It works over SSH and in
   containers. Tokens are cached per user (`~/.cafeai/tokens/`, owner-only where the file system
-  allows) and renewed with the refresh token, so the user signs in once; `signOut()` forgets
-  them.
+  allows) and renewed with the refresh token, so the user signs in once; `signOut()` revokes
+  the refresh token at the issuer (RFC 7009) and forgets them.
 - **RAG under the caller's identity.** `VectorStore.access()` says whether a store enforces who
   may read what (`PER_CALLER`), holds documents declared public
   (`VectorStore.everyoneMayRead(store)`), or can't tell callers apart (`UNENFORCED`, the

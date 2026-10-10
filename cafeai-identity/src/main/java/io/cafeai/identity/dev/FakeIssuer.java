@@ -74,6 +74,7 @@ public final class FakeIssuer implements AutoCloseable {
     private final Map<String, Code> codes = new ConcurrentHashMap<>();
     private final Map<String, Refresh> refreshTokens = new ConcurrentHashMap<>();
     private final List<String> signOuts = new CopyOnWriteArrayList<>();
+    private final AtomicInteger revocations = new AtomicInteger();
 
     /** An authorization code issued by {@code /authorize}, single use. */
     private record Code(String clientId, String redirectUri, String challenge, String nonce, String subject,
@@ -119,6 +120,7 @@ public final class FakeIssuer implements AutoCloseable {
         server.createContext("/authorize", this::authorize);
         server.createContext("/logout", this::endSession);
         server.createContext("/device_authorization", this::deviceAuthorization);
+        server.createContext("/revoke", this::revoke);
         server.start();
         log.warn("FakeIssuer started at {}. It signs tokens for anyone; development and tests only.", id);
     }
@@ -245,6 +247,11 @@ public final class FakeIssuer implements AutoCloseable {
         return List.copyOf(signOuts);
     }
 
+    /** How many refresh tokens have been revoked by their clients (RFC 7009). */
+    public int revocations() {
+        return revocations.get();
+    }
+
     /** How many times the token endpoint has been called, for tests of caching. */
     public int tokenRequests() {
         return tokenRequests.get();
@@ -269,6 +276,7 @@ public final class FakeIssuer implements AutoCloseable {
                 + "\"authorization_endpoint\":\"" + id + "/authorize\","
                 + "\"end_session_endpoint\":\"" + id + "/logout\","
                 + "\"device_authorization_endpoint\":\"" + id + "/device_authorization\","
+                + "\"revocation_endpoint\":\"" + id + "/revoke\","
                 + "\"code_challenge_methods_supported\":[\"S256\"],"
                 + "\"grant_types_supported\":[\"client_credentials\","
                 + "\"urn:ietf:params:oauth:grant-type:token-exchange\"],"
@@ -406,6 +414,27 @@ public final class FakeIssuer implements AutoCloseable {
         codes.put(code, new Code(q.get("client_id"), redirect, q.get("code_challenge"), q.get("nonce"), who,
                 q.get("scope")));
         redirect(exchange, redirect + sep + "code=" + encode(code) + state);
+    }
+
+    /**
+     * The revocation endpoint (RFC 7009): a client revokes a refresh token it was issued. An
+     * unknown token is answered {@code 200} too, as the RFC asks (2.2).
+     */
+    private void revoke(HttpExchange exchange) throws IOException {
+        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        String clientId = client(exchange, form);
+        if (clientId == null) {
+            respond(exchange, 401, "{\"error\":\"invalid_client\"}");
+            return;
+        }
+        String token = form.getOrDefault("token", "");
+        Refresh refresh = refreshTokens.get(token);
+        if (refresh != null && !refresh.clientId().equals(clientId)) {
+            respond(exchange, 400, "{\"error\":\"invalid_request\"}");   // another client's token
+            return;
+        }
+        if (refresh != null && refreshTokens.remove(token) != null) revocations.incrementAndGet();
+        respond(exchange, 200, "{}");
     }
 
     /** The end-session endpoint: records the sign-out and sends the browser on. */

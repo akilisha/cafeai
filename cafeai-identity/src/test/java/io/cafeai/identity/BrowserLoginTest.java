@@ -274,17 +274,19 @@ class BrowserLoginTest {
         assertThat(post("/orders", "Authorization", "Bearer something").body()).isEqualTo("ordered");
     }
 
-    @Test @DisplayName("sign-out: POST with the CSRF token ends the session here and at the issuer")
+    @Test @DisplayName("sign-out: POST with the CSRF token ends the session here, revokes its refresh token, and ends the issuer's session")
     void signOut() throws Exception {
         serve(l -> l.afterSignOut("https://orders.example.com/bye"), a -> { });
         signIn("alice", "/me");
         String token = get("/csrf").body();
         int signOutsBefore = fake.signOuts().size();
+        int revokedBefore = fake.revocations();
 
         assertThat(get("/auth/logout").statusCode()).isEqualTo(405);
         assertThat(post("/auth/logout").statusCode()).isEqualTo(403);
 
         String toIssuer = location(post("/auth/logout", "X-CSRF-Token", token));
+        assertThat(fake.revocations() - revokedBefore).as("refresh token revoked").isEqualTo(1);
         assertThat(toIssuer).startsWith(fake.id() + "/logout");
         assertThat(query(toIssuer)).containsKey("id_token_hint")
                 .containsEntry("post_logout_redirect_uri", "https://orders.example.com/bye");

@@ -57,6 +57,7 @@ final class TokenEndpoint {
 
     private final URI uri;
     private final URI deviceUri;
+    private final URI revocationUri;
     private final String clientId;
     private final String clientSecret;
 
@@ -66,6 +67,7 @@ final class TokenEndpoint {
         this.uri = issuer.endpoint("token_endpoint").orElseThrow(() -> new IdentityException(
                 "Issuer " + issuer.id() + " publishes no token_endpoint in its metadata"));
         this.deviceUri = issuer.endpoint("device_authorization_endpoint").orElse(null);
+        this.revocationUri = issuer.endpoint("revocation_endpoint").orElse(null);
         this.clientId = requireText(clientId, "clientId");
         this.clientSecret = clientSecret;
     }
@@ -113,8 +115,46 @@ final class TokenEndpoint {
         return post(deviceUri, form, "a device code");
     }
 
+    /**
+     * Revokes {@code token} at the issuer (RFC 7009): a revoked refresh token can't renew anything,
+     * even if a copy of it survives. Returns {@code false}, without trying, when the issuer
+     * publishes no {@code revocation_endpoint}.
+     *
+     * @param hint {@code "refresh_token"} or {@code "access_token"}
+     * @throws IdentityException if the issuer can't be reached or refuses
+     */
+    boolean revoke(String token, String hint) {
+        if (revocationUri == null) return false;
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("token", token);
+        form.put("token_type_hint", hint);
+        // RFC 7009 2.2: a 200, whose body is empty or ignorable, even when the token was unknown.
+        HttpResponse<String> response = send(revocationUri, form, "revocation");
+        if (response.statusCode() != 200) {
+            JsonObject json = parse(response.body());
+            String error = json == null ? "HTTP " + response.statusCode()
+                    : json.stringValue("error").orElse("HTTP " + response.statusCode());
+            throw new Refused(revocationUri + " refused to revoke the token: " + error, error);
+        }
+        return true;
+    }
+
     /** POSTs {@code form} as this client and returns the JSON answer of a {@code 200}. */
     private JsonObject post(URI target, Map<String, String> form, String what) {
+        HttpResponse<String> response = send(target, form, what);
+        JsonObject json = parse(response.body());
+        if (response.statusCode() != 200) {
+            // RFC 6749 5.2: "error" names what went wrong; the description is the issuer's own.
+            String error = json == null ? "HTTP " + response.statusCode()
+                    : json.stringValue("error").orElse("HTTP " + response.statusCode());
+            throw new Refused(target + " refused the request: " + error, error);
+        }
+        if (json == null) throw new IdentityException(target + " answered with something other than a JSON object");
+        return json;
+    }
+
+    /** POSTs {@code form} as this client: HTTP Basic for a confidential one, {@code client_id} for a public one. */
+    private HttpResponse<String> send(URI target, Map<String, String> form, String what) {
         Map<String, String> fields = new LinkedHashMap<>(form);
         HttpRequest.Builder request = HttpRequest.newBuilder(target)
                 .timeout(TIMEOUT)
@@ -131,9 +171,8 @@ final class TokenEndpoint {
                 .map(e -> encode(e.getKey()) + "=" + encode(e.getValue()))
                 .collect(Collectors.joining("&"));
 
-        HttpResponse<String> response;
         try {
-            response = HTTP.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+            return HTTP.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                     HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -141,15 +180,6 @@ final class TokenEndpoint {
         } catch (Exception e) {
             throw new IdentityException("Could not request " + what + " from " + target + ": " + e.getMessage(), e);
         }
-        JsonObject json = parse(response.body());
-        if (response.statusCode() != 200) {
-            // RFC 6749 5.2: "error" names what went wrong; the description is the issuer's own.
-            String error = json == null ? "HTTP " + response.statusCode()
-                    : json.stringValue("error").orElse("HTTP " + response.statusCode());
-            throw new Refused(target + " refused the request: " + error, error);
-        }
-        if (json == null) throw new IdentityException(target + " answered with something other than a JSON object");
-        return json;
     }
 
     private static JsonObject parse(String body) {
