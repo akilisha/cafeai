@@ -14,7 +14,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   scopes, groups, roles and entitlements (RFC 9068). `Identity.current()` finds it from code
   below a handler. Signatures are checked with Helidon's JWT library against the issuer's
   published keys (cached; rotated keys picked up on first sight), asymmetric algorithms only;
-  refusals are standard RFC 6750 responses. `Auth.require(Auth.scope("orders:read"))` checks
+  refusals are standard RFC 6750 responses. `.resourceMetadata(app, resourceUri, scopes...)`
+  publishes the API's Protected Resource Metadata (RFC 9728) and names it in every challenge, so
+  a refused client can find the issuer by itself. `Auth.require(Auth.scope("orders:read"))` checks
   what the issuer granted on a route: scopes, roles, groups, entitlements, or `anyOf` them
   (`401` when anonymous, `403` when short, naming only missing scopes). `FakeIssuer` signs
   tokens for tests and local development.

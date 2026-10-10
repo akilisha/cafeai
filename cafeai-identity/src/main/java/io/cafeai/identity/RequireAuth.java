@@ -38,8 +38,9 @@ final class RequireAuth implements Middleware {
     @Override
     public void handle(Request req, Response res, Next next) {
         Optional<Identity> identity = req.identity();
+        String metadataUrl = req.attribute(ResourceMetadata.ATTRIBUTE, String.class);
         if (identity.isEmpty()) {
-            res.status(401).set("WWW-Authenticate", "Bearer").end();
+            res.status(401).set("WWW-Authenticate", ResourceMetadata.challenge("Bearer", metadataUrl)).end();
             return;
         }
         for (Requirement requirement : requirements) {
@@ -49,8 +50,9 @@ final class RequireAuth implements Middleware {
                 if (scopes.isEmpty()) {
                     res.status(403).end();
                 } else {
-                    res.status(403).set("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\""
-                            + String.join(" ", scopes) + "\"").end();
+                    res.status(403).set("WWW-Authenticate", ResourceMetadata.challenge(
+                            "Bearer error=\"insufficient_scope\", scope=\"" + String.join(" ", scopes) + "\"",
+                            metadataUrl)).end();
                 }
                 return;
             }

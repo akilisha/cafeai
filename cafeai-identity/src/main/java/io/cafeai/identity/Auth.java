@@ -101,7 +101,8 @@ public final class Auth {
     public static Middleware signedIn() {
         return (req, res, next) -> {
             if (req.identity().isEmpty()) {
-                res.status(401).set("WWW-Authenticate", "Bearer").end();
+                res.status(401).set("WWW-Authenticate", ResourceMetadata.challenge("Bearer",
+                        req.attribute(ResourceMetadata.ATTRIBUTE, String.class))).end();
                 return;
             }
             next.run();

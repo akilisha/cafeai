@@ -1,6 +1,7 @@
 package io.cafeai.identity;
 
 import io.cafeai.core.Attributes;
+import io.cafeai.core.CafeAI;
 import io.cafeai.core.identity.IdentityMode;
 import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.middleware.Next;
@@ -30,7 +31,9 @@ import java.util.Set;
  * </ul>
  *
  * <p>Created by {@link Auth#bearer(Issuer, String...)}; configure it before the app starts.
- * Tokens in query parameters or form bodies are never read.
+ * Tokens in query parameters or form bodies are never read. With
+ * {@link #resourceMetadata(CafeAI, String, String...)}, every refusal also names where a client
+ * finds the issuer to get a token from (RFC 9728).
  */
 public final class BearerAuth implements Middleware {
 
@@ -49,6 +52,7 @@ public final class BearerAuth implements Middleware {
     private Duration clockSkew = Duration.ofSeconds(60);
     private boolean optional;
     private boolean requireAccessTokenType;
+    private ResourceMetadata metadata;
     private Clock clock = Clock.systemUTC();
 
     private volatile TokenValidator validator;
@@ -115,6 +119,35 @@ public final class BearerAuth implements Middleware {
         return reset();
     }
 
+    /**
+     * Publishes this API's Protected Resource Metadata (RFC 9728), so a client refused with a
+     * {@code 401} can find out where to sign in by itself, as MCP clients do:
+     *
+     * <pre>{@code
+     *   app.filter(Auth.bearer(issuer, "orders-api")
+     *       .resourceMetadata(app, "https://orders.example.com", "orders:read"));
+     * }</pre>
+     *
+     * <p>{@code GET /.well-known/oauth-protected-resource} (plus the resource's path, if it has
+     * one) serves the resource, its issuer and {@code scopes}, with no token needed; and every
+     * {@code 401} and {@code 403} challenge, here and from {@code Auth.require} and
+     * {@code Auth.signedIn}, carries {@code resource_metadata="..."} pointing at it.
+     *
+     * @param resourceUri this API's identifier: its absolute URL, as clients reach it
+     * @param scopes      the scopes to publish as supported (optional)
+     */
+    public BearerAuth resourceMetadata(CafeAI app, String resourceUri, String... scopes) {
+        Objects.requireNonNull(app, "app");
+        Set<String> published = new LinkedHashSet<>();
+        for (String s : scopes) {
+            Requirement.scope(s);   // validates it as an RFC 6749 scope token
+            published.add(s);
+        }
+        this.metadata = ResourceMetadata.of(resourceUri, "resourceUri");
+        metadata.serve(app, issuer, published);
+        return this;
+    }
+
     /** For tests: the clock that decides whether a token has expired. */
     BearerAuth clock(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -137,20 +170,22 @@ public final class BearerAuth implements Middleware {
 
     @Override
     public void handle(Request req, Response res, Next next) {
+        String metadataUrl = metadata == null ? null : metadata.url;
+        if (metadataUrl != null) req.setAttribute(ResourceMetadata.ATTRIBUTE, metadataUrl);
         String header = req.header("Authorization");
         if (header == null) {
             if (optional) {
                 next.run();
             } else {
-                res.status(401).set("WWW-Authenticate", "Bearer").end();
+                res.status(401).set("WWW-Authenticate", ResourceMetadata.challenge("Bearer", metadataUrl)).end();
             }
             return;
         }
 
         String token = bearerToken(header);
         if (token == null) {
-            res.status(400).set("WWW-Authenticate",
-                    challenge("invalid_request", "The Authorization header is not a Bearer token")).end();
+            res.status(400).set("WWW-Authenticate", ResourceMetadata.challenge(
+                    challenge("invalid_request", "The Authorization header is not a Bearer token"), metadataUrl)).end();
             return;
         }
 
@@ -166,7 +201,7 @@ public final class BearerAuth implements Middleware {
         if (!result.valid()) {
             log.debug("Refused a token: {}", result.failure());
             res.status(401).set("WWW-Authenticate",
-                    challenge("invalid_token", result.failure().description)).end();
+                    ResourceMetadata.challenge(challenge("invalid_token", result.failure().description), metadataUrl)).end();
             return;
         }
 

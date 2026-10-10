@@ -3594,6 +3594,19 @@ accepted. Refusals are standard RFC 6750 responses: `401` with `WWW-Authenticate
 `.optional()` lets anonymous requests through (a bad token is still refused);
 `.requireAccessTokenType()` accepts only `typ: at+jwt`; `.algorithms(...)` narrows the list.
 
+To let a refused client find the issuer by itself, as MCP clients do, publish the API's
+Protected Resource Metadata (RFC 9728):
+
+```java
+app.filter(Auth.bearer(issuer, "orders-api")
+        .resourceMetadata(app, "https://orders.example.com", "orders:read"));
+```
+
+`GET /.well-known/oauth-protected-resource` (plus the resource's path, if it has one) serves
+the resource, its issuer and the scopes, with no token needed. Every `401` and `403` challenge,
+from `Auth.bearer`, `Auth.require` and `Auth.signedIn`, then carries
+`resource_metadata="..."` pointing at it.
+
 ### 32.2 What the issuer granted — `Auth.require`
 
 ```java

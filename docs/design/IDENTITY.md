@@ -133,6 +133,11 @@ app.get("/admin", Identity.require(scope("admin")), handler);
 - The key set is cached. A token signed with an unknown key id triggers one rate-limited refresh,
   which handles key rotation. If the issuer is unreachable, the cached keys keep working.
 - Failures get the standard RFC 6750 `401`/`403` responses with `WWW-Authenticate`.
+- **Protected resource metadata (RFC 9728), opt-in:** `.resourceMetadata(app, resourceUri,
+  scopes...)` serves the API's metadata at `/.well-known/oauth-protected-resource` plus the
+  resource's path, outside CafeAI's filters (a client needs it before it has a token), and every
+  `401` and `403` challenge, from `bearer`, `require` and `signedIn`, names it in
+  `resource_metadata`. The same document `Auth.mcp` serves for the MCP endpoint (§6.5).
 
 ### 6.2 `login(issuer, client)`: browser sign-in
 - Authorization code flow with PKCE, `state` and `nonce`.
@@ -611,7 +616,6 @@ These can be added later without changing the design:
 - Token introspection (RFC 7662), for opaque tokens or instant revocation.
 - Logout initiated by the issuer (OpenID Connect back-channel logout).
 - CLI sign-in through a browser on the same machine with a localhost redirect (RFC 8252).
-- Protected resource metadata for ordinary routes, outside MCP.
 - Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
 - `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends

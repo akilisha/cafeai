@@ -18,7 +18,6 @@ import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Protects an app's MCP endpoint ({@code app.mcp()}) as the MCP authorization specification asks:
@@ -49,13 +48,9 @@ public final class McpAuth {
 
     private static final Logger log = LoggerFactory.getLogger(McpAuth.class);
 
-    /** RFC 9728 3.1: inserted between the host and the resource's path. */
-    static final String WELL_KNOWN = "/.well-known/oauth-protected-resource";
-
     private final Issuer issuer;
     private final URI resource;
     private final String path;
-    private final String metadataPath;
     private final String metadataUrl;
     private final Set<String> scopes = new LinkedHashSet<>();
     private volatile Clock clock = Clock.systemUTC();
@@ -70,12 +65,12 @@ public final class McpAuth {
                     + "e.g. https://orders.example.com/mcp: " + resourceUri);
         }
         this.path = resource.getPath();
-        this.metadataPath = WELL_KNOWN + path;
-        String base = resource.getScheme() + "://" + resource.getRawAuthority();
-        this.metadataUrl = base + metadataPath;
+        ResourceMetadata metadata = ResourceMetadata.of(resourceUri, "resourceUri");
+        this.metadataUrl = metadata.url;
         IdentityMode.enable();
         app.local(Locals.MCP_PROTECTED, path);
-        app.helidon().bypass(WELL_KNOWN).routing(this::install);
+        metadata.serve(app, issuer, scopes);   // the scopes as they are when it's asked for
+        app.helidon().routing(this::install);
     }
 
     /** Scopes every MCP request's token must carry; also published in the metadata. */
@@ -104,10 +99,6 @@ public final class McpAuth {
     }
 
     private void install(HttpRouting.Builder routing) {
-        routing.get(metadataPath, (req, res) -> res
-                .header(HeaderNames.CONTENT_TYPE, "application/json")
-                .header(HeaderNames.CACHE_CONTROL, "max-age=3600")
-                .send(metadata()));
         routing.addFilter((chain, req, res) -> {
             String p = req.path().path();
             if (!p.equals(path) && !p.startsWith(path + "/")) {
@@ -152,15 +143,5 @@ public final class McpAuth {
             });
             chain.proceed();
         });
-    }
-
-    /** The RFC 9728 document: this resource, who issues its tokens, and the scopes it needs. */
-    String metadata() {
-        String scopeList = scopes.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-        return "{\"resource\":\"" + resource + "\","
-                + "\"authorization_servers\":[\"" + issuer.id() + "\"],"
-                + "\"bearer_methods_supported\":[\"header\"]"
-                + (scopes.isEmpty() ? "" : ",\"scopes_supported\":[" + scopeList + "]")
-                + "}";
     }
 }
