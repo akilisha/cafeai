@@ -45,7 +45,8 @@ final class TokenValidator {
         SUBJECT("The token has no subject"),
         EXPIRED("The token has expired"),
         NOT_YET_VALID("The token is not valid yet"),
-        AUDIENCE("The token is not intended for this service");
+        AUDIENCE("The token is not intended for this service"),
+        INACTIVE("The token is no longer active");
 
         final String description;
 
@@ -141,6 +142,14 @@ final class TokenValidator {
     static Identity identityOf(String token, Instant expiresAt) {
         Jwt jwt = SignedJwt.parseToken(token).getJwt();
         return identity(jwt.issuer().orElseThrow(), jwt.subject().orElseThrow(), expiresAt, jwt.payloadClaimsJson());
+    }
+
+    /** The identity an introspection answer (RFC 7662) describes, for a token the issuer said is active. */
+    static Identity identityOf(String iss, String sub, Instant exp, JsonObject answer) {
+        Map<String, JsonValue> payload = new LinkedHashMap<>();
+        for (String key : answer.keysAsStrings()) answer.value(key).ifPresent(v -> payload.put(key, v));
+        payload.remove("active");
+        return identity(iss, sub, exp, payload);
     }
 
     private static Identity identity(String iss, String sub, Instant exp, Map<String, JsonValue> payload) {

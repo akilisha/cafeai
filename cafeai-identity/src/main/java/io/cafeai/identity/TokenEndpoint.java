@@ -58,6 +58,7 @@ final class TokenEndpoint {
     private final URI uri;
     private final URI deviceUri;
     private final URI revocationUri;
+    private final URI introspectionUri;
     private final String clientId;
     private final String clientSecret;
 
@@ -68,6 +69,7 @@ final class TokenEndpoint {
                 "Issuer " + issuer.id() + " publishes no token_endpoint in its metadata"));
         this.deviceUri = issuer.endpoint("device_authorization_endpoint").orElse(null);
         this.revocationUri = issuer.endpoint("revocation_endpoint").orElse(null);
+        this.introspectionUri = issuer.endpoint("introspection_endpoint").orElse(null);
         this.clientId = requireText(clientId, "clientId");
         this.clientSecret = clientSecret;
     }
@@ -137,6 +139,28 @@ final class TokenEndpoint {
             throw new Refused(revocationUri + " refused to revoke the token: " + error, error);
         }
         return true;
+    }
+
+    /** Whether the issuer publishes an {@code introspection_endpoint}. */
+    boolean canIntrospect() {
+        return introspectionUri != null;
+    }
+
+    /**
+     * Asks the issuer about an access token (RFC 7662): its answer, whose {@code active} says
+     * whether the token may be used now, and, when it may, what the token says.
+     *
+     * @throws IdentityException if the issuer can't be reached, refuses this client, or has no
+     *         introspection endpoint
+     */
+    JsonObject introspect(String token) {
+        if (introspectionUri == null) {
+            throw new IdentityException("The issuer publishes no introspection_endpoint (RFC 7662)");
+        }
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("token", token);
+        form.put("token_type_hint", "access_token");
+        return post(introspectionUri, form, "token introspection");
     }
 
     /** POSTs {@code form} as this client and returns the JSON answer of a {@code 200}. */

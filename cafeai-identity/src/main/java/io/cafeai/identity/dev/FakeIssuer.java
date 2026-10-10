@@ -75,6 +75,12 @@ public final class FakeIssuer implements AutoCloseable {
     private final Map<String, Refresh> refreshTokens = new ConcurrentHashMap<>();
     private final List<String> signOuts = new CopyOnWriteArrayList<>();
     private final AtomicInteger revocations = new AtomicInteger();
+    private final AtomicInteger introspections = new AtomicInteger();
+    private final Map<String, Opaque> opaqueTokens = new ConcurrentHashMap<>();
+    private final Set<String> revokedAccessTokens = ConcurrentHashMap.newKeySet();
+
+    /** An opaque access token: only this issuer knows what it stands for. */
+    private record Opaque(String subject, String audience, String scope, Instant expiresAt) { }
 
     /** An authorization code issued by {@code /authorize}, single use. */
     private record Code(String clientId, String redirectUri, String challenge, String nonce, String subject,
@@ -121,6 +127,7 @@ public final class FakeIssuer implements AutoCloseable {
         server.createContext("/logout", this::endSession);
         server.createContext("/device_authorization", this::deviceAuthorization);
         server.createContext("/revoke", this::revoke);
+        server.createContext("/introspect", this::introspect);
         server.start();
         log.warn("FakeIssuer started at {}. It signs tokens for anyone; development and tests only.", id);
     }
@@ -247,6 +254,27 @@ public final class FakeIssuer implements AutoCloseable {
         return List.copyOf(signOuts);
     }
 
+    /**
+     * Issues an opaque access token: a random string, not a JWT, that only introspection
+     * (RFC 7662) can say anything about. It lasts {@link #issuedLifetime(Duration)}.
+     */
+    public String opaqueToken(String subject, String audience, String... scopes) {
+        String token = "opaque-" + UUID.randomUUID();
+        opaqueTokens.put(token, new Opaque(subject, audience, scopes.length == 0 ? null : String.join(" ", scopes),
+                Instant.now().plus(issuedLifetime)));
+        return token;
+    }
+
+    /** Revokes an access token, JWT or opaque: introspection reports it inactive from now on. */
+    public void revokeAccessToken(String token) {
+        revokedAccessTokens.add(token);
+    }
+
+    /** How many times the introspection endpoint has been asked, for tests of caching. */
+    public int introspections() {
+        return introspections.get();
+    }
+
     /** How many refresh tokens have been revoked by their clients (RFC 7009). */
     public int revocations() {
         return revocations.get();
@@ -277,6 +305,7 @@ public final class FakeIssuer implements AutoCloseable {
                 + "\"end_session_endpoint\":\"" + id + "/logout\","
                 + "\"device_authorization_endpoint\":\"" + id + "/device_authorization\","
                 + "\"revocation_endpoint\":\"" + id + "/revoke\","
+                + "\"introspection_endpoint\":\"" + id + "/introspect\","
                 + "\"code_challenge_methods_supported\":[\"S256\"],"
                 + "\"grant_types_supported\":[\"client_credentials\","
                 + "\"urn:ietf:params:oauth:grant-type:token-exchange\"],"
@@ -434,7 +463,50 @@ public final class FakeIssuer implements AutoCloseable {
             return;
         }
         if (refresh != null && refreshTokens.remove(token) != null) revocations.incrementAndGet();
+        else if (refresh == null && !token.isEmpty()) revokedAccessTokens.add(token);   // an access token
         respond(exchange, 200, "{}");
+    }
+
+    /**
+     * The introspection endpoint (RFC 7662), for confidential clients: whether an access token
+     * is active and, if it is, what it says. Revoked, expired, forged and unknown tokens are
+     * all just inactive.
+     */
+    private void introspect(HttpExchange exchange) throws IOException {
+        introspections.incrementAndGet();
+        Map<String, String> form = form(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        if (authenticatedClient(exchange.getRequestHeaders().getFirst("Authorization")) == null) {
+            respond(exchange, 401, "{\"error\":\"invalid_client\"}");
+            return;
+        }
+        String token = form.getOrDefault("token", "");
+        String inactive = "{\"active\":false}";
+        if (token.isEmpty() || revokedAccessTokens.contains(token)) {
+            respond(exchange, 200, inactive);
+            return;
+        }
+        Opaque opaque = opaqueTokens.get(token);
+        if (opaque != null) {
+            if (!Instant.now().isBefore(opaque.expiresAt())) {
+                respond(exchange, 200, inactive);
+                return;
+            }
+            respond(exchange, 200, "{\"active\":true,\"iss\":\"" + id + "\",\"sub\":\"" + opaque.subject() + "\","
+                    + "\"aud\":\"" + opaque.audience() + "\",\"exp\":" + opaque.expiresAt().getEpochSecond()
+                    + (opaque.scope() == null ? "" : ",\"scope\":\"" + opaque.scope() + "\"")
+                    + ",\"token_type\":\"Bearer\"}");
+            return;
+        }
+        Jwt jwt = verified(token);
+        if (jwt == null) {
+            respond(exchange, 200, inactive);
+            return;
+        }
+        String aud = jwt.audience().orElse(List.of()).stream().map(a -> "\"" + a + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+        respond(exchange, 200, "{\"active\":true,\"iss\":\"" + id + "\",\"sub\":\"" + jwt.subject().orElse("") + "\","
+                + "\"aud\":[" + aud + "],\"exp\":" + jwt.expirationTime().map(Instant::getEpochSecond).orElse(0L)
+                + ",\"token_type\":\"Bearer\"}");
     }
 
     /** The end-session endpoint: records the sign-out and sends the browser on. */
@@ -487,6 +559,12 @@ public final class FakeIssuer implements AutoCloseable {
 
     /** The subject of an unexpired token this issuer signed, or {@code null}. */
     private String verifiedSubject(String token) {
+        Jwt jwt = verified(token);
+        return jwt == null ? null : jwt.subject().orElse(null);
+    }
+
+    /** An unexpired token this issuer signed, or {@code null}. */
+    private Jwt verified(String token) {
         if (token == null) return null;
         try {
             SignedJwt signed = SignedJwt.parseToken(token);
@@ -496,7 +574,7 @@ public final class FakeIssuer implements AutoCloseable {
             Jwt jwt = signed.getJwt();
             if (!id.equals(jwt.issuer().orElse(null))) return null;
             if (jwt.expirationTime().map(exp -> !Instant.now().isBefore(exp)).orElse(true)) return null;
-            return jwt.subject().orElse(null);
+            return jwt;
         } catch (RuntimeException e) {
             return null;
         }

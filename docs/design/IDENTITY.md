@@ -138,6 +138,17 @@ app.get("/admin", Identity.require(scope("admin")), handler);
   resource's path, outside CafeAI's filters (a client needs it before it has a token), and every
   `401` and `403` challenge, from `bearer`, `require` and `signedIn`, names it in
   `resource_metadata`. The same document `Auth.mcp` serves for the MCP endpoint (§6.5).
+- **Token introspection (RFC 7662), opt-in:** `.introspect(clientId, clientSecret)` also asks
+  the issuer's `introspection_endpoint` about each token, as a confidential client. A JWT that
+  passed the local checks is still refused once the issuer says it's no longer active, so a
+  revoked token, or one whose holder was disabled, stops working at once rather than at its
+  expiry. An opaque token (not a JWT) is accepted on the issuer's word: its answer must be
+  active, name this issuer if it names one, this service among its audiences, a subject and an
+  expiry ahead, and the caller is built from it. Any other local failure is final, and the
+  issuer isn't asked. Answers are cached by the token's SHA-256 (30 seconds by default,
+  `.introspectionCache(...)`, never past the token's expiry), which is how late a revocation can
+  be noticed. An issuer that can't be asked gets `503`. Tested against the fake issuer and
+  against Keycloak, whose revoked token is refused before it expires.
 
 ### 6.2 `login(issuer, client)`: browser sign-in
 - Authorization code flow with PKCE, `state` and `nonce`.
@@ -543,7 +554,8 @@ issuers (§12).
   - Fixed on the way: `WsSession.isOpen()` always returned `true`.
 - **Revocation.** Access tokens are short-lived and validated locally. Disabling someone at the
   issuer cuts them off within the token lifetime, and signing out ends the server-side session
-  immediately.
+  immediately. Where that lifetime is too long, introspection (§6.1) cuts them off within its
+  cache time instead (30 seconds by default).
 - **Logs never contain tokens.** Tokens and session ids are redacted from logs, errors and audit
   records.
 
@@ -613,7 +625,6 @@ As built:
 ## 13. Deferred
 
 These can be added later without changing the design:
-- Token introspection (RFC 7662), for opaque tokens or instant revocation.
 - Logout initiated by the issuer (OpenID Connect back-channel logout).
 - CLI sign-in through a browser on the same machine with a localhost redirect (RFC 8252).
 - Trusting several issuers at once.

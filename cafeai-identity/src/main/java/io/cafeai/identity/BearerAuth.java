@@ -33,7 +33,9 @@ import java.util.Set;
  * <p>Created by {@link Auth#bearer(Issuer, String...)}; configure it before the app starts.
  * Tokens in query parameters or form bodies are never read. With
  * {@link #resourceMetadata(CafeAI, String, String...)}, every refusal also names where a client
- * finds the issuer to get a token from (RFC 9728).
+ * finds the issuer to get a token from (RFC 9728). With {@link #introspect(String, String)}, the
+ * issuer is asked about each token too (RFC 7662): revoked tokens stop working at once, and
+ * opaque (non-JWT) tokens are accepted.
  */
 public final class BearerAuth implements Middleware {
 
@@ -53,9 +55,12 @@ public final class BearerAuth implements Middleware {
     private boolean optional;
     private boolean requireAccessTokenType;
     private ResourceMetadata metadata;
+    private TokenEndpoint introspectionClient;
+    private Duration introspectionCache = Introspection.DEFAULT_CACHE;
     private Clock clock = Clock.systemUTC();
 
     private volatile TokenValidator validator;
+    private volatile Introspection introspection;
 
     BearerAuth(Issuer issuer, Set<String> audiences) {
         this.issuer = Objects.requireNonNull(issuer, "issuer");
@@ -148,6 +153,41 @@ public final class BearerAuth implements Middleware {
         return this;
     }
 
+    /**
+     * Also asks the issuer about each token (OAuth 2.0 Token Introspection, RFC 7662), at its
+     * {@code introspection_endpoint}, as the confidential client {@code clientId}:
+     * <ul>
+     *   <li>a JWT that passes the local checks is still refused once the issuer says it is no
+     *       longer active, so a revoked token, or one whose holder was disabled, stops working at
+     *       once rather than at its expiry;</li>
+     *   <li>an opaque token (not a JWT) is accepted when the issuer says it is active, for this
+     *       service, with a subject and an expiry ahead; the caller is built from its answer.</li>
+     * </ul>
+     * Answers are cached briefly ({@link #introspectionCache(Duration)}), never past a token's
+     * expiry. An issuer that can't be reached gets {@code 503}, as unreadable keys do.
+     *
+     * @throws IdentityException if the issuer publishes no {@code introspection_endpoint}
+     */
+    public BearerAuth introspect(String clientId, String clientSecret) {
+        TokenEndpoint client = TokenEndpoint.confidential(issuer, clientId, clientSecret);
+        if (!client.canIntrospect()) {
+            throw new IdentityException("Issuer " + issuer.id() + " publishes no introspection_endpoint (RFC 7662)");
+        }
+        this.introspectionClient = client;
+        return reset();
+    }
+
+    /**
+     * How long the issuer's answer about a token is reused (default 30 seconds): the most a
+     * revocation can go unnoticed. {@link Duration#ZERO} asks on every request.
+     */
+    public BearerAuth introspectionCache(Duration cacheFor) {
+        Objects.requireNonNull(cacheFor, "cacheFor");
+        if (cacheFor.isNegative()) throw new IllegalArgumentException("introspectionCache must not be negative");
+        this.introspectionCache = cacheFor;
+        return reset();
+    }
+
     /** For tests: the clock that decides whether a token has expired. */
     BearerAuth clock(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -156,7 +196,19 @@ public final class BearerAuth implements Middleware {
 
     private BearerAuth reset() {
         validator = null;
+        introspection = null;
         return this;
+    }
+
+    /** The issuer's word on tokens, or {@code null} when not asked for. */
+    private Introspection introspection() {
+        if (introspectionClient == null) return null;
+        Introspection i = introspection;
+        if (i == null) {
+            i = new Introspection(issuer, audiences, introspectionClient, introspectionCache, clockSkew, clock);
+            introspection = i;
+        }
+        return i;
     }
 
     private TokenValidator validator() {
@@ -192,6 +244,8 @@ public final class BearerAuth implements Middleware {
         TokenValidator.Result result;
         try {
             result = validator().validate(token);
+            Introspection asking = introspection();
+            if (asking != null) result = asking.check(token, result);
         } catch (IdentityException e) {
             log.error("Can't validate tokens: {}", e.getMessage());
             res.status(503).end();

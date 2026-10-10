@@ -135,6 +135,26 @@ class KeycloakIntegrationTest {
         assertThat(bobFinance.statusCode()).isEqualTo(403);
     }
 
+    @Test @DisplayName("introspection (RFC 7662): a token Keycloak revoked is refused at once, before it expires")
+    void introspection() throws Exception {
+        serve(a -> {
+            a.filter(Auth.bearer(issuer, "orders-api").introspect("orders-api", "api-secret")
+                    .introspectionCache(Duration.ZERO));
+            a.get("/me", (req, res, next) -> res.send(req.identity().flatMap(Identity::name).orElse("?")));
+        });
+        var http = HttpClient.newHttpClient();
+        String alice = userToken("alice", "alice-pw");
+        assertThat(get(http, base() + "/me", "Authorization", "Bearer " + alice)).isEqualTo("Alice Liddell");
+
+        // The client it was issued to revokes it (RFC 7009): still signed and unexpired, no longer active.
+        assertThat(TokenEndpoint.confidential(issuer, "test-direct", "direct-secret").revoke(alice, "access_token")).isTrue();
+        var refused = http.send(HttpRequest.newBuilder(URI.create(base() + "/me"))
+                .header("Authorization", "Bearer " + alice).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(refused.statusCode()).isEqualTo(401);
+        assertThat(refused.headers().firstValue("WWW-Authenticate")).hasValueSatisfying(h ->
+                assertThat(h).contains("no longer active"));
+    }
+
     @Test @DisplayName("token exchange (RFC 8693): the model endpoint gets a Keycloak token for the caller, issued for it")
     void tokenExchange() throws Exception {
         try (var model = new FakeModelServer()) {

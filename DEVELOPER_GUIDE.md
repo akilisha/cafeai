@@ -3607,6 +3607,21 @@ the resource, its issuer and the scopes, with no token needed. Every `401` and `
 from `Auth.bearer`, `Auth.require` and `Auth.signedIn`, then carries
 `resource_metadata="..."` pointing at it.
 
+Tokens are checked locally, so one that is revoked, or whose holder is disabled, keeps working
+until it expires. Where that's too long, or where the issuer hands out opaque tokens (not
+JWTs), ask the issuer too (Token Introspection, RFC 7662):
+
+```java
+app.filter(Auth.bearer(issuer, "orders-api")
+        .introspect("orders-api", secret));    // a confidential client at the issuer
+```
+
+A JWT that passes the local checks is then refused once the issuer says it's no longer active.
+An opaque token is accepted when the issuer says it's active for this service, and the caller is
+built from its answer. Answers are reused for 30 seconds (`.introspectionCache(...)`, never past
+the token's expiry; `Duration.ZERO` asks every time), so that's how late a revocation can be
+noticed.
+
 ### 32.2 What the issuer granted — `Auth.require`
 
 ```java
