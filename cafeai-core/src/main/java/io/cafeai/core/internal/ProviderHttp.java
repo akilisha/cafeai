@@ -1,6 +1,7 @@
 package io.cafeai.core.internal;
 
 import io.cafeai.core.ai.Credentials;
+import io.cafeai.core.ai.SignedCredentials;
 import io.cafeai.core.routing.Request;
 
 import javax.net.ssl.SSLContext;
@@ -10,10 +11,13 @@ import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.InetAddress;
 import java.net.ProxySelector;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -70,6 +74,27 @@ final class ProviderHttp {
         return request == null ? Optional.empty() : Optional.ofNullable(request.attribute(RETRY_AFTER, String.class));
     }
 
+    /** All of a request body's bytes: a model call's body is a JSON document, published at once. */
+    private static byte[] bytes(HttpRequest.BodyPublisher publisher) {
+        var out = new java.io.ByteArrayOutputStream();
+        var done = new CompletableFuture<byte[]>();
+        publisher.subscribe(new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>() {
+            @Override public void onSubscribe(java.util.concurrent.Flow.Subscription s) { s.request(Long.MAX_VALUE); }
+            @Override public void onNext(java.nio.ByteBuffer buffer) {
+                byte[] chunk = new byte[buffer.remaining()];
+                buffer.get(chunk);
+                out.writeBytes(chunk);
+            }
+            @Override public void onError(Throwable t) { done.completeExceptionally(t); }
+            @Override public void onComplete() { done.complete(out.toByteArray()); }
+        });
+        try {
+            return done.get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not read the request body to sign it", e);
+        }
+    }
+
     private static void keepRetryAfter(Request request, HttpResponse<?> response) {
         if (request == null || response.statusCode() != 429) return;
         response.headers().firstValue("Retry-After").map(String::trim)
@@ -116,10 +141,35 @@ final class ProviderHttp {
         /** {@code request} carrying this call's credential, and no other. Asked for now, on this thread. */
         private HttpRequest credentialed(HttpRequest request) {
             if (credentials == null) return request;
+            if (credentials instanceof SignedCredentials signer) return signed(request, signer);
             String value = credentials.token();
             var copy = HttpRequest.newBuilder(request, (name, v) -> !CREDENTIAL_HEADERS.contains(name.toLowerCase()));
             if (credentials.apiKey() && apiKeyHeader != null) copy.header(apiKeyHeader, value);
             else copy.header("Authorization", "Bearer " + value);
+            return copy.build();
+        }
+
+        /**
+         * {@code request} signed by {@code signer}: its body is read so the signature can cover it,
+         * and sent as those very bytes. {@code host} is signed as the client will send it (the
+         * port only when it isn't the scheme's default); the client sets that header itself.
+         */
+        private HttpRequest signed(HttpRequest request, SignedCredentials signer) {
+            byte[] body = request.bodyPublisher().map(ProviderHttp::bytes).orElse(new byte[0]);
+            URI uri = request.uri();
+            int port = uri.getPort();
+            boolean defaultPort = port == -1 || (port == 443 && "https".equals(uri.getScheme()))
+                    || (port == 80 && "http".equals(uri.getScheme()));
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("host", defaultPort ? uri.getHost() : uri.getHost() + ":" + port);
+            request.headers().map().forEach((name, values) -> {
+                if (!CREDENTIAL_HEADERS.contains(name.toLowerCase()) && !values.isEmpty()) {
+                    headers.put(name.toLowerCase(), String.join(",", values));
+                }
+            });
+            var copy = HttpRequest.newBuilder(request, (name, v) -> !CREDENTIAL_HEADERS.contains(name.toLowerCase()))
+                    .method(request.method(), HttpRequest.BodyPublishers.ofByteArray(body));
+            signer.sign(request.method(), uri, headers, body).forEach(copy::setHeader);
             return copy.build();
         }
 

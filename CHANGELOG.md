@@ -75,6 +75,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   Federation). The app's token from its own issuer (`IdentityToken.clientCredentials(...)`, or a
   rotated token file) is exchanged at Anthropic for a short-lived token acting as a service
   account, renewed with a fresh assertion each time; `fromEnv()` reads Anthropic's SDK variables.
+- **Claude in Amazon Bedrock with no AWS key: `AwsCredentials`.** Every request to Bedrock's
+  Messages API is signed with AWS Signature Version 4 (written in CafeAI, checked against AWS's
+  published test suite), with temporary credentials from STS `AssumeRoleWithWebIdentity`: for
+  the signed-in person (`assumeRoleAsCaller`, the session named after them) or the app
+  (`assumeRole`). Core's new `SignedCredentials` lets a provider sign requests instead of
+  carrying a token.
 - **A provider's rate limit is a `429`**, no longer a `500`, with the provider's `Retry-After`
   when it sent one (OpenAI-compatible, Anthropic and Ollama providers).
 - **Browser sign-in.** `app.filter(Auth.login(issuer, clientId, secret, redirectUri))`, behind

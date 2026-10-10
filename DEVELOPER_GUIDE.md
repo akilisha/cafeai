@@ -3763,6 +3763,21 @@ Anthropic's SDKs use; `IdentityToken.file(path)` reads a token a platform rotate
 (Kubernetes). Calls act as the service account; the audit records say whom each served. An issuer
 not on the public internet works with its keys uploaded to the Console.
 
+**Claude in Amazon Bedrock**, with no AWS key: every request is signed (Signature Version 4)
+with temporary credentials from AWS STS, in exchange for the signed-in person's token, or the
+app's:
+
+```java
+app.ai(Anthropic.of("anthropic.claude-opus-5-5")
+        .withBaseUrl("https://bedrock-mantle.us-east-1.api.aws/anthropic")
+        .withCredentials(AwsCredentials.assumeRoleAsCaller("arn:aws:iam::123456789012:role/claude-users")
+                .region("us-east-1")));
+```
+
+Each person gets credentials of their own, and their subject names the AWS session, so
+CloudTrail shows who acted. `AwsCredentials.assumeRole(roleArn, IdentityToken...)` acts as the
+app. The role trusts an IAM OIDC provider for your issuer.
+
 **Hosted open-weight models with a key** (Kimi, DeepSeek and others): they take API keys only,
 but the key stays on the server, and people sign in to your app; usage, audit records and
 captured text are per person.

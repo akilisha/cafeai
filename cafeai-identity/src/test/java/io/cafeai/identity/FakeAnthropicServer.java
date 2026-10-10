@@ -19,8 +19,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 final class FakeAnthropicServer implements AutoCloseable {
 
-    /** One call: its path, every credential header it carried, and whether it streamed. */
-    record Call(String path, List<String> authorization, List<String> xApiKey, List<String> apiKey, boolean streamed) {
+    /**
+     * One call: its path, every credential header it carried, whether it streamed, and what an
+     * AWS signature covers (host, {@code X-Amz-Date}, security token, the body as received).
+     */
+    record Call(String path, List<String> authorization, List<String> xApiKey, List<String> apiKey, boolean streamed,
+                String host, String amzDate, String securityToken, String body) {
         /** The single bearer token, failing unless it was the only credential. */
         String bearer() {
             if (authorization.size() != 1 || !xApiKey.isEmpty() || !apiKey.isEmpty()) {
@@ -91,7 +95,8 @@ final class FakeAnthropicServer implements AutoCloseable {
         calls.add(new Call(exchange.getRequestURI().getPath(),
                 List.copyOf(h.getOrDefault("Authorization", List.of())),
                 List.copyOf(h.getOrDefault("x-api-key", List.of())),
-                List.copyOf(h.getOrDefault("api-key", List.of())), stream));
+                List.copyOf(h.getOrDefault("api-key", List.of())), stream,
+                h.getFirst("Host"), h.getFirst("X-Amz-Date"), h.getFirst("X-Amz-Security-Token"), body));
         if (!exchange.getRequestURI().getPath().endsWith("/v1/messages")) {
             send(exchange, 404, "application/json", "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\"}}");
             return;

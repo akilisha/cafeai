@@ -519,6 +519,7 @@ MCP servers, downstream APIs. It isn't specific to models.
 | `clientCredentials(...)` | Client credentials grant | The app calls as itself, e.g. background work |
 | `tokenExchange(audience)` | RFC 8693 | The app swaps the user's token for one scoped to the target and marked as acting for that user. The traceable option. |
 | `AnthropicFederation` | RFC 7523 JWT bearer grant at Anthropic | The Claude API with no API key: the app's token from its own issuer (or a workload token file) is exchanged for a short-lived Anthropic token acting as a service account. As the app, not a person. |
+| `AwsCredentials` | AWS STS `AssumeRoleWithWebIdentity`, then Signature Version 4 on every request | Claude in Amazon Bedrock: temporary AWS credentials for an IAM role, in exchange for the caller's token (per person, the session named after them) or the app's. |
 | `onBehalfOf(scopes)` | Microsoft Entra ID's on-behalf-of (an RFC 7523 JWT bearer grant with `requested_token_use=on_behalf_of`) | The same, at Entra, which has no RFC 8693. |
 
 Passing the user's own token on to another service is **not** offered. OAuth's security guidance
@@ -550,6 +551,18 @@ presents a new JWT, since Anthropic treats a token's `jti` as single-use; Anthro
 renewed 120 seconds before it expires, as its SDKs do. Anthropic must be able to verify the
 issuer's tokens: a public `https` issuer, or its keys uploaded to the Console for one that isn't.
 Every refusal is the same opaque `401`; the reason is in the Console's authentication history.
+
+**AWS signs, rather than carries, a credential.** Claude in Amazon Bedrock serves the Messages
+API at `https://bedrock-mantle.<region>.api.aws/anthropic`, so the Anthropic provider reaches it,
+but every request must carry a Signature Version 4 worked out over the request itself. That is
+the per-provider exception §8.1 allows for: core's `SignedCredentials` signs instead of handing
+out a token, and `ProviderHttp` reads the body, asks for the signature headers and sends those
+very bytes, per request on the calling thread. `AwsSigV4` is written here, not taken from the
+AWS SDK (decided 2026-10-10: a large dependency for one algorithm), and is checked against AWS's
+own published SigV4 test suite. The key comes from STS `AssumeRoleWithWebIdentity`, which needs
+no AWS credentials to ask: with the caller's own token (`assumeRoleAsCaller`, per person, their
+subject naming the session so CloudTrail says who acted, never kept past their token) or the
+app's (`assumeRole`). The role's trust policy names an IAM OIDC provider for the issuer.
 
 Obtained tokens are cached per (identity, audience) until shortly before they expire. This
 caches a short-lived string, not a client, so it doesn't conflict with §8.1.
