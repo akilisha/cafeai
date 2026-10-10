@@ -605,8 +605,8 @@ As built:
   depends on the test's port, and the realm is fixed at import. MCP is tested against the fake
   issuer (§6.5).
 - **Kimi:** `KimiCredentialsTest` makes a real chat call through `withBaseUrl` and a per-call
-  credential when `KIMI_API_KEY` and `KIMI_MODEL` are set, and is skipped otherwise. It covers
-  Kimi's OpenAI-compatible endpoint. The Anthropic-protocol case (item 2 above) waits for
+  credential when `KIMI_API_KEY` and `KIMI_MODEL` are set, and is skipped otherwise; it has not
+  been run yet. It covers Kimi's OpenAI-compatible endpoint. The Anthropic-protocol case (item 2 above) waits for
   `withCredentials` on the Anthropic provider (§13). Comparing the device flow with a recorded
   `kimi login` (item 1) needs a person to run `kimi login`.
 
