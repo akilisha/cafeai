@@ -116,9 +116,10 @@ public final class LangchainBridge {
 
             case ANTHROPIC -> {
                 var builder = AnthropicStreamingChatModel.builder()
-                    .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
+                    .apiKey(anthropicKey(provider))
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider)).httpClientBuilder(http());
+                    .timeout(timeout(provider)).httpClientBuilder(anthropicHttp(provider));
+                if (provider.baseUrl() != null)     builder.baseUrl(anthropicBaseUrl(provider.baseUrl()));
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
@@ -170,11 +171,12 @@ public final class LangchainBridge {
 
             case ANTHROPIC -> {
                 var builder = AnthropicChatModel.builder()
-                    .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
+                    .apiKey(anthropicKey(provider))
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider)).httpClientBuilder(http())
+                    .timeout(timeout(provider)).httpClientBuilder(anthropicHttp(provider))
                     .logRequests(false)
                     .logResponses(false);
+                if (provider.baseUrl() != null)     builder.baseUrl(anthropicBaseUrl(provider.baseUrl()));
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
@@ -211,10 +213,37 @@ public final class LangchainBridge {
 
     /**
      * The HTTP client a provider's model is built on: LangChain4j's JDK client, over one that
-     * keeps a {@code 429}'s {@code Retry-After} for the request ({@link RetryAfterCapture}).
+     * keeps a {@code 429}'s {@code Retry-After} for the request ({@link ProviderHttp}).
      */
     private static JdkHttpClientBuilder http() {
-        return new JdkHttpClientBuilder().httpClientBuilder(RetryAfterCapture.builder());
+        return new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder());
+    }
+
+    /**
+     * Anthropic's client has no per-request header hook, and always sends {@code x-api-key}; with
+     * credentials, the HTTP client below it sets the credential on every request instead
+     * ({@link ProviderHttp}): an API key as {@code x-api-key}, a token as
+     * {@code Authorization: Bearer}, which the Claude API prefers and Microsoft Foundry requires
+     * for Entra ID tokens.
+     */
+    private static JdkHttpClientBuilder anthropicHttp(AiProvider provider) {
+        return provider.credentials() == null ? http()
+                : new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder(provider.credentials(), "x-api-key"));
+    }
+
+    /** The key Anthropic's client is built with: with per-request credentials, a placeholder that is never sent. */
+    private String anthropicKey(AiProvider provider) {
+        return provider.credentials() != null ? "per-request" : resolveApiKey("ANTHROPIC_API_KEY", provider);
+    }
+
+    /**
+     * An Anthropic-compatible endpoint's base URL as LangChain4j's client wants it, ending in
+     * {@code /v1/}: {@code https://api.deepseek.com/anthropic} and
+     * {@code https://api.deepseek.com/anthropic/v1} both work, as the endpoints document them.
+     */
+    static String anthropicBaseUrl(String url) {
+        String base = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        return (base.endsWith("/v1") ? base : base + "/v1") + "/";
     }
 
     /**

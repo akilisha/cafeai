@@ -489,9 +489,16 @@ builders both take `customHeaders(Supplier<Map<String, String>>)`. Checked in th
   supplied ones are applied after the client's defaults. The map is **case-sensitive**, though:
   the header must be spelled exactly `Authorization`, or both credentials are sent. With no API
   key set, the OpenAI client sends no default `Authorization` at all.
-- **Anthropic always sends `x-api-key`** with the builder's key. A per-request credential for an
-  Anthropic-protocol endpoint overrides that exact header name, and the builder still needs a key
-  value at build time.
+- **Anthropic always sends `x-api-key`** with the builder's key, and its client has no
+  per-request header hook. So for Anthropic the credential is set one level down, in the HTTP
+  client the model is built on (`ProviderHttp`, which also keeps a `429`'s `Retry-After`, §7.2):
+  on every request, asked for on the calling thread, it removes whatever credential header the
+  client set (`Authorization`, `x-api-key`, `api-key`) and sets the call's own. An API key
+  (`Credentials.staticKey`) goes as `x-api-key`, the one header every Anthropic-compatible
+  endpoint takes (DeepSeek's documents no other); a token goes as `Authorization: Bearer`, which
+  the Claude API now prefers (`x-api-key` is its legacy fallback) and which Claude in Microsoft
+  Foundry requires for Entra ID tokens. The builder gets a placeholder key that is never sent.
+  `withBaseUrl` reaches any Anthropic-compatible endpoint, with or without `/v1` at the end.
 - **The supplier runs in the call that builds the request**, on the caller's thread, so
   `Identity.current()` sees the request's identity. Verified for streaming calls too: a stream
   runs in its request's scope (§7.1), so a streamed call carries its own caller's token.
@@ -684,17 +691,13 @@ As built:
   issuer (§6.5).
 - **Kimi:** `KimiCredentialsTest` makes a real chat call through `withBaseUrl` and a per-call
   credential when `KIMI_API_KEY` and `KIMI_MODEL` are set, and is skipped otherwise; it has not
-  been run yet. It covers Kimi's OpenAI-compatible endpoint. The Anthropic-protocol case (item 2 above) waits for
-  `withCredentials` on the Anthropic provider (§13). Comparing the device flow with a recorded
+  been run yet. It covers Kimi's OpenAI-compatible endpoint. The Anthropic-protocol case (item 2
+  above) can now be run too (`Anthropic.withCredentials`), with a Kimi key. Comparing the device flow with a recorded
   `kimi login` (item 1) needs a person to run `kimi login`.
 
 ## 13. Deferred
 
 These can be added later without changing the design:
-- `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
-  `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),
-  so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
-  which reaches any OpenAI-compatible endpoint.
 
 ## 14. Decisions and open questions
 

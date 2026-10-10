@@ -3729,7 +3729,29 @@ app.ai(OpenAI.of("<model-id>")
 **Fail closed.** A per-caller credential with no verified caller is refused with `401`; the
 model is never called with some other credential. Tokens are cached until shortly before they
 expire. `withBaseUrl` also reaches a company's own open-model server or a hosted open-weight
-model. `withCredentials` is on the OpenAI provider; the Anthropic provider doesn't support it yet.
+model.
+
+The Anthropic provider takes both too, for any Anthropic-compatible endpoint: an API key goes as
+`x-api-key`, an OAuth token as `Authorization: Bearer`, and nothing else is sent.
+
+```java
+// Claude in Microsoft Foundry, with an Entra ID token for the app
+app.ai(Anthropic.of("claude-opus-5-5")
+        .withBaseUrl("https://my-resource.services.ai.azure.com/anthropic")
+        .withCredentials(OAuthCredentials.clientCredentials(entra, "orders-api", secret)
+                .scope("https://ai.azure.com/.default")));
+```
+
+**Hosted open-weight models with a key** (Kimi, DeepSeek and others): they take API keys only,
+but the key stays on the server, and people sign in to your app; usage, audit records and
+captured text are per person.
+
+```java
+app.ai(OpenAI.of("<model-id>").withBaseUrl("https://api.moonshot.ai/v1")
+        .withCredentials(Credentials.staticKey(System.getenv("MOONSHOT_API_KEY"))));
+app.ai(Anthropic.of("<model-id>").withBaseUrl("https://api.deepseek.com/anthropic")
+        .withCredentials(Credentials.staticKey(System.getenv("DEEPSEEK_API_KEY"))));
+```
 
 ### 32.6 The caller through the AI layer
 
@@ -3843,4 +3865,3 @@ Once identity middleware exists, these are refused rather than allowed to run un
 
 - A browser session's renewals are shared within one instance. Several instances behind a
   shared session store need sticky sessions where the issuer rotates refresh tokens.
-- `withCredentials` is not yet on the Anthropic provider.

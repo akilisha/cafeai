@@ -44,6 +44,15 @@ public interface Credentials {
     }
 
     /**
+     * Whether this is an API key, sent in the provider's key header (Anthropic's
+     * {@code x-api-key}), rather than a token, sent as {@code Authorization: Bearer}. Default:
+     * {@code false}, a token. For OpenAI-compatible endpoints both go as {@code Bearer}.
+     */
+    default boolean apiKey() {
+        return false;
+    }
+
+    /**
      * A fixed key, given in code rather than read from the environment. For single-user use;
      * prefer OAuth credentials anywhere access must be accountable or revocable.
      */
@@ -52,6 +61,7 @@ public interface Credentials {
         if (key.isBlank()) throw new IllegalArgumentException("key must not be blank");
         return new Credentials() {
             @Override public String token() { return key; }
+            @Override public boolean apiKey() { return true; }
             @Override public String toString() { return "Credentials.staticKey(****)"; }
         };
     }

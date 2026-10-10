@@ -2322,7 +2322,7 @@ public final class CafeAIApp implements CafeAI {
             log.warn("Model call rate-limited: {}", error.getMessage());
             try {
                 // The provider's own word on when to come back, when it gave one.
-                RetryAfterCapture.of(res.request()).ifPresent(v -> res.set("Retry-After", v));
+                ProviderHttp.retryAfter(res.request()).ifPresent(v -> res.set("Retry-After", v));
                 res.status(429).json(Map.of("error", "Rate limited by the model provider"));
             } catch (Exception ignored) {
                 // Response may already be committed -- swallow

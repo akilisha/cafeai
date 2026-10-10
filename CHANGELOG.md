@@ -63,6 +63,11 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **Identity mode.** Once `Auth.bearer` is created, conversation memory used with no request in
   scope is refused (`IdentityRequiredException`) instead of being keyed by the bare id; carry the
   request with `RequestScope`.
+- **`Anthropic.withBaseUrl` and `Anthropic.withCredentials`**: any Anthropic-compatible endpoint
+  (Claude in Microsoft Foundry, a gateway, DeepSeek's or Kimi's), with a credential per call: an
+  API key as `x-api-key`, an OAuth token (Entra ID, the caller's exchanged token) as
+  `Authorization: Bearer`, set in the HTTP layer so nothing else is sent. `Credentials.apiKey()`
+  says which a credential is.
 - **A provider's rate limit is a `429`**, no longer a `500`, with the provider's `Retry-After`
   when it sent one (OpenAI-compatible, Anthropic and Ollama providers).
 - **Browser sign-in.** `app.filter(Auth.login(issuer, clientId, secret, redirectUri))`, behind
