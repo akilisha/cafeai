@@ -251,8 +251,14 @@ in the route totals only.
 ### 7.2 Limits: passed through, not imposed
 CafeAI imposes no quotas. Limits belong to whoever provides the model or the data. When an API or
 gateway enforces one, the caller gets a `429`, not a `500` that hides it. CafeAI retries only if
-the app asked it to (`app.retry(...)`). The provider's `Retry-After` is not passed on:
-LangChain4j's rate-limit exception doesn't carry the response's headers.
+the app asked it to (`app.retry(...)`).
+
+The provider's `Retry-After` goes with the `429`. LangChain4j's rate-limit exception doesn't
+carry the response's headers, so CafeAI builds the OpenAI-compatible, Anthropic and Ollama
+models on LangChain4j's JDK HTTP client over one of its own: it passes every call through, and
+on a `429` keeps the `Retry-After` on the request the call was made for (taken when the call
+starts, so streams are covered). Only delay-seconds or an HTTP date (RFC 9110) is passed on.
+Gemini's and Jlama's models are built otherwise and don't carry it.
 
 ### 7.3 Audit
 `app.audit(sink)` receives an `AuditEvent` for:
@@ -612,7 +618,6 @@ These can be added later without changing the design:
   `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
   which reaches any OpenAI-compatible endpoint.
-- Passing the provider's `Retry-After` through with a `429` (§7.2).
 
 ## 14. Decisions and open questions
 

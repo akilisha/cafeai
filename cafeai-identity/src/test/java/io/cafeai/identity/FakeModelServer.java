@@ -33,6 +33,8 @@ final class FakeModelServer implements AutoCloseable {
     private final HttpServer server;
     final List<Call> calls = new CopyOnWriteArrayList<>();
     volatile boolean rateLimited;
+    /** The {@code Retry-After} a rate-limited answer carries, or {@code null} for none. */
+    volatile String retryAfter;
 
     FakeModelServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -52,6 +54,7 @@ final class FakeModelServer implements AutoCloseable {
         calls.add(new Call(List.copyOf(auth), stream));
 
         if (rateLimited) {
+            if (retryAfter != null) exchange.getResponseHeaders().set("Retry-After", retryAfter);
             send(exchange, 429, "application/json",
                     "{\"error\":{\"message\":\"Rate limit reached\",\"type\":\"rate_limit_exceeded\"}}");
             return;

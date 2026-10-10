@@ -44,6 +44,9 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-ollama'
     // Jlama (pure-Java in-process inference — no server, no native code)
     implementation 'dev.langchain4j:langchain4j-jlama'
+    // The JDK HTTP client the OpenAI, Anthropic and Ollama models run on, built by
+    // LangchainBridge so a provider's 429 Retry-After reaches the caller.
+    implementation 'dev.langchain4j:langchain4j-http-client-jdk'
     // Google Gemini — NOT one of the four ProviderType values LangchainBridge's
     // switch wires up. ai/Gemini.java reaches it entirely through the public
     // LangchainBridge.ChatModelAccess escape hatch; this dependency line is the

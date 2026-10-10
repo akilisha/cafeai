@@ -172,7 +172,30 @@ class OutboundCredentialsTest {
     void rateLimitPassedThrough() throws Exception {
         model.rateLimited = true;
         serve(OpenAI.of("m").withBaseUrl(model.baseUrl()).withCredentials(Credentials.staticKey("k")));
-        assertThat(get("/ask", null).statusCode()).isEqualTo(429);
+        var response = get("/ask", null);
+        assertThat(response.statusCode()).isEqualTo(429);
+        assertThat(response.headers().firstValue("Retry-After")).as("the provider gave none").isEmpty();
+    }
+
+    @Test @DisplayName("the provider's Retry-After goes with the 429, in seconds or as a date")
+    void retryAfterPassedThrough() throws Exception {
+        model.rateLimited = true;
+        model.retryAfter = "30";
+        serve(OpenAI.of("m").withBaseUrl(model.baseUrl()).withCredentials(Credentials.staticKey("k")));
+        assertThat(get("/ask", null).headers().firstValue("Retry-After")).hasValue("30");
+
+        model.retryAfter = "Wed, 21 Oct 2026 07:28:00 GMT";
+        assertThat(get("/ask", null).headers().firstValue("Retry-After")).hasValue("Wed, 21 Oct 2026 07:28:00 GMT");
+    }
+
+    @Test @DisplayName("a Retry-After that is neither seconds nor a date isn't passed on")
+    void malformedRetryAfterDropped() throws Exception {
+        model.rateLimited = true;
+        model.retryAfter = "soon, maybe";
+        serve(OpenAI.of("m").withBaseUrl(model.baseUrl()).withCredentials(Credentials.staticKey("k")));
+        var response = get("/ask", null);
+        assertThat(response.statusCode()).isEqualTo(429);
+        assertThat(response.headers().firstValue("Retry-After")).isEmpty();
     }
 
     @Test @DisplayName("an app that serves verified callers refuses conversation memory with no request in scope")

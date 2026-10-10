@@ -3770,5 +3770,4 @@ Once identity middleware exists, these are refused rather than allowed to run un
 
 - A browser session's renewals are shared within one instance. Several instances behind a
   shared session store need sticky sessions where the issuer rotates refresh tokens.
-- `withCredentials` is not yet on the Anthropic provider, and a provider's `Retry-After` isn't
-  passed on with a `429`.
+- `withCredentials` is not yet on the Anthropic provider.

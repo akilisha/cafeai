@@ -1,5 +1,6 @@
 package io.cafeai.core.internal;
 
+import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
@@ -103,7 +104,7 @@ public final class LangchainBridge {
             case OPENAI -> {
                 var builder = OpenAiStreamingChatModel.builder()
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider));
+                    .timeout(timeout(provider)).httpClientBuilder(http());
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
                 if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
@@ -117,7 +118,7 @@ public final class LangchainBridge {
                 var builder = AnthropicStreamingChatModel.builder()
                     .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider));
+                    .timeout(timeout(provider)).httpClientBuilder(http());
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
@@ -130,7 +131,7 @@ public final class LangchainBridge {
                 var builder = OllamaStreamingChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider));
+                    .timeout(timeout(provider)).httpClientBuilder(http());
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.numPredict(provider.maxTokens());
                 yield builder.build();
@@ -155,7 +156,7 @@ public final class LangchainBridge {
             case OPENAI -> {
                 var builder = OpenAiChatModel.builder()
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider))
+                    .timeout(timeout(provider)).httpClientBuilder(http())
                     .logRequests(false)
                     .logResponses(false);
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
@@ -171,7 +172,7 @@ public final class LangchainBridge {
                 var builder = AnthropicChatModel.builder()
                     .apiKey(resolveApiKey("ANTHROPIC_API_KEY", provider))
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider))
+                    .timeout(timeout(provider)).httpClientBuilder(http())
                     .logRequests(false)
                     .logResponses(false);
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
@@ -186,7 +187,7 @@ public final class LangchainBridge {
                 var builder = OllamaChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(provider.modelId())
-                    .timeout(timeout(provider));
+                    .timeout(timeout(provider)).httpClientBuilder(http());
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.numPredict(provider.maxTokens());
                 yield builder.build();
@@ -206,6 +207,14 @@ public final class LangchainBridge {
                 ". Supported: OPENAI, ANTHROPIC, OLLAMA, JLAMA. " +
                 "For other providers, implement AiProvider and wire Langchain4j manually.");
         };
+    }
+
+    /**
+     * The HTTP client a provider's model is built on: LangChain4j's JDK client, over one that
+     * keeps a {@code 429}'s {@code Retry-After} for the request ({@link RetryAfterCapture}).
+     */
+    private static JdkHttpClientBuilder http() {
+        return new JdkHttpClientBuilder().httpClientBuilder(RetryAfterCapture.builder());
     }
 
     /**
