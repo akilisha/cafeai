@@ -33,6 +33,16 @@ final class FakeAnthropicServer implements AutoCloseable {
 
     private final HttpServer server;
     final List<Call> calls = new CopyOnWriteArrayList<>();
+    /** Each token exchange's JSON body, in order. */
+    final List<java.util.Map<String, Object>> exchanges = new CopyOnWriteArrayList<>();
+    /** The tokens minted, in order. */
+    final List<String> minted = new CopyOnWriteArrayList<>();
+    /** How long a minted token lasts, in seconds. */
+    volatile long expiresIn = 600;
+    /** Refuse every exchange, as Anthropic does when the assertion fails the rule. */
+    volatile boolean refuseExchanges;
+    private final java.util.Set<String> seenAssertions = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 
     FakeAnthropicServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -45,8 +55,37 @@ final class FakeAnthropicServer implements AutoCloseable {
         return "http://127.0.0.1:" + server.getAddress().getPort() + prefix;
     }
 
+    /**
+     * Workload Identity Federation's exchange, as Anthropic answers it: every required field, an
+     * assertion used once only (its {@code jti} is single-use), and one opaque 401 for any refusal.
+     */
+    @SuppressWarnings("unchecked")
+    private void tokenExchange(HttpExchange exchange, String body) throws IOException {
+        java.util.Map<String, Object> request = JSON.readValue(body, java.util.Map.class);
+        exchanges.add(request);
+        for (String field : List.of("grant_type", "assertion", "federation_rule_id", "organization_id", "service_account_id")) {
+            if (request.get(field) == null) {
+                send(exchange, 400, "application/json", "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"" + field + " is required\"}}");
+                return;
+            }
+        }
+        if (refuseExchanges || !"urn:ietf:params:oauth:grant-type:jwt-bearer".equals(request.get("grant_type"))
+                || !seenAssertions.add(String.valueOf(request.get("assertion")))) {
+            send(exchange, 401, "application/json", "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Authentication failed\"}}");
+            return;
+        }
+        String token = "sk-ant-oat01-test-" + (minted.size() + 1);
+        minted.add(token);
+        send(exchange, 200, "application/json", "{\"access_token\":\"" + token + "\",\"token_type\":\"Bearer\","
+                + "\"expires_in\":" + expiresIn + ",\"scope\":\"workspace:inference\"}");
+    }
+
     private void messages(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        if (exchange.getRequestURI().getPath().endsWith("/v1/oauth/token")) {
+            tokenExchange(exchange, body);
+            return;
+        }
         boolean stream = body.replace(" ", "").contains("\"stream\":true");
         var h = exchange.getRequestHeaders();
         calls.add(new Call(exchange.getRequestURI().getPath(),

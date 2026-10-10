@@ -518,6 +518,7 @@ MCP servers, downstream APIs. It isn't specific to models.
 | `staticKey(...)` | — | Today's behaviour; single-user mode |
 | `clientCredentials(...)` | Client credentials grant | The app calls as itself, e.g. background work |
 | `tokenExchange(audience)` | RFC 8693 | The app swaps the user's token for one scoped to the target and marked as acting for that user. The traceable option. |
+| `AnthropicFederation` | RFC 7523 JWT bearer grant at Anthropic | The Claude API with no API key: the app's token from its own issuer (or a workload token file) is exchanged for a short-lived Anthropic token acting as a service account. As the app, not a person. |
 | `onBehalfOf(scopes)` | Microsoft Entra ID's on-behalf-of (an RFC 7523 JWT bearer grant with `requested_token_use=on_behalf_of`) | The same, at Entra, which has no RFC 8693. |
 
 Passing the user's own token on to another service is **not** offered. OAuth's security guidance
@@ -539,6 +540,16 @@ Only the issuer that issued the caller's token can exchange it. A `tokenExchange
 caller from another issuer (a server error, since the app is misconfigured), so the token is never
 sent to the wrong issuer. With several issuers, `OAuthCredentials.byIssuer(exchanges...)` picks
 the exchange at the caller's issuer.
+
+**Anthropic Workload Identity Federation** removes the last API key from the Claude API: the
+app presents a JWT from the organisation's issuer (`IdentityToken.clientCredentials(issuer, ...)`,
+or a token file a platform rotates), Anthropic checks it against a federation rule set up in the
+Claude Console, and returns a short-lived token for one of the organisation's service accounts.
+It acts as the app, so per-person accountability comes from the audit records. Each renewal
+presents a new JWT, since Anthropic treats a token's `jti` as single-use; Anthropic's token is
+renewed 120 seconds before it expires, as its SDKs do. Anthropic must be able to verify the
+issuer's tokens: a public `https` issuer, or its keys uploaded to the Console for one that isn't.
+Every refusal is the same opaque `401`; the reason is in the Console's authentication history.
 
 Obtained tokens are cached per (identity, audience) until shortly before they expire. This
 caches a short-lived string, not a client, so it doesn't conflict with §8.1.

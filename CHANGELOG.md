@@ -71,6 +71,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   API key as `x-api-key`, an OAuth token (Entra ID, the caller's exchanged token) as
   `Authorization: Bearer`, set in the HTTP layer so nothing else is sent. `Credentials.apiKey()`
   says which a credential is.
+- **The Claude API with no API key: `AnthropicFederation`** (Anthropic's Workload Identity
+  Federation). The app's token from its own issuer (`IdentityToken.clientCredentials(...)`, or a
+  rotated token file) is exchanged at Anthropic for a short-lived token acting as a service
+  account, renewed with a fresh assertion each time; `fromEnv()` reads Anthropic's SDK variables.
 - **A provider's rate limit is a `429`**, no longer a `500`, with the provider's `Retry-After`
   when it sent one (OpenAI-compatible, Anthropic and Ollama providers).
 - **Browser sign-in.** `app.filter(Auth.login(issuer, clientId, secret, redirectUri))`, behind

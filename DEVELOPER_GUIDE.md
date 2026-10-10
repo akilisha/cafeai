@@ -3748,6 +3748,21 @@ app.ai(Anthropic.of("claude-opus-5-5")
                 .scope("https://ai.azure.com/.default")));
 ```
 
+**The Claude API with no API key** (Anthropic's Workload Identity Federation): set up a
+federation issuer, service account and rule in the Claude Console (Settings, Workload identity),
+then present the app's own token from your issuer:
+
+```java
+app.ai(Anthropic.of("claude-opus-5-5").withCredentials(AnthropicFederation.rule("fdrl_...")
+        .organization("<organization uuid>").serviceAccount("svac_...").workspace("wrkspc_...")
+        .identityToken(IdentityToken.clientCredentials(issuer, "orders-api", secret))));
+```
+
+`AnthropicFederation.fromEnv()` reads the `ANTHROPIC_FEDERATION_RULE_ID` and other variables
+Anthropic's SDKs use; `IdentityToken.file(path)` reads a token a platform rotates on disk
+(Kubernetes). Calls act as the service account; the audit records say whom each served. An issuer
+not on the public internet works with its keys uploaded to the Console.
+
 **Hosted open-weight models with a key** (Kimi, DeepSeek and others): they take API keys only,
 but the key stays on the server, and people sign in to your app; usage, audit records and
 captured text are per person.
