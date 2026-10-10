@@ -80,12 +80,13 @@ public class DeskApp {
 
         // ── Who is calling: browsers sign in; agents bring a token ──────────────────────
         app.filter(Middleware.session(SessionStore.inMemory()));
+        app.filter(CafeAI.urlencoded());   // the sign-out form's CSRF token
         app.filter(Auth.login(issuer, "desk-web", "desk-web-secret", BASE + "/auth/callback")
             .afterSignOut(BASE + "/"));
         app.filter(Auth.bearer(issuer, "desk-api", BASE + "/mcp").optional());
 
         app.get("/", (req, res, next) -> res.type("text/html").send(
-            req.identity().map(DeskApp::chatPage).orElse(WELCOME)));
+            req.identity().map(who -> chatPage(who, Auth.csrfToken(req).orElse(""))).orElse(WELCOME)));
 
         // One question, answered under the caller's identity: for MCP agents, and for anyone with a token.
         app.get("/ask", Auth.signedIn(), (req, res, next) ->
@@ -187,13 +188,15 @@ public class DeskApp {
 
     private static final String WELCOME = page("""
         <p>Acme's knowledge desk answers from the documents <i>you</i> may read.</p>
-        <p><a href="/auth/login?return=/">Sign in</a> as alice/alice (finance), or bob/bob (staff) in a
-        private window, and ask both: <i>What was Q3 revenue?</i></p>""");
+        <p><a href="/auth/login?return=/">Sign in</a> as alice/alice (finance), ask <i>What was Q3
+        revenue?</i>, then sign out and ask again as bob/bob (staff).</p>""");
 
-    private static String chatPage(Identity who) {
+    /** The chat; signing out is a POST carrying the session's CSRF token, so no other site can do it. */
+    private static String chatPage(Identity who, String csrf) {
         return page("""
-            <p>Signed in as <b id="who"></b>. Ask something, e.g. <i>What was Q3 revenue?</i> or
-               <i>How many days of leave do I get?</i></p>
+            <form method="post" action="/auth/logout">Signed in as <b id="who"></b>.
+              <input type="hidden" name="_csrf" value="%s"><button>Sign out</button></form>
+            <p>Ask something, e.g. <i>What was Q3 revenue?</i> or <i>How many days of leave do I get?</i></p>
             <div id="log"></div>
             <form id="ask"><input id="q" size="60" autofocus> <button>Ask</button></form>
             <script>
@@ -212,7 +215,7 @@ public class DeskApp {
                 p.innerHTML = '<b></b>'; p.firstChild.textContent = q.value; log.append(p);
                 ws.send(q.value); q.value = '';
               };
-            </script>""".formatted(jsString(who.name().orElse(who.subject()))));
+            </script>""".formatted(csrf, jsString(who.name().orElse(who.subject()))));
     }
 
     private static String page(String body) {
