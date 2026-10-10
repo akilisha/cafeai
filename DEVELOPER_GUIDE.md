@@ -3778,6 +3778,21 @@ Each person gets credentials of their own, and their subject names the AWS sessi
 CloudTrail shows who acted. `AwsCredentials.assumeRole(roleArn, IdentityToken...)` acts as the
 app. The role trusts an IAM OIDC provider for your issuer.
 
+**Claude on Vertex AI**, with no service-account key: Google's Security Token Service exchanges
+the app's token from your issuer for a Google token, and, optionally, acts as a service account:
+
+```java
+app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global")
+        .withCredentials(GoogleFederation.workload(
+                "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/apps/providers/acme",
+                IdentityToken.clientCredentials(issuer, "orders-api", secret))
+            .serviceAccount("claude-caller@my-project.iam.gserviceaccount.com")));
+```
+
+Each request is reshaped into Vertex's form (the model in the URL, `anthropic_version` in the
+body). `GoogleFederation.workforce(provider)` exchanges the signed-in person's own token instead;
+that Vertex AI accepts workforce tokens is not yet confirmed.
+
 **Hosted open-weight models with a key** (Kimi, DeepSeek and others): they take API keys only,
 but the key stays on the server, and people sign in to your app; usage, audit records and
 captured text are per person.

@@ -97,7 +97,8 @@ final class FakeAnthropicServer implements AutoCloseable {
                 List.copyOf(h.getOrDefault("x-api-key", List.of())),
                 List.copyOf(h.getOrDefault("api-key", List.of())), stream,
                 h.getFirst("Host"), h.getFirst("X-Amz-Date"), h.getFirst("X-Amz-Security-Token"), body));
-        if (!exchange.getRequestURI().getPath().endsWith("/v1/messages")) {
+        String path = exchange.getRequestURI().getPath();   // the Messages API, or its Vertex AI form
+        if (!(path.endsWith("/v1/messages") || path.endsWith(":rawPredict") || path.endsWith(":streamRawPredict"))) {
             send(exchange, 404, "application/json", "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\"}}");
             return;
         }

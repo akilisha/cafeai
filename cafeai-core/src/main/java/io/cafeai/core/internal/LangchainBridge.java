@@ -119,7 +119,7 @@ public final class LangchainBridge {
                     .apiKey(anthropicKey(provider))
                     .modelName(provider.modelId())
                     .timeout(timeout(provider)).httpClientBuilder(anthropicHttp(provider));
-                if (provider.baseUrl() != null)     builder.baseUrl(anthropicBaseUrl(provider.baseUrl()));
+                if (anthropicBase(provider) != null) builder.baseUrl(anthropicBase(provider));
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
@@ -176,7 +176,7 @@ public final class LangchainBridge {
                     .timeout(timeout(provider)).httpClientBuilder(anthropicHttp(provider))
                     .logRequests(false)
                     .logResponses(false);
-                if (provider.baseUrl() != null)     builder.baseUrl(anthropicBaseUrl(provider.baseUrl()));
+                if (anthropicBase(provider) != null) builder.baseUrl(anthropicBase(provider));
                 if (provider.temperature() != null) builder.temperature(provider.temperature());
                 if (provider.maxTokens() != null)   builder.maxTokens(provider.maxTokens());
                 yield builder.build();
@@ -227,8 +227,25 @@ public final class LangchainBridge {
      * for Entra ID tokens.
      */
     private static JdkHttpClientBuilder anthropicHttp(AiProvider provider) {
-        return provider.credentials() == null ? http()
-                : new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder(provider.credentials(), "x-api-key"));
+        ProviderHttp.Rewrite rewrite = vertex(provider) == null ? null
+                : new ProviderHttp.VertexRewrite(vertex(provider).vertexProject(), vertex(provider).vertexLocation());
+        if (provider.credentials() == null && rewrite == null) return http();
+        return new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder(provider.credentials(), "x-api-key", rewrite));
+    }
+
+    /** The provider's Vertex AI target, or {@code null} when it calls an Anthropic-compatible API. */
+    private static VertexAccess vertex(AiProvider provider) {
+        return provider instanceof VertexAccess v && v.vertexProject() != null ? v : null;
+    }
+
+    /**
+     * Where Anthropic's client sends its requests: the given base URL, or, on Vertex AI, the
+     * location's Vertex host (each request is then rewritten for Vertex in {@link ProviderHttp}).
+     */
+    private static String anthropicBase(AiProvider provider) {
+        if (provider.baseUrl() != null) return anthropicBaseUrl(provider.baseUrl());
+        VertexAccess v = vertex(provider);
+        return v == null ? null : ProviderHttp.VertexRewrite.host(v.vertexLocation()) + "/v1/";
     }
 
     /** The key Anthropic's client is built with: with per-request credentials, a placeholder that is never sent. */
@@ -282,6 +299,16 @@ public final class LangchainBridge {
      */
     public interface OllamaProviderAccess {
         String baseUrl();
+    }
+
+    /**
+     * An Anthropic provider that reaches Claude on Google Cloud's Vertex AI: its project and
+     * location, or {@code null} for the Anthropic API itself. Public so
+     * {@link io.cafeai.core.ai.Anthropic}'s provider can implement it.
+     */
+    public interface VertexAccess {
+        String vertexProject();
+        String vertexLocation();
     }
 
     /**

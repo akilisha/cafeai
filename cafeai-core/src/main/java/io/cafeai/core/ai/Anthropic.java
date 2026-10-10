@@ -1,5 +1,7 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.internal.LangchainBridge;
+
 import java.time.Duration;
 import java.util.Objects;
 
@@ -36,25 +38,42 @@ public final class Anthropic {
 
     /** An Anthropic provider for the given model id (e.g. {@code "claude-sonnet-4-5"}). */
     public static AiProvider of(String modelId) {
-        return new AnthropicProvider(modelId, null, null, null, null, null);
+        return new AnthropicProvider(modelId, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * Claude on Google Cloud's Vertex AI: {@code project} and {@code location} ({@code global},
+     * {@code us}, {@code eu}, or a region such as {@code us-east5}). Vertex takes the Messages API
+     * in its own form (the model in the URL, {@code anthropic_version} in the body); each request
+     * is reshaped for it. Authenticate with a Google token:
+     *
+     * <pre>{@code
+     *   app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global")
+     *           .withCredentials(GoogleFederation.workload(provider, IdentityToken.clientCredentials(issuer, id, secret))));
+     * }</pre>
+     */
+    public static AiProvider onVertex(String modelId, String project, String location) {
+        Objects.requireNonNull(project, "project");
+        Objects.requireNonNull(location, "location");
+        return new AnthropicProvider(modelId, null, null, null, null, null, project, location);
     }
 
     private record AnthropicProvider(String modelId, Double temperature, Integer maxTokens, Duration timeout,
-                                     String baseUrl, Credentials credentials)
-            implements AiProvider {
-        @Override public AiProvider withTemperature(double t) { return new AnthropicProvider(modelId, t, maxTokens, timeout, baseUrl, credentials); }
-        @Override public AiProvider withMaxTokens(int n)      { return new AnthropicProvider(modelId, temperature, n, timeout, baseUrl, credentials); }
-        @Override public AiProvider withTimeout(Duration d)   { return new AnthropicProvider(modelId, temperature, maxTokens, d, baseUrl, credentials); }
+                                     String baseUrl, Credentials credentials, String vertexProject, String vertexLocation)
+            implements AiProvider, LangchainBridge.VertexAccess {
+        @Override public AiProvider withTemperature(double t) { return new AnthropicProvider(modelId, t, maxTokens, timeout, baseUrl, credentials, vertexProject, vertexLocation); }
+        @Override public AiProvider withMaxTokens(int n)      { return new AnthropicProvider(modelId, temperature, n, timeout, baseUrl, credentials, vertexProject, vertexLocation); }
+        @Override public AiProvider withTimeout(Duration d)   { return new AnthropicProvider(modelId, temperature, maxTokens, d, baseUrl, credentials, vertexProject, vertexLocation); }
 
         @Override public AiProvider withBaseUrl(String url) {
             Objects.requireNonNull(url, "baseUrl");
             if (url.isBlank()) throw new IllegalArgumentException("baseUrl must not be blank");
-            return new AnthropicProvider(modelId, temperature, maxTokens, timeout, url, credentials);
+            return new AnthropicProvider(modelId, temperature, maxTokens, timeout, url, credentials, vertexProject, vertexLocation);
         }
 
         @Override public AiProvider withCredentials(Credentials c) {
             return new AnthropicProvider(modelId, temperature, maxTokens, timeout, baseUrl,
-                    Objects.requireNonNull(c, "credentials"));
+                    Objects.requireNonNull(c, "credentials"), vertexProject, vertexLocation);
         }
 
         @Override public String       name()          { return "anthropic"; }

@@ -81,6 +81,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the signed-in person (`assumeRoleAsCaller`, the session named after them) or the app
   (`assumeRole`). Core's new `SignedCredentials` lets a provider sign requests instead of
   carrying a token.
+- **Claude on Vertex AI with no service-account key: `Anthropic.onVertex(model, project,
+  location)` and `GoogleFederation`.** Each request is reshaped into Vertex's form; the token
+  comes from Google's Security Token Service in exchange for the app's token (workload pool,
+  optionally acting as a service account) or the caller's (workforce pool).
 - **A provider's rate limit is a `429`**, no longer a `500`, with the provider's `Retry-After`
   when it sent one (OpenAI-compatible, Anthropic and Ollama providers).
 - **Browser sign-in.** `app.filter(Auth.login(issuer, clientId, secret, redirectUri))`, behind

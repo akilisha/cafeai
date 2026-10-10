@@ -520,6 +520,7 @@ MCP servers, downstream APIs. It isn't specific to models.
 | `tokenExchange(audience)` | RFC 8693 | The app swaps the user's token for one scoped to the target and marked as acting for that user. The traceable option. |
 | `AnthropicFederation` | RFC 7523 JWT bearer grant at Anthropic | The Claude API with no API key: the app's token from its own issuer (or a workload token file) is exchanged for a short-lived Anthropic token acting as a service account. As the app, not a person. |
 | `AwsCredentials` | AWS STS `AssumeRoleWithWebIdentity`, then Signature Version 4 on every request | Claude in Amazon Bedrock: temporary AWS credentials for an IAM role, in exchange for the caller's token (per person, the session named after them) or the app's. |
+| `GoogleFederation` | Google STS token exchange (RFC 8693, Google's JSON form), optionally `generateAccessToken` for a service account | Claude on Vertex AI: a Google token for the app's token (workload pool) or the caller's (workforce pool, per person). |
 | `onBehalfOf(scopes)` | Microsoft Entra ID's on-behalf-of (an RFC 7523 JWT bearer grant with `requested_token_use=on_behalf_of`) | The same, at Entra, which has no RFC 8693. |
 
 Passing the user's own token on to another service is **not** offered. OAuth's security guidance
@@ -563,6 +564,19 @@ own published SigV4 test suite. The key comes from STS `AssumeRoleWithWebIdentit
 no AWS credentials to ask: with the caller's own token (`assumeRoleAsCaller`, per person, their
 subject naming the session so CloudTrail says who acted, never kept past their token) or the
 app's (`assumeRole`). The role's trust policy names an IAM OIDC provider for the issuer.
+
+**Claude on Google Cloud's Vertex AI** (decided 2026-10-10: Claude only, not Gemini) takes the
+Messages API in its own form: the model in the URL (`.../publishers/anthropic/models/<model>:rawPredict`,
+or `:streamRawPredict`) and `anthropic_version: vertex-2023-10-16` in the body.
+`Anthropic.onVertex(model, project, location)` has `ProviderHttp` reshape each request for it,
+and picks the location's host (global, `us`/`eu` multi-region, or a region). The token is
+Google's: `GoogleFederation.workload(provider, identityToken)` exchanges the app's token at
+Google's Security Token Service, then, with `serviceAccount(...)`, acts as a service account;
+`GoogleFederation.workforce(provider)` exchanges the caller's own token, per person. Whether
+Vertex AI accepts a workforce pool's tokens directly was not confirmed from Google's
+documentation: workload federation with a service account is the established route. Google
+fetches the issuer's discovery document itself, so the issuer must be reachable from the
+internet.
 
 Obtained tokens are cached per (identity, audience) until shortly before they expire. This
 caches a short-lived string, not a client, so it doesn't conflict with §8.1.
