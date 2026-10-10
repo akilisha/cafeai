@@ -1,9 +1,12 @@
 package io.cafeai.core.session;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -43,6 +46,7 @@ public final class Session {
     private volatile boolean invalidated = false;
     private Runnable invalidationHook;
     private Supplier<Session> regenerateHook;
+    private final List<Runnable> beforeSaveHooks = new ArrayList<>();
 
     /** A new, unsaved session with the given opaque ID and no attributes. */
     public Session(String id) {
@@ -154,4 +158,18 @@ public final class Session {
 
     /** Marks this session replaced by {@link #regenerate()}: no longer saved, cookie untouched. */
     public void markReplaced() { this.invalidated = true; }
+
+    /**
+     * Runs {@code hook} just before this session is saved, as the response is sent. A request
+     * works on the copy it loaded; another request of the same session may have saved newer
+     * values meanwhile, and this is the last chance to bring this copy up to date before it
+     * overwrites them. Hooks run in the order added, on this request only.
+     */
+    public void beforeSave(Runnable hook) { beforeSaveHooks.add(Objects.requireNonNull(hook, "hook")); }
+
+    /**
+     * Runs the {@link #beforeSave} hooks. Called by the session middleware right before it
+     * saves; see {@link #touch()} for why this is public.
+     */
+    public void runBeforeSave() { for (Runnable hook : beforeSaveHooks) hook.run(); }
 }

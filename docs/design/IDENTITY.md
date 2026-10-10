@@ -149,6 +149,13 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
 - **Serves three paths:** `GET /auth/login?return=/path` starts sign-in; the redirect URI's
   path finishes it; `POST /auth/logout` signs out. `return` must be a path on this site, and
   anything else returns to `/`, so there is no open redirect.
+- **Renews each refresh token once.** A session is loaded when a request starts and saved when
+  its response is sent, so two requests of one session can hold the same refresh token, and a
+  slow request can save tokens older than another's renewal. Where the issuer rotates refresh
+  tokens (each is good once), either would sign the session out. So the first request to need
+  a renewal makes it and the others holding that token wait for its result, and a request's
+  copy is brought up to date before it's saved (`Session.beforeSave`, new in core). Results
+  are kept ten minutes, enough for the requests in flight during a renewal.
 - **Signs out in three steps:** the session goes; its refresh token is revoked at the issuer's
   `revocation_endpoint` (RFC 7009), so a copy of it can't renew anything; and the browser is
   sent to the issuer's `end_session_endpoint`, which ends the issuer's own session. Each step
@@ -167,8 +174,10 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
 - **`signInRequired()`:** a browser navigation is sent to sign in and back; other requests get
   `401`.
 - **Limits:**
-  - Two requests renewing at the same moment both use the same refresh token. Where the issuer
-    rotates refresh tokens, the second renewal fails and that session is signed out.
+  - Renewals of one session are shared across this process only. Several instances behind a
+    shared session store can still exchange the same refresh token twice; where the issuer
+    rotates refresh tokens, the later exchange fails and that session is signed out. Route a
+    session's requests to one instance (sticky sessions), or have the issuer not rotate.
   - The session cookie's `Secure` flag is the session middleware's setting, off by default for
     local development; production must turn it on.
 
@@ -598,7 +607,6 @@ These can be added later without changing the design:
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
   which reaches any OpenAI-compatible endpoint.
 - Passing the provider's `Retry-After` through with a `429` (§7.2).
-- Serialising concurrent token renewals for one session (§6.2).
 - The verified caller inside `@Tool` objects called over MCP (`Identity.current()`), as route tools already have it (§6.5).
 
 ## 14. Decisions and open questions

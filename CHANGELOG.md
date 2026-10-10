@@ -86,7 +86,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `1008`. `WsSession.isOpen()` now reports `false` once a connection is closed; it always
   returned `true`.
 - **`session.regenerate()`** moves a server-side session to a new id with its attributes and
-  destroys the old one: call it whenever a session's privilege changes. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
+  destroys the old one: call it whenever a session's privilege changes.
+  **`session.beforeSave(hook)`** runs a hook just before the session is saved, to bring the
+  request's copy up to date with what other requests saved meanwhile. The first part of ROADMAP-19; design in `docs/design/IDENTITY.md`.
 - **Screened streaming.** With output guardrails, a streamed answer is held until each
   sentence ends, screened, and only then sent, so a blocked answer stops at the last clean
   sentence — followed by the refusal — and the flagged text never reaches the client. The

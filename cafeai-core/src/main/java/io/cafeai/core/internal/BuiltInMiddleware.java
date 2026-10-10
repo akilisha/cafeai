@@ -374,6 +374,7 @@ public final class BuiltInMiddleware {
 
         res.beforeSend(() -> {
             if (session.isInvalidated()) return;
+            session.runBeforeSave();
             session.touch();
             store.save(session);
             res.cookie(cookieName, session.id(), options.cookieOptions());
@@ -419,6 +420,7 @@ public final class BuiltInMiddleware {
 
             res.beforeSend(() -> {
                 if (current.isInvalidated()) return;
+                current.runBeforeSave();
                 current.touch();
                 String encoded = encodeCookieSession(current, signingSecret);
                 int limit = AppConfig.load().get(Middleware.MAX_COOKIE_SESSION_BYTES);
@@ -523,6 +525,7 @@ public final class BuiltInMiddleware {
 
             res.beforeSend(() -> {
                 if (current.isInvalidated()) return;
+                current.runBeforeSave();
                 current.touch();
                 String encoded = encryptCookieSession(current, encryptingSecret);
                 int limit = AppConfig.load().get(Middleware.MAX_COOKIE_SESSION_BYTES);

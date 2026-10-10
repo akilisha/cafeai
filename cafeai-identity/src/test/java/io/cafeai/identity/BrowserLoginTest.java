@@ -4,6 +4,7 @@ import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.core.middleware.Middleware;
+import io.cafeai.core.session.Session;
 import io.cafeai.core.session.SessionStore;
 import io.cafeai.identity.dev.FakeIssuer;
 import org.junit.jupiter.api.AfterAll;
@@ -45,6 +46,7 @@ class BrowserLoginTest {
     private final BearerAuthTest.MutableClock clock = new BearerAuthTest.MutableClock(Instant.now());
     private CookieManager cookies;
     private HttpClient browser;
+    private SessionStore store;
 
     @BeforeAll
     static void startIssuer() {
@@ -61,6 +63,29 @@ class BrowserLoginTest {
         cookies = new CookieManager();
         browser = HttpClient.newBuilder().cookieHandler(cookies).followRedirects(HttpClient.Redirect.NEVER).build();
         fake.signInAs(null).issuedLifetime(Duration.ofHours(3));
+        store = SessionStore.inMemory();
+    }
+
+    /**
+     * A store that keeps copies, as a shared one (SQLite, Redis) does: each request loads its own
+     * copy, and its changes are seen by others only once it is saved. The in-memory store hands
+     * every request the same object, which would hide races between requests of one session.
+     */
+    private static SessionStore copyingStore() {
+        var saved = new java.util.concurrent.ConcurrentHashMap<String, Session>();
+        return new SessionStore() {
+            @Override public Session create() { return new Session(java.util.UUID.randomUUID().toString()); }
+            @Override public Session load(String id) { Session s = saved.get(id); return s == null ? null : copy(s); }
+            @Override public void save(Session session) { saved.put(session.id(), copy(session)); }
+            @Override public void destroy(String id) { saved.remove(id); }
+            @Override public boolean exists(String id) { return saved.containsKey(id); }
+
+            private Session copy(Session s) {
+                var attributes = new java.util.HashMap<String, Object>();
+                s.attributes().forEach((k, v) -> attributes.put(k, v instanceof Map<?, ?> m ? new java.util.HashMap<>(m) : v));
+                return new Session(s.id(), attributes, s.createdAt(), s.lastAccessedAt());
+            }
+        };
     }
 
     @AfterEach
@@ -78,7 +103,7 @@ class BrowserLoginTest {
             port = socket.getLocalPort();
         }
         app = CafeAI.create();
-        app.filter(Middleware.session(SessionStore.inMemory()));
+        app.filter(Middleware.session(store));
         login = Auth.login(fake.issuer(), CLIENT, SECRET, base() + "/auth/callback").clock(clock);
         configure.accept(login);
         app.filter(login);
@@ -250,6 +275,65 @@ class BrowserLoginTest {
         fake.revokeRefreshTokens();
         clock.advance(Duration.ofHours(3).minusSeconds(10));
         assertThat(get("/me").body()).isEqualTo("anonymous");
+    }
+
+    /** A route that holds its request open (its session loaded, not yet saved) until released. */
+    private static Consumer<CafeAI> holdRoute(CountDownLatch entered, CountDownLatch release) {
+        return a -> a.get("/hold", (req, res, next) -> {
+            entered.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            res.send(req.identity().map(Identity::subject).orElse("anonymous"));
+        });
+    }
+
+    @Test @DisplayName("two requests renewing at once: the refresh token is exchanged once, and both stay signed in")
+    void concurrentRenewal() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        store = copyingStore();
+        serve(l -> { }, holdRoute(entered, release));
+        signIn("alice", "/me");
+        int before = fake.tokenRequests();
+        clock.advance(Duration.ofHours(3).minusSeconds(10));
+
+        // The first request renews, and holds the new tokens unsaved; the second loads the old ones.
+        var held = browser.sendAsync(HttpRequest.newBuilder(URI.create(base() + "/hold")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+        assertThat(get("/me").body()).isEqualTo("alice");
+        release.countDown();
+        assertThat(held.get(10, TimeUnit.SECONDS).body()).isEqualTo("alice");
+        assertThat(fake.tokenRequests() - before).as("one exchange of the refresh token").isEqualTo(1);
+    }
+
+    @Test @DisplayName("a request that saves stale tokens after a renewal doesn't sign the session out later")
+    void staleSaveAfterRenewal() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        fake.issuedLifetime(Duration.ofHours(1));
+        store = copyingStore();
+        serve(l -> { }, holdRoute(entered, release));
+        signIn("alice", "/me");
+
+        // A slow request loads the session holding the first refresh token...
+        var held = browser.sendAsync(HttpRequest.newBuilder(URI.create(base() + "/hold")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+        // ...another renews it (the issuer rotates it), then the slow one saves its stale copy.
+        clock.advance(Duration.ofHours(1).minusSeconds(10));
+        assertThat(get("/me").body()).isEqualTo("alice");
+        release.countDown();
+        assertThat(held.get(10, TimeUnit.SECONDS).body()).isEqualTo("alice");
+
+        // When the renewed tokens near expiry, the stale copy is brought forward, not refused.
+        fake.issuedLifetime(Duration.ofHours(5));
+        clock.advance(Duration.ofHours(1));
+        assertThat(get("/me").body()).isEqualTo("alice");
+        assertThat(get("/me").body()).isEqualTo("alice");
     }
 
     // -- CSRF and signing out ----------------------------------------------------------------

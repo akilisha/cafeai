@@ -2806,6 +2806,11 @@ dependencies {
 }
 ```
 
+Each request works on the copy of the session it loaded, saved as its response is sent. Two
+requests of one session that overlap each save their own copy, and the later save wins. To
+bring a copy up to date first, register `req.session().beforeSave(() -> ...)`; it runs right
+before the save.
+
 Settings: `cafeai.http.session.cookie.name` (`cafeai.sid`),
 `cafeai.http.session.idle.timeout` (30m), `cafeai.session.sqlite.path`
 (`${java.io.tmpdir}/cafeai/sessions.db`), `cafeai.session.sqlite.pool.size` (4).
@@ -3597,7 +3602,10 @@ app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/
 - The redirect URI's path finishes it, validates the ID token, and **starts a new session id**
   (`session.regenerate()`), so an id planted before sign-in stays signed out.
 - **Tokens never reach the browser.** The session holds them; the browser holds only the
-  session cookie. They are renewed with the refresh token before they expire.
+  session cookie. They are renewed with the refresh token before they expire, once per refresh
+  token even when several requests of the session need it at the same moment, so an issuer
+  that rotates refresh tokens never sees one used twice. That holds within one instance; with
+  several instances and a shared store, use sticky sessions.
 - `POST /auth/logout` signs out here and at the issuer: the refresh token is revoked
   (RFC 7009) and the issuer's session ended.
 - A signed-in session's `POST`, `PUT`, `PATCH` and `DELETE` need its CSRF token, in

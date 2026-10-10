@@ -27,6 +27,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Browser sign-in with OpenID Connect: the authorization code flow with PKCE, {@code state} and
@@ -85,6 +88,15 @@ public final class BrowserLogin implements Middleware {
     private boolean signInRequired;
     private Clock clock = Clock.systemUTC();
     private volatile TokenValidator idTokens;
+
+    /** How long the result of exchanging a refresh token is kept for requests holding it still. */
+    static final Duration RENEWALS_KEPT = Duration.ofMinutes(10);
+    /** One exchange of a refresh token and when it started, by the token's fingerprint. */
+    private record Renewal(CompletableFuture<Map<String, Object>> result, Instant at) { }
+    /** Renewed tokens, and whether they came from an earlier request's renewal. */
+    private record Renewed(Map<String, Object> login, boolean earlier) { }
+    private final Map<String, Renewal> renewals = new ConcurrentHashMap<>();
+    private volatile Instant lastForget;
 
     BrowserLogin(Issuer issuer, String clientId, String clientSecret, String redirectUri) {
         this.issuer = Objects.requireNonNull(issuer, "issuer");
@@ -179,6 +191,7 @@ public final class BrowserLogin implements Middleware {
         Session session = session(req);
         Map<String, Object> login = session == null ? null : current(session);
         if (login != null) {
+            session.beforeSave(() -> bringForward(session));
             if (UNSAFE.contains(req.method()) && !csrfValid(req, login)) {
                 res.status(403).json(Map.of("error", "Missing or invalid CSRF token"));
                 return;
@@ -322,29 +335,104 @@ public final class BrowserLogin implements Middleware {
     private Map<String, Object> current(Session session) {
         Map<String, Object> login = signedIn(session);
         if (login == null) return null;
-        Instant expires = Instant.ofEpochSecond(number(login, "expires_at"));
-        if (clock.instant().isBefore(expires.minus(RENEW_BEFORE))) return login;
-
-        String refreshToken = string(login, "refresh_token");
-        if (refreshToken == null) {
+        Map<String, Object> fresh = fresh(login);
+        if (fresh == null) {
             session.remove(SIGNED_IN);
-            return null;
+        } else if (fresh != login) {
+            session.set(SIGNED_IN, fresh);
         }
+        return fresh;
+    }
+
+    /**
+     * {@code login} if its access token is current, else renewed tokens; {@code null} if they can't
+     * be renewed. A stale copy (a request that loaded the session before another renewed it, and
+     * saved it after) is brought forward through each renewal since, so a few hops at most.
+     */
+    private Map<String, Object> fresh(Map<String, Object> login) {
+        for (int hop = 0; hop < 4; hop++) {
+            Instant expires = Instant.ofEpochSecond(number(login, "expires_at"));
+            if (clock.instant().isBefore(expires.minus(RENEW_BEFORE))) return login;
+            String refreshToken = string(login, "refresh_token");
+            if (refreshToken == null) return null;
+            try {
+                Renewed renewed = renewOnce(refreshToken, login);
+                if (!renewed.earlier()) return renewed.login();   // just issued: use it as it is
+                login = renewed.login();
+            } catch (IdentityException | CompletionException e) {
+                String why = e instanceof CompletionException && e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                log.info("Could not renew a session's tokens; signing it out: {}", why);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Exchanges {@code refreshToken} once, however many requests ask. A session is loaded when a
+     * request starts and saved when it ends, so two requests of one session can both hold the
+     * same refresh token; where the issuer rotates refresh tokens, a second exchange of it is
+     * refused and would sign the session out. The second request gets the first one's result.
+     * Results are kept for {@link #RENEWALS_KEPT}, in this process only: long enough for the
+     * requests in flight during a renewal, which {@link #bringForward} then keeps from saving
+     * the old tokens back.
+     */
+    private Renewed renewOnce(String refreshToken, Map<String, Object> login) {
+        Instant now = clock.instant();
+        forgetOldRenewals(now);
+        CompletableFuture<Map<String, Object>> mine = new CompletableFuture<>();
+        Renewal earlier = renewals.putIfAbsent(fingerprint(refreshToken), new Renewal(mine, now));
+        if (earlier != null) return new Renewed(earlier.result().join(), true);
         try {
             Map<String, String> form = new LinkedHashMap<>();
             form.put("grant_type", "refresh_token");
             form.put("refresh_token", refreshToken);
-            TokenEndpoint.Token renewed = tokens.request(form, clock.instant());
+            TokenEndpoint.Token renewed = tokens.request(form, now);
             if (renewed.idToken() != null && validIdToken(renewed.idToken(), null) == null) {
                 throw new IdentityException("The renewed ID token is not valid");
             }
             Map<String, Object> updated = record(renewed, login, string(login, "csrf"));
-            session.set(SIGNED_IN, updated);
-            return updated;
-        } catch (IdentityException e) {
-            log.info("Could not renew a session's tokens; signing it out: {}", e.getMessage());
-            session.remove(SIGNED_IN);
-            return null;
+            mine.complete(updated);
+            return new Renewed(updated, false);
+        } catch (RuntimeException e) {
+            mine.completeExceptionally(e);
+            throw e;
+        }
+    }
+
+    /**
+     * Before a request saves its copy of the session: if another request renewed the tokens this
+     * copy holds while it ran, saves the renewed ones instead, so the store never goes back to a
+     * refresh token the issuer has already rotated. Only renewals already done; no network call.
+     */
+    private void bringForward(Session session) {
+        Map<String, Object> login = signedIn(session);
+        if (login == null) return;
+        Map<String, Object> latest = login;
+        for (int hop = 0; hop < 4; hop++) {
+            String refreshToken = string(latest, "refresh_token");
+            Renewal renewal = refreshToken == null ? null : renewals.get(fingerprint(refreshToken));
+            if (renewal == null || !renewal.result().isDone() || renewal.result().isCompletedExceptionally()) break;
+            latest = renewal.result().join();
+        }
+        if (latest != login) session.set(SIGNED_IN, latest);
+    }
+
+    private void forgetOldRenewals(Instant now) {
+        Instant last = lastForget;
+        if (last != null && now.isBefore(last.plus(Duration.ofMinutes(1)))) return;
+        lastForget = now;
+        Instant cutoff = now.minus(RENEWALS_KEPT);
+        renewals.values().removeIf(r -> r.at().isBefore(cutoff));
+    }
+
+    /** A refresh token's SHA-256: the renewals map holds no tokens as keys. */
+    private static String fingerprint(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 
