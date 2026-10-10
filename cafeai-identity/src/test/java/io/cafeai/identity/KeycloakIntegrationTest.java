@@ -50,6 +50,7 @@ class KeycloakIntegrationTest {
             .withCopyFileToContainer(MountableFile.forClasspathResource("keycloak/cafeai-realm.json"),
                     "/opt/keycloak/data/import/cafeai-realm.json")
             .withExposedPorts(8080)
+            .withAccessToHost(true)   // so Keycloak can call the app back (back-channel logout)
             .waitingFor(Wait.forHttp("/realms/cafeai/.well-known/openid-configuration").forStatusCode(200))
             .withStartupTimeout(Duration.ofMinutes(3));
 
@@ -208,6 +209,65 @@ class KeycloakIntegrationTest {
     private static String location(HttpResponse<?> response) {
         assertThat(response.statusCode()).as("a redirect").isEqualTo(302);
         return response.headers().firstValue("Location").orElseThrow();
+    }
+
+    /** An admin token for Keycloak's own admin API (the bootstrap admin, in the master realm). */
+    private static String adminToken() throws Exception {
+        var response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(
+                        "http://localhost:" + KEYCLOAK.getMappedPort(8080) + "/realms/master/protocol/openid-connect/token"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("grant_type=password&client_id=admin-cli&username=admin&password=admin"))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        return field(response.body(), "access_token");
+    }
+
+    private static HttpResponse<String> admin(String method, String path, String body) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + KEYCLOAK.getMappedPort(8080)
+                        + "/admin/realms/cafeai" + path))
+                .header("Authorization", "Bearer " + adminToken())
+                .header("Content-Type", "application/json")
+                .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test @DisplayName("back-channel logout: an administrator ends alice's Keycloak session, and Keycloak ends the app's")
+    void backChannelLogout() throws Exception {
+        serve(a -> {
+            a.filter(Middleware.session(SessionStore.inMemory()));
+            a.filter(Auth.login(issuer, "orders-web", "web-secret", "http://localhost:" + port + "/auth/callback")
+                    .backChannelLogout(a));
+            a.get("/me", (req, res, next) -> res.send(req.identity().flatMap(Identity::name).orElse("anonymous")));
+        });
+        // Where Keycloak, in its container, reaches this app: registered as the client's back-channel URL.
+        org.testcontainers.Testcontainers.exposeHostPorts(port);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var client = json.readTree(admin("GET", "/clients?clientId=orders-web", null).body()).get(0);
+        var attributes = (com.fasterxml.jackson.databind.node.ObjectNode) client.get("attributes");
+        attributes.put("backchannel.logout.url", "http://host.testcontainers.internal:" + port + "/auth/backchannel-logout");
+        attributes.put("backchannel.logout.session.required", "true");
+        assertThat(admin("PUT", "/clients/" + client.get("id").asText(), json.writeValueAsString(client)).statusCode())
+                .isEqualTo(204);
+
+        var browser = HttpClient.newBuilder().cookieHandler(new LocalhostCookieJar())
+                .followRedirects(HttpClient.Redirect.NEVER).build();
+        String toKeycloak = location(browser.send(HttpRequest.newBuilder(URI.create(base() + "/auth/login?return=/me"))
+                .build(), HttpResponse.BodyHandlers.discarding()));
+        String toCallback = submitLogin(browser, toKeycloak, "alice", "alice-pw");
+        browser.send(HttpRequest.newBuilder(URI.create(toCallback)).build(), HttpResponse.BodyHandlers.discarding());
+        assertThat(get(browser, base() + "/me")).isEqualTo("Alice Liddell");
+
+        // An administrator signs alice out of Keycloak; Keycloak tells every client she used.
+        String aliceId = json.readTree(admin("GET", "/users?username=alice&exact=true", null).body()).get(0).get("id").asText();
+        assertThat(admin("POST", "/users/" + aliceId + "/logout", null).statusCode()).isEqualTo(204);
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        String who = get(browser, base() + "/me");
+        while (!who.equals("anonymous") && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100);
+            who = get(browser, base() + "/me");
+        }
+        assertThat(who).as("signed out by Keycloak's back-channel logout").isEqualTo("anonymous");
     }
 
     @Test @DisplayName("browser sign-in: Keycloak's login page, back signed in; renewal; sign-out at Keycloak")

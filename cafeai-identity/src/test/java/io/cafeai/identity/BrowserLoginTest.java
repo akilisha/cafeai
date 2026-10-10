@@ -379,6 +379,71 @@ class BrowserLoginTest {
         assertThat(get("/me").body()).isEqualTo("anonymous");
     }
 
+    // -- back-channel logout -------------------------------------------------------------------
+
+    /** The issuer, server to server: no cookies, no CSRF token. */
+    private HttpResponse<String> backChannel(String logoutToken) throws Exception {
+        return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(base() + "/auth/backchannel-logout"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("logout_token=" + URLEncoder.encode(logoutToken, StandardCharsets.UTF_8)))
+                .build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> getWith(HttpClient client, String path) throws Exception {
+        return client.send(HttpRequest.newBuilder(URI.create(base() + path)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test @DisplayName("back-channel logout: the issuer ends alice's session; bob's, in another browser, carries on")
+    void backChannelLogoutBySession() throws Exception {
+        serve(l -> l.backChannelLogout(app), a -> { });
+        signIn("bob", "/me");
+        HttpClient bobsBrowser = browser;
+        newBrowser();
+        signIn("alice", "/me");
+        assertThat(get("/me").body()).isEqualTo("alice");
+
+        var answer = backChannel(fake.logoutToken(CLIENT, "alice", fake.sessionOf("alice")));
+        assertThat(answer.statusCode()).isEqualTo(200);
+        assertThat(answer.headers().firstValue("Cache-Control")).hasValue("no-store");
+
+        assertThat(get("/me").body()).isEqualTo("anonymous");
+        assertThat(getWith(bobsBrowser, "/me").body()).isEqualTo("bob");
+    }
+
+    @Test @DisplayName("back-channel logout naming only the person ends their sessions from before it, not a later sign-in")
+    void backChannelLogoutBySubject() throws Exception {
+        serve(l -> l.backChannelLogout(app), a -> { });
+        signIn("alice", "/me");
+        assertThat(backChannel(fake.logoutToken(CLIENT, "alice", null)).statusCode()).isEqualTo(200);
+        assertThat(get("/me").body()).isEqualTo("anonymous");
+
+        clock.advance(Duration.ofSeconds(2));   // signs in again after the logout
+        signIn("alice", "/me");
+        assertThat(get("/me").body()).isEqualTo("alice");
+    }
+
+    @Test @DisplayName("a logout token that isn't one, isn't for this client, or comes twice is refused, and ends nothing")
+    void backChannelLogoutRefused() throws Exception {
+        serve(l -> l.backChannelLogout(app), a -> { });
+        signIn("alice", "/me");
+        String sid = fake.sessionOf("alice");
+        Map<String, Object> event = Map.of("http://schemas.openid.net/event/backchannel-logout", Map.of());
+
+        assertThat(backChannel(fake.logoutToken("another-client", "alice", sid)).statusCode()).as("audience").isEqualTo(400);
+        assertThat(backChannel(fake.token().subject("alice").audience(CLIENT).claim("sid", sid).sign()).statusCode())
+                .as("no logout event: an ordinary token").isEqualTo(400);
+        assertThat(backChannel(fake.token().subject("alice").audience(CLIENT).claim("sid", sid).claim("events", event)
+                .claim("nonce", "n").sign()).statusCode()).as("a nonce: an ID token").isEqualTo(400);
+        assertThat(backChannel(fake.token().subject("alice").audience(CLIENT).claim("sid", sid).claim("events", event)
+                .signedWithUnknownKey().sign()).statusCode()).as("forged").isEqualTo(400);
+        assertThat(get("/me").body()).as("still signed in").isEqualTo("alice");
+
+        String token = fake.logoutToken(CLIENT, "nobody", "no-such-session");
+        assertThat(backChannel(token).statusCode()).isEqualTo(200);
+        assertThat(backChannel(token).statusCode()).as("replayed").isEqualTo(400);
+        assertThat(get("/me").body()).isEqualTo("alice");
+    }
+
     // -- options ----------------------------------------------------------------------------
 
     @Test @DisplayName("signInRequired: a browser is sent to sign in and back; an API call gets 401")

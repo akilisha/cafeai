@@ -86,18 +86,9 @@ final class TokenValidator {
      * @throws IdentityException if the issuer's keys can't be read at all (not the caller's fault)
      */
     Result validate(String token) {
-        SignedJwt signed;
-        Jwt jwt;
-        try {
-            if (token.chars().filter(c -> c == '.').count() != 2) return Result.refused(Failure.MALFORMED);
-            signed = SignedJwt.parseToken(token);
-            jwt = signed.getJwt();
-        } catch (RuntimeException e) {
-            return Result.refused(Failure.MALFORMED);
-        }
-
-        String alg = jwt.algorithm().orElse(null);
-        if (alg == null || !algorithms.contains(alg)) return Result.refused(Failure.ALGORITHM);
+        Signed signed = signedByIssuer(token, issuer, algorithms);
+        if (signed.failure() != null) return Result.refused(signed.failure());
+        Jwt jwt = signed.jwt();
 
         if (requireAccessTokenType) {
             String typ = jwt.type().orElse("");
@@ -105,20 +96,6 @@ final class TokenValidator {
                 return Result.refused(Failure.TYPE);
             }
         }
-
-        Optional<Jwk> key = issuer.key(jwt.keyId().orElse(null));
-        if (key.isEmpty()) return Result.refused(Failure.UNKNOWN_KEY);
-        if (!alg.equals(key.get().algorithm())) return Result.refused(Failure.SIGNATURE);
-
-        Errors errors;
-        try {
-            errors = signed.verifySignature(JwkKeys.builder().addKey(key.get()).build(), key.get());
-        } catch (RuntimeException e) {
-            return Result.refused(Failure.SIGNATURE);
-        }
-        if (!errors.isValid()) return Result.refused(Failure.SIGNATURE);
-
-        if (!issuer.id().equals(jwt.issuer().orElse(null))) return Result.refused(Failure.ISSUER);
 
         String subject = jwt.subject().orElse(null);
         if (subject == null || subject.isBlank()) return Result.refused(Failure.SUBJECT);
@@ -133,6 +110,45 @@ final class TokenValidator {
         if (aud.stream().noneMatch(audiences::contains)) return Result.refused(Failure.AUDIENCE);
 
         return Result.ok(identity(issuer.id(), subject, exp, jwt.payloadClaimsJson()));
+    }
+
+    /** A JWT whose signature and issuer checked out, or why not. */
+    record Signed(Jwt jwt, Failure failure) { }
+
+    /**
+     * The checks every JWT from the issuer gets, whatever it is for: well formed, an accepted
+     * asymmetric algorithm, a known key of that algorithm, a valid signature, and {@code iss}.
+     *
+     * @throws IdentityException if the issuer's keys can't be read at all
+     */
+    static Signed signedByIssuer(String token, Issuer issuer, Set<String> algorithms) {
+        SignedJwt signed;
+        Jwt jwt;
+        try {
+            if (token.chars().filter(c -> c == '.').count() != 2) return new Signed(null, Failure.MALFORMED);
+            signed = SignedJwt.parseToken(token);
+            jwt = signed.getJwt();
+        } catch (RuntimeException e) {
+            return new Signed(null, Failure.MALFORMED);
+        }
+
+        String alg = jwt.algorithm().orElse(null);
+        if (alg == null || !algorithms.contains(alg)) return new Signed(null, Failure.ALGORITHM);
+
+        Optional<Jwk> key = issuer.key(jwt.keyId().orElse(null));
+        if (key.isEmpty()) return new Signed(null, Failure.UNKNOWN_KEY);
+        if (!alg.equals(key.get().algorithm())) return new Signed(null, Failure.SIGNATURE);
+
+        Errors errors;
+        try {
+            errors = signed.verifySignature(JwkKeys.builder().addKey(key.get()).build(), key.get());
+        } catch (RuntimeException e) {
+            return new Signed(null, Failure.SIGNATURE);
+        }
+        if (!errors.isValid()) return new Signed(null, Failure.SIGNATURE);
+
+        if (!issuer.id().equals(jwt.issuer().orElse(null))) return new Signed(null, Failure.ISSUER);
+        return new Signed(jwt, null);
     }
 
     /**

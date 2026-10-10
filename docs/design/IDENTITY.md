@@ -177,6 +177,19 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
   sent to the issuer's `end_session_endpoint`, which ends the issuer's own session. Each step
   the issuer doesn't publish an endpoint for is skipped, and a failed revocation is logged
   without stopping the sign-out.
+- **Signed out by the issuer, opt-in (OpenID Connect Back-Channel Logout 1.0):**
+  `.backChannelLogout(app)` serves `POST /auth/backchannel-logout`, the URL registered at the
+  issuer, at the Helidon level (the issuer brings no cookie, CSRF token or body parser). When
+  the person signs out at the issuer or in another app, or an administrator ends their session,
+  the issuer posts a signed `logout_token`. It is checked like any token from the issuer
+  (signature, algorithm, `iss`), then: `aud` is this client, the back-channel event is there,
+  there is no `nonce` (an ID token can't pass for one), `iat` is within ten minutes, `exp` (if
+  any) is ahead, and its `jti` hasn't been seen. CafeAI doesn't reach into the session store:
+  each session records the issuer's `sid`, the subject and when it signed in, and is signed out
+  the next time it's used. A `sid` ends that session; a `sub` alone ends every session of that
+  person signed in before the logout. Logouts are remembered for a day, in this process: with
+  several instances, only the one the issuer reached knows. Tested against the fake issuer
+  and against Keycloak, whose admin-ended session ends the app's.
 - **Starts a new session at sign-in.** `session.regenerate()`, new in core, moves the session
   to a new id and destroys the old one, so an id planted or seen before sign-in never becomes
   signed in (session fixation). A cookie-only session can't be regenerated, so sign-in refuses
@@ -625,7 +638,6 @@ As built:
 ## 13. Deferred
 
 These can be added later without changing the design:
-- Logout initiated by the issuer (OpenID Connect back-channel logout).
 - CLI sign-in through a browser on the same machine with a localhost redirect (RFC 8252).
 - Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.

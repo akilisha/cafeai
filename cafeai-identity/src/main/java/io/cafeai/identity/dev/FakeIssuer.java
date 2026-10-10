@@ -87,7 +87,10 @@ public final class FakeIssuer implements AutoCloseable {
                         String scope) { }
 
     /** A refresh token: whose, and for which client. Rotated on every use. */
-    private record Refresh(String clientId, String subject) { }
+    private record Refresh(String clientId, String subject, String sid) { }
+
+    /** The issuer session ({@code sid}) of each subject's latest sign-in. */
+    private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
     private final Set<String> publicClients = ConcurrentHashMap.newKeySet();
     private final Map<String, Device> devices = new ConcurrentHashMap<>();   // by device code
@@ -270,6 +273,35 @@ public final class FakeIssuer implements AutoCloseable {
         revokedAccessTokens.add(token);
     }
 
+    /** The issuer session ({@code sid}) of {@code subject}'s latest sign-in, or {@code null}. */
+    public String sessionOf(String subject) {
+        return sessions.get(subject);
+    }
+
+    /**
+     * A logout token (OpenID Connect Back-Channel Logout 1.0) for {@code clientId}, signed now:
+     * the issuer ending session {@code sid} (or, with {@code sid} null, every session of
+     * {@code subject}). POST it as {@code logout_token} to the client's back-channel logout URL.
+     */
+    public String logoutToken(String clientId, String subject, String sid) {
+        Instant now = Instant.now();
+        Jwt.Builder jwt = Jwt.builder()
+                .algorithm(JwkRSA.ALG_RS256)
+                .keyId(current.kid)
+                .type("logout+jwt")
+                .issuer(id)
+                .audience(List.of(clientId))
+                .issueTime(now)
+                .expirationTime(now.plus(Duration.ofMinutes(2)))
+                .jwtId(UUID.randomUUID().toString())
+                .addPayloadClaim("events", JsonObject.builder()
+                        .set("http://schemas.openid.net/event/backchannel-logout", JsonObject.builder().build())
+                        .build());
+        if (subject != null) jwt.subject(subject);
+        if (sid != null) jwt.addPayloadClaim("sid", sid);
+        return SignedJwt.sign(jwt.build(), current.jwk).tokenContent();
+    }
+
     /** How many times the introspection endpoint has been asked, for tests of caching. */
     public int introspections() {
         return introspections.get();
@@ -361,7 +393,7 @@ public final class FakeIssuer implements AutoCloseable {
                 respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
                 return;
             }
-            respondWithSignIn(exchange, clientId, code.subject(), code.nonce(), code.scope());
+            respondWithSignIn(exchange, clientId, code.subject(), code.nonce(), code.scope(), null);
             return;
         } else if (grant.equals("urn:ietf:params:oauth:grant-type:device_code")) {
             Device device = devices.get(form.getOrDefault("device_code", ""));
@@ -381,7 +413,7 @@ public final class FakeIssuer implements AutoCloseable {
                 return;
             }
             device.used = true;
-            respondWithSignIn(exchange, clientId, device.approvedAs, null, device.scope);
+            respondWithSignIn(exchange, clientId, device.approvedAs, null, device.scope, null);
             return;
         } else if (grant.equals("refresh_token")) {
             Refresh refresh = refreshTokens.remove(form.getOrDefault("refresh_token", ""));
@@ -389,7 +421,7 @@ public final class FakeIssuer implements AutoCloseable {
                 respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
                 return;
             }
-            respondWithSignIn(exchange, clientId, refresh.subject(), null, null);
+            respondWithSignIn(exchange, clientId, refresh.subject(), null, null, refresh.sid());
             return;
         } else {
             respond(exchange, 400, "{\"error\":\"unsupported_grant_type\"}");
@@ -403,13 +435,16 @@ public final class FakeIssuer implements AutoCloseable {
 
     /** Access, ID and (rotated) refresh tokens for a signed-in subject. */
     private void respondWithSignIn(HttpExchange exchange, String clientId, String subject, String nonce,
-                                   String scope) throws IOException {
+                                   String scope, String renewedSid) throws IOException {
+        // A sign-in starts an issuer session; a renewal stays in the one it renews.
+        String sid = renewedSid != null ? renewedSid : UUID.randomUUID().toString();
+        if (renewedSid == null) sessions.put(subject, sid);
         String access = SignedJwt.sign(issue(subject, clientId, scope).build(), current.jwk).tokenContent();
-        Jwt.Builder id = issue(subject, clientId, null).addPayloadClaim("name", subject);
+        Jwt.Builder id = issue(subject, clientId, null).addPayloadClaim("name", subject).addPayloadClaim("sid", sid);
         if (nonce != null) id.nonce(nonce);
         String idToken = SignedJwt.sign(id.build(), current.jwk).tokenContent();
         String refresh = UUID.randomUUID().toString();
-        refreshTokens.put(refresh, new Refresh(clientId, subject));
+        refreshTokens.put(refresh, new Refresh(clientId, subject, sid));
         respond(exchange, 200, "{\"access_token\":\"" + access + "\",\"token_type\":\"Bearer\","
                 + "\"expires_in\":" + issuedLifetime.toSeconds() + ","
                 + "\"id_token\":\"" + idToken + "\",\"refresh_token\":\"" + refresh + "\"}");

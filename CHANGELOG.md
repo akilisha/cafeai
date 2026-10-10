@@ -64,7 +64,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the browser holds only the session cookie. Sign-in starts a new session id (no session
   fixation), returns only to paths on this site, renews tokens before they expire, and signs out
   here and at the issuer (`POST /auth/logout`: the refresh token revoked, the issuer's session
-  ended). A signed-in session's state-changing requests
+  ended). With `.backChannelLogout(app)`, the issuer can sign people out of the app too (OpenID
+  Connect Back-Channel Logout): a signed logout token naming the issuer session or the person
+  ends the matching sessions. A signed-in session's state-changing requests
   need its CSRF token (`Auth.csrfToken(req)`). `signInRequired()` sends browsers to sign in. A
   model call made from a signed-in browser can use token exchange like an API call.
 - **Terminal sign-in.** `DeviceLogin.of(issuer, clientId).accessToken()` signs a CLI or JBang

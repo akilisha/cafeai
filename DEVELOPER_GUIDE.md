@@ -3653,6 +3653,11 @@ app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/
   several instances and a shared store, use sticky sessions.
 - `POST /auth/logout` signs out here and at the issuer: the refresh token is revoked
   (RFC 7009) and the issuer's session ended.
+- `.backChannelLogout(app)` lets the issuer sign people out here too, when they sign out at
+  the issuer or in another app, or an administrator ends their session (OpenID Connect
+  Back-Channel Logout). Register `https://<your app>/auth/backchannel-logout` at the issuer as
+  the client's back-channel logout URL; the sessions a logout names are signed out the next
+  time they're used. Logouts are kept in the instance the issuer reached, for a day.
 - A signed-in session's `POST`, `PUT`, `PATCH` and `DELETE` need its CSRF token, in
   `X-CSRF-Token` or a `_csrf` form field: `Auth.csrfToken(req)` gives it to your pages.
 - `.signInRequired()` sends browsers to sign in and back; other requests get `401`.

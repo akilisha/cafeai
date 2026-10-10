@@ -1,6 +1,7 @@
 package io.cafeai.identity;
 
 import io.cafeai.core.Attributes;
+import io.cafeai.core.CafeAI;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.core.identity.IdentityMode;
 import io.cafeai.core.middleware.Middleware;
@@ -58,6 +59,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * or are refused with {@code 403}. A request with an {@code Authorization} header is left to
  * {@link Auth#bearer}: it isn't authenticated by cookie, so it needs no CSRF token.
  *
+ * <p>With {@link #backChannelLogout(CafeAI)}, the issuer can end the app's sessions too, when the
+ * person signs out elsewhere or an administrator ends their session (OpenID Connect
+ * Back-Channel Logout).
+ *
  * <p>Set the session cookie {@code Secure} in production
  * ({@code SessionOptions.builder().cookieOptions(CookieOptions.builder().secure(true).build())}).
  */
@@ -97,6 +102,7 @@ public final class BrowserLogin implements Middleware {
     private record Renewed(Map<String, Object> login, boolean earlier) { }
     private final Map<String, Renewal> renewals = new ConcurrentHashMap<>();
     private volatile Instant lastForget;
+    private volatile BackChannelLogout backChannel;
 
     BrowserLogin(Issuer issuer, String clientId, String clientSecret, String redirectUri) {
         this.issuer = Objects.requireNonNull(issuer, "issuer");
@@ -156,6 +162,31 @@ public final class BrowserLogin implements Middleware {
         return this;
     }
 
+    /**
+     * Lets the issuer end this app's sessions (OpenID Connect Back-Channel Logout 1.0): when the
+     * person signs out at the issuer or in another app, or an administrator ends their session,
+     * the issuer POSTs a signed logout token to {@code /auth/backchannel-logout}, and the
+     * sessions it names are signed out the next time they're used. Register
+     * {@code https://<this app>/auth/backchannel-logout} at the issuer as the client's
+     * back-channel logout URL.
+     *
+     * <p>Logouts are kept in this process for a day: with several instances, the one the
+     * issuer reaches is the only one that knows.
+     */
+    public BrowserLogin backChannelLogout(CafeAI app) {
+        return backChannelLogout(app, "/auth/backchannel-logout");
+    }
+
+    /** {@link #backChannelLogout(CafeAI)} at another path. */
+    public BrowserLogin backChannelLogout(CafeAI app, String path) {
+        Objects.requireNonNull(app, "app");
+        String p = requirePath(path);
+        BackChannelLogout logout = new BackChannelLogout(issuer, clientId, clock);
+        this.backChannel = logout;
+        app.helidon().bypass(p).routing(r -> logout.install(r, p));
+        return this;
+    }
+
     /** For tests: the clock that decides when tokens are renewed. */
     BrowserLogin clock(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -190,6 +221,11 @@ public final class BrowserLogin implements Middleware {
 
         Session session = session(req);
         Map<String, Object> login = session == null ? null : current(session);
+        if (login != null && endedAtIssuer(login)) {
+            log.info("Signed out by the issuer (back-channel logout)");
+            session.remove(SIGNED_IN);
+            login = null;
+        }
         if (login != null) {
             session.beforeSave(() -> bringForward(session));
             if (UNSAFE.contains(req.method()) && !csrfValid(req, login)) {
@@ -285,7 +321,12 @@ public final class BrowserLogin implements Middleware {
 
         // A new session under a new id: an id planted or seen before sign-in stays signed out.
         Session signedIn = session.regenerate();
-        signedIn.set(SIGNED_IN, record(issued, null, random()));
+        Map<String, Object> record = record(issued, null, random());
+        // What a back-channel logout can name this session by: the issuer's session, the person.
+        who.claim("sid").ifPresent(sid -> record.put("sid", String.valueOf(sid)));
+        record.put("sub", who.subject());
+        record.put("signed_in_at", clock.instant().getEpochSecond());
+        signedIn.set(SIGNED_IN, record);
         log.debug("Signed in {}", who);
         res.set("Cache-Control", "no-store");
         res.redirect(302, String.valueOf(pending.get("return")));
@@ -449,6 +490,11 @@ public final class BrowserLogin implements Middleware {
         if (refresh != null) login.put("refresh_token", refresh);
         login.put("id_token", t.idToken() != null ? t.idToken() : string(previous, "id_token"));
         login.put("csrf", csrf);
+        if (previous != null) {
+            for (String kept : new String[]{"sid", "sub", "signed_in_at"}) {
+                if (previous.get(kept) != null) login.put(kept, previous.get(kept));
+            }
+        }
         return login;
     }
 
@@ -465,6 +511,15 @@ public final class BrowserLogin implements Middleware {
             return null;
         }
         return result.identity();
+    }
+
+    /** Whether the issuer has logged this session out since it signed in (back-channel logout). */
+    private boolean endedAtIssuer(Map<String, Object> login) {
+        BackChannelLogout logout = backChannel;
+        if (logout == null) return false;
+        Object at = login.get("signed_in_at");
+        return logout.ended(string(login, "sid"), string(login, "sub"),
+                at == null ? null : Instant.ofEpochSecond(number(login, "signed_in_at")));
     }
 
     // -- CSRF ---------------------------------------------------------------------------
