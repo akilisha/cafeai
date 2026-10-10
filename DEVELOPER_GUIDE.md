@@ -3720,7 +3720,13 @@ app.ai(OpenAI.of("<model-id>")
 - `OAuthCredentials.tokenExchange(...)` (RFC 8693) calls on behalf of the signed-in caller: the
   model endpoint gets a token naming that caller, issued for it, marked as this app acting for
   them. Such calls skip the semantic cache, so no caller is answered from another's call.
-- With several issuers, `OAuthCredentials.byIssuer(tokenExchange(a, ...), tokenExchange(b, ...))`
+- `OAuthCredentials.onBehalfOf(entra, clientId, secret, scopes...)` does the same at
+  **Microsoft Entra ID**, which has no token exchange but its own on-behalf-of flow. The caller's
+  token must have been issued for this app (its client id among `Auth.bearer`'s audiences). For
+  Claude in Microsoft Foundry the scope is `https://ai.azure.com/.default`; for Azure OpenAI,
+  `https://cognitiveservices.azure.com/.default`. When Entra needs the person to sign in again,
+  the call is a `401`.
+- With several issuers, `OAuthCredentials.byIssuer(tokenExchange(a, ...), onBehalfOf(b, ...))`
   exchanges each caller's token at the issuer that issued it. A single `tokenExchange` refuses a
   caller from another issuer rather than send their token there.
 - `OAuthCredentials.clientCredentials(...)` calls as the app itself, for work that is the app's.

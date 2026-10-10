@@ -22,6 +22,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   (`.introspectionCache(...)`). `.or(issuer, audiences...)` trusts several issuers at once, each
   token checked against the one it names; browser sign-ins can sit side by side, one per
   issuer; `OAuthCredentials.byIssuer(...)` exchanges each caller's token at its own issuer.
+  `OAuthCredentials.onBehalfOf(entra, ...)` calls on behalf of the signed-in person at Microsoft
+  Entra ID, which has no RFC 8693 token exchange but its own on-behalf-of flow (for Claude in
+  Microsoft Foundry and Azure OpenAI); Entra's `interaction_required` becomes a `401`.
   `Auth.require(Auth.scope("orders:read"))` checks
   what the issuer granted on a route: scopes, roles, groups, entitlements, or `anyOf` them
   (`401` when anonymous, `403` when short, naming only missing scopes). `FakeIssuer` signs

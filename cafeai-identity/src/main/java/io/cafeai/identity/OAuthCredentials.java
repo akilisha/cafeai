@@ -27,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   // On behalf of the signed-in caller (RFC 8693 token exchange):
  *   app.ai(OpenAI.of("<model-id>").withBaseUrl(gateway)
  *           .withCredentials(OAuthCredentials.tokenExchange(issuer, "orders-api", secret, "model-gateway")));
+ *
+ *   // On behalf of the signed-in caller, at Microsoft Entra ID (its on-behalf-of flow):
+ *   app.ai(Anthropic.of("claude-opus-5-5").withBaseUrl(foundry)
+ *           .withCredentials(OAuthCredentials.onBehalfOf(entra, "orders-api", secret, "https://ai.azure.com/.default")));
  * }</pre>
  *
  * <p>Tokens are cached until shortly before they expire, so most calls make no request to the
@@ -55,7 +59,8 @@ public final class OAuthCredentials {
      *
      * <p>Requires a verified caller: a call with none is refused with
      * {@link IdentityRequiredException}, never made with some other credential. Token exchange is
-     * a standard but optional grant; the issuer must support it.
+     * a standard but optional grant; the issuer must support it. Microsoft Entra ID doesn't: use
+     * {@link #onBehalfOf} there.
      *
      * @param audience the identifier of the service the token is for, at the issuer
      */
@@ -66,35 +71,56 @@ public final class OAuthCredentials {
     }
 
     /**
-     * Token exchange at whichever issuer the caller came from, for an app that trusts several
-     * ({@code Auth.bearer(a, ...).or(b, ...)}): a caller's token can only be exchanged by the
-     * issuer that issued it.
+     * A token on behalf of the signed-in caller at <b>Microsoft Entra ID</b>, which has no RFC
+     * 8693 token exchange but its own on-behalf-of flow: the caller's token, issued for this app,
+     * goes as a JWT bearer assertion (RFC 7523) with {@code requested_token_use=on_behalf_of}, and
+     * comes back as a token for {@code scopes} (for Claude in Microsoft Foundry,
+     * {@code https://ai.azure.com/.default}) naming the same person. The model endpoint decides,
+     * with Azure RBAC, what that person may do.
+     *
+     * <p>The caller's token must have been issued for this app ({@code aud} is {@code clientId}),
+     * as Entra requires: put {@code clientId} among {@code Auth.bearer}'s audiences. When Entra
+     * says the person must sign in again (multi-factor, a changed policy:
+     * {@code interaction_required}), the call is refused with {@code 401}. Like token exchange, it
+     * needs a verified caller, refuses one from another issuer, and caches per caller.
+     *
+     * @param scopes what the token is for, e.g. {@code "https://ai.azure.com/.default"}
+     */
+    public static OnBehalfOf onBehalfOf(Issuer issuer, String clientId, String clientSecret, String... scopes) {
+        return new OnBehalfOf(issuer.id(), TokenEndpoint.confidential(issuer, clientId, clientSecret),
+                String.join(" ", scopes), Clock.systemUTC());
+    }
+
+    /**
+     * The caller's token exchanged at whichever issuer it came from, for an app that trusts
+     * several ({@code Auth.bearer(a, ...).or(b, ...)}): a caller's token can only be exchanged by
+     * the issuer that issued it.
      *
      * <pre>{@code
      *   .withCredentials(OAuthCredentials.byIssuer(
-     *       OAuthCredentials.tokenExchange(entra, "orders-api", secretA, "api://model-gateway"),
-     *       OAuthCredentials.tokenExchange(okta,  "orders-api", secretB, "model-gateway")))
+     *       OAuthCredentials.onBehalfOf(entra, "orders-api", secretA, "https://ai.azure.com/.default"),
+     *       OAuthCredentials.tokenExchange(okta, "orders-api", secretB, "model-gateway")))
      * }</pre>
      *
      * A caller from an issuer none of them exchange at is refused, never sent to another issuer.
      */
-    public static Credentials byIssuer(TokenExchange... exchanges) {
-        Map<String, TokenExchange> byIssuer = new LinkedHashMap<>();
-        for (TokenExchange e : exchanges) {
+    public static Credentials byIssuer(CallerCredentials... exchanges) {
+        Map<String, CallerCredentials> byIssuer = new LinkedHashMap<>();
+        for (CallerCredentials e : exchanges) {
             if (byIssuer.putIfAbsent(e.issuerId, e) != null) {
-                throw new IllegalArgumentException("Two token exchanges at " + e.issuerId);
+                throw new IllegalArgumentException("Two exchanges at " + e.issuerId);
             }
         }
-        if (byIssuer.isEmpty()) throw new IllegalArgumentException("Name at least one token exchange");
+        if (byIssuer.isEmpty()) throw new IllegalArgumentException("Name at least one exchange");
         return new Credentials() {
             @Override
             public String token() {
                 Identity caller = Identity.current().orElseThrow(() -> new IdentityRequiredException(
                         "A model call on behalf of the caller was made with no verified caller. Require "
                         + "sign-in on this route, or carry the request to this thread with RequestScope."));
-                TokenExchange exchange = byIssuer.get(caller.issuer());
+                CallerCredentials exchange = byIssuer.get(caller.issuer());
                 if (exchange == null) {
-                    throw new IllegalStateException("No token exchange for callers from " + caller.issuer()
+                    throw new IllegalStateException("No exchange for callers from " + caller.issuer()
                             + " (configured for " + byIssuer.keySet() + ")");
                 }
                 return exchange.token();
@@ -154,42 +180,39 @@ public final class OAuthCredentials {
         }
     }
 
-    /** Token exchange: a token per caller and audience, renewed before it expires. */
-    public static final class TokenExchange implements Credentials {
-        private static final String GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
-        private static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+    /**
+     * A token for the signed-in caller, from the issuer that issued theirs, in exchange for it:
+     * per caller, cached, never used past the caller's own token. Subclasses say how the issuer is
+     * asked ({@link TokenExchange}, {@link OnBehalfOf}).
+     */
+    public abstract static sealed class CallerCredentials implements Credentials permits TokenExchange, OnBehalfOf {
         private static final int MAX_CACHED = 10_000;
 
-        private final String issuerId;
-        private final TokenEndpoint endpoint;
-        private final String audience;
+        final String issuerId;
+        final TokenEndpoint endpoint;
         private final Clock clock;
-        private String scope;
         private final Map<String, TokenEndpoint.Token> cache = new ConcurrentHashMap<>();
 
-        TokenExchange(String issuerId, TokenEndpoint endpoint, String audience, Clock clock) {
-            if (audience == null || audience.isBlank()) throw new IllegalArgumentException("audience must not be blank");
+        CallerCredentials(String issuerId, TokenEndpoint endpoint, Clock clock) {
             this.issuerId = issuerId;
             this.endpoint = endpoint;
-            this.audience = audience;
             this.clock = clock;
         }
 
-        /** Scopes to request for the exchanged token. */
-        public TokenExchange scope(String... scopes) {
-            this.scope = String.join(" ", scopes);
-            return this;
-        }
+        /** What this call's subject token is for, in words, for errors. */
+        abstract String purpose();
+
+        /** The token request for {@code subjectToken}. */
+        abstract Map<String, String> form(String subjectToken);
 
         @Override
-        public String token() {
+        public final String token() {
             Identity caller = Identity.current().orElseThrow(() -> new IdentityRequiredException(
-                    "A model call on behalf of the caller (token exchange for '" + audience
-                    + "') was made with no verified caller. Require sign-in on this route, or carry "
-                    + "the request to this thread with RequestScope."));
+                    "A model call on behalf of the caller (" + purpose() + ") was made with no verified caller. "
+                    + "Require sign-in on this route, or carry the request to this thread with RequestScope."));
             // Only the issuer that issued the caller's token can exchange it: never send it to another.
             if (!caller.issuer().equals(issuerId)) {
-                throw new IllegalStateException("The caller is from " + caller.issuer() + ", but this token exchange is at "
+                throw new IllegalStateException("The caller is from " + caller.issuer() + ", but this exchange is at "
                         + issuerId + ". With several issuers, use OAuthCredentials.byIssuer(...).");
             }
             String subjectToken = CurrentRequest.get()
@@ -203,14 +226,17 @@ public final class OAuthCredentials {
             TokenEndpoint.Token cached = cache.get(key);
             if (cached != null && now.isBefore(cached.expiresAt().minus(MARGIN))) return cached.value();
 
-            Map<String, String> form = new LinkedHashMap<>();
-            form.put("grant_type", GRANT);
-            form.put("subject_token", subjectToken);
-            form.put("subject_token_type", ACCESS_TOKEN_TYPE);
-            form.put("requested_token_type", ACCESS_TOKEN_TYPE);
-            form.put("audience", audience);
-            if (scope != null) form.put("scope", scope);
-            TokenEndpoint.Token issued = endpoint.request(form, now);
+            TokenEndpoint.Token issued;
+            try {
+                issued = endpoint.request(form(subjectToken), now);
+            } catch (TokenEndpoint.Refused e) {
+                // The person must act (sign in again, a second factor): 401, so the client takes them back.
+                if ("interaction_required".equals(e.error) || "consent_required".equals(e.error)) {
+                    throw new IdentityRequiredException("The issuer needs the caller to sign in again (" + e.error
+                            + ") before acting for them");
+                }
+                throw e;
+            }
             // Never use it past the caller's own token: the exchange vouched for that token only.
             Instant expires = issued.expiresAt().isAfter(caller.expiresAt()) ? caller.expiresAt() : issued.expiresAt();
             TokenEndpoint.Token kept = new TokenEndpoint.Token(issued.value(), expires);
@@ -225,14 +251,9 @@ public final class OAuthCredentials {
             return true;
         }
 
-        /** Exchanged tokens currently cached, for tests. */
+        /** Tokens currently cached, for tests. */
         int cached() {
             return cache.size();
-        }
-
-        @Override
-        public String toString() {
-            return "OAuthCredentials.tokenExchange(" + endpoint + ", audience=" + audience + ")";
         }
 
         private static String hash(String token) {
@@ -242,6 +263,78 @@ public final class OAuthCredentials {
             } catch (NoSuchAlgorithmException e) {
                 throw new IllegalStateException(e);
             }
+        }
+    }
+
+    /** Token exchange (RFC 8693): a token per caller and audience, renewed before it expires. */
+    public static final class TokenExchange extends CallerCredentials {
+        private static final String GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
+        private static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+
+        private final String audience;
+        private String scope;
+
+        TokenExchange(String issuerId, TokenEndpoint endpoint, String audience, Clock clock) {
+            super(issuerId, endpoint, clock);
+            if (audience == null || audience.isBlank()) throw new IllegalArgumentException("audience must not be blank");
+            this.audience = audience;
+        }
+
+        /** Scopes to request for the exchanged token. */
+        public TokenExchange scope(String... scopes) {
+            this.scope = String.join(" ", scopes);
+            return this;
+        }
+
+        @Override String purpose() { return "token exchange for '" + audience + "'"; }
+
+        @Override
+        Map<String, String> form(String subjectToken) {
+            Map<String, String> form = new LinkedHashMap<>();
+            form.put("grant_type", GRANT);
+            form.put("subject_token", subjectToken);
+            form.put("subject_token_type", ACCESS_TOKEN_TYPE);
+            form.put("requested_token_type", ACCESS_TOKEN_TYPE);
+            form.put("audience", audience);
+            if (scope != null) form.put("scope", scope);
+            return form;
+        }
+
+        @Override
+        public String toString() {
+            return "OAuthCredentials.tokenExchange(" + endpoint + ", audience=" + audience + ")";
+        }
+    }
+
+    /** Microsoft Entra ID's on-behalf-of flow: a JWT bearer grant (RFC 7523) with {@code requested_token_use=on_behalf_of}. */
+    public static final class OnBehalfOf extends CallerCredentials {
+        private static final String GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer";
+
+        private final String scope;
+
+        OnBehalfOf(String issuerId, TokenEndpoint endpoint, String scope, Clock clock) {
+            super(issuerId, endpoint, clock);
+            if (scope == null || scope.isBlank()) {
+                throw new IllegalArgumentException("Name the scope the token is for, e.g. https://ai.azure.com/.default");
+            }
+            this.scope = scope;
+        }
+
+        @Override String purpose() { return "on-behalf-of for '" + scope + "'"; }
+
+        @Override
+        Map<String, String> form(String subjectToken) {
+            Map<String, String> form = new LinkedHashMap<>();
+            form.put("grant_type", GRANT);
+            form.put("assertion", subjectToken);
+            form.put("scope", scope);
+            form.put("requested_token_use", "on_behalf_of");
+            return form;
+        }
+
+        @Override
+        public String toString() {
+            return "OAuthCredentials.onBehalfOf(" + endpoint + ", scope=" + scope + ")";
         }
     }
 }

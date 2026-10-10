@@ -78,6 +78,7 @@ public final class FakeIssuer implements AutoCloseable {
     private final AtomicInteger introspections = new AtomicInteger();
     private final Map<String, Opaque> opaqueTokens = new ConcurrentHashMap<>();
     private final Set<String> revokedAccessTokens = ConcurrentHashMap.newKeySet();
+    private final Set<String> interactionRequired = ConcurrentHashMap.newKeySet();
 
     /** An opaque access token: only this issuer knows what it stands for. */
     private record Opaque(String subject, String audience, String scope, Instant expiresAt) { }
@@ -273,6 +274,15 @@ public final class FakeIssuer implements AutoCloseable {
         revokedAccessTokens.add(token);
     }
 
+    /**
+     * From now on, an on-behalf-of request for {@code subject} is answered
+     * {@code interaction_required}, as Microsoft Entra ID does when the person must sign in again
+     * (a second factor, a changed policy).
+     */
+    public void requireInteraction(String subject) {
+        interactionRequired.add(subject);
+    }
+
     /** The issuer session ({@code sid}) of {@code subject}'s latest sign-in, or {@code null}. */
     public String sessionOf(String subject) {
         return sessions.get(subject);
@@ -384,6 +394,24 @@ public final class FakeIssuer implements AutoCloseable {
             issued = issue(subject, form.get("audience"), form.get("scope"))
                     .addPayloadClaim("client_id", clientId)
                     .addPayloadClaim("act", JsonObject.builder().set("sub", clientId).build());
+        } else if (grant.equals("urn:ietf:params:oauth:grant-type:jwt-bearer")
+                && "on_behalf_of".equals(form.get("requested_token_use"))) {
+            // Microsoft Entra ID's on-behalf-of, as Entra checks it: the assertion must be a token
+            // issued for the very client redeeming it, and a scope is required.
+            Jwt assertion = verified(form.get("assertion"));
+            String scope = form.get("scope");
+            if (assertion == null || scope == null || !assertion.audience().orElse(List.of()).contains(clientId)) {
+                respond(exchange, 400, "{\"error\":\"invalid_grant\"}");
+                return;
+            }
+            String subject = assertion.subject().orElse(null);
+            if (interactionRequired.contains(subject)) {
+                respond(exchange, 400, "{\"error\":\"interaction_required\",\"claims\":\"{}\"}");
+                return;
+            }
+            String resource = scope.split(" ")[0].replaceFirst("/\\.default$", "");
+            issued = issue(subject, resource, null).addPayloadClaim("azp", clientId)
+                    .addPayloadClaim("scp", scope);
         } else if (grant.equals("authorization_code")) {
             Code code = codes.remove(form.getOrDefault("code", ""));
             String verifier = form.get("code_verifier");

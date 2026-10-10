@@ -518,13 +518,21 @@ MCP servers, downstream APIs. It isn't specific to models.
 | `staticKey(...)` | — | Today's behaviour; single-user mode |
 | `clientCredentials(...)` | Client credentials grant | The app calls as itself, e.g. background work |
 | `tokenExchange(audience)` | RFC 8693 | The app swaps the user's token for one scoped to the target and marked as acting for that user. The traceable option. |
+| `onBehalfOf(scopes)` | Microsoft Entra ID's on-behalf-of (an RFC 7523 JWT bearer grant with `requested_token_use=on_behalf_of`) | The same, at Entra, which has no RFC 8693. |
 
 Passing the user's own token on to another service is **not** offered. OAuth's security guidance
 discourages it, and the MCP authorization spec forbids it. Token exchange covers the legitimate
 case.
 
 Token exchange is a standard, but an optional one. Not every issuer implements it, and the docs
-must say so. Where it's missing, `clientCredentials` plus the audit record (§7.3) is the fallback:
+must say so. **Microsoft Entra ID rejects it** (`AADSTS70003 unsupported_grant_type`) and offers
+its on-behalf-of flow instead, which `onBehalfOf` speaks. The one rule bent for it (§2, open
+standards only, decided 2026-10-10): its grant is a standard one (RFC 7523), with Microsoft's
+`requested_token_use` parameter. Entra adds two conditions: the caller's token must have been
+issued for the app redeeming it (`aud` is the app's client id), and a `scope` names the target
+(`https://ai.azure.com/.default` for Claude in Microsoft Foundry). When Entra answers
+`interaction_required` (a second factor, a changed policy), the call is refused with `401`, so the
+client signs the person in again; passing Entra's claims challenge on to the client is not done. Where it's missing, `clientCredentials` plus the audit record (§7.3) is the fallback:
 the call is made as the app, and the audit record ties it to the person.
 
 Only the issuer that issued the caller's token can exchange it. A `tokenExchange` refuses a
