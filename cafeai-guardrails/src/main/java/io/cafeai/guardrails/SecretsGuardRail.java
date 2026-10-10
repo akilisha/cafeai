@@ -1,10 +1,10 @@
 package io.cafeai.guardrails;
 
+import io.cafeai.core.guardrails.SensitivePatterns;
 import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Credentials and secrets guardrail — API keys, tokens, private keys, connection strings.
@@ -38,24 +38,8 @@ import java.util.regex.Pattern;
  */
 public final class SecretsGuardRail extends AbstractGuardRail {
 
-    private record Kind(String label, Pattern pattern) {}
-
-    private static final List<Kind> KINDS = List.of(
-        new Kind("AWS_ACCESS_KEY_ID",   Pattern.compile("\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b")),
-        new Kind("GITHUB_TOKEN",        Pattern.compile("\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})")),
-        new Kind("SLACK_TOKEN",         Pattern.compile("\\bxox[abprs]-[A-Za-z0-9-]{10,}")),
-        new Kind("STRIPE_KEY",          Pattern.compile("\\b[sr]k_(?:live|test)_[0-9A-Za-z]{16,}")),
-        new Kind("GOOGLE_API_KEY",      Pattern.compile("\\bAIza[0-9A-Za-z_\\-]{35}")),
-        new Kind("HUGGINGFACE_TOKEN",   Pattern.compile("\\bhf_[A-Za-z0-9]{30,}")),
-        new Kind("NVIDIA_API_KEY",      Pattern.compile("\\bnvapi-[A-Za-z0-9_\\-]{20,}")),
-        new Kind("LLM_API_KEY",         Pattern.compile("\\bsk-(?:ant-|proj-)?[A-Za-z0-9_\\-]{20,}")),
-        new Kind("PRIVATE_KEY",         Pattern.compile("-----BEGIN (?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?-----")),
-        new Kind("JWT",                 Pattern.compile("\\beyJ[A-Za-z0-9_\\-]{8,}\\.eyJ[A-Za-z0-9_\\-]{8,}\\.[A-Za-z0-9_\\-]{8,}")),
-        new Kind("URL_CREDENTIALS",     Pattern.compile("\\b[a-z][a-z0-9+.\\-]*://[^\\s/:@]+:[^\\s/@]+@[^\\s]+")),
-        new Kind("CREDENTIAL_ASSIGNMENT", Pattern.compile(
-            "\\b(?:api[_-]?key|secret|passwd|password|access[_-]?token|auth[_-]?token)\\b\\s*[:=]\\s*[\"']?[A-Za-z0-9/+_\\-]{16,}",
-            Pattern.CASE_INSENSITIVE))
-    );
+    /** The shared list: the same kinds audit text capture redacts. */
+    private static final List<SensitivePatterns.Kind> KINDS = SensitivePatterns.SECRETS;
 
     public SecretsGuardRail() {
         super(Action.BLOCK);
@@ -91,7 +75,7 @@ public final class SecretsGuardRail extends AbstractGuardRail {
     public static String scrub(String text) {
         if (text == null) return null;
         String out = TextNormalizer.canonical(text);
-        for (Kind k : KINDS) {
+        for (SensitivePatterns.Kind k : KINDS) {
             out = k.pattern().matcher(out).replaceAll("[" + k.label() + "]");
         }
         return out;
@@ -100,7 +84,7 @@ public final class SecretsGuardRail extends AbstractGuardRail {
     private static List<String> detect(String text) {
         String canonical = TextNormalizer.canonical(text);
         List<String> found = new ArrayList<>();
-        for (Kind k : KINDS) {
+        for (SensitivePatterns.Kind k : KINDS) {
             if (k.pattern().matcher(canonical).find()) found.add(k.label());
         }
         return found;

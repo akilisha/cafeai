@@ -7,6 +7,8 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.TextContent;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.CompleteToolCall;
 import dev.langchain4j.model.chat.response.PartialThinking;
@@ -18,6 +20,8 @@ import io.cafeai.core.ai.Pricing;
 import io.cafeai.core.ai.UsageReport;
 import io.cafeai.core.audit.AuditEvent;
 import io.cafeai.core.audit.AuditSink;
+import io.cafeai.core.audit.TextCapture;
+import io.cafeai.core.audit.Transcript;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.identity.Identity;
@@ -81,6 +85,7 @@ final class UsageMeter {
     private final AuditSink audit;
     private final boolean header = AppConfig.load().get(HEADER);
     private volatile Pricing pricing;
+    private volatile TextCapture capture;
 
     UsageMeter(Supplier<ObserveBridge> observe, AuditSink audit) {
         this.observe = observe;
@@ -89,6 +94,52 @@ final class UsageMeter {
 
     void pricing(Pricing pricing) {
         this.pricing = pricing;
+    }
+
+    /** Captures what is asked and answered in every model call, as {@code capture} says ({@code app.auditText}). */
+    void capture(TextCapture capture) {
+        this.capture = capture;
+    }
+
+    /**
+     * The caller's last message and the model's answer, redacted, to the transcript sink, when
+     * the app captures text. A sink that fails is logged and skipped: it never fails the call.
+     */
+    private void transcribe(Scope scope, AiProvider provider, List<ChatMessage> messages, ChatResponse response) {
+        TextCapture c = capture;
+        if (c == null) return;
+        try {
+            String prompt = lastUserText(messages);
+            String answer = response == null || response.aiMessage() == null ? null : response.aiMessage().text();
+            String model = provider.modelId() != null ? provider.modelId()
+                         : response != null && response.modelName() != null ? response.modelName() : provider.name();
+            Instant now = Instant.now();
+            c.sink().record(new Transcript(now,
+                    scope == null ? null : scope.req().identity().map(Identity::key).orElse(null),
+                    scope == null ? UsageReport.NO_REQUEST : routeOf(scope.req()),
+                    model,
+                    prompt == null ? null : c.redactor().redact(prompt),
+                    answer == null ? null : c.redactor().redact(answer),
+                    now.plus(c.keepFor())));
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(UsageMeter.class)
+                    .warn("A transcript sink failed; this transcript is skipped: {}", e.toString());
+        }
+    }
+
+    /** The text of the last message the caller sent, or {@code null}. */
+    private static String lastUserText(List<ChatMessage> messages) {
+        if (messages == null) return null;
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (messages.get(i) instanceof UserMessage user) {
+                StringBuilder text = new StringBuilder();
+                user.contents().forEach(part -> {
+                    if (part instanceof TextContent t) text.append(text.isEmpty() ? "" : "\n").append(t.text());
+                });
+                return text.isEmpty() ? null : text.toString();
+            }
+        }
+        return null;
     }
 
     // -- scope ---------------------------------------------------------------------------
@@ -277,26 +328,28 @@ final class UsageMeter {
         // Each overload goes to the same overload on the model: a model may implement any one of them.
         @Override
         public ChatResponse chat(ChatRequest request) {
-            return recorded(delegate.chat(request));
+            return recorded(request.messages(), delegate.chat(request));
         }
 
         @Override
         public ChatResponse chat(List<ChatMessage> messages) {
-            return recorded(delegate.chat(messages));
+            return recorded(messages, delegate.chat(messages));
         }
 
         @Override
         public ChatResponse chat(ChatMessage... messages) {
-            return recorded(delegate.chat(messages));
+            return recorded(List.of(messages), delegate.chat(messages));
         }
 
         @Override
         public ChatResponse doChat(ChatRequest request) {
-            return recorded(delegate.chat(request));
+            return recorded(request.messages(), delegate.chat(request));
         }
 
-        private ChatResponse recorded(ChatResponse response) {
-            record(scope(), provider, response);
+        private ChatResponse recorded(List<ChatMessage> messages, ChatResponse response) {
+            Scope scope = scope();
+            record(scope, provider, response);
+            transcribe(scope, provider, messages, response);
             return response;
         }
 
@@ -319,25 +372,25 @@ final class UsageMeter {
         // Each overload goes to the same overload on the model: a model may implement any one of them.
         @Override
         public void chat(ChatRequest request, StreamingChatResponseHandler handler) {
-            delegate.chat(request, metered(handler));
+            delegate.chat(request, metered(request.messages(), handler));
         }
 
         @Override
         public void chat(List<ChatMessage> messages, StreamingChatResponseHandler handler) {
-            delegate.chat(messages, metered(handler));
+            delegate.chat(messages, metered(messages, handler));
         }
 
         @Override
         public void chat(String message, StreamingChatResponseHandler handler) {
-            delegate.chat(message, metered(handler));
+            delegate.chat(message, metered(List.of(UserMessage.from(message)), handler));
         }
 
         @Override
         public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
-            delegate.chat(request, metered(handler));
+            delegate.chat(request, metered(request.messages(), handler));
         }
 
-        private StreamingChatResponseHandler metered(StreamingChatResponseHandler handler) {
+        private StreamingChatResponseHandler metered(List<ChatMessage> messages, StreamingChatResponseHandler handler) {
             Scope current = scope();
             Scope scope = current != null ? current : createdIn;   // completes on another thread
             return new StreamingChatResponseHandler() {
@@ -347,6 +400,7 @@ final class UsageMeter {
                 @Override public void onCompleteToolCall(CompleteToolCall call) { handler.onCompleteToolCall(call); }
                 @Override public void onCompleteResponse(ChatResponse response) {
                     record(scope, provider, response);
+                    transcribe(scope, provider, messages, response);
                     handler.onCompleteResponse(response);
                 }
                 @Override public void onError(Throwable error) { handler.onError(error); }

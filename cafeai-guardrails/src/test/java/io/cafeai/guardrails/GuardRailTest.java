@@ -100,6 +100,13 @@ class GuardRailTest {
             assertThat(result).contains("[EMAIL]");
             assertThat(result).contains("[PHONE]");
         }
+
+        @Test
+        @DisplayName("PiiGuardRail.scrub() redacts a card number whole, not as a phone number and leftover digits")
+        void scrub_cardNumberWhole() {
+            assertThat(PiiGuardRail.scrub("card 4111111111111111, call 555-867-5309"))
+                .isEqualTo("card [CREDIT_CARD], call [PHONE]");
+        }
     }
 
     // ── Jailbreak guardrail ───────────────────────────────────────────────────

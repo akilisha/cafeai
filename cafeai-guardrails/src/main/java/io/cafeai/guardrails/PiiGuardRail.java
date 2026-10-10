@@ -1,12 +1,12 @@
 package io.cafeai.guardrails;
 
 import io.cafeai.core.guardrails.GuardRail;
+import io.cafeai.core.guardrails.SensitivePatterns;
 import io.cafeai.core.guardrails.TextNormalizer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * PII detection guardrail.
@@ -34,20 +34,8 @@ import java.util.regex.Pattern;
  */
 public final class PiiGuardRail extends AbstractGuardRail {
 
-    private static final List<PiiPattern> PATTERNS = List.of(
-        new PiiPattern("EMAIL",
-            Pattern.compile("[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}")),
-        new PiiPattern("PHONE",
-            Pattern.compile("(\\+?\\d[\\s.\\-]?)?\\(?\\d{3}\\)?[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{4}")),
-        new PiiPattern("SSN",
-            Pattern.compile("\\b\\d{3}[\\s\\-]\\d{2}[\\s\\-]\\d{4}\\b")),
-        new PiiPattern("CREDIT_CARD",
-            Pattern.compile("\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|" +
-                "3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\\b")),
-        new PiiPattern("IPV4",
-            Pattern.compile("\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
-                "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b"))
-    );
+    /** The shared list: the same kinds audit text capture redacts. */
+    private static final List<SensitivePatterns.Kind> PATTERNS = SensitivePatterns.PII;
 
     public PiiGuardRail() {
         super(Action.BLOCK);
@@ -81,21 +69,17 @@ public final class PiiGuardRail extends AbstractGuardRail {
      * E.g. {@code "Call 555-867-5309"} -> {@code "Call [PHONE]"}.
      */
     public static String scrub(String text) {
-        for (PiiPattern pp : PATTERNS) {
-            text = pp.pattern().matcher(text).replaceAll("[" + pp.label() + "]");
-        }
-        return text;
+        return SensitivePatterns.scrub(text, PATTERNS);
     }
 
     private static List<String> detect(String text) {
         List<String> found = new ArrayList<>();
         String canonical = TextNormalizer.canonical(text);
-        for (PiiPattern pp : PATTERNS) {
+        for (SensitivePatterns.Kind pp : PATTERNS) {
             Matcher m = pp.pattern().matcher(canonical);
             if (m.find()) found.add(pp.label());
         }
         return found;
     }
 
-    private record PiiPattern(String label, Pattern pattern) {}
 }

@@ -340,8 +340,22 @@ throws is logged and skipped.
 
 **Audit records hold metadata only.** They never contain prompt, answer or document text, tool
 arguments or results, nor a guardrail's reason, which can quote what was flagged. They name people, so they are personal
-data, and what is kept and for how long is the sink's decision. Capturing text, redacted and
-opt-in, is deferred (§13).
+data, and what is kept and for how long is the sink's decision.
+
+**Capturing text, opt-in,** for settings that must keep what was asked and answered:
+`app.auditText(TextCapture.to(sink).keepFor(Duration.ofDays(90)))`.
+- **Separate:** each model call's `Transcript` (caller, route, model, the caller's last message,
+  the answer) goes to its own `TranscriptSink`, never to `app.audit(...)` sinks, which stay
+  metadata only. The text can be kept elsewhere, for less time, by fewer people.
+- **Redacted** before it leaves CafeAI: credentials, then personal data, each replaced by its kind
+  (`[EMAIL]`, `[AWS_ACCESS_KEY_ID]`), by default (`Redactor.standard()`, over the same
+  `SensitivePatterns` the PII and secrets guardrails use); `redactWith(...)` adds an
+  organisation's own terms. Retrieved documents and system prompts are not captured.
+- **Kept for a time the app must state** (`keepFor`, no default), carried on each record as
+  `keepUntil`. `TranscriptSink.jsonLines(dir)` enforces it: records are filed by the day they
+  expire (`until-2026-11-09.jsonl`), and a day's file is deleted once that day has passed.
+- Captured at the same point as usage: every model call, plain or streamed, including agents'.
+  A sink that fails is logged and skipped; it never fails the call.
 
 OpenTelemetry gets the caller on **spans only**: `enduser.id` (the subject) and
 `cafeai.enduser.issuer`. Never on metrics, where one series per person would make them grow
@@ -677,7 +691,6 @@ As built:
 ## 13. Deferred
 
 These can be added later without changing the design:
-- Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
 - `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
   `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,

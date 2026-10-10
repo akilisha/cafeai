@@ -771,6 +771,20 @@ public interface CafeAI extends Router {
     CafeAI audit(AuditSink sink);
 
     /**
+     * Also keeps what was asked and answered, for settings that must: the caller's last message
+     * and the model's answer in every model call, redacted, to their own sink, for a time the app
+     * decides. Off unless asked for; {@code app.audit(...)} sinks never receive text.
+     *
+     * <pre>{@code
+     *   app.auditText(TextCapture.to(TranscriptSink.jsonLines(Path.of("/var/audit/text")))
+     *       .keepFor(Duration.ofDays(90)));
+     * }</pre>
+     *
+     * @throws IllegalStateException if {@code capture} doesn't say how long text may be kept
+     */
+    CafeAI auditText(io.cafeai.core.audit.TextCapture capture);
+
+    /**
      * The app's audit trail, for a module or middleware to record into:
      * {@code req.app().audit().record(event)}. Forwards to every registered sink; does
      * nothing when none is.

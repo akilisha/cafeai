@@ -226,6 +226,21 @@ class IdentityInTheAiLayerTest {
         assertThat(audit).hasSize(1);
     }
 
+    @Test @DisplayName("captured text (opt-in) names the caller and route, redacted, and stays out of the audit records")
+    void capturedTextNamesTheCaller() throws Exception {
+        start();
+        List<io.cafeai.core.audit.Transcript> kept = new CopyOnWriteArrayList<>();
+        app.auditText(io.cafeai.core.audit.TextCapture.to(kept::add).keepFor(Duration.ofDays(7)));
+        get("/ask?q=mail+ann%40example.com", "grace");
+
+        await(() -> kept.size() == 1);
+        var t = kept.getFirst();
+        assertThat(t.caller()).isEqualTo(key("grace"));
+        assertThat(t.route()).isEqualTo("GET /ask");
+        assertThat(t.prompt()).isEqualTo("mail [EMAIL]");
+        assertThat(audit.toString()).doesNotContain("ann@example.com").doesNotContain("[EMAIL]");
+    }
+
     @Test @DisplayName("audit records carry no prompt or answer text")
     void metadataOnly() throws Exception {
         start(new Rail("output-check", GuardRail.Position.POST_LLM, GuardRail.Action.WARN));

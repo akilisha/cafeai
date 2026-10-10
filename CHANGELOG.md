@@ -32,7 +32,11 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   (caller, route, tool, MCP or agent, failed, duration: MCP tools and agents' tools) and every
   guardrail flag (caller, route, guardrail, stage, action), from the engine and from guardrails
   used as middleware. Records hold metadata only, never prompt or answer text, nor tool
-  arguments or results. With
+  arguments or results. **Captured text is opt-in and separate:**
+  `app.auditText(TextCapture.to(sink).keepFor(...))` sends each call's prompt and answer,
+  redacted (credentials and personal data replaced by their kind), to its own `TranscriptSink`
+  with a `keepUntil`; `TranscriptSink.jsonLines(dir)` deletes records once their day has passed.
+  The PII and secrets patterns are now shared, in `SensitivePatterns`. With
   `cafeai-observability`'s OpenTelemetry strategy, spans carry `enduser.id` and
   `cafeai.enduser.issuer`; metrics never carry the caller. A streamed call now runs in its
   request's scope, so its usage, audit records and span name the right caller.
@@ -177,6 +181,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Fixed
 
+- **`PiiGuardRail.scrub()` redacts a card number whole.** The phone-number pattern ran first
+  and took the start of a card number, leaving `[PHONE]` and the remaining digits; card numbers
+  are now matched before phone numbers.
 - **Streamed tokens keep their line breaks.** `res.stream(...)` wrote each token as a single
   SSE `data:` field, so for a token with a line break in it — a paragraph, a list item, a
   lone newline, all common in model output — an SSE client kept only the text before the

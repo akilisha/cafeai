@@ -1885,6 +1885,13 @@ public final class CafeAIApp implements CafeAI {
     }
 
     @Override
+    public CafeAI auditText(io.cafeai.core.audit.TextCapture capture) {
+        usageMeter.capture(java.util.Objects.requireNonNull(capture, "capture").validated());
+        log.info("Audit text capture on: redacted, kept {}", capture.keepFor());
+        return this;
+    }
+
+    @Override
     public AuditSink audit() {
         return auditTrail;
     }

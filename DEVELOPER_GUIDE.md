@@ -3745,6 +3745,19 @@ model. `withCredentials` is on the OpenAI provider; the Anthropic provider doesn
   guardrail flag, each naming the caller. A tool call (`AuditEvent.ToolCall`) says which tool,
   whether an MCP client or one of the app's agents called it, whether it failed, and how long
   it ran. Metadata only: never prompt or answer text, nor tool arguments or results.
+- **Captured text, opt-in:** where what was asked and answered must be kept, capture it to its
+  own sink, redacted, for a time you state:
+
+  ```java
+  app.auditText(TextCapture.to(TranscriptSink.jsonLines(Path.of("/var/audit/text")))
+          .keepFor(Duration.ofDays(90)));
+  ```
+
+  Each model call becomes a `Transcript`: caller, route, model, the caller's last message and
+  the answer, with credentials and personal data replaced by their kind (`[EMAIL]`), and a
+  `keepUntil`. `audit(...)` sinks never see it. `jsonLines` files records by the day they
+  expire and deletes a day's file once it has passed. `redactWith(Redactor.standard().andThen(...))`
+  adds your own terms.
 - **Traces:** with the OpenTelemetry strategy, spans carry `enduser.id`; metrics never carry the
   caller.
 
