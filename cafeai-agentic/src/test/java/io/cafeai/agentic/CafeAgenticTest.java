@@ -12,6 +12,8 @@ import dev.langchain4j.model.output.TokenUsage;
 import io.cafeai.agentic.internal.AgenticSupportHolder;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.audit.AuditEvent;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.spi.AgentBridge;
@@ -74,6 +76,20 @@ class CafeAgenticTest {
     void chatModel_nullApp_fails() {
         assertThatThrownBy(() -> CafeAgentic.chatModel(null))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void toolCallsAreAudited() {
+        support.model = toolCallingModel();
+
+        Assistant assistant = CafeAgentic.agentBuilder(app, Assistant.class).tools(new Vault()).build();
+
+        assertThat(assistant.chat("what is the code?")).isEqualTo("code K7");
+        assertThat(support.audited).singleElement().isInstanceOfSatisfying(AuditEvent.ToolCall.class, c -> {
+            assertThat(c.tool()).isEqualTo("accessCode");
+            assertThat(c.via()).isEqualTo(AuditEvent.ToolCall.Via.AGENT);
+            assertThat(c.failed()).isFalse();
+        });
     }
 
     @Test
@@ -165,7 +181,7 @@ class CafeAgenticTest {
     // ── fakes ────────────────────────────────────────────────────────────────
 
     private static final class FakeSupport implements AgentBridge.AgentSupport {
-        FixedModel model = fixedModel("");
+        ChatModel model = fixedModel("");
         final AiProvider defaultProvider = namedProvider("default");
         ObserveBridge observeBridge;
         final List<GuardRail> appGuardRails = new ArrayList<>();
@@ -175,6 +191,28 @@ class CafeAgenticTest {
         @Override public ObserveBridge observeBridge() { return observeBridge; }
         @Override public MemoryStrategy defaultMemory() { return null; }
         @Override public List<GuardRail> guardRails() { return appGuardRails; }
+        final List<AuditEvent> audited = new java.util.concurrent.CopyOnWriteArrayList<>();
+        @Override public AuditSink audit() { return audited::add; }
+    }
+
+    public static class Vault {
+        @dev.langchain4j.agent.tool.Tool("Returns the vault access code")
+        public String accessCode() { return "K7"; }
+    }
+
+    /** Asks for the accessCode tool, then answers with its result. */
+    private static ChatModel toolCallingModel() {
+        return new ChatModel() {
+            @Override public ChatResponse doChat(ChatRequest r) {
+                ChatMessage last = r.messages().get(r.messages().size() - 1);
+                if (last instanceof dev.langchain4j.data.message.ToolExecutionResultMessage result) {
+                    return ChatResponse.builder().aiMessage(AiMessage.from("code " + result.text())).build();
+                }
+                return ChatResponse.builder().aiMessage(AiMessage.from(
+                        dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+                                .id("c1").name("accessCode").arguments("{}").build())).build();
+            }
+        };
     }
 
     private static final class RecordingObserveBridge implements ObserveBridge {

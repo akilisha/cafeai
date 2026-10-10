@@ -189,6 +189,8 @@ public class IdentityChatExample {
         return switch (event) {
             case AuditEvent.ModelCall m -> who + " on " + m.route() + ": " + m.model() + ", "
                 + m.inputTokens() + " tokens in, " + m.outputTokens() + " out";
+            case AuditEvent.ToolCall t -> who + " on " + t.route() + ": tool " + t.tool() + " (" + t.via() + ")"
+                + (t.failed() ? " failed" : "") + " in " + t.duration().toMillis() + " ms";
             case AuditEvent.GuardrailFlag g -> who + " on " + g.route() + ": guardrail " + g.guardrail()
                 + " " + g.action() + " the " + g.stage();
         };

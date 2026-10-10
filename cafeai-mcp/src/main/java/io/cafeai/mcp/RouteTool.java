@@ -1,5 +1,7 @@
 package io.cafeai.mcp;
 
+import io.cafeai.core.audit.AuditEvent;
+import io.cafeai.core.audit.AuditSink;
 import io.helidon.extensions.mcp.server.McpTool;
 import io.helidon.extensions.mcp.server.McpToolRequest;
 import io.helidon.extensions.mcp.server.McpToolResult;
@@ -25,7 +27,7 @@ import java.util.regex.Pattern;
 /**
  * An app route served as an MCP tool. A call becomes a real HTTP request to the route
  * on this server, so every filter, guardrail and check on the route runs as for any
- * other client; the caller's forwarded headers go with it.
+ * other client; the caller's forwarded headers go with it. Each call is an audit record.
  */
 final class RouteTool implements McpTool {
 
@@ -43,9 +45,11 @@ final class RouteTool implements McpTool {
     private final List<String> pathParams = new ArrayList<>();
     private final String schema;
     private final IntSupplier port;
+    private final AuditSink audit;
 
-    RouteTool(String name, String description, String route, Class<?> input, IntSupplier port) {
+    RouteTool(String name, String description, String route, Class<?> input, IntSupplier port, AuditSink audit) {
         this.name = name;
+        this.audit = audit;
         this.description = description;
         this.port = port;
 
@@ -93,6 +97,14 @@ final class RouteTool implements McpTool {
 
     @Override
     public McpToolResult tool(McpToolRequest request) {
+        long start = System.nanoTime();
+        McpToolResult result = call(request);
+        audit.record(AuditEvent.ToolCall.now(name, AuditEvent.ToolCall.Via.MCP, result.error(),
+                Duration.ofNanos(System.nanoTime() - start)));
+        return result;
+    }
+
+    private McpToolResult call(McpToolRequest request) {
         Map<String, Object> args = Json.arguments(request.arguments());
 
         String path = pathTemplate;

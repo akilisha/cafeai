@@ -67,7 +67,7 @@ public final class CafeAgentic {
         if (!inputRails.isEmpty())  builder.inputGuardrails(inputRails.toArray(InputGuardrail[]::new));
         if (!outputRails.isEmpty()) builder.outputGuardrails(outputRails.toArray(OutputGuardrail[]::new));
 
-        builder.listener(new AgenticObserveListener(support.observeBridge()));
+        builder.listener(new AgenticObserveListener(support.observeBridge(), support.audit()));
 
         return builder;
     }

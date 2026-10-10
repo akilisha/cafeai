@@ -3,6 +3,7 @@ package io.cafeai.core.spi;
 import dev.langchain4j.model.chat.ChatModel;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.agents.AgentConfig;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.memory.MemoryStrategy;
 import io.cafeai.core.rag.EmbeddingProvider;
@@ -92,5 +93,8 @@ public interface AgentBridge {
          * together with any it registers itself.
          */
         default List<GuardRail> guardRails() { return List.of(); }
+
+        /** The app's audit trail ({@code app.audit()}): an agent's tool calls are recorded there. */
+        default AuditSink audit() { return event -> { }; }
     }
 }

@@ -3681,8 +3681,10 @@ model. `withCredentials` is on the OpenAI provider; the Anthropic provider doesn
   caller (`ConversationKeys`): another caller sending the same id gets a conversation of their
   own. This covers prompts, streams, stateful agents and agentic memory.
 - **Usage per caller:** `app.usage().callers()`, next to the per-route totals.
-- **Audit records:** `app.audit(sink)` receives every model call and every guardrail flag, each
-  naming the caller. Metadata only, never prompt or answer text.
+- **Audit records:** `app.audit(sink)` receives every model call, every tool call and every
+  guardrail flag, each naming the caller. A tool call (`AuditEvent.ToolCall`) says which tool,
+  whether an MCP client or one of the app's agents called it, whether it failed, and how long
+  it ran. Metadata only: never prompt or answer text, nor tool arguments or results.
 - **Traces:** with the OpenTelemetry strategy, spans carry `enduser.id`; metrics never carry the
   caller.
 

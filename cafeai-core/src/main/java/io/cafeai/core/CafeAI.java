@@ -759,9 +759,10 @@ public interface CafeAI extends Router {
     // ── Audit ─────────────────────────────────────────────────────────────────
 
     /**
-     * Sends audit events to {@code sink}: every model call and every guardrail flag, each
-     * naming the caller's verified identity (when there is one), the route and the time.
-     * Metadata only: never prompt, answer or document text. Several sinks may be registered.
+     * Sends audit events to {@code sink}: every model call, every tool call (over MCP, or by one
+     * of the app's agents) and every guardrail flag, each naming the caller's verified identity
+     * (when there is one), the route and the time. Metadata only: never prompt, answer or
+     * document text, nor tool arguments or results. Several sinks may be registered.
      *
      * <pre>{@code
      *   app.audit(event -> auditLog.append(json(event)));

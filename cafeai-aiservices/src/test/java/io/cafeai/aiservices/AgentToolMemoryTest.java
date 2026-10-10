@@ -13,6 +13,8 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import io.cafeai.aiservices.adapter.CafeAiChatMemoryStore;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.ai.UsageReport;
+import io.cafeai.core.audit.AuditEvent;
 import io.cafeai.core.internal.LangchainBridge;
 import io.cafeai.core.memory.ConversationContext;
 import io.cafeai.core.memory.MemoryStrategy;
@@ -133,5 +135,39 @@ class AgentToolMemoryTest {
             .isInstanceOf(ToolExecutionResultMessage.class);
         // and on the second question it was sent the first exchange, tool call and result included
         assertThat(model.requests.get(2)).anyMatch(m -> m instanceof ToolExecutionResultMessage);
+    }
+
+    /** The same tool, failing. */
+    public static class BrokenVaultTools {
+        @Tool("Returns the vault access code.")
+        public String accessCode(@P("why the code is wanted") String reason) {
+            throw new IllegalStateException("vault offline");
+        }
+    }
+
+    @Test @DisplayName("each tool an agent runs is an audit record: the tool, that an agent called it, and whether it failed")
+    void toolCallsAreAudited() {
+        var app = CafeAI.create();
+        app.ai(new ScriptedModel());
+        List<AuditEvent> events = new CopyOnWriteArrayList<>();
+        app.audit(events::add);
+        app.agent("vault", Vault.class).tool(new VaultTools());
+        app.agent("broken", Vault.class).tool(new BrokenVaultTools());
+
+        app.agent("vault", Vault.class, "s1").ask("What is the vault access code?");
+        app.agent("broken", Vault.class, "s2").ask("What is the vault access code?");
+
+        List<AuditEvent.ToolCall> calls = events.stream()
+            .filter(AuditEvent.ToolCall.class::isInstance).map(AuditEvent.ToolCall.class::cast).toList();
+        assertThat(calls).extracting(AuditEvent.ToolCall::tool, AuditEvent.ToolCall::via, AuditEvent.ToolCall::failed)
+            .containsExactly(
+                org.assertj.core.groups.Tuple.tuple("accessCode", AuditEvent.ToolCall.Via.AGENT, false),
+                org.assertj.core.groups.Tuple.tuple("accessCode", AuditEvent.ToolCall.Via.AGENT, true));
+        // No request behind these calls: no caller, and the route says so.
+        assertThat(calls).allSatisfy(c -> {
+            assertThat(c.caller()).isNull();
+            assertThat(c.route()).isEqualTo(UsageReport.NO_REQUEST);
+            assertThat(c.duration().isNegative()).isFalse();
+        });
     }
 }

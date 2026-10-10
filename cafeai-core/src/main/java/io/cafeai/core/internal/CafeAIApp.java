@@ -211,6 +211,7 @@ public final class CafeAIApp implements CafeAI {
         @Override public VectorStore       vectorStore()     { return vectorStore; }
         @Override public EmbeddingProvider embeddingModel()  { return embeddingModel; }
         @Override public List<GuardRail>   guardRails()      { return List.copyOf(guardRails); }
+        @Override public AuditSink         audit()           { return auditTrail; }
     }
 
     // -- Agents (ROADMAP-12) -------------------------------------------------
@@ -1846,11 +1847,16 @@ public final class CafeAIApp implements CafeAI {
      */
     private void scopeRequests(HttpRouting.Builder routing) {
         routing.addFilter((chain, req, res) -> {
-            if (!under(req.path().path(), scopedPaths)) {
+            String path = req.path().path();
+            String prefix = scopedPaths.stream()
+                    .filter(p -> path.equals(p) || path.startsWith(p + "/")).findFirst().orElse(null);
+            if (prefix == null) {
                 chain.proceed();
                 return;
             }
             var ctx = getOrCreateContext(req, res);
+            // Its route, for usage and audit records: the scoped path ("POST /mcp").
+            ctx.req().setAttribute("_routePattern", prefix);
             try (var scope = usageMeter.enter(ctx.req(), ctx.res())) {
                 chain.proceed();
             }

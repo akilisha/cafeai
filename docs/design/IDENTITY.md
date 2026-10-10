@@ -258,6 +258,10 @@ LangChain4j's rate-limit exception doesn't carry the response's headers.
 `app.audit(sink)` receives an `AuditEvent` for:
 - **every model call** (`ModelCall`): caller, route, model, tokens, cost and time. Each round
   trip of an agent's tool loop is a model call;
+- **every tool call** (`ToolCall`): caller, route, tool, who called it (an MCP client, or one of
+  the app's agents), whether it failed, and how long it ran. Recorded for `@Tool` objects and
+  route tools served over MCP, and for the tools of agents built with `app.agent(...)` or
+  `CafeAgentic.agentBuilder(...)`. Its arguments and result are not recorded;
 - **every guardrail flag** (`GuardrailFlag`): caller, route, guardrail, what it was screening
   (request, response or retrieved document) and what it did (block, warn or log). This covers
   both the engine's guardrails and guardrails used as middleware.
@@ -265,8 +269,8 @@ LangChain4j's rate-limit exception doesn't carry the response's headers.
 Several sinks may be registered. Each is called synchronously and must be quick, and a sink that
 throws is logged and skipped.
 
-**Audit records hold metadata only.** They never contain prompt, answer or document text, nor a
-guardrail's reason, which can quote what was flagged. They name people, so they are personal
+**Audit records hold metadata only.** They never contain prompt, answer or document text, tool
+arguments or results, nor a guardrail's reason, which can quote what was flagged. They name people, so they are personal
 data, and what is kept and for how long is the sink's decision. Capturing text, redacted and
 opt-in, is deferred (§13).
 
@@ -604,7 +608,6 @@ These can be added later without changing the design:
 - Protected resource metadata for ordinary routes, outside MCP.
 - Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
-- Audit records for tool executions themselves (today the model calls around them are audited).
 - `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
   `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,

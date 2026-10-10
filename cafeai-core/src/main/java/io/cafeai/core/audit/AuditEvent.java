@@ -3,23 +3,25 @@ package io.cafeai.core.audit;
 import io.cafeai.core.ai.UsageReport;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.identity.Identity;
+import io.cafeai.core.internal.CurrentRequest;
 import io.cafeai.core.routing.Request;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One auditable thing that happened: a model call, or a guardrail flagging something. Each
- * names who it was for, so an organisation can answer "who used which model, at what cost, and
- * what was blocked".
+ * One auditable thing that happened: a model call, a tool call, or a guardrail flagging
+ * something. Each names who it was for, so an organisation can answer "who used which model, at
+ * what cost, what did tools do for them, and what was blocked".
  *
- * <p><b>Metadata only.</b> No prompt, answer or document text is ever included, and no
- * guardrail reason (a reason can quote what was flagged). Audit records name people, so they
+ * <p><b>Metadata only.</b> No prompt, answer or document text is ever included, no tool
+ * arguments or results, and no guardrail reason (a reason can quote what was flagged). Audit records name people, so they
  * are personal data; what is kept, and for how long, is the sink's decision.
  *
  * <p>Received by an {@link AuditSink} registered with {@code app.audit(sink)}.
  */
-public sealed interface AuditEvent permits AuditEvent.ModelCall, AuditEvent.GuardrailFlag {
+public sealed interface AuditEvent permits AuditEvent.ModelCall, AuditEvent.ToolCall, AuditEvent.GuardrailFlag {
 
     /** When it happened. */
     Instant at();
@@ -50,6 +52,49 @@ public sealed interface AuditEvent permits AuditEvent.ModelCall, AuditEvent.Guar
             Objects.requireNonNull(at, "at");
             Objects.requireNonNull(route, "route");
             Objects.requireNonNull(model, "model");
+        }
+    }
+
+    /**
+     * A tool ran: an MCP client called one of the app's tools, or one of the app's agents called
+     * one. Its arguments and result are not recorded; they can hold anything.
+     *
+     * @param tool     the tool's name
+     * @param via      who called it
+     * @param failed   whether it ended in an error
+     * @param duration how long it ran
+     */
+    record ToolCall(Instant at, Identity.Key caller, String route, String tool, Via via,
+                    boolean failed, Duration duration) implements AuditEvent {
+        public ToolCall {
+            Objects.requireNonNull(at, "at");
+            Objects.requireNonNull(route, "route");
+            Objects.requireNonNull(tool, "tool");
+            Objects.requireNonNull(via, "via");
+            Objects.requireNonNull(duration, "duration");
+        }
+
+        /**
+         * A tool call that just ended, for the request this thread is working for (or for no
+         * request): the caller is its verified identity, the route its matched pattern.
+         */
+        public static ToolCall now(String tool, Via via, boolean failed, Duration duration) {
+            Request request = CurrentRequest.get().orElse(null);
+            if (request == null) {
+                return new ToolCall(Instant.now(), null, UsageReport.NO_REQUEST, tool, via, failed, duration);
+            }
+            Object pattern = request.attribute("_routePattern");
+            return new ToolCall(Instant.now(), request.identity().map(Identity::key).orElse(null),
+                    request.method() + " " + (pattern != null ? pattern : "(unmatched)"),
+                    tool, via, failed, duration);
+        }
+
+        /** Who called a tool. */
+        public enum Via {
+            /** An MCP client: an agent outside the app, with its own identity or a person's. */
+            MCP,
+            /** One of the app's own agents, while answering a request. */
+            AGENT
         }
     }
 

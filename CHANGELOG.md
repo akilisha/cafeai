@@ -20,9 +20,11 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   tokens for tests and local development.
 - **Usage per caller and audit records.** `app.usage().callers()` reports model calls, tokens
   and cost per verified identity, alongside the per-route totals. `app.audit(sink)` receives an
-  `AuditEvent` for every model call (caller, route, model, tokens, cost) and every guardrail flag
-  (caller, route, guardrail, stage, action), from the engine and from guardrails used as
-  middleware. Records hold metadata only, never prompt or answer text. With
+  `AuditEvent` for every model call (caller, route, model, tokens, cost), every tool call
+  (caller, route, tool, MCP or agent, failed, duration: MCP tools and agents' tools) and every
+  guardrail flag (caller, route, guardrail, stage, action), from the engine and from guardrails
+  used as middleware. Records hold metadata only, never prompt or answer text, nor tool
+  arguments or results. With
   `cafeai-observability`'s OpenTelemetry strategy, spans carry `enduser.id` and
   `cafeai.enduser.issuer`; metrics never carry the caller. A streamed call now runs in its
   request's scope, so its usage, audit records and span name the right caller.

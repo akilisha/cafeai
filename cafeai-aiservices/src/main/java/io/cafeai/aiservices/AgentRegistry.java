@@ -12,6 +12,8 @@ import io.cafeai.aiservices.adapter.CafeAiContentRetriever;
 import io.cafeai.aiservices.adapter.GuardrailAdapters;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.audit.AuditEvent;
+import io.cafeai.core.audit.AuditSink;
 import io.cafeai.core.config.AppConfig;
 import io.cafeai.core.config.ConfigKey;
 import io.cafeai.core.guardrails.GuardRail;
@@ -22,6 +24,7 @@ import io.cafeai.core.rag.Retriever;
 import io.cafeai.core.rag.VectorStore;
 import io.cafeai.core.spi.AgentBridge;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +125,11 @@ public final class AgentRegistry implements AgentBridge {
         List<Object> tools = config.tools();
         if (!tools.isEmpty()) {
             builder.tools(new ArrayList<>(tools));
+            // Each tool the agent runs is an audit record, for the request it runs for.
+            AuditSink audit = support.audit();
+            builder.afterToolExecution(t -> audit.record(AuditEvent.ToolCall.now(
+                t.request().name(), AuditEvent.ToolCall.Via.AGENT, t.hasFailed(),
+                t.duration() == null ? Duration.ZERO : t.duration())));
         }
 
         // -- guardrails: the app's, then the agent's own ----------------------

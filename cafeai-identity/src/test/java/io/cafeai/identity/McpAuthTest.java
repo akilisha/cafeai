@@ -3,6 +3,7 @@ package io.cafeai.identity;
 import dev.langchain4j.agent.tool.Tool;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.OpenAI;
+import io.cafeai.core.audit.AuditEvent;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.identity.dev.FakeIssuer;
 import org.junit.jupiter.api.AfterAll;
@@ -16,7 +17,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -47,8 +50,15 @@ class McpAuthTest {
         public String ask() { return app.prompt("hi").call().text(); }
     }
 
+    /** A {@code @Tool} object that fails. */
+    public static class Fail {
+        @Tool("Always fails")
+        public String fail() { throw new IllegalStateException("down"); }
+    }
+
     private FakeIssuer fake;
     private FakeModelServer model;
+    private final List<AuditEvent> audit = new CopyOnWriteArrayList<>();
     private CafeAI app;
     private String base;
     private String resource;
@@ -71,7 +81,9 @@ class McpAuthTest {
         app.get("/whoami", (req, res, next) -> res.send(req.identity().map(Identity::subject).orElse("anonymous")));
         app.ai(OpenAI.of("m").withBaseUrl(model.baseUrl())
                 .withCredentials(OAuthCredentials.tokenExchange(fake.issuer(), "orders-api", "orders-secret", "model-server")));
-        app.mcp().tool("whoami", "Who the caller is", "GET /whoami").tools(new Echo(), new Me(), new Ask(app));
+        app.audit(audit::add);
+        app.mcp().tool("whoami", "Who the caller is", "GET /whoami")
+                .tools(new Echo(), new Me(), new Ask(app), new Fail());
         Auth.mcp(app, fake.issuer(), resource).scope("mcp:use");
 
         var started = new CountDownLatch(1);
@@ -177,6 +189,46 @@ class McpAuthTest {
         assertThat(McpClient.text(alice.call("me", Map.of()))).isEqualTo("alice");
         assertThat(McpClient.text(bob.call("me", Map.of()))).isEqualTo("bob");
         assertThat(McpClient.text(alice.call("me", Map.of()))).isEqualTo("alice");
+    }
+
+    @Test @DisplayName("each MCP tool call is an audit record: the tool, the caller, the endpoint's route, whether it failed")
+    void toolCallsAreAudited() throws Exception {
+        var alice = new McpClient(resource).header("Authorization", "Bearer " + token("alice", resource, "mcp:use"))
+                .connect();
+        audit.clear();
+        alice.call("me", Map.of());
+        alice.call("whoami", Map.of());
+        alice.call("fail", Map.of());
+
+        List<AuditEvent.ToolCall> calls = audit.stream()
+                .filter(AuditEvent.ToolCall.class::isInstance).map(AuditEvent.ToolCall.class::cast).toList();
+        assertThat(calls).extracting(AuditEvent.ToolCall::tool, AuditEvent.ToolCall::failed).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("me", false),
+                org.assertj.core.groups.Tuple.tuple("whoami", false),
+                org.assertj.core.groups.Tuple.tuple("fail", true));
+        assertThat(calls).allSatisfy(c -> {
+            assertThat(c.caller()).isNotNull();
+            assertThat(c.caller().subject()).isEqualTo("alice");
+            assertThat(c.route()).isEqualTo("POST /mcp");
+            assertThat(c.via()).isEqualTo(AuditEvent.ToolCall.Via.MCP);
+        });
+    }
+
+    @Test @DisplayName("a model call a @Tool object makes is audited for the caller, under the MCP endpoint's route")
+    void toolModelCallAudited() throws Exception {
+        var alice = new McpClient(resource).header("Authorization", "Bearer " + token("alice", resource, "mcp:use"))
+                .connect();
+        audit.clear();
+        alice.call("ask", Map.of());
+        // Credited once the response is sent, so it can land just after the client has it.
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (audit.stream().noneMatch(AuditEvent.ModelCall.class::isInstance) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+        var modelCall = audit.stream().filter(AuditEvent.ModelCall.class::isInstance)
+                .map(AuditEvent.ModelCall.class::cast).findFirst().orElseThrow();
+        assertThat(modelCall.caller().subject()).isEqualTo("alice");
+        assertThat(modelCall.route()).isEqualTo("POST /mcp");
     }
 
     @Test @DisplayName("a @Tool object's model call is made on the caller's behalf (token exchange)")

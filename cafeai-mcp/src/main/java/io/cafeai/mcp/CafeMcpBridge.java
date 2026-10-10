@@ -58,14 +58,14 @@ public final class CafeMcpBridge implements McpBridge {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(description, "description");
             Objects.requireNonNull(route, "route");
-            add(new RouteTool(name, description, route, input, app::port));
+            add(new RouteTool(name, description, route, input, app::port, app.audit()));
             return this;
         }
 
         @Override
         public McpConfig tools(Object... toolObjects) {
             for (Object o : toolObjects) {
-                for (ObjectTool t : ObjectTool.from(Objects.requireNonNull(o, "tool object"))) add(t);
+                for (ObjectTool t : ObjectTool.from(Objects.requireNonNull(o, "tool object"), app.audit())) add(t);
             }
             return this;
         }
