@@ -19,7 +19,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   a refused client can find the issuer by itself. `.introspect(clientId, secret)` also asks the
   issuer about each token (RFC 7662): a revoked JWT is refused at once, not at its expiry, and
   opaque tokens are accepted on the issuer's word; answers are cached briefly
-  (`.introspectionCache(...)`). `Auth.require(Auth.scope("orders:read"))` checks
+  (`.introspectionCache(...)`). `.or(issuer, audiences...)` trusts several issuers at once, each
+  token checked against the one it names; browser sign-ins can sit side by side, one per
+  issuer; `OAuthCredentials.byIssuer(...)` exchanges each caller's token at its own issuer.
+  `Auth.require(Auth.scope("orders:read"))` checks
   what the issuer granted on a route: scopes, roles, groups, entitlements, or `anyOf` them
   (`401` when anonymous, `403` when short, naming only missing scopes). `FakeIssuer` signs
   tokens for tests and local development.

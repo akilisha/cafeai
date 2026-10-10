@@ -69,7 +69,7 @@ public final class McpAuth {
         this.metadataUrl = metadata.url;
         IdentityMode.enable();
         app.local(Locals.MCP_PROTECTED, path);
-        metadata.serve(app, issuer, scopes);   // the scopes as they are when it's asked for
+        metadata.serve(app, () -> java.util.List.of(issuer), scopes);   // the scopes as they are when it's asked for
         app.helidon().routing(this::install);
     }
 

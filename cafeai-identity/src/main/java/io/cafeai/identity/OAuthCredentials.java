@@ -61,7 +61,49 @@ public final class OAuthCredentials {
      */
     public static TokenExchange tokenExchange(Issuer issuer, String clientId, String clientSecret,
                                               String audience) {
-        return new TokenExchange(TokenEndpoint.confidential(issuer, clientId, clientSecret), audience, Clock.systemUTC());
+        return new TokenExchange(issuer.id(), TokenEndpoint.confidential(issuer, clientId, clientSecret), audience,
+                Clock.systemUTC());
+    }
+
+    /**
+     * Token exchange at whichever issuer the caller came from, for an app that trusts several
+     * ({@code Auth.bearer(a, ...).or(b, ...)}): a caller's token can only be exchanged by the
+     * issuer that issued it.
+     *
+     * <pre>{@code
+     *   .withCredentials(OAuthCredentials.byIssuer(
+     *       OAuthCredentials.tokenExchange(entra, "orders-api", secretA, "api://model-gateway"),
+     *       OAuthCredentials.tokenExchange(okta,  "orders-api", secretB, "model-gateway")))
+     * }</pre>
+     *
+     * A caller from an issuer none of them exchange at is refused, never sent to another issuer.
+     */
+    public static Credentials byIssuer(TokenExchange... exchanges) {
+        Map<String, TokenExchange> byIssuer = new LinkedHashMap<>();
+        for (TokenExchange e : exchanges) {
+            if (byIssuer.putIfAbsent(e.issuerId, e) != null) {
+                throw new IllegalArgumentException("Two token exchanges at " + e.issuerId);
+            }
+        }
+        if (byIssuer.isEmpty()) throw new IllegalArgumentException("Name at least one token exchange");
+        return new Credentials() {
+            @Override
+            public String token() {
+                Identity caller = Identity.current().orElseThrow(() -> new IdentityRequiredException(
+                        "A model call on behalf of the caller was made with no verified caller. Require "
+                        + "sign-in on this route, or carry the request to this thread with RequestScope."));
+                TokenExchange exchange = byIssuer.get(caller.issuer());
+                if (exchange == null) {
+                    throw new IllegalStateException("No token exchange for callers from " + caller.issuer()
+                            + " (configured for " + byIssuer.keySet() + ")");
+                }
+                return exchange.token();
+            }
+
+            @Override public boolean perCaller() { return true; }
+
+            @Override public String toString() { return "OAuthCredentials.byIssuer(" + byIssuer.values() + ")"; }
+        };
     }
 
     /** Client credentials: one token for the app, renewed before it expires. */
@@ -118,14 +160,16 @@ public final class OAuthCredentials {
         private static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
         private static final int MAX_CACHED = 10_000;
 
+        private final String issuerId;
         private final TokenEndpoint endpoint;
         private final String audience;
         private final Clock clock;
         private String scope;
         private final Map<String, TokenEndpoint.Token> cache = new ConcurrentHashMap<>();
 
-        TokenExchange(TokenEndpoint endpoint, String audience, Clock clock) {
+        TokenExchange(String issuerId, TokenEndpoint endpoint, String audience, Clock clock) {
             if (audience == null || audience.isBlank()) throw new IllegalArgumentException("audience must not be blank");
+            this.issuerId = issuerId;
             this.endpoint = endpoint;
             this.audience = audience;
             this.clock = clock;
@@ -143,6 +187,11 @@ public final class OAuthCredentials {
                     "A model call on behalf of the caller (token exchange for '" + audience
                     + "') was made with no verified caller. Require sign-in on this route, or carry "
                     + "the request to this thread with RequestScope."));
+            // Only the issuer that issued the caller's token can exchange it: never send it to another.
+            if (!caller.issuer().equals(issuerId)) {
+                throw new IllegalStateException("The caller is from " + caller.issuer() + ", but this token exchange is at "
+                        + issuerId + ". With several issuers, use OAuthCredentials.byIssuer(...).");
+            }
             String subjectToken = CurrentRequest.get()
                     .map(r -> r.attribute(BearerAuth.ACCESS_TOKEN))
                     .filter(String.class::isInstance).map(String.class::cast)

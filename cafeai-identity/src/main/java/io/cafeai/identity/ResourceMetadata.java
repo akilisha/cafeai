@@ -5,6 +5,8 @@ import io.helidon.http.HeaderNames;
 
 import java.net.URI;
 import java.util.Collection;
+import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -53,19 +55,23 @@ final class ResourceMetadata {
         return new ResourceMetadata(uri);
     }
 
-    /** Serves the document at its well-known path, outside CafeAI's filters: a client needs it before it has a token. */
-    void serve(CafeAI app, Issuer issuer, Collection<String> scopes) {
+    /**
+     * Serves the document at its well-known path, outside CafeAI's filters: a client needs it
+     * before it has a token. The issuers are read when it's asked for, so ones trusted later count.
+     */
+    void serve(CafeAI app, Supplier<List<Issuer>> issuers, Collection<String> scopes) {
         app.helidon().bypass(WELL_KNOWN).routing(r -> r.get(path, (req, res) -> res
                 .header(HeaderNames.CONTENT_TYPE, "application/json")
                 .header(HeaderNames.CACHE_CONTROL, "max-age=3600")
-                .send(json(issuer, scopes))));
+                .send(json(issuers.get(), scopes))));
     }
 
     /** The RFC 9728 document: this resource, who issues its tokens, and the scopes it needs. */
-    String json(Issuer issuer, Collection<String> scopes) {
+    String json(List<Issuer> issuers, Collection<String> scopes) {
         String scopeList = scopes.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
         return "{\"resource\":\"" + resource + "\","
-                + "\"authorization_servers\":[\"" + issuer.id() + "\"],"
+                + "\"authorization_servers\":[" + issuers.stream().map(i -> "\"" + i.id() + "\"")
+                        .collect(Collectors.joining(",")) + "],"
                 + "\"bearer_methods_supported\":[\"header\"]"
                 + (scopes.isEmpty() ? "" : ",\"scopes_supported\":[" + scopeList + "]")
                 + "}";

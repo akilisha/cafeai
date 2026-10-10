@@ -3607,6 +3607,13 @@ the resource, its issuer and the scopes, with no token needed. Every `401` and `
 from `Auth.bearer`, `Auth.require` and `Auth.signedIn`, then carries
 `resource_metadata="..."` pointing at it.
 
+To trust several issuers, employees through one and partners through another, add each with
+its own audiences; a token is checked against the issuer it names, and only that one:
+
+```java
+app.filter(Auth.bearer(entra, "api://orders").or(okta, "orders-api"));
+```
+
 Tokens are checked locally, so one that is revoked, or whose holder is disabled, keeps working
 until it expires. Where that's too long, or where the issuer hands out opaque tokens (not
 JWTs), ask the issuer too (Token Introspection, RFC 7662):
@@ -3653,6 +3660,9 @@ app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/
   several instances and a shared store, use sticky sessions.
 - `POST /auth/logout` signs out here and at the issuer: the refresh token is revoked
   (RFC 7009) and the issuer's session ended.
+- Several can sit side by side, one per issuer, each on its own `loginPath`, `logoutPath` and
+  redirect URI. A session belongs to the issuer it signed in with. Put `signInRequired()` on the
+  one registered last, or use `Auth.signedIn()` and a page to choose from.
 - `.backChannelLogout(app)` lets the issuer sign people out here too, when they sign out at
   the issuer or in another app, or an administrator ends their session (OpenID Connect
   Back-Channel Logout). Register `https://<your app>/auth/backchannel-logout` at the issuer as
@@ -3710,6 +3720,9 @@ app.ai(OpenAI.of("<model-id>")
 - `OAuthCredentials.tokenExchange(...)` (RFC 8693) calls on behalf of the signed-in caller: the
   model endpoint gets a token naming that caller, issued for it, marked as this app acting for
   them. Such calls skip the semantic cache, so no caller is answered from another's call.
+- With several issuers, `OAuthCredentials.byIssuer(tokenExchange(a, ...), tokenExchange(b, ...))`
+  exchanges each caller's token at the issuer that issued it. A single `tokenExchange` refuses a
+  caller from another issuer rather than send their token there.
 - `OAuthCredentials.clientCredentials(...)` calls as the app itself, for work that is the app's.
 - `Credentials.staticKey(key)` sets a key in code.
 

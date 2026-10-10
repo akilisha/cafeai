@@ -63,6 +63,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * person signs out elsewhere or an administrator ends their session (OpenID Connect
  * Back-Channel Logout).
  *
+ * <p>Several can be used side by side, one per issuer ("sign in with Entra", "sign in with
+ * Okta"), each on its own paths ({@link #loginPath}, {@link #logoutPath}, and the redirect
+ * URI). A session belongs to the issuer it signed in with, and only that one's middleware
+ * renews it, checks its CSRF token and signs it out.
+ *
  * <p>Set the session cookie {@code Secure} in production
  * ({@code SessionOptions.builder().cookieOptions(CookieOptions.builder().secure(true).build())}).
  */
@@ -156,6 +161,10 @@ public final class BrowserLogin implements Middleware {
     /**
      * Requires sign-in on every request it covers: a browser navigating there is sent to sign in
      * and brought back afterwards; any other request gets {@code 401}.
+     *
+     * <p>With several sign-ins side by side, it can send people to this issuer only, and it can't
+     * know the others' paths: put it on the one registered last, so theirs are handled first, or
+     * use {@code Auth.signedIn()} on routes and offer a page to choose from.
      */
     public BrowserLogin signInRequired() {
         this.signInRequired = true;
@@ -211,10 +220,15 @@ public final class BrowserLogin implements Middleware {
         String path = req.path();
         if (path.equals(callbackPath)) { callback(req, res); return; }
         if (path.equals(loginPath))    { start(req, res); return; }
-        if (path.equals(logoutPath))   { logout(req, res); return; }
+        if (path.equals(logoutPath) && !othersSession(req)) { logout(req, res); return; }
 
         // A bearer token is Auth.bearer's, and a request not authenticated by cookie needs no CSRF check.
         if (req.header("Authorization") != null) {
+            next.run();
+            return;
+        }
+        // Signed in with another issuer: that issuer's sign-in looks after this session.
+        if (othersSession(req)) {
             next.run();
             return;
         }
@@ -322,6 +336,7 @@ public final class BrowserLogin implements Middleware {
         // A new session under a new id: an id planted or seen before sign-in stays signed out.
         Session signedIn = session.regenerate();
         Map<String, Object> record = record(issued, null, random());
+        record.put("issuer", issuer.id());   // which sign-in this session belongs to
         // What a back-channel logout can name this session by: the issuer's session, the person.
         who.claim("sid").ifPresent(sid -> record.put("sid", String.valueOf(sid)));
         record.put("sub", who.subject());
@@ -491,7 +506,7 @@ public final class BrowserLogin implements Middleware {
         login.put("id_token", t.idToken() != null ? t.idToken() : string(previous, "id_token"));
         login.put("csrf", csrf);
         if (previous != null) {
-            for (String kept : new String[]{"sid", "sub", "signed_in_at"}) {
+            for (String kept : new String[]{"issuer", "sid", "sub", "signed_in_at"}) {
                 if (previous.get(kept) != null) login.put(kept, previous.get(kept));
             }
         }
@@ -511,6 +526,14 @@ public final class BrowserLogin implements Middleware {
             return null;
         }
         return result.identity();
+    }
+
+    /** Whether the request's session signed in with another issuer's {@code BrowserLogin}. */
+    private boolean othersSession(Request req) {
+        Session session = session(req);
+        Map<String, Object> login = session == null ? null : signedIn(session);
+        String owner = login == null ? null : string(login, "issuer");
+        return owner != null && !owner.equals(issuer.id());
     }
 
     /** Whether the issuer has logged this session out since it signed in (back-channel logout). */

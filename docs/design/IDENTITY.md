@@ -138,6 +138,13 @@ app.get("/admin", Identity.require(scope("admin")), handler);
   resource's path, outside CafeAI's filters (a client needs it before it has a token), and every
   `401` and `403` challenge, from `bearer`, `require` and `signedIn`, names it in
   `resource_metadata`. The same document `Auth.mcp` serves for the MCP endpoint (§6.5).
+- **Several issuers, opt-in:** `.or(issuer, audiences...)` trusts another issuer, with its
+  own audiences: employees through one identity provider and partners through another, or the
+  old and the new one during a move. A JWT goes to the issuer its `iss` names (read unverified,
+  only to choose; that issuer then checks everything, signature first), and a token naming
+  none of them is refused. An opaque token goes to each issuer that does introspection, until one
+  says it's active. Callers stay apart because an identity is issuer and subject together. The
+  resource metadata names every issuer.
 - **Token introspection (RFC 7662), opt-in:** `.introspect(clientId, clientSecret)` also asks
   the issuer's `introspection_endpoint` about each token, as a confidential client. A JWT that
   passed the local checks is still refused once the issuer says it's no longer active, so a
@@ -190,6 +197,12 @@ As built, `Auth.login(issuer, clientId, clientSecret, redirectUri)`:
   person signed in before the logout. Logouts are remembered for a day, in this process: with
   several instances, only the one the issuer reached knows. Tested against the fake issuer
   and against Keycloak, whose admin-ended session ends the app's.
+- **Several side by side**, one per issuer ("sign in with Entra", "sign in with Okta"), each on
+  its own paths and redirect URI. A session records the issuer it signed in with, and only that
+  issuer's middleware renews it, checks its CSRF token and signs it out; the others let it pass.
+  `signInRequired()` can only send people to its own issuer and can't know the others' paths, so
+  it goes on the one registered last, or routes use `Auth.signedIn()` and the app offers a page
+  to choose from.
 - **Starts a new session at sign-in.** `session.regenerate()`, new in core, moves the session
   to a new id and destroys the old one, so an id planted or seen before sign-in never becomes
   signed in (session fixation). A cookie-only session can't be regenerated, so sign-in refuses
@@ -493,6 +506,11 @@ Token exchange is a standard, but an optional one. Not every issuer implements i
 must say so. Where it's missing, `clientCredentials` plus the audit record (§7.3) is the fallback:
 the call is made as the app, and the audit record ties it to the person.
 
+Only the issuer that issued the caller's token can exchange it. A `tokenExchange` refuses a
+caller from another issuer (a server error, since the app is misconfigured), so the token is never
+sent to the wrong issuer. With several issuers, `OAuthCredentials.byIssuer(exchanges...)` picks
+the exchange at the caller's issuer.
+
 Obtained tokens are cached per (identity, audience) until shortly before they expire. This
 caches a short-lived string, not a client, so it doesn't conflict with §8.1.
 
@@ -659,7 +677,6 @@ As built:
 ## 13. Deferred
 
 These can be added later without changing the design:
-- Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
 - `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
   `x-api-key` alongside any header given, and endpoints differ on which they accept (§12, Kimi),

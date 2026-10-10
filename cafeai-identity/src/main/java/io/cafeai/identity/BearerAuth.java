@@ -7,14 +7,17 @@ import io.cafeai.core.middleware.Middleware;
 import io.cafeai.core.middleware.Next;
 import io.cafeai.core.routing.Request;
 import io.cafeai.core.routing.Response;
+import io.helidon.security.jwt.SignedJwt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Makes the app an OAuth 2.0 resource server: each request must carry a valid access token from
@@ -48,30 +51,59 @@ public final class BearerAuth implements Middleware {
      */
     static final String ACCESS_TOKEN = "cafeai.identity.access_token";
 
-    private final Issuer issuer;
-    private final Set<String> audiences;
+    /** One issuer this API trusts: the audiences it may name here, and how to ask it about tokens. */
+    private static final class Trusted {
+        final Issuer issuer;
+        final Set<String> audiences;
+        TokenEndpoint introspectionClient;
+        volatile TokenValidator validator;
+        volatile Introspection introspection;
+
+        Trusted(Issuer issuer, Set<String> audiences) {
+            this.issuer = Objects.requireNonNull(issuer, "issuer");
+            if (audiences.isEmpty() || audiences.stream().anyMatch(a -> a == null || a.isBlank())) {
+                throw new IllegalArgumentException(
+                        "Name at least one audience: the identifier this service has at the issuer. "
+                        + "Without it, a token issued for any other service would be accepted here.");
+            }
+            this.audiences = Set.copyOf(audiences);
+        }
+    }
+
+    private final List<Trusted> trusted = new CopyOnWriteArrayList<>();
     private final Set<String> algorithms = new LinkedHashSet<>(TokenValidator.DEFAULT_ALGORITHMS);
     private Duration clockSkew = Duration.ofSeconds(60);
     private boolean optional;
     private boolean requireAccessTokenType;
     private ResourceMetadata metadata;
-    private TokenEndpoint introspectionClient;
     private Duration introspectionCache = Introspection.DEFAULT_CACHE;
     private Clock clock = Clock.systemUTC();
 
-    private volatile TokenValidator validator;
-    private volatile Introspection introspection;
-
     BearerAuth(Issuer issuer, Set<String> audiences) {
-        this.issuer = Objects.requireNonNull(issuer, "issuer");
-        if (audiences.isEmpty() || audiences.stream().anyMatch(a -> a == null || a.isBlank())) {
-            throw new IllegalArgumentException(
-                    "Name at least one audience: the identifier this service has at the issuer. "
-                    + "Without it, a token issued for any other service would be accepted here.");
-        }
-        this.audiences = Set.copyOf(audiences);
+        trusted.add(new Trusted(issuer, audiences));
         // This app serves verified callers: caller-scoped work with no caller is refused from now on.
         IdentityMode.enable();
+    }
+
+    /**
+     * Trusts another issuer too, with its own audiences: employees through one identity
+     * provider and partners through another, or the old and the new one during a move.
+     *
+     * <pre>{@code
+     *   app.filter(Auth.bearer(entra, "api://orders").or(okta, "orders-api"));
+     * }</pre>
+     *
+     * <p>A JWT is checked against the issuer its {@code iss} names, and only that one; a token
+     * naming none of them is refused. Callers stay apart: an identity is its issuer and subject
+     * together. {@link #introspect(String, String)} after this applies to this issuer.
+     */
+    public BearerAuth or(Issuer issuer, String... audiences) {
+        Trusted added = new Trusted(issuer, Set.of(audiences));
+        if (trusted.stream().anyMatch(t -> t.issuer.id().equals(added.issuer.id()))) {
+            throw new IllegalArgumentException("Issuer " + added.issuer.id() + " is trusted already");
+        }
+        trusted.add(added);
+        return this;
     }
 
     /**
@@ -134,7 +166,7 @@ public final class BearerAuth implements Middleware {
      * }</pre>
      *
      * <p>{@code GET /.well-known/oauth-protected-resource} (plus the resource's path, if it has
-     * one) serves the resource, its issuer and {@code scopes}, with no token needed; and every
+     * one) serves the resource, its issuers and {@code scopes}, with no token needed; and every
      * {@code 401} and {@code 403} challenge, here and from {@code Auth.require} and
      * {@code Auth.signedIn}, carries {@code resource_metadata="..."} pointing at it.
      *
@@ -149,13 +181,14 @@ public final class BearerAuth implements Middleware {
             published.add(s);
         }
         this.metadata = ResourceMetadata.of(resourceUri, "resourceUri");
-        metadata.serve(app, issuer, published);
+        metadata.serve(app, () -> trusted.stream().map(t -> t.issuer).toList(), published);
         return this;
     }
 
     /**
      * Also asks the issuer about each token (OAuth 2.0 Token Introspection, RFC 7662), at its
-     * {@code introspection_endpoint}, as the confidential client {@code clientId}:
+     * {@code introspection_endpoint}, as the confidential client {@code clientId}. With several
+     * issuers ({@link #or(Issuer, String...)}), it applies to the last one named:
      * <ul>
      *   <li>a JWT that passes the local checks is still refused once the issuer says it is no
      *       longer active, so a revoked token, or one whose holder was disabled, stops working at
@@ -169,11 +202,12 @@ public final class BearerAuth implements Middleware {
      * @throws IdentityException if the issuer publishes no {@code introspection_endpoint}
      */
     public BearerAuth introspect(String clientId, String clientSecret) {
-        TokenEndpoint client = TokenEndpoint.confidential(issuer, clientId, clientSecret);
+        Trusted last = trusted.getLast();
+        TokenEndpoint client = TokenEndpoint.confidential(last.issuer, clientId, clientSecret);
         if (!client.canIntrospect()) {
-            throw new IdentityException("Issuer " + issuer.id() + " publishes no introspection_endpoint (RFC 7662)");
+            throw new IdentityException("Issuer " + last.issuer.id() + " publishes no introspection_endpoint (RFC 7662)");
         }
-        this.introspectionClient = client;
+        last.introspectionClient = client;
         return reset();
     }
 
@@ -195,29 +229,71 @@ public final class BearerAuth implements Middleware {
     }
 
     private BearerAuth reset() {
-        validator = null;
-        introspection = null;
+        for (Trusted t : trusted) {
+            t.validator = null;
+            t.introspection = null;
+        }
         return this;
     }
 
-    /** The issuer's word on tokens, or {@code null} when not asked for. */
-    private Introspection introspection() {
-        if (introspectionClient == null) return null;
-        Introspection i = introspection;
+    /** {@code t}'s word on tokens, or {@code null} when it isn't asked. */
+    private Introspection introspection(Trusted t) {
+        if (t.introspectionClient == null) return null;
+        Introspection i = t.introspection;
         if (i == null) {
-            i = new Introspection(issuer, audiences, introspectionClient, introspectionCache, clockSkew, clock);
-            introspection = i;
+            i = new Introspection(t.issuer, t.audiences, t.introspectionClient, introspectionCache, clockSkew, clock);
+            t.introspection = i;
         }
         return i;
     }
 
-    private TokenValidator validator() {
-        TokenValidator v = validator;
+    private TokenValidator validator(Trusted t) {
+        TokenValidator v = t.validator;
         if (v == null) {
-            v = new TokenValidator(issuer, audiences, algorithms, clockSkew, requireAccessTokenType, clock);
-            validator = v;
+            v = new TokenValidator(t.issuer, t.audiences, algorithms, clockSkew, requireAccessTokenType, clock);
+            t.validator = v;
         }
         return v;
+    }
+
+    /**
+     * The outcome for {@code token}. With one issuer, it is checked against that one. With
+     * several, a JWT goes to the issuer its {@code iss} names (read before any check, only to
+     * choose; that issuer then checks everything), and an opaque token to each issuer that is
+     * asked about tokens, until one says it is active.
+     */
+    private TokenValidator.Result validate(String token) {
+        if (trusted.size() == 1) return check(trusted.getFirst(), token);
+        String iss = unverifiedIssuer(token);
+        if (iss != null) {
+            for (Trusted t : trusted) {
+                if (t.issuer.id().equals(iss)) return check(t, token);
+            }
+            return TokenValidator.Result.refused(TokenValidator.Failure.ISSUER);
+        }
+        TokenValidator.Result last = TokenValidator.Result.refused(TokenValidator.Failure.MALFORMED);
+        for (Trusted t : trusted) {
+            if (t.introspectionClient == null) continue;
+            last = check(t, token);
+            if (last.valid()) return last;
+        }
+        return last;
+    }
+
+    private TokenValidator.Result check(Trusted t, String token) {
+        TokenValidator.Result result = validator(t).validate(token);
+        Introspection asking = introspection(t);
+        return asking == null ? result : asking.check(token, result);
+    }
+
+    /** The {@code iss} a JWT claims, unverified, to choose which issuer checks it; {@code null} if it isn't a JWT. */
+    private static String unverifiedIssuer(String token) {
+        if (token.chars().filter(c -> c == '.').count() != 2) return null;
+        try {
+            return SignedJwt.parseToken(token).getJwt().issuer().orElse("");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     @Override
@@ -243,9 +319,7 @@ public final class BearerAuth implements Middleware {
 
         TokenValidator.Result result;
         try {
-            result = validator().validate(token);
-            Introspection asking = introspection();
-            if (asking != null) result = asking.check(token, result);
+            result = validate(token);
         } catch (IdentityException e) {
             log.error("Can't validate tokens: {}", e.getMessage());
             res.status(503).end();
