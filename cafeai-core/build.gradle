@@ -52,6 +52,9 @@ dependencies {
     // LangchainBridge.ChatModelAccess escape hatch; this dependency line is the
     // only change anything in this module needed to gain a fifth provider.
     implementation 'dev.langchain4j:langchain4j-google-ai-gemini'
+    // Mistral AI, through LangChain4j's own Mistral client (ai/Mistral.java). Grok and
+    // Amazon Nova are OpenAI-compatible and need no dependency of their own.
+    implementation 'dev.langchain4j:langchain4j-mistral-ai'
 
     // ── Serialization ────────────────────────────────────────
     // `api`: @JsonCreator/@JsonProperty annotate the public constructor and
@@ -70,7 +73,7 @@ dependencies {
     implementation "org.slf4j:slf4j-api:${rootProject.ext.slf4jVersion}"
 }
 
-// Placeholder keys for the test JVM only. The bridge and the Gemini/Nvidia providers
+// Placeholder keys for the test JVM only. The bridge and the hosted providers
 // read their key from the environment when they build a model, so without these a
 // test can't construct one offline. Building a model makes no network call, so nothing
 // here can authenticate against anything; setting them here (not inheriting the shell's)
@@ -80,6 +83,9 @@ tasks.named('test') {
     environment 'ANTHROPIC_API_KEY', 'test-key-not-real'
     environment 'GEMINI_API_KEY',    'test-key-not-real'
     environment 'NVIDIA_API_KEY',    'test-key-not-real'
+    environment 'XAI_API_KEY',       'test-key-not-real'
+    environment 'MISTRAL_API_KEY',   'test-key-not-real'
+    environment 'NOVA_API_KEY',      'test-key-not-real'
 }
 
 // The live tests include Jlama (in-process inference): it needs the incubating Vector API and native

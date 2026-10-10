@@ -6,6 +6,9 @@ import io.cafeai.core.ai.Anthropic;
 import io.cafeai.core.ai.Gemini;
 import io.cafeai.core.ai.Jlama;
 import io.cafeai.core.ai.ModelRouter;
+import io.cafeai.core.ai.Grok;
+import io.cafeai.core.ai.Mistral;
+import io.cafeai.core.ai.Nova;
 import io.cafeai.core.ai.Nvidia;
 import io.cafeai.core.ai.Ollama;
 import io.cafeai.core.ai.OpenAI;
@@ -33,7 +36,10 @@ class ProviderOptionsTest {
         Ollama.vision("llava"),
         Ollama.at("http://gpu:11434").model("mistral"),
         Jlama.of("tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4"),
-        Nvidia.of("moonshotai/kimi-k3"));
+        Nvidia.of("moonshotai/kimi-k3"),
+        Grok.of("grok-4.7"),
+        Mistral.of("mistral-large-latest"),
+        Nova.of("nova-2-lite-v1"));
 
     @Test
     @DisplayName("every built-in provider supports both knobs, defaults to unset, and copies")

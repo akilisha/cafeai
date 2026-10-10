@@ -236,6 +236,9 @@ app.ai(OpenAI.of("gpt-4o"))                    // register LLM provider
 app.ai(Anthropic.of("claude-sonnet-4-5"))        // swap providers freely
 app.ai(Gemini.of("gemini-3.6-flash"))           // Google Gemini — not a built-in type, added via ChatModelAccess
 app.ai(Nvidia.of("moonshotai/kimi-k3"))         // NVIDIA API catalog (build.nvidia.com), key from $NVIDIA_API_KEY
+app.ai(Grok.of("grok-4.7"))                     // xAI Grok, key from $XAI_API_KEY
+app.ai(Mistral.of("mistral-large-latest"))      // Mistral AI, key from $MISTRAL_API_KEY
+app.ai(Nova.of("nova-2-lite-v1"))               // Amazon Nova API, key from $NOVA_API_KEY
 app.ai(Ollama.of("llama3.3"))                   // local model via Ollama, no data leaves your infra
 app.ai(Jlama.of("tjake/Qwen2.5-0.5B-Instruct-JQ4"))                     // pure-Java local model — in-process, no server
                                           //   run with: --add-modules jdk.incubator.vector
@@ -476,7 +479,7 @@ The key insight: **most applications do not need Redis.** The SSD-backed FFM tie
 | Runtime           | Java                              | 23+            |
 | HTTP Server       | Helidon SE                        | 4.5.5          |
 | AI Framework      | LangChain4j                       | 1.20.0         |
-| LLM Providers     | OpenAI, Anthropic, Gemini, NVIDIA, Ollama, Jlama | —  |
+| LLM Providers     | OpenAI, Anthropic, Gemini, Grok, Mistral, Amazon Nova, NVIDIA, Ollama, Jlama | —  |
 | Off-heap Memory   | Java FFM                          | JDK 23         |
 | Distributed Cache | Redis (Lettuce)                   | 6.3.2          |
 | Vector DB         | PgVector / Chroma                 | —              |

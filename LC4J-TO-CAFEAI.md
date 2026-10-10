@@ -205,17 +205,19 @@ the `ChatModelAccess` seam described below: `Gemini` builds a
 `GoogleAiGeminiChatModel`, and `Nvidia` builds an `OpenAiChatModel` /
 `OpenAiStreamingChatModel` with `baseUrl("https://integrate.api.nvidia.com/v1")`,
 because NVIDIA's hosted catalog speaks the OpenAI wire protocol. That is the
-whole integration — no new dependency, no new LangChain4j module. Both are
-tagged `ProviderType.CUSTOM`, a value the bridge never sees because the seam
-intercepts first.
+whole integration — no new dependency, no new LangChain4j module. `Grok`
+(`https://api.x.ai/v1`) and `Nova` (`https://api.nova.amazon.com/v1`) are built
+the same way; `Mistral` builds a `MistralAiChatModel` from LangChain4j's Mistral
+module. All are tagged `ProviderType.CUSTOM`, a value the bridge never sees
+because the seam intercepts first.
 
 **Why the indirection exists, beyond "use LangChain4j directly":**
 
-- **One `AiProvider` vocabulary across six backends** (`OpenAI`,
-  `Anthropic`, `Ollama`, `Jlama`, and `Gemini` and `Nvidia` via
-  `ChatModelAccess`), so application code names a model once and swaps
+- **One `AiProvider` vocabulary across nine backends** (`OpenAI`,
+  `Anthropic`, `Ollama`, `Jlama`, and `Gemini`, `Nvidia`, `Grok`, `Mistral`
+  and `Nova` via `ChatModelAccess`), so application code names a model once and swaps
   providers by changing one line — this is genuinely what LangChain4j already
-  gives you at the builder level; CafeAI's contribution is collapsing six
+  gives you at the builder level; CafeAI's contribution is collapsing the
   different builder shapes into one factory-method shape (`Provider.of(id)`).
 - **Actionable failure on a missing API key.** `resolveApiKey` throws a
   message naming the exact environment variable and offering the two local
@@ -255,6 +257,8 @@ intercepts first.
   | `Ollama` | `.temperature(Double)` | `.numPredict(Integer)` | `.timeout(Duration)` |
   | `Gemini` | `.temperature(Double)` | `.maxOutputTokens(Integer)` | `.timeout(Duration)` |
   | `Nvidia` | `.temperature(Double)` | `.maxCompletionTokens(Integer)` | `.timeout(Duration)` |
+  | `Grok`, `Nova` | `.temperature(Double)` | `.maxTokens(Integer)` (`max_tokens`) | `.timeout(Duration)` |
+  | `Mistral` | `.temperature(Double)` | `.maxTokens(Integer)` | `.timeout(Duration)` |
   | `Jlama` | `.temperature(Float)` | `.maxTokens(Integer)` (prompt **and** answer) | refused — in-process, no call to time out |
 
   `withTimeout` overrides `cafeai.chat.timeout` (§2.8) for that one provider,

@@ -37,6 +37,9 @@ class ProviderCapabilitiesTest {
         expect(Anthropic.of("claude-sonnet-4-5"), true, false);
         expect(Gemini.of("gemini-2.5-flash"), true, false);
         expect(Nvidia.of("moonshotai/kimi-k3"), true, false);
+        expect(Grok.of("grok-4.7"), true, false);
+        expect(Mistral.of("mistral-large-latest"), true, false);
+        expect(Nova.of("nova-2-lite-v1"), true, false);
         expect(Ollama.vision("llava"), true, false);
         expect(Ollama.of("llama3.3"), false, false);
         expect(Jlama.of("tjake/x"), false, false);

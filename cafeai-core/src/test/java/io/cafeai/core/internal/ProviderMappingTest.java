@@ -8,6 +8,9 @@ import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.Anthropic;
 import io.cafeai.core.ai.Gemini;
+import io.cafeai.core.ai.Grok;
+import io.cafeai.core.ai.Mistral;
+import io.cafeai.core.ai.Nova;
 import io.cafeai.core.ai.Nvidia;
 import io.cafeai.core.ai.Ollama;
 import io.cafeai.core.ai.OpenAI;
@@ -151,6 +154,64 @@ class ProviderMappingTest {
             assertThat(openAi.maxCompletionTokens()).isNull();
             assertThat(openAi.reasoningEffort()).isNull();
         }
+    }
+
+    // ── Grok, Nova (OpenAI-compatible), Mistral ──────────────────────────────────
+
+    @Test
+    @DisplayName("Grok: all three settings reach both models; maxTokens goes as max_tokens")
+    void grok_mapsKnobs() {
+        var p = Grok.of("grok-4.7").withTemperature(0.4).withMaxTokens(900).withReasoningEffort("high");
+
+        for (ChatRequestParameters params : List.of(
+                p.toChatModel().defaultRequestParameters(),
+                p.toStreamingChatModel().defaultRequestParameters())) {
+            var openAi = (OpenAiChatRequestParameters) params;
+            assertThat(openAi.temperature()).isEqualTo(0.4);
+            assertThat(openAi.maxOutputTokens()).isEqualTo(900);
+            assertThat(openAi.maxCompletionTokens()).isNull();
+            assertThat(openAi.reasoningEffort()).isEqualTo("high");
+        }
+    }
+
+    @Test
+    @DisplayName("Grok: unset settings stay unset")
+    void grok_unsetStaysUnset() {
+        var p = Grok.of("grok-4.7");
+        var openAi = (OpenAiChatRequestParameters) p.toChatModel().defaultRequestParameters();
+        assertThat(openAi.temperature()).isNull();
+        assertThat(openAi.maxOutputTokens()).isNull();
+        assertThat(openAi.reasoningEffort()).isNull();
+    }
+
+    @Test
+    @DisplayName("Nova: temperature and maxTokens (max_tokens) reach both models")
+    void nova_mapsKnobs() {
+        var p = Nova.of("nova-2-lite-v1").withTemperature(0.1).withMaxTokens(300);
+
+        for (ChatRequestParameters params : List.of(
+                BRIDGE.modelFor(p).defaultRequestParameters(),
+                BRIDGE.streamingModelFor(p).defaultRequestParameters())) {
+            assertThat(params.temperature()).isEqualTo(0.1);
+            assertThat(params.maxOutputTokens()).isEqualTo(300);
+            assertThat(((OpenAiChatRequestParameters) params).maxCompletionTokens()).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("Mistral: temperature and maxTokens reach both models; unset stays unset")
+    void mistral_mapsKnobs() {
+        var p = Mistral.of("mistral-large-latest").withTemperature(0.7).withMaxTokens(256);
+
+        for (ChatRequestParameters params : List.of(
+                BRIDGE.modelFor(p).defaultRequestParameters(),
+                BRIDGE.streamingModelFor(p).defaultRequestParameters())) {
+            assertThat(params.temperature()).isEqualTo(0.7);
+            assertThat(params.maxOutputTokens()).isEqualTo(256);
+        }
+        var unset = BRIDGE.modelFor(Mistral.of("mistral-large-latest")).defaultRequestParameters();
+        assertThat(unset.temperature()).isNull();
+        assertThat(unset.maxOutputTokens()).isNull();
     }
 
     // ── Ollama (streaming; the blocking path is in ProviderOptionsTest) ───────

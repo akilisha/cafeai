@@ -250,6 +250,9 @@ companion.
 - **Anthropic** — any Claude model by id (`claude-sonnet-4-5`, ...)
 - **Gemini** — any Gemini model by id (`gemini-3.6-flash`, ...)
 - **Nvidia** — any model on NVIDIA's API catalog by id (`moonshotai/kimi-k3`, ...)
+- **Grok** — any xAI Grok model by id (`grok-4.7`, ...)
+- **Mistral** — any Mistral AI model by id (`mistral-large-latest`, ...)
+- **Nova** — any Amazon Nova model on the Nova API by id (`nova-2-lite-v1`, ...)
 - **Ollama** — any local model by id (`llama3.3`, `llava`, `mistral`, ...)
 - **Jlama** — any pure-Java in-process local model by id, no server required
 

@@ -81,6 +81,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the signed-in person (`assumeRoleAsCaller`, the session named after them) or the app
   (`assumeRole`). Core's new `SignedCredentials` lets a provider sign requests instead of
   carrying a token.
+- **Three more hosted providers: `Grok.of(model)` (xAI, `$XAI_API_KEY`), `Mistral.of(model)`
+  (`$MISTRAL_API_KEY`) and `Nova.of(model)` (the Amazon Nova API, `$NOVA_API_KEY`).** Grok and
+  Nova use LangChain4j's OpenAI client against their OpenAI-compatible endpoints; Mistral uses
+  LangChain4j's Mistral client (new dependency `langchain4j-mistral-ai`).
 - **Claude on Vertex AI with no service-account key: `Anthropic.onVertex(model, project,
   location)` and `GoogleFederation`.** Each request is reshaped into Vertex's form; the token
   comes from Google's Security Token Service in exchange for the app's token (workload pool,
