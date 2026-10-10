@@ -105,8 +105,9 @@
       "clientId": "orders-cli",
       "enabled": true,
       "publicClient": true,
-      "standardFlowEnabled": false,
+      "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
+      "redirectUris": [ "http://127.0.0.1/callback" ],
       "attributes": { "oauth2.device.authorization.grant.enabled": "true" },
       "protocolMappers": [
         {

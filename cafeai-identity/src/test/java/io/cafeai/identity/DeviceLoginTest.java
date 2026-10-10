@@ -160,7 +160,7 @@ class DeviceLoginTest {
         Files.copy(cache, copy);
         int revokedBefore = fake.revocations();
 
-        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.REVOKED);
+        assertThat(login.signOut()).isEqualTo(SignedOut.REVOKED);
         assertThat(cache).doesNotExist();
         assertThat(fake.revocations() - revokedBefore).isEqualTo(1);
 
@@ -175,7 +175,7 @@ class DeviceLoginTest {
 
     @Test @DisplayName("signOut with nothing cached says so")
     void signOutNotSignedIn() {
-        assertThat(login("heidi", 1).signOut()).isEqualTo(DeviceLogin.SignedOut.NOT_SIGNED_IN);
+        assertThat(login("heidi", 1).signOut()).isEqualTo(SignedOut.NOT_SIGNED_IN);
     }
 
     @Test @DisplayName("signOut while the issuer is unreachable still forgets the sign-in here")
@@ -186,7 +186,7 @@ class DeviceLoginTest {
         login.accessToken();
         gone.close();
 
-        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.FORGOTTEN);
+        assertThat(login.signOut()).isEqualTo(SignedOut.FORGOTTEN);
         assertThat(cache).doesNotExist();
     }
 

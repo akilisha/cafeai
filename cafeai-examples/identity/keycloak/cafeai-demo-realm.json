@@ -100,11 +100,12 @@
     },
     {
       "clientId": "orders-cli",
-      "name": "The orders CLI: signs in from a terminal (device code)",
+      "name": "The orders CLI: signs in from a terminal (device code, or this machine's browser)",
       "enabled": true,
       "publicClient": true,
-      "standardFlowEnabled": false,
+      "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
+      "redirectUris": [ "http://127.0.0.1/callback" ],
       "attributes": { "oauth2.device.authorization.grant.enabled": "true" },
       "protocolMappers": [
         {

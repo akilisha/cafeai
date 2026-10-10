@@ -458,7 +458,8 @@ public final class FakeIssuer implements AutoCloseable {
         String query = exchange.getRequestURI().getRawQuery();
         Map<String, String> q = form(query == null ? "" : query);
         String redirect = q.get("redirect_uri");
-        if (redirect == null || !clients.containsKey(q.getOrDefault("client_id", ""))) {
+        String authorizing = q.getOrDefault("client_id", "");
+        if (redirect == null || !(clients.containsKey(authorizing) || publicClients.contains(authorizing))) {
             respond(exchange, 400, "{\"error\":\"invalid_request\"}");
             return;
         }

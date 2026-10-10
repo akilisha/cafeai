@@ -1,25 +1,14 @@
 package io.cafeai.identity;
 
 import io.helidon.json.JsonObject;
-import io.helidon.json.JsonParser;
-import io.helidon.json.JsonValueType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,7 +37,6 @@ public final class DeviceLogin {
     private static final Logger log = LoggerFactory.getLogger(DeviceLogin.class);
 
     private static final String GRANT = "urn:ietf:params:oauth:grant-type:device_code";
-    private static final Duration RENEW_BEFORE = Duration.ofSeconds(30);
     private static final Duration SLOW_DOWN = Duration.ofSeconds(5);
 
     /**
@@ -129,22 +117,7 @@ public final class DeviceLogin {
      * @throws IdentityException if sign-in is denied, the code expires, or the issuer can't be used
      */
     public String accessToken() {
-        Instant now = clock.instant();
-        TokenEndpoint.Token cached = load();
-        if (cached != null && now.isBefore(cached.expiresAt().minus(RENEW_BEFORE))) {
-            return cached.value();
-        }
-        if (cached != null && cached.refreshToken() != null) {
-            try {
-                Map<String, String> form = new LinkedHashMap<>();
-                form.put("grant_type", "refresh_token");
-                form.put("refresh_token", cached.refreshToken());
-                return save(keepRefresh(tokens.request(form, now), cached)).value();
-            } catch (TokenEndpoint.Refused e) {
-                log.debug("Cached sign-in could not be renewed ({}); signing in again", e.error);
-            }
-        }
-        return save(signIn()).value();
+        return cache().accessToken(this::signIn);
     }
 
     /**
@@ -157,35 +130,12 @@ public final class DeviceLogin {
      * without a password. To sign in as someone else, open the link in a private window.
      */
     public SignedOut signOut() {
-        if (!caching) return SignedOut.NOT_SIGNED_IN;
-        TokenEndpoint.Token cached = load();
-        SignedOut result = cached == null ? SignedOut.NOT_SIGNED_IN : SignedOut.FORGOTTEN;
-        if (cached != null && cached.refreshToken() != null) {
-            try {
-                if (tokens.revoke(cached.refreshToken(), "refresh_token")) result = SignedOut.REVOKED;
-            } catch (IdentityException e) {
-                log.warn("Could not revoke the sign-in at the issuer; forgetting it here only: {}", e.getMessage());
-            }
-        }
-        try {
-            Files.deleteIfExists(cacheFile());
-        } catch (IOException e) {
-            throw new IdentityException("Could not delete the cached sign-in at " + cacheFile(), e);
-        }
-        return result;
+        return cache().signOut();
     }
 
-    /** What {@link #signOut()} did. */
-    public enum SignedOut {
-        /** Revoked at the issuer and deleted here. */
-        REVOKED,
-        /**
-         * Deleted here only: the issuer publishes no {@code revocation_endpoint}, couldn't be
-         * reached, or there was no refresh token. Its refresh token lives until it expires.
-         */
-        FORGOTTEN,
-        /** There was no cached sign-in. */
-        NOT_SIGNED_IN
+    private TokenCache cache() {
+        Path file = !caching ? null : cacheFile != null ? cacheFile : TokenCache.defaultFile(issuer, clientId, scope);
+        return new TokenCache(tokens, file, clock);
     }
 
     /** The device flow: ask for a code, show it, poll until the user has signed in (RFC 8628 3.4, 3.5). */
@@ -233,92 +183,6 @@ public final class DeviceLogin {
                 }
             }
         }
-    }
-
-    // -- the cache ----------------------------------------------------------------------
-
-    private Path cacheFile() {
-        if (cacheFile == null) {
-            cacheFile = Path.of(System.getProperty("user.home"), ".cafeai", "tokens", cacheName() + ".json");
-        }
-        return cacheFile;
-    }
-
-    /** One file per issuer, client and scope; hashed, so the name gives nothing away. */
-    private String cacheName() {
-        try {
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            for (String part : new String[]{issuer.id(), clientId, scope == null ? "" : scope}) {
-                sha.update(part.getBytes(StandardCharsets.UTF_8));
-                sha.update((byte) 0);
-            }
-            return HexFormat.of().formatHex(sha.digest()).substring(0, 32);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private TokenEndpoint.Token load() {
-        if (!caching) return null;
-        Path file = cacheFile();
-        if (!Files.isRegularFile(file)) return null;
-        try {
-            var value = JsonParser.create(Files.readString(file)).readJsonValue();
-            if (value.type() != JsonValueType.OBJECT) return null;
-            JsonObject json = value.asObject();
-            return new TokenEndpoint.Token(json.stringValue("access_token").orElseThrow(),
-                    Instant.ofEpochSecond(Long.parseLong(json.stringValue("expires_at").orElseThrow())),
-                    json.stringValue("refresh_token").orElse(null), null);
-        } catch (IOException | RuntimeException e) {
-            log.warn("Ignoring an unreadable cached sign-in at {}: {}", file, e.toString());
-            return null;
-        }
-    }
-
-    /**
-     * Writes the tokens where only this user can read them: owner-only permissions where the file
-     * system has them (on Windows the user's profile directory is already private), and a write
-     * to a temporary file then a move, so a crash never leaves a half-written file.
-     */
-    private TokenEndpoint.Token save(TokenEndpoint.Token token) {
-        if (!caching) return token;
-        Path file = cacheFile();
-        var json = JsonObject.builder()
-                .set("access_token", token.value())
-                .set("expires_at", Long.toString(token.expiresAt().getEpochSecond()));
-        if (token.refreshToken() != null) json.set("refresh_token", token.refreshToken());
-        try {
-            Path dir = file.toAbsolutePath().getParent();
-            boolean posix = dir.getFileSystem().supportedFileAttributeViews().contains("posix");
-            if (!Files.isDirectory(dir)) {
-                if (posix) {
-                    Files.createDirectories(dir, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-                } else {
-                    Files.createDirectories(dir);
-                }
-            }
-            Path temp = dir.resolve(file.getFileName() + "." + System.nanoTime() + ".tmp");
-            if (posix) {
-                Files.createFile(temp, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-            } else {
-                Files.createFile(temp);
-            }
-            Files.writeString(temp, json.build().toString());
-            try {
-                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            log.warn("Could not cache the sign-in at {}: {}", file, e.toString());
-        }
-        return token;
-    }
-
-    /** A renewal may omit a new refresh token; the old one is then kept. */
-    private static TokenEndpoint.Token keepRefresh(TokenEndpoint.Token renewed, TokenEndpoint.Token old) {
-        return renewed.refreshToken() != null ? renewed
-                : new TokenEndpoint.Token(renewed.value(), renewed.expiresAt(), old.refreshToken(), renewed.idToken());
     }
 
     private static void printPrompt(Prompt prompt) {

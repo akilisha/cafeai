@@ -270,6 +270,29 @@ class KeycloakIntegrationTest {
         assertThat(who).as("signed out by Keycloak's back-channel logout").isEqualTo("anonymous");
     }
 
+    @Test @DisplayName("loopback sign-in (RFC 8252): Keycloak's login page in the browser, back to the CLI on 127.0.0.1")
+    void loopbackSignIn() throws Exception {
+        var browser = HttpClient.newBuilder().cookieHandler(new LocalhostCookieJar())
+                .followRedirects(HttpClient.Redirect.NEVER).build();
+        var landed = new java.util.concurrent.atomic.AtomicReference<HttpResponse<String>>();
+        var login = LoopbackLogin.of(issuer, "orders-cli").scope("openid").noCache()
+                .timeout(Duration.ofSeconds(30))
+                .onOpen(link -> {
+                    // The user, in the browser on the same machine: sign in, and be sent back to the CLI.
+                    try {
+                        String back = submitLogin(browser, link.toString(), "alice", "alice-pw");
+                        assertThat(back).startsWith("http://127.0.0.1:");
+                        landed.set(browser.send(HttpRequest.newBuilder(URI.create(back)).build(),
+                                HttpResponse.BodyHandlers.ofString()));
+                    } catch (Exception e) {
+                        throw new AssertionError("could not sign in on Keycloak's page", e);
+                    }
+                });
+        String token = login.accessToken();
+        assertThat(landed.get().body()).contains("You can close this window");
+        assertThat(claims(token)).contains("\"preferred_username\":\"alice\"").contains("\"azp\":\"orders-cli\"");
+    }
+
     @Test @DisplayName("browser sign-in: Keycloak's login page, back signed in; renewal; sign-out at Keycloak")
     void browserSignIn() throws Exception {
         var clock = new BearerAuthTest.MutableClock(java.time.Instant.now());
@@ -339,7 +362,7 @@ class KeycloakIntegrationTest {
         // Sign-out revokes the refresh token at Keycloak (RFC 7009): a copy kept from before can't renew.
         String refreshToken = new String(java.nio.file.Files.readAllBytes(cache), StandardCharsets.UTF_8)
                 .replaceAll("(?s).*\"refresh_token\":\"([^\"]+)\".*", "$1");
-        assertThat(login.signOut()).isEqualTo(DeviceLogin.SignedOut.REVOKED);
+        assertThat(login.signOut()).isEqualTo(SignedOut.REVOKED);
         assertThat(cache).doesNotExist();
         Map<String, String> renew = new java.util.LinkedHashMap<>();
         renew.put("grant_type", "refresh_token");

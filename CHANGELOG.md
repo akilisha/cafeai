@@ -74,7 +74,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   the user signs in on any device, and the program gets a token. It works over SSH and in
   containers. Tokens are cached per user (`~/.cafeai/tokens/`, owner-only where the file system
   allows) and renewed with the refresh token, so the user signs in once; `signOut()` revokes
-  the refresh token at the issuer (RFC 7009) and forgets them.
+  the refresh token at the issuer (RFC 7009) and forgets them. On a desktop,
+  `LoopbackLogin.of(issuer, clientId).accessToken()` signs in through the local browser instead
+  (RFC 8252): no code to type; the issuer sends the browser back to the program on `127.0.0.1`,
+  with PKCE and `state`. Same token cache.
 - **RAG under the caller's identity.** `VectorStore.access()` says whether a store enforces who
   may read what (`PER_CALLER`), holds documents declared public
   (`VectorStore.everyoneMayRead(store)`), or can't tell callers apart (`UNENFORCED`, the

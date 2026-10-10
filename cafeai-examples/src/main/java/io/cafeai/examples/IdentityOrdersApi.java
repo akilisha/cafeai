@@ -20,6 +20,7 @@ import java.util.Map;
  *   docker compose -f cafeai-examples/identity/docker-compose.yml up -d   # Keycloak on :8180
  *   ./gradlew :cafeai-examples:run -PmainClass=io.cafeai.examples.IdentityOrdersApi
  *   jbang cafeai-examples/identity/orders-cli.java ledger                   # signs in from the terminal
+ *   jbang cafeai-examples/identity/orders-cli.java --browser ledger         # or through this machine's browser
  * </pre>
  */
 public class IdentityOrdersApi {

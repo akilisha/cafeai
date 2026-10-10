@@ -3665,7 +3665,7 @@ app.filter(Auth.login(issuer, "orders-web", secret, "https://orders.example.com/
 In production, make the session cookie `Secure`:
 `SessionOptions.builder().cookieOptions(CookieOptions.builder().secure(true).build())`.
 
-### 32.4 Terminal sign-in — `DeviceLogin`
+### 32.4 Terminal sign-in — `DeviceLogin`, `LoopbackLogin`
 
 For a CLI or JBang script that calls a CafeAI service, the device authorization grant
 (RFC 8628): it shows a code and a link, the user signs in on any device, and the program gets a
@@ -3675,6 +3675,20 @@ token. It works over SSH and in containers.
 var login = DeviceLogin.of(issuer, "orders-cli").scope("openid", "orders:read");
 String token = login.accessToken();   // signs in only when it must
 ```
+
+On a desktop, `LoopbackLogin` signs in through the browser on the same machine instead, with no
+code to type (RFC 8252): it opens the issuer's sign-in page, and the issuer sends the browser
+back to the program, listening on `127.0.0.1` only until then. Register
+`http://127.0.0.1/callback` at the issuer for the client (any port must be accepted on it;
+Keycloak does).
+
+```java
+var login = LoopbackLogin.of(issuer, "orders-cli").scope("openid", "orders:read");
+String token = login.accessToken();   // opens the browser only when it must
+```
+
+Both keep their tokens the same way, in the same file for the same issuer, client and scope, so
+a CLI can offer both.
 
 Tokens are cached per user in `~/.cafeai/tokens/` (owner-only where the file system has
 permissions) and renewed with the refresh token. `login.signOut()` revokes the refresh token

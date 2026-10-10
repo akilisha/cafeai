@@ -244,6 +244,27 @@ As built, `DeviceLogin.of(issuer, clientId).scope(...).accessToken()`:
 - **The prompt is pluggable** (`onPrompt`): by default two lines on standard error, with
   `verification_uri_complete` too when the issuer gives one.
 
+Through the browser on the same machine (OAuth 2.0 for Native Apps, RFC 8252), as built,
+`LoopbackLogin.of(issuer, clientId).scope(...).accessToken()`: no code to type, as `gh` and `az`
+do on a desktop.
+- **The authorization code flow with PKCE (`S256`) and `state`, as a public client.** The
+  program listens on `127.0.0.1` (the IP literal, not `localhost`, RFC 8252 8.3) on a port of
+  its own choosing, only until the sign-in completes, and opens the system browser at the
+  issuer's sign-in page with `redirect_uri=http://127.0.0.1:<port>/callback`. The issuer must
+  accept any port on the registered `http://127.0.0.1/callback` (RFC 8252 7.3); Keycloak does.
+- **Only this sign-in's `state` counts:** any other request that reaches the port is answered
+  `400` and changes nothing, so a page that guesses the port can't plant a code. A refusal at
+  the issuer fails the sign-in; nothing back within five minutes (`timeout(...)`) times it out.
+- **The browser gets a page saying it can be closed**, and the program the code, which it
+  exchanges with its PKCE verifier.
+- **Where no browser can be opened**, the link is printed; over SSH or in a container, use
+  `DeviceLogin`. `onOpen(...)` replaces opening the browser.
+- **Caching, renewal and `signOut()` are `DeviceLogin`'s** (`TokenCache`), in the same file for
+  the same issuer, client and scope: a CLI can offer both and sign out of either.
+- Tested against the fake issuer and against Keycloak's own login page. Keycloak's
+  `pkce.code.challenge.method` client setting is left unset: set, it requires PKCE on the
+  device authorization request too, which breaks the device grant for the same client.
+
 ### 6.5 MCP
 The MCP authorization spec uses OAuth 2.1 and requires protected resource metadata (RFC 9728).
 `cafeai-mcp` gets both from this module: `bearer(issuer)` protects the MCP endpoint, and the
@@ -638,7 +659,6 @@ As built:
 ## 13. Deferred
 
 These can be added later without changing the design:
-- CLI sign-in through a browser on the same machine with a localhost redirect (RFC 8252).
 - Trusting several issuers at once.
 - Capturing prompt and answer text in audit records: opt-in, redacted, with its own retention.
 - `withCredentials` for the Anthropic provider. LangChain4j's Anthropic client always sends
