@@ -141,6 +141,7 @@ public final class CafeAIApp implements CafeAI {
     private final List<Consumer<HttpRouting.Builder>> helidonRoutingConsumers = new ArrayList<>();
     // Path prefixes a Helidon feature owns: CafeAI's filters step aside for them.
     private final List<String> bypassPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<String> scopedPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
     private io.cafeai.core.mcp.McpConfig mcpConfig;
 
     private WebServer server;
@@ -1815,14 +1816,45 @@ public final class CafeAIApp implements CafeAI {
             bypassPaths.add(p.startsWith("/") ? p : "/" + p);
             return this;
         }
+
+        @Override
+        public CafeAI.HelidonConfig scoped(String pathPrefix) {
+            bypass(pathPrefix);
+            String p = bypassPaths.getLast();
+            if (!scopedPaths.contains(p)) scopedPaths.add(p);
+            return this;
+        }
     }
 
     /** True if {@code path} is under a prefix registered with {@code app.helidon().bypass(...)}. */
     private boolean bypassed(String path) {
-        for (String prefix : bypassPaths) {
+        return under(path, bypassPaths);
+    }
+
+    private static boolean under(String path, List<String> prefixes) {
+        for (String prefix : prefixes) {
             if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
         }
         return false;
+    }
+
+    /**
+     * Runs a request under a {@code helidon().scoped(...)} path as a CafeAI request, with none of
+     * CafeAI's filters: added after CafeAI's routing and before the raw Helidon routing, so the
+     * feature mounted there and any Helidon filter guarding it run inside the scope. The paths
+     * are read per request: a routing consumer may register its path as it mounts it.
+     */
+    private void scopeRequests(HttpRouting.Builder routing) {
+        routing.addFilter((chain, req, res) -> {
+            if (!under(req.path().path(), scopedPaths)) {
+                chain.proceed();
+                return;
+            }
+            var ctx = getOrCreateContext(req, res);
+            try (var scope = usageMeter.enter(ctx.req(), ctx.res())) {
+                chain.proceed();
+            }
+        });
     }
 
     // -- Usage and cost -----------------------------------------------------------
@@ -2428,6 +2460,7 @@ public final class CafeAIApp implements CafeAI {
         }
 
         var routingBuilder = buildRouting();
+        scopeRequests(routingBuilder);
 
         // Apply any raw Helidon routing consumers registered via app.helidon().routing()
         for (var consumer : helidonRoutingConsumers) {

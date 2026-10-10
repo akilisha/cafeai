@@ -121,7 +121,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   an error result. See DEVELOPER_GUIDE §29.
 - **`app.port()`** — the port the server is listening on, including after `listen(0)`.
 - **`app.helidon().bypass(path)`** — CafeAI's own filters step aside for requests under
-  `path`, for a Helidon feature that reads the request itself.
+  `path`, for a Helidon feature that reads the request itself. **`.scoped(path)`** does the
+  same and still runs each request as a CafeAI request, so `@Tool` objects called over MCP
+  see the caller in `Identity.current()`, as route tools do.
 - **`cafeai-test`: record and replay model calls.** `Replay.of(provider, dir)` wraps any
   provider; the first call reaches the model and is saved to a readable JSON file, and the
   same call afterwards replays it — tests run with no API key, at no cost, with the same

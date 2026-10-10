@@ -234,8 +234,11 @@ As built, `Auth.mcp(app, issuer, "https://orders.example.com/mcp").scope(...)`:
   `insufficient_scope`.
 - **Enforced:** an app that serves verified callers refuses to start with its MCP endpoint
   unprotected, or protected at a different path than the one it is mounted on.
-- **Limit:** `@Tool` objects run outside a CafeAI request, so `Identity.current()` is empty in
-  them; a tool that needs the caller should be a route tool (§13).
+- **`@Tool` objects see the caller.** The endpoint is mounted with `helidon().scoped(path)`:
+  off CafeAI's filters, but each request still runs as a CafeAI request. After validating the
+  token, `Auth.mcp` puts the caller and their token on it, as `Auth.bearer` does on a route,
+  so a `@Tool` method finds the caller in `Identity.current()`, and a model call it makes can
+  use token exchange on their behalf.
 
 ## 7. Identity in the AI layer
 
@@ -607,7 +610,6 @@ These can be added later without changing the design:
   so it needs its own check. Today `withCredentials` and `withBaseUrl` are on the OpenAI provider,
   which reaches any OpenAI-compatible endpoint.
 - Passing the provider's `Retry-After` through with a `429` (§7.2).
-- The verified caller inside `@Tool` objects called over MCP (`Identity.current()`), as route tools already have it (§6.5).
 
 ## 14. Decisions and open questions
 

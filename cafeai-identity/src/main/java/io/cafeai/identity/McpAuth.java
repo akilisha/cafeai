@@ -1,9 +1,11 @@
 package io.cafeai.identity;
 
+import io.cafeai.core.Attributes;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.Locals;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.core.identity.IdentityMode;
+import io.cafeai.core.internal.CurrentRequest;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.Status;
 import io.helidon.webserver.http.HttpRouting;
@@ -40,7 +42,8 @@ import java.util.stream.Collectors;
  *
  * <p>The MCP endpoint is mounted outside CafeAI's filters, so {@code app.filter(Auth.bearer(...))}
  * does not cover it; this does. Route tools forward the caller's token to their route, so a route
- * behind {@code Auth.bearer} must accept the resource's URL as an audience too.
+ * behind {@code Auth.bearer} must accept the resource's URL as an audience too. {@code @Tool}
+ * objects find the verified caller in {@code Identity.current()}.
  */
 public final class McpAuth {
 
@@ -141,6 +144,12 @@ public final class McpAuth {
                         + "\", resource_metadata=\"" + metadataUrl + "\"").send();
                 return;
             }
+            // The MCP endpoint runs as a CafeAI request (helidon().scoped): the tools it calls see
+            // the caller in Identity.current(), and model calls can be made on their behalf.
+            CurrentRequest.get().ifPresent(r -> {
+                r.setAttribute(Attributes.IDENTITY, who);
+                r.setAttribute(BearerAuth.ACCESS_TOKEN, token);
+            });
             chain.proceed();
         });
     }

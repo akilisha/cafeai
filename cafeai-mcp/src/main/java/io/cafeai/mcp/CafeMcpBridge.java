@@ -106,7 +106,8 @@ public final class CafeMcpBridge implements McpBridge {
                         + "that serves verified callers: CafeAI's filters (Auth.bearer) don't cover it. "
                         + "Add Auth.mcp(app, issuer, \"https://<host>" + path + "\") from cafeai-identity.");
             }
-            helidon.bypass(path);
+            // Off CafeAI's filters, but still a CafeAI request: @Tool methods see the caller.
+            helidon.scoped(path);
             String prefix = path;
             routing.addFilter((chain, req, res) -> {
                 String p = req.path().path();

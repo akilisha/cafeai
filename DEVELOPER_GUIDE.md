@@ -2629,7 +2629,10 @@ app.helidon()
    .bypass("/proto");     // CafeAI's filters do not run under /proto
 ```
 
-`app.mcp()` (§29) mounts its endpoint this way.
+`.scoped(path)` does the same, and still runs each request under `path` as a CafeAI
+request, so code the feature calls sees it: `Identity.current()`, memory scoped to the
+caller, usage and audit records. CafeAI's filters still don't run there. `app.mcp()` (§29)
+mounts its endpoint this way.
 
 ---
 
@@ -3376,12 +3379,26 @@ observability.
 exception. Argument names come from the method's parameters: compile with
 `-parameters` (as LangChain4j requires for agents too), or name them with `@P`.
 
+Each call runs as a CafeAI request. With the endpoint protected by `Auth.mcp(...)`
+(`cafeai-identity`, §32), a tool method sees the agent or person calling it, and a model
+call it makes is made on their behalf:
+
+```java
+public class OrderTools {
+    @Tool("The caller's open orders")
+    public List<String> myOrders() {
+        Identity who = Identity.current().orElseThrow();
+        return orders.openFor(who.key());
+    }
+}
+```
+
 ### 29.4 The endpoint
 
 `.path("/mcp")` (the default) sets where it is served, `.server(name, version)` what
 agents see. CafeAI's own filters do not run on the endpoint itself — Helidon's MCP
 server reads its requests directly, so a body parser such as `CafeAI.json()` must not
-touch them (`app.helidon().bypass(...)`, §21.5). Route calls still pass through every
+touch them (`app.helidon().scoped(...)`, §21.5). Route calls still pass through every
 filter, so protect what the tools reach, as above.
 
 ### 29.5 Trying it
@@ -3749,8 +3766,7 @@ Once identity middleware exists, these are refused rather than allowed to run un
 
 ### 32.12 Limits
 
-- Two requests renewing a browser session's tokens at the same moment can sign it out, where the
-  issuer rotates refresh tokens.
-- `@Tool` objects called over MCP don't see `Identity.current()`; route tools do.
+- A browser session's renewals are shared within one instance. Several instances behind a
+  shared session store need sticky sessions where the issuer rotates refresh tokens.
 - `withCredentials` is not yet on the Anthropic provider, and a provider's `Retry-After` isn't
   passed on with a `429`.

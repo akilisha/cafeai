@@ -1179,6 +1179,18 @@ public interface CafeAI extends Router {
          * @return this, for chaining
          */
         HelidonConfig bypass(String pathPrefix);
+
+        /**
+         * Like {@link #bypass(String)}, but each request under {@code pathPrefix} still runs as a
+         * CafeAI request: code that the mounted feature calls (a tool, a model call) sees it, so
+         * {@code Identity.current()}, conversation memory scoped to the caller, usage and audit
+         * records work there as in a handler. CafeAI's own filters still don't run; whatever
+         * checks the caller there (a Helidon filter) puts the identity on the request.
+         *
+         * @param pathPrefix e.g. {@code "/mcp"}; matches that path and everything below it
+         * @return this, for chaining
+         */
+        HelidonConfig scoped(String pathPrefix);
     }
 
     // ── Server Lifecycle ──────────────────────────────────────────────────────
