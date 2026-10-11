@@ -1232,10 +1232,7 @@ public final class CafeAIApp implements CafeAI {
         if (observeBridge != null) observeBridge.beforeSynthesis(request);
 
         // -- 3. Call /v1/audio/speech via direct HTTP -----------------------------
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("OPENAI_API_KEY environment variable is not set.");
-        }
+        String apiKey = SavedKeys.require(KeyVendor.OPENAI, "openai speech", "");
 
         String voice = "alloy";
         String format = "mp3";

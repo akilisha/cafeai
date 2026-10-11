@@ -5,7 +5,9 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.mistralai.MistralAiChatModel;
 import dev.langchain4j.model.mistralai.MistralAiStreamingChatModel;
 import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.LangchainBridge;
+import io.cafeai.core.internal.SavedKeys;
 
 import java.time.Duration;
 
@@ -16,7 +18,7 @@ import java.time.Duration;
  *   app.ai(Mistral.of("mistral-large-latest"));
  * }</pre>
  *
- * <p>Reads the key from {@code $MISTRAL_API_KEY} — get one at
+ * <p>Reads the key from {@code $MISTRAL_API_KEY}, else the one {@code cafeai login mistral} saved — get one at
  * <a href="https://console.mistral.ai/api-keys">console.mistral.ai</a>. Model ids change, so
  * CafeAI ships no constants for them.
  *
@@ -75,15 +77,7 @@ public final class Mistral {
         }
 
         private static String apiKey() {
-            String key = System.getenv("MISTRAL_API_KEY");
-            if (key == null || key.isBlank()) {
-                throw new IllegalStateException(
-                    "Missing API key for mistral provider. "
-                    + "Set the MISTRAL_API_KEY environment variable:\n\n"
-                    + "  export MISTRAL_API_KEY=your-key-here\n\n"
-                    + "Get one at https://console.mistral.ai/api-keys");
-            }
-            return key;
+            return SavedKeys.require(KeyVendor.MISTRAL, "mistral", "");
         }
     }
 }

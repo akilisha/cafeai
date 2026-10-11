@@ -5,7 +5,9 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.LangchainBridge;
+import io.cafeai.core.internal.SavedKeys;
 
 import java.time.Duration;
 
@@ -17,7 +19,7 @@ import java.time.Duration;
  *   app.ai(Grok.of("grok-4.7").withReasoningEffort("high"));
  * }</pre>
  *
- * <p>Reads the key from {@code $XAI_API_KEY} — get one at
+ * <p>Reads the key from {@code $XAI_API_KEY}, else the one {@code cafeai login grok} saved — get one at
  * <a href="https://console.x.ai">console.x.ai</a>. Model ids change, so CafeAI ships no
  * constants for them.
  *
@@ -106,15 +108,7 @@ public final class Grok {
         }
 
         private static String apiKey() {
-            String key = System.getenv("XAI_API_KEY");
-            if (key == null || key.isBlank()) {
-                throw new IllegalStateException(
-                    "Missing API key for grok provider. "
-                    + "Set the XAI_API_KEY environment variable:\n\n"
-                    + "  export XAI_API_KEY=your-key-here\n\n"
-                    + "Get one at https://console.x.ai");
-            }
-            return key;
+            return SavedKeys.require(KeyVendor.GROK, "grok", "");
         }
     }
 }

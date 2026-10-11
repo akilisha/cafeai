@@ -7,6 +7,14 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 
 ### Added
 
+- **`cafeai login <vendor>`: save an API key once.** `cafeai login openai` (also `grok`,
+  `mistral`, `nova`, `kimi`, `deepseek`) asks for the key, hidden at a terminal, and keeps it in
+  `~/.cafeai/credentials.json`, readable by its owner only (`CAFEAI_CONFIG_DIR` moves it);
+  `cafeai status` shows where each vendor's key comes from, `cafeai logout` forgets one. Providers
+  look a key up in this order: `withCredentials(...)`, the vendor's environment variable, the
+  saved key; a missing key's message names both ways to provide one. `Credentials.saved(vendor)`
+  does the same lookup on every call, for endpoints with no factory (Kimi, DeepSeek). The command
+  is `io.cafeai.core.login.CafeLogin`; the JBang `cafeai` alias comes with the release.
 - **`cafeai-identity`: verified caller identity.** `app.filter(Auth.bearer(issuer, "orders-api"))`
   makes an app an OAuth 2.0 resource server over any OpenID Connect issuer
   (`Issuer.discover(url)`): each request must carry a valid access token, and the caller

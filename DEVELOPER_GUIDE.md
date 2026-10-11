@@ -752,9 +752,23 @@ export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+**Or save a key once with `cafeai login`**, so it isn't in a shell profile either. It asks for
+the key (hidden at a terminal) and keeps it in `~/.cafeai/credentials.json` (readable by you
+only; `CAFEAI_CONFIG_DIR` moves it):
+
+```bash
+cafeai login openai        # also grok, mistral, nova, kimi, deepseek
+cafeai status              # where each vendor's key comes from
+cafeai logout openai
+```
+
+The environment variable, when set, wins over the saved key. For endpoints with no factory of
+their own (Kimi, DeepSeek), `Credentials.saved("deepseek")` looks the key up the same way, on
+every call.
+
 If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
-with an exact message telling you which variable to set — including a suggestion to use
-Ollama locally if you don't have a key.
+with an exact message telling you which variable to set or which `cafeai login` to run —
+including a suggestion to use Ollama locally if you don't have a key.
 
 **Beyond the four built-in providers.** `LangchainBridge` — the internal class that turns an
 `AiProvider` into a real LangChain4j `ChatModel` — only knows how to build one for
@@ -3799,9 +3813,9 @@ captured text are per person.
 
 ```java
 app.ai(OpenAI.of("<model-id>").withBaseUrl("https://api.moonshot.ai/v1")
-        .withCredentials(Credentials.staticKey(System.getenv("MOONSHOT_API_KEY"))));
+        .withCredentials(Credentials.saved("kimi")));        // $MOONSHOT_API_KEY, else `cafeai login kimi`
 app.ai(Anthropic.of("<model-id>").withBaseUrl("https://api.deepseek.com/anthropic")
-        .withCredentials(Credentials.staticKey(System.getenv("DEEPSEEK_API_KEY"))));
+        .withCredentials(Credentials.saved("deepseek")));    // $DEEPSEEK_API_KEY, else `cafeai login deepseek`
 ```
 
 ### 32.6 The caller through the AI layer

@@ -1,5 +1,8 @@
 package io.cafeai.core.ai;
 
+import io.cafeai.core.internal.KeyVendor;
+import io.cafeai.core.internal.SavedKeys;
+
 import java.util.Objects;
 
 /**
@@ -50,6 +53,29 @@ public interface Credentials {
      */
     default boolean apiKey() {
         return false;
+    }
+
+    /**
+     * The vendor's API key: its environment variable if set (for example {@code DEEPSEEK_API_KEY}),
+     * else the key {@code cafeai login <vendor>} saved. Looked up on every call, so a key saved or
+     * changed while the app runs is picked up. For the endpoints CafeAI has no factory for:
+     *
+     * <pre>{@code
+     *   app.ai(Anthropic.of("<model-id>").withBaseUrl("https://api.deepseek.com/anthropic")
+     *           .withCredentials(Credentials.saved("deepseek")));
+     * }</pre>
+     *
+     * @param vendor one of {@code openai, grok, mistral, nova, kimi, deepseek}
+     * @throws IllegalArgumentException for any other vendor
+     */
+    static Credentials saved(String vendor) {
+        KeyVendor v = KeyVendor.byId(vendor).orElseThrow(() -> new IllegalArgumentException(
+                "No saved keys for '" + vendor + "'. Known vendors: " + KeyVendor.ids()));
+        return new Credentials() {
+            @Override public String token() { return SavedKeys.require(v, v.id(), ""); }
+            @Override public boolean apiKey() { return true; }
+            @Override public String toString() { return "Credentials.saved(" + v.id() + ")"; }
+        };
     }
 
     /**

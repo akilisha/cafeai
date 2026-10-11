@@ -66,11 +66,7 @@ final class AudioMessageBuilder {
                                         String prompt) {
         validateMimeType(mimeType);
 
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException(
-                "OPENAI_API_KEY environment variable is not set.");
-        }
+        String apiKey = SavedKeys.require(KeyVendor.OPENAI, "openai transcription", "");
 
         String boundary  = "----CafeAIBoundary" + System.nanoTime();
         String extension = extensionFor(mimeType);

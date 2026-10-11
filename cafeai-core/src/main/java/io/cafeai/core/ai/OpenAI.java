@@ -4,7 +4,9 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.moderation.ModerationModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiModerationModel;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.LangchainBridge;
+import io.cafeai.core.internal.SavedKeys;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -80,17 +82,13 @@ public final class OpenAI {
      *   app.guard(GuardRail.moderation(OpenAI.moderation("omni-moderation-latest")));
      * }</pre>
      *
-     * <p>Reads the key from {@code $OPENAI_API_KEY}. The id is provider data, so like
+     * <p>Reads the key from {@code $OPENAI_API_KEY}, else the one {@code cafeai login openai}
+     * saved. The id is provider data, so like
      * {@link #of(String)} it is yours to choose. For anything beyond that (timeouts, retries, a
      * proxy) build LangChain4j's {@code OpenAiModerationModel.builder()} yourself.
      */
     public static ModerationModel moderation(String modelId) {
-        String key = System.getenv("OPENAI_API_KEY");
-        if (key == null || key.isBlank()) {
-            throw new IllegalStateException(
-                "Missing API key for openai moderation. Set the OPENAI_API_KEY environment variable:\n\n"
-                + "  export OPENAI_API_KEY=your-key-here");
-        }
+        String key = SavedKeys.require(KeyVendor.OPENAI, "openai moderation", "");
         return OpenAiModerationModel.builder().apiKey(key).modelName(modelId).build();
     }
 
@@ -141,7 +139,7 @@ public final class OpenAI {
                 ? "gpt-4o-audio-preview"
                 : modelId();
             return OpenAiChatModel.builder()
-                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .apiKey(SavedKeys.require(KeyVendor.OPENAI, "openai audio", ""))
                 .modelName(resolvedModel)
                 .build();
         }

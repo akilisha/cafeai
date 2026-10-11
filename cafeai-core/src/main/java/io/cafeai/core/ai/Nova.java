@@ -5,7 +5,9 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import io.cafeai.core.config.AppConfig;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.LangchainBridge;
+import io.cafeai.core.internal.SavedKeys;
 
 import java.time.Duration;
 
@@ -17,7 +19,8 @@ import java.time.Duration;
  *   app.ai(Nova.of("nova-2-lite-v1"));
  * }</pre>
  *
- * <p>Reads the key from {@code $NOVA_API_KEY}, created in the Amazon Nova developer console.
+ * <p>Reads the key from {@code $NOVA_API_KEY}, else the one {@code cafeai login nova} saved.
+ * Create a key in the Amazon Nova developer console.
  * The Nova API is a free tier with rate limits; Amazon points companies to Nova on Amazon
  * Bedrock instead.
  *
@@ -80,15 +83,7 @@ public final class Nova {
         }
 
         private static String apiKey() {
-            String key = System.getenv("NOVA_API_KEY");
-            if (key == null || key.isBlank()) {
-                throw new IllegalStateException(
-                    "Missing API key for nova provider. "
-                    + "Set the NOVA_API_KEY environment variable:\n\n"
-                    + "  export NOVA_API_KEY=your-key-here\n\n"
-                    + "Get one at https://nova.amazon.com/dev");
-            }
-            return key;
+            return SavedKeys.require(KeyVendor.NOVA, "nova", "");
         }
     }
 }

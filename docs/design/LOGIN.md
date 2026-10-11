@@ -55,8 +55,9 @@ cafeai logout <vendor>    # forget it (and revoke, where the vendor can)
 cafeai status             # what each vendor will use, whose account, until when
 ```
 
-Shipped through the existing JBang catalog (`jbang login@akilisha/cafeai claude`), installable as
-a plain `cafeai` command with `jbang app install`.
+The command is `io.cafeai.core.login.CafeLogin`. Once the release is on Maven Central it is
+shipped through the JBang catalog (`jbang cafeai@akilisha/cafeai login openai`), installable as
+a plain `cafeai` command with `jbang app install --name cafeai cafeai@akilisha/cafeai`.
 
 In code, a provider with no key finds the login by itself. Order, first wins:
 
@@ -90,8 +91,9 @@ Notes:
   developer's SSO sign-in. Bedrock signing (SigV4), Entra tokens and Vertex's request form are
   already built; only reading the CLI's credentials is new.
 - **Key vendors.** The key goes in a file in the user's profile (`~/.cafeai/credentials.json`,
-  user-only permissions), like Claude Code's `.credentials.json`. `cafeai login kimi` opens the
-  vendor's keys page and asks for the key.
+  user-only permissions), like Claude Code's `.credentials.json`. `cafeai login kimi` shows the
+  vendor's keys page and asks for the key. Endpoints with no factory of their own (Kimi,
+  DeepSeek) use `Credentials.saved("kimi")`, which does the same lookup on every call.
 
 ## 5. Corporate restrictions and what the developer sees
 
@@ -159,7 +161,7 @@ role credentials until their expiry.
 
 ## 8. Phases
 
-1. **Key store and `cafeai login` for key vendors** (openai, grok, mistral, nova, kimi, deepseek), plus the
+1. ✅ **Key store and `cafeai login` for key vendors** (openai, grok, mistral, nova, kimi, deepseek), plus the
    lookup order in §3 for every provider. Smallest, and sets the command's shape.
 2. **Claude via `ant auth login`.**
 3. **Cloud CLIs:** azure, aws, google.

@@ -3,6 +3,8 @@ package io.cafeai.rag;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
+import io.cafeai.core.internal.KeyVendor;
+import io.cafeai.core.internal.SavedKeys;
 import io.cafeai.core.rag.EmbeddingProvider;
 
 /**
@@ -30,13 +32,9 @@ final class OpenAiEmbeddingProvider implements EmbeddingProvider {
     OpenAiEmbeddingProvider(String modelId) {
         this.modelId = modelId;
 
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException(
-                "Missing API key for OpenAI embedding model. " +
-                "Set the OPENAI_API_KEY environment variable, or use:\n" +
-                "  app.embed(EmbeddingProvider.local())  // no key required");
-        }
+        String apiKey = SavedKeys.require(KeyVendor.OPENAI, "OpenAI embedding",
+            "\n\nOr use a local embedding model with no key:\n" +
+            "  app.embed(EmbeddingProvider.local())");
 
         this.delegate = OpenAiEmbeddingModel.builder()
             .apiKey(apiKey)

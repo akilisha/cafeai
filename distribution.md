@@ -153,7 +153,11 @@ gpg --keyserver keys.openpgp.org --send-keys 53D6492A
    update the `//DEPS` lines, run `jbang jbang/hello.java` once, and push. Once
    `cafeai-dev` is on Maven Central, the catalog also gets a `dev` alias: a
    `jbang/dev.java` that depends on it and calls `io.cafeai.dev.CafeDev.main(args)`,
-   so `jbang dev@akilisha/cafeai app.java` works.
+   so `jbang dev@akilisha/cafeai app.java` works. Likewise, once a `cafeai-core` with
+   `io.cafeai.core.login.CafeLogin` is on Maven Central, add `jbang/cafeai.java` (it calls
+   `CafeLogin.main(args)`, with `slf4j-nop`) and a `cafeai` alias, so
+   `jbang app install --name cafeai cafeai@akilisha/cafeai` gives people the `cafeai login`
+   command.
 
 ---
 
