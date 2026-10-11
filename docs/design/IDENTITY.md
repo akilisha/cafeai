@@ -520,6 +520,7 @@ MCP servers, downstream APIs. It isn't specific to models.
 | `tokenExchange(audience)` | RFC 8693 | The app swaps the user's token for one scoped to the target and marked as acting for that user. The traceable option. |
 | `AnthropicFederation` | RFC 7523 JWT bearer grant at Anthropic | The Claude API with no API key: the app's token from its own issuer (or a workload token file) is exchanged for a short-lived Anthropic token acting as a service account. As the app, not a person. |
 | `AwsCredentials` | AWS STS `AssumeRoleWithWebIdentity`, then Signature Version 4 on every request | Claude in Amazon Bedrock: temporary AWS credentials for an IAM role, in exchange for the caller's token (per person, the session named after them) or the app's. |
+| `AzureCliCredentials`, `AwsCredentials.fromCli()`, `GoogleApplicationDefault` | The developer's own cloud CLI sign-in (`az`, `aws sso`, `gcloud auth application-default`) | Claude in Foundry, Bedrock or Vertex AI from a developer's machine, with no key; see `docs/design/LOGIN.md`. |
 | `GoogleFederation` | Google STS token exchange (RFC 8693, Google's JSON form), optionally `generateAccessToken` for a service account | Claude on Vertex AI: a Google token for the app's token (workload pool) or the caller's (workforce pool, per person). |
 | `onBehalfOf(scopes)` | Microsoft Entra ID's on-behalf-of (an RFC 7523 JWT bearer grant with `requested_token_use=on_behalf_of`) | The same, at Entra, which has no RFC 8693. |
 

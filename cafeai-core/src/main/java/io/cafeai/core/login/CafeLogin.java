@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
@@ -19,6 +20,7 @@ import java.util.function.UnaryOperator;
  *
  * <pre>
  *   cafeai login claude      signs in to the Claude Console with Anthropic's ant CLI (no key)
+ *   cafeai login azure       az login (also aws: aws sso login; google: gcloud's application-default login)
  *   cafeai login openai      asks for the key (hidden) and saves it
  *   cafeai logout openai     forgets the saved key
  *   cafeai status            where each vendor's credential comes from
@@ -40,18 +42,21 @@ public final class CafeLogin {
     private final KeyReader keys;
     private final UnaryOperator<String> env;
     private final ClaudeLogin claude;
+    private final CloudLogin clouds;
 
     CafeLogin(PrintStream out, PrintStream err, KeyReader keys, UnaryOperator<String> env,
-              ClaudeLogin.Processes processes) {
+              ClaudeLogin.Processes processes, CloudLogin.Tools tools) {
         this.out = out;
         this.err = err;
         this.keys = keys;
         this.env = env;
         this.claude = new ClaudeLogin(out, err, env, processes);
+        this.clouds = new CloudLogin(out, err, env, tools);
     }
 
     public static void main(String[] args) {
-        var login = new CafeLogin(System.out, System.err, CafeLogin::readKey, System::getenv, ClaudeLogin::runProcess);
+        var login = new CafeLogin(System.out, System.err, CafeLogin::readKey, System::getenv, ClaudeLogin::runProcess,
+                CloudLogin.Tools.real(System::getenv));
         System.exit(login.run(args));
     }
 
@@ -60,8 +65,10 @@ public final class CafeLogin {
         if (args.length == 0) return usage();
         try {
             return switch (args[0]) {
-                case "login"  -> args.length == 2 ? login(args[1]) : usage();
-                case "logout" -> args.length == 2 ? logout(args[1]) : usage();
+                case "login"  -> cloud(args).map(c -> clouds.login(c, rest(args)))
+                        .orElseGet(() -> args.length == 2 ? login(args[1]) : usage());
+                case "logout" -> cloud(args).map(c -> clouds.logout(c, rest(args)))
+                        .orElseGet(() -> args.length == 2 ? logout(args[1]) : usage());
                 case "status" -> args.length == 1 ? status() : usage();
                 case "help", "-h", "--help" -> { help(out); yield 0; }
                 default -> usage();
@@ -117,6 +124,9 @@ public final class CafeLogin {
         out.println("Keys file: " + SavedKeys.file());
         out.println();
         out.printf("  %-9s %s%n", "claude", claude.status());
+        for (CloudLogin.Cloud cloud : CloudLogin.Cloud.values()) {
+            out.printf("  %-9s %s%n", cloud.id, clouds.status(cloud, List.of()));
+        }
         for (KeyVendor vendor : KeyVendor.values()) {
             SavedKeys.Resolved r = SavedKeys.resolve(vendor, env);
             String where = switch (r.source()) {
@@ -132,7 +142,7 @@ public final class CafeLogin {
     private Optional<KeyVendor> vendor(String name) {
         Optional<KeyVendor> vendor = KeyVendor.byId(name);
         if (vendor.isEmpty()) {
-            err.println("cafeai: unknown vendor '" + name + "'. Known vendors: claude, " + KeyVendor.ids());
+            err.println("cafeai: unknown vendor '" + name + "'. Known vendors: claude, azure, aws, google, " + KeyVendor.ids());
         }
         return vendor;
     }
@@ -145,11 +155,21 @@ public final class CafeLogin {
     private static void help(PrintStream to) {
         to.println("Usage:");
         to.println("  cafeai login claude      sign in to the Claude Console (Anthropic's ant CLI, no key)");
+        to.println("  cafeai login azure|aws|google [cli options]   the cloud CLI's own sign-in");
         to.println("  cafeai login <vendor>    save the vendor's API key on this machine");
         to.println("  cafeai logout <vendor>   sign out, or forget the saved key");
         to.println("  cafeai status            where each vendor's credential comes from");
         to.println();
-        to.println("Vendors: claude, " + KeyVendor.ids());
+        to.println("Vendors: claude, azure, aws, google, " + KeyVendor.ids());
+    }
+
+    /** The cloud a login/logout names, if it names one. */
+    private static Optional<CloudLogin.Cloud> cloud(String[] args) {
+        return args.length >= 2 ? CloudLogin.Cloud.byId(args[1]) : Optional.empty();
+    }
+
+    private static List<String> rest(String[] args) {
+        return List.of(args).subList(2, args.length);
     }
 
     private static boolean isClaude(String name) {

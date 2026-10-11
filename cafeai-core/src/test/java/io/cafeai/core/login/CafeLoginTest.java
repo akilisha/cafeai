@@ -32,6 +32,10 @@ class CafeLoginTest {
     private final Map<String, String> env = new HashMap<>();
     private String typed;
     private String prompt;
+    /** No cloud CLI installed, unless a test says otherwise. */
+    private CloudLogin.Tools tools = new CloudLogin.Tools(name -> java.util.Optional.empty(),
+            cmd -> { throw new AssertionError("no cloud CLI expected: " + cmd); },
+            cmd -> { throw new AssertionError("no cloud CLI expected: " + cmd); });
     private ClaudeLogin.Processes processes = (cmd, interactive, output) -> {
         throw new AssertionError("no process expected: " + cmd);
     };
@@ -41,6 +45,7 @@ class CafeLoginTest {
         before = System.getProperty("cafeai.config.dir");
         System.setProperty("cafeai.config.dir", home.toString());
         env.put("ANTHROPIC_CONFIG_DIR", home.resolve("anthropic").toString());
+        env.put("CLOUDSDK_CONFIG", home.resolve("gcloud").toString());
     }
 
     @AfterEach
@@ -54,7 +59,8 @@ class CafeLoginTest {
         err.reset();
         var login = new CafeLogin(new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8),
-                p -> { prompt = p; return typed; }, env::get, (cmd, interactive, output) -> processes.run(cmd, interactive, output));
+                p -> { prompt = p; return typed; }, env::get, (cmd, interactive, output) -> processes.run(cmd, interactive, output),
+                tools);
         return login.run(args);
     }
 
@@ -138,7 +144,7 @@ class CafeLoginTest {
         assertThat(err()).contains("cafeai login <vendor>");
         assertThat(run("login")).isEqualTo(2);
         assertThat(run("help")).isZero();
-        assertThat(out()).contains("Vendors: claude, openai");
+        assertThat(out()).contains("Vendors: claude, azure, aws, google, openai");
     }
 
     // ── claude: a sign-in through Anthropic's ant CLI ───────────────────────────

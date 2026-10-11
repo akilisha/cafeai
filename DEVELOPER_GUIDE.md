@@ -784,6 +784,30 @@ from [its releases](https://github.com/anthropics/anthropic-cli/releases) (or
 Anthropic's. This is a Claude Console (API) sign-in: a claude.ai subscription login can't be used
 by other apps.
 
+**Through your company's cloud, with its CLI sign-in.** Where the company reaches Claude through
+Azure, AWS or Google Cloud, the developer signs in with that cloud's own CLI, through the
+company's single sign-on (`cafeai login azure`, `aws`, `google` run `az login`,
+`aws sso login` and `gcloud auth application-default login`; options after the name, such as
+`--profile work`, go to the CLI). With `cafeai-identity`:
+
+```java
+// Claude in Microsoft Foundry (or Azure OpenAI with AzureCliCredentials.AZURE_OPENAI)
+app.ai(Anthropic.of("claude-opus-5-5").withBaseUrl("https://<resource>.services.ai.azure.com/anthropic")
+        .withCredentials(AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY)));
+
+// Claude in Amazon Bedrock, signed with the AWS CLI profile's role credentials
+app.ai(Anthropic.of("anthropic.claude-opus-5-5").withBaseUrl("https://bedrock-mantle.us-east-1.api.aws/anthropic")
+        .withCredentials(AwsCredentials.fromCli("work")));
+
+// Claude on Vertex AI, with the Application Default Credentials gcloud saved
+app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global")
+        .withCredentials(GoogleApplicationDefault.credentials()));
+```
+
+`az` and `aws` take a second or more to start, so their tokens are kept until shortly before they
+expire, never fetched per call. Google's file is read and its refresh token redeemed in-process,
+as Google's libraries do; service-account key files are refused.
+
 If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
 with an exact message telling you which variable to set or which `cafeai login` to run —
 including a suggestion to use Ollama locally if you don't have a key.

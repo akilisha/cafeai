@@ -166,6 +166,7 @@ role credentials until their expiry.
 2. ✅ **Claude via `ant auth login`.** Checked against Anthropic's real `ant` 1.40.0 with a local
    token endpoint (`AntInteropTest`, runs when `ANT_BIN` is set): each renews, the other picks up
    the new token without renewing again.
-3. **Cloud CLIs:** azure, aws, google.
+3. ✅ **Cloud CLIs:** azure, aws, google. Tested against fakes of the CLIs and of Google's token
+   endpoint, plus a real process standing in for `az`; not yet against real cloud accounts.
 
 Each phase ends with a demo a developer can run on their own machine, like the identity demos.

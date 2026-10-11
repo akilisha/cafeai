@@ -3,7 +3,11 @@ package io.cafeai.identity;
 import io.cafeai.core.ai.SignedCredentials;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.core.identity.IdentityRequiredException;
+import io.cafeai.core.internal.Cli;
 import io.cafeai.core.internal.CurrentRequest;
+import io.helidon.json.JsonObject;
+import io.helidon.json.JsonParser;
+import io.helidon.json.JsonValueType;
 import org.w3c.dom.Document;
 
 import javax.xml.XMLConstants;
@@ -15,14 +19,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * AWS credentials for a model on AWS (Claude in Amazon Bedrock): each request is signed with
@@ -42,6 +53,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *           IdentityToken.clientCredentials(issuer, "orders-api", secret)).region("us-east-1"))
  * }</pre>
  *
+ * <p>On a developer's machine, {@link #fromCli()} signs with the AWS CLI's own sign-in
+ * ({@code aws sso login}, or {@code cafeai login aws}), through the company's IAM Identity Center.
+ *
  * <p>The role's trust policy must name the identity provider (an IAM OIDC provider for the
  * issuer, with the token's audience among its client ids). Temporary credentials are cached until
  * {@link #RENEW_BEFORE} before they expire; a person's never past their own token. Signs for the
@@ -55,7 +69,13 @@ public final class AwsCredentials implements SignedCredentials {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     private static final int MAX_CACHED = 10_000;
 
-    private enum Source { KEYS, APP, CALLER }
+    private enum Source { KEYS, APP, CALLER, CLI }
+
+    private static final Duration CLI_TIMEOUT = Duration.ofSeconds(60);
+    /** How long long-lived keys from the AWS CLI are kept before asking it again. */
+    private static final Duration CLI_RECHECK = Duration.ofMinutes(15);
+    static final String INSTALL = "The AWS CLI (aws) isn't installed. Install version 2 from "
+            + "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html, then sign in: `cafeai login aws`.";
 
     /** Temporary credentials and when they stop working. */
     private record Session(AwsSigV4.Key key, Instant expires) { }
@@ -71,6 +91,9 @@ public final class AwsCredentials implements SignedCredentials {
     private Clock clock = Clock.systemUTC();
     private volatile Session appSession;
     private final Map<String, Session> callerSessions = new ConcurrentHashMap<>();
+    private String cliProfile;
+    private Supplier<Optional<Path>> locate = () -> Cli.find("aws", System::getenv);
+    private Function<List<String>, Cli.Result> runner = command -> Cli.run(command, CLI_TIMEOUT);
 
     private AwsCredentials(Source source, String roleArn, IdentityToken identityToken, AwsSigV4.Key fixed) {
         this.source = source;
@@ -91,6 +114,29 @@ public final class AwsCredentials implements SignedCredentials {
     /** Temporary credentials for {@code roleArn}, in exchange for the app's own token: calls are the app's. */
     public static AwsCredentials assumeRole(String roleArn, IdentityToken identityToken) {
         return new AwsCredentials(Source.APP, requireArn(roleArn), Objects.requireNonNull(identityToken, "identityToken"), null);
+    }
+
+    /**
+     * The AWS CLI's own credentials, for the default profile: on a developer's machine, the
+     * company's IAM Identity Center sign-in ({@code aws sso login}). Asked of
+     * {@code aws configure export-credentials} and kept until shortly before they expire; the
+     * region, unless given, is the profile's.
+     */
+    public static AwsCredentials fromCli() {
+        return new AwsCredentials(Source.CLI, null, null, null);
+    }
+
+    /** {@link #fromCli()} for a named AWS CLI profile. */
+    public static AwsCredentials fromCli(String profile) {
+        AwsCredentials credentials = fromCli();
+        credentials.cliProfile = Objects.requireNonNull(profile, "profile");
+        return credentials;
+    }
+
+    AwsCredentials cli(Supplier<Optional<Path>> locate, Function<List<String>, Cli.Result> runner) {
+        this.locate = locate;
+        this.runner = runner;
+        return this;
     }
 
     /** Fixed keys, for development; prefer {@link #assumeRole} or {@link #assumeRoleAsCaller} anywhere else. */
@@ -136,6 +182,7 @@ public final class AwsCredentials implements SignedCredentials {
 
     @Override
     public Map<String, String> sign(String method, URI uri, Map<String, String> headers, byte[] body) {
+        if (region == null && source == Source.CLI) region = cliRegion();
         if (region == null) throw new IllegalStateException("Name the AWS region: AwsCredentials...region(\"us-east-1\")");
         Map<String, String> signed = new LinkedHashMap<>();
         signed.put("host", headers.get("host"));
@@ -161,7 +208,68 @@ public final class AwsCredentials implements SignedCredentials {
                 }
             }
             case CALLER -> callerKey(now);
+            case CLI -> {
+                synchronized (this) {
+                    Session s = appSession;
+                    if (s == null || !now.isBefore(s.expires().minus(RENEW_BEFORE))) {
+                        s = cliSession(now);
+                        appSession = s;
+                    }
+                    yield s.key();
+                }
+            }
         };
+    }
+
+    /** {@code aws configure export-credentials}: the credential_process JSON the AWS SDKs read. */
+    private Session cliSession(Instant now) {
+        var command = cliCommand("configure", "export-credentials", "--format", "process");
+        Cli.Result result = runner.apply(command);
+        if (!result.ok()) {
+            String said = firstLine(result.err());
+            String lower = result.err().toLowerCase(java.util.Locale.ROOT);
+            if (lower.contains("sso") || lower.contains("expired") || lower.contains("unable to locate credentials")) {
+                throw new IdentityException("Not signed in to AWS, or the sign-in has expired. Sign in: `cafeai login aws"
+                        + (cliProfile == null ? "" : " --profile " + cliProfile) + "` (aws sso login). AWS CLI said: " + said);
+            }
+            throw new IdentityException("The AWS CLI couldn't export credentials: " + said);
+        }
+        JsonObject json;
+        try {
+            var value = JsonParser.create(result.out()).readJsonValue();
+            json = value.type() == JsonValueType.OBJECT ? value.asObject() : null;
+        } catch (RuntimeException e) {
+            json = null;
+        }
+        if (json == null) throw new IdentityException("The AWS CLI's credentials weren't JSON: " + firstLine(result.out()));
+        String id = json.stringValue("AccessKeyId").orElseThrow(() -> new IdentityException("The AWS CLI gave no AccessKeyId"));
+        String secret = json.stringValue("SecretAccessKey").orElseThrow(() -> new IdentityException("The AWS CLI gave no SecretAccessKey"));
+        String sessionToken = json.stringValue("SessionToken").orElse(null);
+        // Long-lived keys have no Expiration: ask again now and then, in case they are rotated.
+        Instant expires = json.stringValue("Expiration").map(t -> OffsetDateTime.parse(t).toInstant())
+                .orElse(now.plus(CLI_RECHECK).plus(RENEW_BEFORE));
+        return new Session(new AwsSigV4.Key(id, secret, sessionToken), expires);
+    }
+
+    private String cliRegion() {
+        Cli.Result result = runner.apply(cliCommand("configure", "get", "region"));
+        String region = result.ok() ? result.out().strip() : "";
+        return region.isEmpty() ? null : region;
+    }
+
+    private List<String> cliCommand(String... args) {
+        Path aws = locate.get().orElseThrow(() -> new IdentityException(INSTALL));
+        var command = new ArrayList<String>();
+        command.add(aws.toString());
+        command.addAll(List.of(args));
+        if (cliProfile != null) command.addAll(List.of("--profile", cliProfile));
+        return command;
+    }
+
+    private static String firstLine(String s) {
+        String t = s == null ? "" : s.strip();
+        int nl = t.indexOf('\n');
+        return nl < 0 ? t : t.substring(0, nl).strip();
     }
 
     private AwsSigV4.Key callerKey(Instant now) {

@@ -21,6 +21,15 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   `ANTHROPIC_API_KEY` then uses that sign-in: CafeAI reads the profile Anthropic's CLI, SDKs and
   Claude Code share, and renews its token in-process as Anthropic's SDKs do, writing it back.
   Only for Anthropic's own API; a provider with `withBaseUrl(...)` never gets the token.
+- **Claude through the company's cloud, with the developer's own CLI sign-in.** `cafeai login
+  azure | aws | google` hands the terminal to `az login`, `aws sso login` or `gcloud auth
+  application-default login` (options after the name go to the CLI), and `cafeai status` shows
+  each. In `cafeai-identity`: `AzureCliCredentials.scope(FOUNDRY | AZURE_OPENAI)` (from
+  `az account get-access-token`), `AwsCredentials.fromCli(profile)` (from
+  `aws configure export-credentials`, signing with SigV4 in the profile's region) and
+  `GoogleApplicationDefault.credentials()` (the ADC file, its refresh token redeemed in-process;
+  impersonated service accounts too; key files refused). CLI tokens are kept until shortly before
+  they expire.
 - **`cafeai-identity`: verified caller identity.** `app.filter(Auth.bearer(issuer, "orders-api"))`
   makes an app an OAuth 2.0 resource server over any OpenID Connect issuer
   (`Issuer.discover(url)`): each request must carry a valid access token, and the caller
