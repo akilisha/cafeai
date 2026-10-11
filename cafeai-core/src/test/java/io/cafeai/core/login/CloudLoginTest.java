@@ -42,6 +42,7 @@ class CloudLoginTest {
         System.setProperty("cafeai.config.dir", home.toString());
         env.put("ANTHROPIC_CONFIG_DIR", home.resolve("anthropic").toString());
         env.put("CLOUDSDK_CONFIG", home.resolve("gcloud").toString());
+        env.put("AWS_CONFIG_FILE", home.resolve("no-aws-config").toString());
     }
 
     @AfterEach
@@ -125,6 +126,42 @@ class CloudLoginTest {
         handOverStatus = 1;
         assertThat(run("login", "azure")).isEqualTo(1);
         assertThat(err()).contains("`az login` failed (exit 1)");
+    }
+
+    @Test @DisplayName("status for aws: the profile in use, then each IAM Identity Center profile in the config")
+    void awsProfiles() throws Exception {
+        Path config = Files.writeString(home.resolve("aws-config"), """
+                [default]
+                region = us-east-1
+                [profile work]
+                sso_session = acme
+                sso_account_id = 123456789012
+                [profile ci]
+                role_arn = arn:aws:iam::123456789012:role/ci
+                [profile legacy]
+                sso_start_url = https://d-1.awsapps.com/start
+                [sso-session acme]
+                sso_start_url = https://d-1.awsapps.com/start
+                """);
+        env.put("AWS_CONFIG_FILE", config.toString());
+        answers = command -> command.contains("work")
+                ? new Cli.Result(0, "{\"Version\":1,\"AccessKeyId\":\"ASIA\",\"SecretAccessKey\":\"s\","
+                        + "\"SessionToken\":\"t\",\"Expiration\":\"2026-10-12T00:28:36+00:00\"}", "")
+                : command.contains("default") ? new Cli.Result(0, "{\"Version\":1,\"AccessKeyId\":\"AKIA\",\"SecretAccessKey\":\"s\"}", "")
+                : new Cli.Result(255, "", "Token has expired");
+        assertThat(run("status")).isZero();
+        assertThat(out())
+                .containsPattern("aws\\s+default: credentials from the AWS CLI \\(long-lived keys\\)")
+                .contains("            work: signed in, credentials valid until 2026-10-12T00:28:36+00:00")
+                .contains("            legacy: not signed in (cafeai login aws --profile legacy)")
+                .doesNotContain("ci:").doesNotContain("acme:");
+
+        env.put("AWS_PROFILE", "work");
+        captured.clear();
+        assertThat(run("status")).isZero();
+        assertThat(out()).containsPattern("aws\\s+work: signed in");
+        assertThat(captured.stream().filter(c -> c.contains("export-credentials")).map(List::getLast))
+                .as("the profile in use first, each profile once").containsExactly("work", "legacy");
     }
 
     @Test @DisplayName("status has a line per cloud: not installed, not signed in, or signed in")

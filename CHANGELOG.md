@@ -26,9 +26,10 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **Claude through the company's cloud, with the developer's own CLI sign-in.** `cafeai login
   azure | aws | google` hands the terminal to `az login`, `aws sso login` or `gcloud auth
   application-default login` (options after the name go to the CLI), and `cafeai status` shows
-  each. In `cafeai-identity`: `AzureCliCredentials.scope(FOUNDRY | AZURE_OPENAI)` (from
+  each (for AWS, the profile in use and every IAM Identity Center profile). In `cafeai-identity`: `AzureCliCredentials.scope(FOUNDRY | AZURE_OPENAI)` (from
   `az account get-access-token`), `AwsCredentials.fromCli(profile)` (from
-  `aws configure export-credentials`, signing with SigV4 in the profile's region) and
+  `aws configure export-credentials`, signing with SigV4 in the region from `AWS_REGION`,
+  `AWS_DEFAULT_REGION` or the profile) and
   `GoogleApplicationDefault.credentials()` (the ADC file, its refresh token redeemed in-process;
   impersonated service accounts too; key files refused). CLI tokens are kept until shortly before
   they expire.

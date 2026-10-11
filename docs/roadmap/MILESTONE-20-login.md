@@ -12,7 +12,7 @@ Design: `docs/design/LOGIN.md`.
 | 4 | Validate Google | 🟡 sign-in validated; impersonation and Vertex AI need a project |
 | 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug open |
 | 6 | Validate Azure | 🟡 sign-in validated; model calls need a pay-as-you-go subscription |
-| 7 | Validate AWS | ⚪ needs an AWS account |
+| 7 | Validate AWS | 🟡 IAM Identity Center sign-in validated, two fixes; Bedrock open |
 | 8 | Validate the saved-key vendors | ⚪ needs a key per vendor |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
 | 10 | Validate on macOS and Linux | ⚪ needs the machines |
@@ -213,23 +213,58 @@ source; `AzureCliCredentialsLiveTest` (`AZURE_CLI_LIVE=1`).
 
 ---
 
-## Phase 7 — Validate AWS &nbsp;⚪
+## Phase 7 — Validate AWS &nbsp;🟡
 
 **Needs:** an AWS account with IAM Identity Center (free) and a permission set. A call: Bedrock
 access to Claude in one region.
 
 ### Sign-in only
-- [ ] `cafeai login aws --profile <p>` runs `aws sso login`; `cafeai status` shows the credentials' expiry
-- [ ] `AwsCredentials.fromCli("<p>")` gets credentials from the real `aws configure export-credentials`
-- [ ] The region is read from the profile when not given
-- [ ] After the SSO session expires (or `aws sso logout`), the error says to sign in again; record the real text
+- [x] `cafeai login aws --profile <p>` runs `aws sso login`; `cafeai status` shows the credentials' expiry
+- [x] `AwsCredentials.fromCli("<p>")` gets credentials from the real `aws configure export-credentials`
+- [x] The region is read from the profile when not given (and from `AWS_DEFAULT_REGION`; a profile with none says how to set one)
+- [x] A request CafeAI signs with those credentials is accepted by AWS (STS `GetCallerIdentity`, free)
+- [x] After the SSO session expires (or `aws sso logout`), the error says to sign in again; record the real text
 
 ### End to end
 - [ ] Claude in Bedrock answers a SigV4-signed call with `AwsCredentials.fromCli`
 - [ ] A streamed call works
 
 ### Results
-*(none yet)*
+
+**2026-10-11.** Windows 11, AWS CLI 2.37.12, a personal AWS account. `cafeai` installed from
+source; `AwsCliCredentialsLiveTest` (`AWS_CLI_LIVE_PROFILE`).
+
+- An existing `default` profile with an IAM user's long-lived keys (`aws configure`):
+  `export-credentials` answers `Version`, `AccessKeyId`, `SecretAccessKey` only (no
+  `SessionToken`, no `Expiration`); `cafeai status` says *credentials from the AWS CLI (long-lived
+  keys)*; a request CafeAI signed (STS `GetCallerIdentity`, `us-east-1`) got HTTP 200 as the IAM user.
+- IAM Identity Center: enabled in the console, a user, the `PowerUserAccess` permission set
+  assigned to the account; `aws configure sso --profile work` wrote `[profile work]`
+  (`sso_session`, `sso_account_id`, `sso_role_name`) and `[sso-session cafeai]` (`sso_start_url`,
+  `sso_region = us-east-2`).
+- `cafeai login aws --profile work` before the profile existed: *aws: [ERROR]: The config profile
+  (work) could not be found*, then *cafeai: `aws sso login` failed (exit 255).*
+- `cafeai login aws --profile work`: `aws sso login`'s browser approval (`oidc.us-east-2.amazonaws.com`),
+  *Successfully logged into Start URL*, then CafeAI's *aws: signed in, credentials valid until
+  2026-10-12T00:28:36+00:00*. `export-credentials` answers `Version`, `AccessKeyId`,
+  `SecretAccessKey`, `SessionToken`, `Expiration` (`+00:00` form).
+- **Fixed:** the profile had no region (`aws configure sso`'s "default client region" left
+  empty), and CafeAI said only *Name the AWS region*. `AwsCredentials.fromCli` now also reads
+  `AWS_DEFAULT_REGION`, as the AWS CLI does, and a profile with no region says: *The AWS CLI
+  profile 'work' names no region. Set one: `aws configure set region us-east-1 --profile work`, or
+  AWS_REGION, or AwsCredentials...region("us-east-1")*.
+- **Fixed:** right after `cafeai login aws --profile work`, `cafeai status` showed only the
+  `default` profile's long-lived keys. It now shows the profile in use (`AWS_PROFILE`, else
+  `default`), then every IAM Identity Center profile in the config, one per line:
+  *default: credentials from the AWS CLI (long-lived keys)* / *work: signed in, credentials valid
+  until ...*.
+- With `AWS_DEFAULT_REGION=us-east-1`, a request CafeAI signed with the SSO session's credentials
+  got HTTP 200 from STS as `assumed-role/AWSReservedSSO_PowerUserAccess_.../<user>`.
+- `cafeai logout aws --profile work` (`aws sso logout`): `cafeai status` says *work: not signed
+  in (cafeai login aws --profile work)*, and CafeAI says *Not signed in to AWS, or the sign-in has
+  expired. Sign in: `cafeai login aws --profile work` (aws sso login). AWS CLI said: aws: [ERROR]:
+  Error loading SSO Token: Token for cafeai does not exist* (the token is named after the SSO
+  session, `cafeai`, not the profile).
 
 ---
 

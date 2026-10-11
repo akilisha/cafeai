@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * AWS credentials for a model on AWS (Claude in Amazon Bedrock): each request is signed with
@@ -94,6 +95,7 @@ public final class AwsCredentials implements SignedCredentials {
     private String cliProfile;
     private Supplier<Optional<Path>> locate = () -> Cli.find("aws", System::getenv);
     private Function<List<String>, Cli.Result> runner = command -> Cli.run(command, CLI_TIMEOUT);
+    private UnaryOperator<String> environment = System::getenv;
 
     private AwsCredentials(Source source, String roleArn, IdentityToken identityToken, AwsSigV4.Key fixed) {
         this.source = source;
@@ -136,6 +138,11 @@ public final class AwsCredentials implements SignedCredentials {
     AwsCredentials cli(Supplier<Optional<Path>> locate, Function<List<String>, Cli.Result> runner) {
         this.locate = locate;
         this.runner = runner;
+        return this;
+    }
+
+    AwsCredentials environment(UnaryOperator<String> environment) {
+        this.environment = environment;
         return this;
     }
 
@@ -183,6 +190,11 @@ public final class AwsCredentials implements SignedCredentials {
     @Override
     public Map<String, String> sign(String method, URI uri, Map<String, String> headers, byte[] body) {
         if (region == null && source == Source.CLI) region = cliRegion();
+        if (region == null && source == Source.CLI) {
+            String profile = cliProfile == null ? "default" : cliProfile;
+            throw new IllegalStateException("The AWS CLI profile '" + profile + "' names no region. Set one: `aws configure"
+                    + " set region us-east-1 --profile " + profile + "`, or AWS_REGION, or AwsCredentials...region(\"us-east-1\")");
+        }
         if (region == null) throw new IllegalStateException("Name the AWS region: AwsCredentials...region(\"us-east-1\")");
         Map<String, String> signed = new LinkedHashMap<>();
         signed.put("host", headers.get("host"));
@@ -251,7 +263,10 @@ public final class AwsCredentials implements SignedCredentials {
         return new Session(new AwsSigV4.Key(id, secret, sessionToken), expires);
     }
 
+    /** As the AWS CLI finds it: {@code AWS_DEFAULT_REGION}, else the profile's ({@code AWS_REGION} is read already). */
     private String cliRegion() {
+        String fromEnv = environment.apply("AWS_DEFAULT_REGION");
+        if (fromEnv != null && !fromEnv.isBlank()) return fromEnv;
         Cli.Result result = runner.apply(cliCommand("configure", "get", "region"));
         String region = result.ok() ? result.out().strip() : "";
         return region.isEmpty() ? null : region;

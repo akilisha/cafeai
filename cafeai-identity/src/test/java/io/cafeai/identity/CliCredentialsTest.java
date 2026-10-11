@@ -167,7 +167,8 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: the profile's role credentials sign each call (SigV4), in the profile's region")
     void awsCall() throws Exception {
-        var credentials = AwsCredentials.fromCli("work").cli(() -> program("aws"), aws(Instant.now().plusSeconds(3600).toString()));
+        var credentials = AwsCredentials.fromCli("work").environment(name -> null)
+                .cli(() -> program("aws"), aws(Instant.now().plusSeconds(3600).toString()));
         assertThat(ask(Anthropic.of("anthropic.claude-opus-5-5").withBaseUrl(model.baseUrl("/anthropic"))
                 .withCredentials(credentials))).isEqualTo("ok");
 
@@ -192,6 +193,26 @@ class CliCredentialsTest {
         credentials.clock(at(NOW.plusSeconds(3600 - 299)));
         credentials.sign("POST", URI.create("https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages"), headers, new byte[0]);
         assertThat(ran).hasSize(2);
+    }
+
+    @Test @DisplayName("aws: AWS_DEFAULT_REGION, when set, is used instead of the profile's region")
+    void awsDefaultRegion() {
+        var credentials = AwsCredentials.fromCli("work").environment(name -> "AWS_DEFAULT_REGION".equals(name) ? "eu-west-1" : null)
+                .cli(() -> program("aws"), aws(NOW.plusSeconds(3600).toString())).clock(at(NOW));
+        var headers = credentials.sign("POST", URI.create("https://x.example/v1/messages"), Map.of("host", "x.example"), new byte[0]);
+        assertThat(headers.get("Authorization")).contains("/eu-west-1/bedrock-mantle/aws4_request");
+        assertThat(ran).noneMatch(command -> command.contains("get"));
+    }
+
+    @Test @DisplayName("aws: a profile with no region says how to set one")
+    void awsNoRegion() {
+        var credentials = AwsCredentials.fromCli("work").environment(name -> null).cli(() -> program("aws"), command ->
+                command.contains("get") ? new Cli.Result(1, "", "") : aws(NOW.plusSeconds(3600).toString()).apply(command));
+        assertThatThrownBy(() -> credentials.sign("POST", URI.create("https://x.example/v1/messages"),
+                Map.of("host", "x.example"), new byte[0]))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("profile 'work' names no region")
+                .hasMessageContaining("aws configure set region us-east-1 --profile work");
     }
 
     @Test @DisplayName("aws: an expired SSO sign-in says to sign in again, with the profile")

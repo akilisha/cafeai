@@ -104,18 +104,36 @@ final class CloudLogin {
         return 0;
     }
 
-    /** The {@code cafeai status} line for a cloud. */
+    /**
+     * The {@code cafeai status} line for a cloud. For AWS with no {@code --profile}: the profile in
+     * use ({@code AWS_PROFILE}, else {@code default}) and every IAM Identity Center profile in the
+     * AWS CLI's config, one per line.
+     */
     String status(Cloud cloud, List<String> extra) {
         if (cloud == Cloud.GOOGLE) return googleStatus();
         Optional<Path> program = tools.find().apply(cloud.program);
         if (program.isEmpty()) return cloud.program + " not installed";
+        if (cloud == Cloud.AWS && profileOnly(extra).isEmpty()) {
+            String active = Optional.ofNullable(env.apply("AWS_PROFILE")).filter(s -> !s.isBlank()).orElse("default");
+            var profiles = new ArrayList<>(List.of(active));
+            ssoProfiles().stream().filter(p -> !profiles.contains(p)).forEach(profiles::add);
+            return String.join("\n" + " ".repeat(12), profiles.stream()
+                    .map(p -> p + ": " + cliStatus(cloud, program.get(), List.of("--profile", p))).toList());
+        }
+        return cliStatus(cloud, program.get(), profileOnly(extra));
+    }
+
+    private String cliStatus(Cloud cloud, Path program, List<String> profile) {
         var command = new ArrayList<String>();
-        command.add(program.get().toString());
+        command.add(program.toString());
         if (cloud == Cloud.AZURE) command.addAll(List.of("account", "show", "--output", "json"));
         else command.addAll(List.of("configure", "export-credentials", "--format", "process"));
-        command.addAll(profileOnly(extra));
+        command.addAll(profile);
         Cli.Result result = tools.capture().apply(command);
-        if (!result.ok()) return "not signed in (cafeai login " + cloud.id + ")";
+        if (!result.ok()) {
+            boolean named = !profile.isEmpty() && !profile.get(1).equals("default");
+            return "not signed in (cafeai login " + cloud.id + (named ? " --profile " + profile.get(1) : "") + ")";
+        }
         JsonNode json;
         try {
             json = JSON.readTree(result.out());
@@ -135,6 +153,33 @@ final class CloudLogin {
     private static List<String> profileOnly(List<String> extra) {
         int i = extra.indexOf("--profile");
         return i >= 0 && i + 1 < extra.size() ? List.of("--profile", extra.get(i + 1)) : List.of();
+    }
+
+    /** The profiles in the AWS CLI's config that sign in through IAM Identity Center. */
+    private List<String> ssoProfiles() {
+        String explicit = env.apply("AWS_CONFIG_FILE");
+        Path config = explicit != null && !explicit.isBlank() ? Path.of(explicit)
+                : Path.of(System.getProperty("user.home"), ".aws", "config");
+        List<String> lines;
+        try {
+            lines = Files.isRegularFile(config) ? Files.readAllLines(config) : List.of();
+        } catch (IOException e) {
+            return List.of();
+        }
+        var profiles = new ArrayList<String>();
+        String section = null;
+        for (String raw : lines) {
+            String line = raw.strip();
+            if (line.startsWith("[") && line.endsWith("]")) {
+                String name = line.substring(1, line.length() - 1).strip();
+                section = name.equals("default") ? "default"
+                        : name.startsWith("profile ") ? name.substring("profile ".length()).strip() : null;
+            } else if (section != null && (line.startsWith("sso_session") || line.startsWith("sso_start_url"))
+                    && !profiles.contains(section)) {
+                profiles.add(section);
+            }
+        }
+        return profiles;
     }
 
     /** Reads the Application Default Credentials file instead of running gcloud, which is slow to start. */
