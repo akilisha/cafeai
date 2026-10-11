@@ -11,7 +11,7 @@ Design: `docs/design/LOGIN.md`.
 | 3 | The company's cloud (az, aws, gcloud) | 🟢 `f31fdf3` |
 | 4 | Validate Google | 🟡 sign-in validated; impersonation and Vertex AI need a project |
 | 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug open |
-| 6 | Validate Azure | ⚪ needs an Azure account |
+| 6 | Validate Azure | 🟡 sign-in validated; model calls need a pay-as-you-go subscription |
 | 7 | Validate AWS | ⚪ needs an AWS account |
 | 8 | Validate the saved-key vendors | ⚪ needs a key per vendor |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
@@ -164,24 +164,52 @@ organisation, workspace "Default"). `cafeai` installed from source; `AnthropicSi
 
 ---
 
-## Phase 6 — Validate Azure &nbsp;⚪
+## Phase 6 — Validate Azure &nbsp;🟡
 
 **Needs:** an Azure account. Sign-in only: free. A call: a Foundry resource with a Claude
 deployment; Azure OpenAI with a model deployment for the second scope.
 
 ### Sign-in only
-- [ ] `cafeai login azure` runs `az login`; `cafeai status` shows user, subscription and tenant
-- [ ] `AzureCliCredentials.scope(FOUNDRY).token()` returns a token; record the real `expires_on` type (number or string)
-- [ ] The same for `AZURE_OPENAI`
-- [ ] The token is kept: a second `token()` doesn't run `az`; record how long `az` takes to start
-- [ ] After `az logout`, the error says to sign in again
+- [x] `cafeai login azure` runs `az login`; `cafeai status` shows user, subscription and tenant
+- [x] `AzureCliCredentials.scope(FOUNDRY).token()` returns a token; record the real `expires_on` type (number or string): a number
+- [x] The same for `AZURE_OPENAI`
+- [x] The token is kept: a second `token()` doesn't run `az`; record how long `az` takes to start: about 0.65s
+- [x] After `az logout`, the error says to sign in again
 
 ### End to end
 - [ ] Claude in Foundry answers a call with `AzureCliCredentials.scope(FOUNDRY)`
 - [ ] Azure OpenAI answers a call with `AzureCliCredentials.scope(AZURE_OPENAI)`
 
 ### Results
-*(none yet)*
+
+**2026-10-11.** Windows 11, Azure CLI 2.91.0, a personal Azure account. `cafeai` installed from
+source; `AzureCliCredentialsLiveTest` (`AZURE_CLI_LIVE=1`).
+
+- Without `az`, `cafeai login azure` says where to install it and exits 1; `cafeai status` says
+  `az not installed`.
+- With no subscription, `az login` signs in to the browser, then saves nothing (`az account list`
+  is empty). `--allow-no-subscriptions` (passed through by `cafeai login azure`) reaches az 2.91.0's
+  new tenant and subscription picker, which crashes on a directory with no name:
+  `AttributeError: 'NoneType' object has no attribute 'get'` in `_subscription_selector.py`. CafeAI
+  then says ``cafeai: `az login` failed (exit 1).`` (`AZURE_CORE_LOGIN_EXPERIENCE_V2=off` skips the
+  picker.) The same from PowerShell (`cafeai.bat`) and Git Bash (`cafeai`).
+- In PowerShell, `~/.cafeai/cli/bin/cafeai` without `.bat` names the bash script, which Windows
+  runs outside the terminal: the browser sign-in happens, but nothing is shown. On the PATH, plain
+  `cafeai` finds `cafeai.bat`.
+- With a subscription: `az login`'s picker, then CafeAI's line *azure: signed in as <email>,
+  subscription <name> (tenant <id>)*.
+- `az account get-access-token` answers `accessToken`, `expiresOn`, `expires_on`, `subscription`,
+  `tenant`, `tokenType`; `expires_on` is a JSON number (epoch seconds).
+- `AzureCliCredentials.scope(FOUNDRY)`: audience `https://ai.azure.com`; `scope(AZURE_OPENAI)`:
+  audience `https://cognitiveservices.azure.com`. Lifetimes 5550s and 4201s (Entra varies them,
+  about 60 to 90 minutes). The first `token()` took about 0.65s (az answers from its own token
+  cache); the second 0 to 1 ms.
+- `cafeai logout azure`: `cafeai status` says *not signed in (cafeai login azure)*, and a token
+  request fails with *Not signed in to Azure, or the sign-in has expired. Sign in: `cafeai login
+  azure` (az login). Azure CLI said: ERROR: Please run 'az login' to setup account.*
+- No difference from the fakes needed a code fix.
+- Model calls: Microsoft's documentation says Claude in Foundry needs a paid subscription with a
+  pay-as-you-go billing method; free trial, student and credit-only subscriptions are refused.
 
 ---
 
