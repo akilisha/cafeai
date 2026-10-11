@@ -1,4 +1,4 @@
-# `cafeai login`: sign in to a model once, the way you sign in to `claude` or `copilot`
+# `cafeai login`: sign in to a model once, the way you sign in to `claude` or `az`
 
 Status: design, for review. Nothing here is built yet.
 
@@ -38,8 +38,8 @@ Two questions stay separate throughout:
    claude.ai subscription login, OpenAI's ChatGPT/Codex sign-in only works for Codex, and so on.
    Those are out (§6), however convenient.
 3. **The company's rules win, and are explained.** A sign-in the company has blocked fails with a
-   sentence a developer can act on ("your organisation hasn't enabled Copilot CLI; ask your GitHub
-   admin"), not an HTTP status.
+   sentence a developer can act on ("your Claude workspace doesn't allow this model; ask your
+   Console admin"), not an HTTP status.
 4. **Keys still have their place.** Open-weight model hosts (Kimi, DeepSeek) and personal
    accounts work with keys, and that is fine. `cafeai login` stores a pasted key once so it isn't
    in shell profiles or code.
@@ -70,11 +70,10 @@ In code, a provider with no key finds the login by itself. Order, first wins:
 
 | `cafeai login ...` | Runs / asks for | Company sign-in | At call time | Key? |
 |---|---|---|---|---|
-| `claude` | `ant auth login` (Anthropic's CLI) | Claude Console, through the company's SSO; picks org and workspace | the `ant` profile's access token, as `Authorization: Bearer` | no |
-| `copilot` | `copilot login` | GitHub device code, through the company's SSO (EMU) | Copilot's Java SDK with the logged-in user | no |
-| `azure` | `az login` | Entra ID | `az account get-access-token --scope ...` (Azure OpenAI, Claude in Foundry) | no |
-| `aws` | `aws sso login` | IAM Identity Center | `aws configure export-credentials`, then our SigV4 (Bedrock) | no |
-| `google` | `gcloud auth application-default login` | Google Workspace / workforce SSO | `gcloud auth application-default print-access-token` (Claude on Vertex) | no |
+| `claude` | `ant auth login` (Anthropic's CLI) | Claude Console, through the company's SSO; picks org and workspace | the profile's access token, as `Authorization: Bearer`, renewed in-process (§7.1) | no |
+| `azure` | `az login` | Entra ID | `az account get-access-token --scope ...`, cached until shortly before expiry (Azure OpenAI, Claude in Foundry) | no |
+| `aws` | `aws sso login` | IAM Identity Center | `aws configure export-credentials`, cached until shortly before expiry, then our SigV4 (Bedrock) | no |
+| `google` | `gcloud auth application-default login` | Google Workspace / workforce SSO | the Application Default Credentials file, renewed in-process (§7.2; Claude on Vertex) | no |
 | `openai` | a pasted key | — (admins issue project keys) | the stored key | yes |
 | `grok` | a pasted key | — (xAI's SSO covers its console, not the API) | the stored key | yes |
 | `mistral`, `nova` | a pasted key | — | the stored key | yes |
@@ -87,11 +86,6 @@ Notes:
   profile lives in `%APPDATA%\Anthropic` (Windows) or `~/.config/anthropic`, in a documented
   format that Anthropic's SDKs and Claude Code also read. The token is bound to one workspace, so
   its budget and rate limits apply.
-- **Copilot.** The SDK starts the Copilot CLI itself and uses its stored login; usage counts
-  against the company seat. It gives an agent *session* (model choice, its own tools, MCP), not a
-  plain chat endpoint, so it is its own module, `cafeai-copilot`, rather than a `Credentials`.
-  What the company controls: the "Copilot CLI" policy, seat assignment, enabled models, allowed
-  MCP servers.
 - **Cloud CLIs.** For companies that buy models through a cloud, the cloud's CLI login is the
   developer's SSO sign-in. Bedrock signing (SigV4), Entra tokens and Vertex's request form are
   already built; only reading the CLI's credentials is new.
@@ -104,8 +98,8 @@ Notes:
 | Situation | Message |
 |---|---|
 | Vendor CLI not installed | "`cafeai login claude` uses Anthropic's `ant` CLI. Install it: ..." |
+| `ant` on the PATH is Apache Ant | "The `ant` found at <path> is Apache Ant, not Anthropic's CLI. Install Anthropic's, or set `cafeai.login.ant`" |
 | Not signed in, or the login expired | "Sign in again: `cafeai login claude`" |
-| Copilot CLI policy off / no seat | "Your organisation hasn't enabled Copilot CLI for you; ask your GitHub admin" |
 | Model not enabled for the org/workspace | the vendor's own reason, with the model id |
 | Company forces a specific login method | the vendor CLI enforces it; we pass its message through |
 
@@ -116,18 +110,52 @@ Notes:
 - **ChatGPT / Codex sign-in and Codex access tokens**: Codex only, not the OpenAI API.
 - **Gemini** (decided 2026-10-10): not part of `cafeai login`. The `Gemini` provider keeps its
   `GEMINI_API_KEY`.
+- **Copilot** (decided 2026-10-10): not part of `cafeai login`. For the record, its Java SDK
+  was `com.github:copilot-sdk-java:1.0.14-preview.1`, a preview that runs a Copilot agent
+  session rather than a model call.
 - **Our own OAuth clients at vendors**: would bypass the company's control over which apps are
   approved.
 
-## 7. To verify before building
+## 7. Checks (done 2026-10-10)
 
-1. Whether `ant auth print-credentials --access-token` renews an expired profile token (so CafeAI
-   never handles the refresh token), and its output format.
-2. The Copilot Java SDK: Maven coordinates, minimum Java version, and whether a session can be
-   driven like a chat call (send prompt, stream text, CafeAI's tools).
-3. Whether a GitHub organisation can block `copilot login` itself, beyond the Copilot CLI policy.
-4. How long each cloud CLI's token call takes, to size the cache (tokens are cached until shortly
-   before expiry either way).
+### 7.1 Does `ant` renew an expired token? Yes, but CafeAI shouldn't call it on every renewal
+
+From the `ant` source (v1.40.0, `pkg/cmd/cmd_auth.go`): `ant auth print-credentials
+--access-token` renews the token when it has 120 seconds or less left, writes the new one back to
+the profile, and prints only the token. If renewal fails it prints a warning on stderr and
+**still prints the old token**, so a caller must read stderr, not just stdout.
+
+Anthropic's Java SDK does the same renewal itself (`UserOAuthCredentials`): it reads the profile,
+redeems the refresh token at `/v1/oauth/token` with the profile's `client_id` and the
+`anthropic-beta: oauth-2025-04-20` header, and writes the result back. Profiles are built to be
+shared by Anthropic's CLI, SDKs and Claude Code. The SDK's resolver is `internal`, so CafeAI
+can't call it.
+
+Two problems with running `ant` at call time:
+
+- **Name clash.** Anthropic's CLI is called `ant`, the same as **Apache Ant**, which many Java
+  developers have on their PATH. `ant auth ...` would run the wrong program.
+- **A process per renewal**, plus the stderr handling above.
+
+**Decided:** `ant` only for `cafeai login claude` (checking that it is Anthropic's). At call
+time, CafeAI reads the profile and renews the token in-process the way Anthropic's SDKs do: same
+files, same endpoint, written back so `ant` and Claude Code see the new token. Windows release
+builds of `ant` exist (`ant_<v>_windows_amd64.zip`), though the install docs only show macOS,
+Linux and Go.
+
+### 7.2 How long a cloud CLI takes to hand over a token
+
+Measured here with `gcloud` (the only cloud CLI on this machine): `gcloud --version` takes **2.5
+s**; `gcloud auth application-default print-access-token` with no credentials took **11 to 18 s**,
+most of it probing for a Compute Engine metadata server. `az` is also a Python program, so similar
+start-up times are likely. Tokens must be cached until shortly before expiry, never fetched per
+call, and the first call after a renewal will be slow.
+
+**Decided:** for Google, read the Application Default Credentials file that `gcloud auth
+application-default login` writes and renew in-process, which is what every Google client
+library does; `gcloud` only for the login. For Azure, call `az` (Azure's own SDK does the same in
+`AzureCliCredential`) and cache. For AWS, call `aws configure export-credentials` and cache the
+role credentials until their expiry.
 
 ## 8. Phases
 
@@ -135,6 +163,5 @@ Notes:
    lookup order in §3 for every provider. Smallest, and sets the command's shape.
 2. **Claude via `ant auth login`.**
 3. **Cloud CLIs:** azure, aws, google.
-4. **`cafeai-copilot`**, after the spike in §7.2.
 
 Each phase ends with a demo a developer can run on their own machine, like the identity demos.
