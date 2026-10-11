@@ -6,7 +6,7 @@
 > file tracks the work. Acceptance criteria per phase: **[MILESTONE-20](MILESTONE-20-login.md)**.
 >
 > **Status (2026-10-10):** 🟡 Built (phases 1–3), not yet validated against real accounts
-> (phases 4–11). Every flow is tested against fakes; Anthropic's sign-in is also checked against
+> (phases 4–10). Every flow is tested against fakes; Anthropic's sign-in is also checked against
 > Anthropic's real `ant` CLI with a local token endpoint. Nothing has signed in to a real Claude
 > Console, Azure, AWS or Google Cloud account yet.
 
@@ -43,7 +43,7 @@ Two levels per cloud:
 | 8 | Validate the saved-key vendors, one by one | a key from each: OpenAI, xAI, Mistral, Amazon Nova, Kimi, DeepSeek | ⚪ |
 | 9 | Validate the company's restrictions: what a developer sees when the company says no | an organisation account on at least one vendor, with a restriction switched on | ⚪ |
 | 10 | Validate on macOS and Linux | a Mac and a Linux machine (or WSL) | ⚪ |
-| 11 | Ship the command: the JBang `cafeai` alias | 0.6.0 on Maven Central | ⚪ |
+| 11 | The `cafeai` command: from source now (`cafeai-cli`), shaped as the validations use it; then the JBang `cafeai` alias | the alias: 0.6.0 on Maven Central | 🟡 from source |
 
 Phases 4–10 are independent; do them in whatever order accounts become available. Phase 4 is the
 cheapest start: `gcloud` is already installed on the development machine.
@@ -74,5 +74,7 @@ cheapest start: `gcloud` is already installed on the development machine.
 - **10 macOS and Linux.** The POSIX parts never run on the development machine: owner-only file
   permissions (`SavedKeysTest` skips them on Windows), `~/.config/anthropic` and XDG paths,
   `ant` from Homebrew, Apache Ant from a package manager on the PATH.
-- **11 Ship.** `jbang app install --name cafeai cafeai@akilisha/cafeai` gives a working `cafeai`
-  command (distribution.md step 6).
+- **11 The command.** Every validation runs the real `cafeai` command, installed from source
+  (`./gradlew :cafeai-cli:install`), so it is shaped by real use before it ships; then
+  `jbang app install --name cafeai cafeai@akilisha/cafeai` gives the same command to everyone
+  (distribution.md step 6).

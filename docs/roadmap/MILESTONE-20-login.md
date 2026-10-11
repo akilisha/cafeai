@@ -1,7 +1,7 @@
 # MILESTONE-20 — `cafeai login`
 
 **Current Status:** 🟡 Built and tested against fakes (phases 1–3); validation against real
-accounts not started (phases 4–11). Plan and reasons: **[ROADMAP-20](ROADMAP-20-login.md)**.
+accounts not started (phases 4–10); the `cafeai` command installs from source (phase 11). Plan and reasons: **[ROADMAP-20](ROADMAP-20-login.md)**.
 Design: `docs/design/LOGIN.md`.
 
 | Phase | Description | Status |
@@ -9,14 +9,14 @@ Design: `docs/design/LOGIN.md`.
 | 1 | Saved keys and the lookup order | 🟢 `9a644aa` |
 | 2 | Claude with no key (`ant auth login`) | 🟢 `bc879a0` |
 | 3 | The company's cloud (az, aws, gcloud) | 🟢 `f31fdf3` |
-| 4 | Validate Google | ⚪ needs a Google Cloud project |
+| 4 | Validate Google | 🟡 sign-in validated; impersonation and Vertex AI need a project |
 | 5 | Validate Claude Console | ⚪ needs a Claude Console account |
 | 6 | Validate Azure | ⚪ needs an Azure account |
 | 7 | Validate AWS | ⚪ needs an AWS account |
 | 8 | Validate the saved-key vendors | ⚪ needs a key per vendor |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
 | 10 | Validate on macOS and Linux | ⚪ needs the machines |
-| 11 | Ship the JBang `cafeai` command | ⚪ needs 0.6.0 on Maven Central |
+| 11 | The `cafeai` command | 🟡 from source; the JBang alias needs 0.6.0 |
 
 Each validation phase records, under **Results**, the date, the CLI version, what was run, what
 it printed (secrets removed) and every difference from the fakes, with the fix's commit. A phase
@@ -47,17 +47,17 @@ is done when every box is ticked or explicitly waived with a reason.
 
 ---
 
-## Phase 4 — Validate Google &nbsp;⚪
+## Phase 4 — Validate Google &nbsp;🟡
 
 **Needs:** a Google Cloud project. Sign-in only: free. A call: billing on, Claude enabled for the
 project in Vertex AI Model Garden.
 
 ### Sign-in only
-- [ ] `cafeai login google` runs `gcloud auth application-default login` and the browser sign-in completes
-- [ ] `cafeai status` shows the real ADC file's type and account (or record that `account` is absent)
-- [ ] `GoogleApplicationDefault.credentials().token()` gets a token from the real token endpoint
-- [ ] The token is kept: a second `token()` makes no request
-- [ ] After `gcloud auth application-default revoke`, the error says to sign in again
+- [x] `cafeai login google` runs `gcloud auth application-default login` and the browser sign-in completes
+- [x] `cafeai status` shows the real ADC file's type and account (or record that `account` is absent): `account` is there but empty
+- [x] `GoogleApplicationDefault.credentials().token()` gets a token from the real token endpoint
+- [x] The token is kept: a second `token()` makes no request
+- [x] After `gcloud auth application-default revoke`, the error says to sign in again
 - [ ] With `--impersonate-service-account`, the token is the service account's (needs a service account and the Token Creator role)
 
 ### End to end
@@ -66,7 +66,28 @@ project in Vertex AI Model Garden.
 - [ ] Record whether Vertex AI wants an `x-goog-user-project` header with a person's token; add it if so
 
 ### Results
-*(none yet)*
+
+**2026-10-11, sign-in only.** Windows 11, gcloud 588.0.0, a personal Google account, no project
+set. `cafeai` installed from source (`./gradlew :cafeai-cli:install`); `GoogleApplicationDefaultLiveTest`.
+
+- `cafeai login google`: the browser sign-in completed; the file is
+  `%APPDATA%\gcloud\application_default_credentials.json`, with `type: authorized_user`,
+  `client_id`, `client_secret`, `refresh_token`, `universe_domain: googleapis.com`, and `account: ""`
+  (empty, not absent). No `quota_project_id`, as no project was set. `cafeai status`:
+  `application default credentials (authorized_user)`, so it can't say whose sign-in it is.
+- `token()` (`GOOGLE_ADC_LIVE=1`): a token from `oauth2.googleapis.com/token`. Google's tokeninfo
+  accepted it (HTTP 200): scopes `cloud-platform`, `userinfo.email`, `sqlservice.login`, `openid`,
+  `email`; `expires_in: 3599`, so the 3600-second default matches. The second `token()` returned the same token.
+- `cafeai logout google` (gcloud's revoke): the file is deleted and `cafeai status` says
+  `not signed in (cafeai login google)`. Run without a terminal (the `!` prompt), gcloud's `Y/n`
+  doesn't wait: it takes the default, Y, and revokes.
+- The copy taken before revoking (`GOOGLE_ADC_REVOKED_FILE`): Google answers `invalid_grant`, and
+  CafeAI says: *The Google sign-in has expired or was revoked. Sign in again: `cafeai login google`
+  (gcloud auth application-default login): Token has been expired or revoked.*
+- No difference from the fakes needed a code fix. Open: whether `cafeai status` should show the
+  account (the file doesn't hold it; tokeninfo returns the email, at the cost of two requests).
+- Running a live test again with other variables needs `--rerun`: Gradle doesn't count
+  environment variables as test inputs.
 
 ---
 
@@ -185,9 +206,15 @@ message compared with it.
 
 ---
 
-## Phase 11 — Ship the JBang `cafeai` command &nbsp;⚪
+## Phase 11 — The `cafeai` command &nbsp;🟡
 
-**Needs:** a `cafeai-core` with `CafeLogin` on Maven Central (0.6.0).
+**From source** (the validations use it, and shape it):
+- [x] `cafeai-cli` module: `./gradlew :cafeai-cli:install` puts `cafeai` and `cafeai.bat` in `~/.cafeai/cli/bin`
+- [x] Runs on the JDK it was built with, whatever `JAVA_HOME` says (`CAFEAI_JAVA_HOME` overrides); found because this machine's `JAVA_HOME` is Java 21
+- [x] Left out of the BOM; not published
+- [ ] Changes the validations call for, each noted here
+
+**The release** (needs a `cafeai-core` with `CafeLogin` on Maven Central, 0.6.0):
 
 - [ ] `jbang/cafeai.java` and the `cafeai` catalog alias added (distribution.md step 6)
 - [ ] `jbang app install --name cafeai cafeai@akilisha/cafeai` installs it on Windows, macOS and Linux

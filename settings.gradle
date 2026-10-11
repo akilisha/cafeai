@@ -20,6 +20,7 @@ include(
     'cafeai-identity',
     'cafeai-sentinel',
     'cafeai-test',
+    'cafeai-cli',
     'cafeai-examples'
 )
 

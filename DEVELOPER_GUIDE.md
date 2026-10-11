@@ -754,7 +754,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 **Or save a key once with `cafeai login`**, so it isn't in a shell profile either. It asks for
 the key (hidden at a terminal) and keeps it in `~/.cafeai/credentials.json` (readable by you
-only; `CAFEAI_CONFIG_DIR` moves it):
+only; `CAFEAI_CONFIG_DIR` moves it). From a checkout of CafeAI, `./gradlew :cafeai-cli:install`
+puts the `cafeai` command in `~/.cafeai/cli/bin`; add that to the PATH. It runs on the JDK it
+was built with, whatever `JAVA_HOME` says (`CAFEAI_JAVA_HOME` overrides).
 
 ```bash
 cafeai login openai        # also grok, mistral, nova, kimi, deepseek

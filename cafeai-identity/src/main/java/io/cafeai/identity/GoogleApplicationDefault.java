@@ -86,6 +86,12 @@ public final class GoogleApplicationDefault implements Credentials {
         return this;
     }
 
+    /** The environment the file is looked up in (tests). */
+    GoogleApplicationDefault environment(UnaryOperator<String> env) {
+        this.env = env;
+        return this;
+    }
+
     /** Where the credentials file is looked for. */
     Path file() {
         String explicit = env.apply("GOOGLE_APPLICATION_CREDENTIALS");

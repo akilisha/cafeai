@@ -14,7 +14,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   look a key up in this order: `withCredentials(...)`, the vendor's environment variable, the
   saved key; a missing key's message names both ways to provide one. `Credentials.saved(vendor)`
   does the same lookup on every call, for endpoints with no factory (Kimi, DeepSeek). The command
-  is `io.cafeai.core.login.CafeLogin`; the JBang `cafeai` alias comes with the release.
+  is `io.cafeai.core.login.CafeLogin`, packaged as the `cafeai` command by the new `cafeai-cli`
+  module (`./gradlew :cafeai-cli:install` puts it in `~/.cafeai/cli/bin`); the JBang `cafeai`
+  alias comes with the release.
 - **Claude with no API key: `cafeai login claude`.** Signs in to the Claude Console through
   Anthropic's own `ant auth login` (browser, company single sign-on, a workspace); it checks the
   `ant` it finds is Anthropic's, not Apache Ant. `Anthropic.of(model)` with no

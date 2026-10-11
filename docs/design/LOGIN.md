@@ -55,7 +55,9 @@ cafeai logout <vendor>    # forget it (and revoke, where the vendor can)
 cafeai status             # what each vendor will use, whose account, until when
 ```
 
-The command is `io.cafeai.core.login.CafeLogin`. Once the release is on Maven Central it is
+The command is `io.cafeai.core.login.CafeLogin`, packaged by the `cafeai-cli` module: from a
+checkout, `./gradlew :cafeai-cli:install` puts `cafeai` in `~/.cafeai/cli/bin`, running on the
+JDK it was built with. Once the release is on Maven Central it is
 shipped through the JBang catalog (`jbang cafeai@akilisha/cafeai login openai`), installable as
 a plain `cafeai` command with `jbang app install --name cafeai cafeai@akilisha/cafeai`.
 
