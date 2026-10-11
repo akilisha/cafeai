@@ -10,7 +10,7 @@ Design: `docs/design/LOGIN.md`.
 | 2 | Claude with no key (`ant auth login`) | 🟢 `bc879a0` |
 | 3 | The company's cloud (az, aws, gcloud) | 🟢 `f31fdf3` |
 | 4 | Validate Google | 🟡 sign-in validated; impersonation and Vertex AI need a project |
-| 5 | Validate Claude Console | ⚪ needs a Claude Console account |
+| 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug open |
 | 6 | Validate Azure | ⚪ needs an Azure account |
 | 7 | Validate AWS | ⚪ needs an AWS account |
 | 8 | Validate the saved-key vendors | ⚪ needs a key per vendor |
@@ -110,23 +110,57 @@ Claude Sonnet and Haiku enabled in Model Garden. No quota project set.
 
 ---
 
-## Phase 5 — Validate Claude Console &nbsp;⚪
+## Phase 5 — Validate Claude Console &nbsp;🟡
 
 **Needs:** a Claude Console account (platform.claude.com) with API credit. A personal account
 checks the flow; an organisation with SSO checks the company path. A claude.ai subscription is not
 enough.
 
-- [ ] `cafeai login claude` with the real `ant` on Windows: browser, sign-in, workspace picked
-- [ ] `cafeai status` shows organisation, email, workspace and expiry from the real file
-- [ ] `Anthropic.of(model)` with no `ANTHROPIC_API_KEY` answers a real call with the sign-in's token
-- [ ] A real renewal: once the token is near expiry, CafeAI renews it at Anthropic; record the token's lifetime
-- [ ] `ant auth print-credentials --access-token` afterwards prints CafeAI's renewed token without renewing again
-- [ ] `ant auth status` reads the file CafeAI wrote back without complaint
-- [ ] `cafeai logout claude` then a call: the message says to sign in again
+- [x] `cafeai login claude` with the real `ant` on Windows: browser, sign-in, workspace picked
+- [x] `cafeai status` shows organisation, email, workspace and expiry from the real file
+- [x] `Anthropic.of(model)` with no `ANTHROPIC_API_KEY` answers a real call with the sign-in's token
+- [x] A real renewal: once the token is near expiry, CafeAI renews it at Anthropic; record the token's lifetime: 8 hours
+- [x] `ant auth print-credentials --access-token` afterwards prints CafeAI's renewed token without renewing again
+- [x] `ant auth status` reads the file CafeAI wrote back without complaint
+- [x] `cafeai logout claude` then a call: the message says to sign in again
+- [ ] A name with characters outside the console's code page shows right (found here: `Rah?s`)
 - [ ] With an organisation and SSO: the sign-in goes through the company's identity provider
 
 ### Results
-*(none yet)*
+
+**2026-10-11.** Windows 11, `ant` 1.40.0, a personal Claude Console account (an individual
+organisation, workspace "Default"). `cafeai` installed from source; `AnthropicSignInLiveTest`
+(`./gradlew :cafeai-core:liveTest`, `ANTHROPIC_SIGNIN_LIVE_MODEL=claude-haiku-4-5`, no `ANTHROPIC_API_KEY`).
+
+- `cafeai login claude`, with `ant` on the PATH, in a Windows terminal: `ant`'s browser sign-in,
+  its own summary (organisation, workspace, *set as active profile*, the two files), then
+  CafeAI's line: *Signed in to Claude: <organisation>, as <email>, workspace Default (Anthropic
+  profile 'default').* The workspace was picked without a question (the account has one).
+- Without `ant` on the PATH, `cafeai login claude` prints the install choices (brew, the GitHub
+  releases, `go install`) and exits 1.
+- The profile `ant` wrote: `configs/default.json` has `authentication {type: user_oauth,
+  client_id}`, plus `organization_id` and `workspace_id` at the top level (no `base_url`);
+  `credentials/default.json` has `version`, `type: oauth_token`, `access_token`, `expires_at`,
+  `refresh_token`, `scope` (`user:developer user:inference user:profile`), `organization_uuid`,
+  `organization_name`, `account_email`, `workspace_id`, `workspace_name`.
+- `cafeai status`: *signed in: <organisation>, as <email>, workspace Default (profile 'default',
+  token valid until ...)*.
+- A real call with only the sign-in answered.
+- `ANTHROPIC_SIGNIN_RENEW=1`: with the stored token marked as expiring in a minute, CafeAI renewed
+  it at `api.anthropic.com/v1/oauth/token`. Anthropic returned a new access token and a new
+  refresh token (refresh tokens rotate), lifetime 28800s (8 hours); every field `ant` wrote was kept.
+- Afterwards `ant auth print-credentials --access-token` printed CafeAI's renewed token (same
+  hash) without renewing again or rewriting the file, and `ant auth status` showed the profile
+  valid for 8h.
+- `cafeai logout claude`: *Removed the Claude sign-in (Anthropic profile 'default') from this
+  machine, as `ant auth logout` does.* The credentials file is gone, the config stays; `cafeai
+  status` says *not signed in (cafeai login claude)*, and a call fails with *Not signed in to Claude
+  (Anthropic profile 'default' has no credentials). Run `cafeai login claude`.*
+- **Bug:** the organisation's name has a curly apostrophe (U+2019). In the terminal `ant` shows
+  `Rah’s`, and CafeAI's line right after it shows `Rah?s`: Java encodes output in the console's
+  code page, which has no `’`; `ant` writes Unicode to the console. (Piped, Java writes
+  Windows-1252.)
+- No difference from the fakes needed a code fix.
 
 ---
 

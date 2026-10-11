@@ -152,6 +152,9 @@ public final class AnthropicProfile {
     /** The configuration directory this profile is in. */
     public Path dir() { return dir; }
 
+    /** The credentials file the sign-in is kept in. */
+    Path credentialsFile() { return credentials; }
+
     /** {@code user_oauth} for an {@code ant auth login} sign-in, {@code oidc_federation} for WIF. */
     public String type() { return type; }
 
