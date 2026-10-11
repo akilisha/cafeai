@@ -15,6 +15,12 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   saved key; a missing key's message names both ways to provide one. `Credentials.saved(vendor)`
   does the same lookup on every call, for endpoints with no factory (Kimi, DeepSeek). The command
   is `io.cafeai.core.login.CafeLogin`; the JBang `cafeai` alias comes with the release.
+- **Claude with no API key: `cafeai login claude`.** Signs in to the Claude Console through
+  Anthropic's own `ant auth login` (browser, company single sign-on, a workspace); it checks the
+  `ant` it finds is Anthropic's, not Apache Ant. `Anthropic.of(model)` with no
+  `ANTHROPIC_API_KEY` then uses that sign-in: CafeAI reads the profile Anthropic's CLI, SDKs and
+  Claude Code share, and renews its token in-process as Anthropic's SDKs do, writing it back.
+  Only for Anthropic's own API; a provider with `withBaseUrl(...)` never gets the token.
 - **`cafeai-identity`: verified caller identity.** `app.filter(Auth.bearer(issuer, "orders-api"))`
   makes an app an OAuth 2.0 resource server over any OpenID Connect issuer
   (`Issuer.discover(url)`): each request must carry a valid access token, and the caller

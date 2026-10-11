@@ -11,8 +11,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,11 +32,15 @@ class CafeLoginTest {
     private final Map<String, String> env = new HashMap<>();
     private String typed;
     private String prompt;
+    private ClaudeLogin.Processes processes = (cmd, interactive, output) -> {
+        throw new AssertionError("no process expected: " + cmd);
+    };
 
     @BeforeEach
     void useTempDir() {
         before = System.getProperty("cafeai.config.dir");
         System.setProperty("cafeai.config.dir", home.toString());
+        env.put("ANTHROPIC_CONFIG_DIR", home.resolve("anthropic").toString());
     }
 
     @AfterEach
@@ -45,7 +54,7 @@ class CafeLoginTest {
         err.reset();
         var login = new CafeLogin(new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8),
-                p -> { prompt = p; return typed; }, env::get);
+                p -> { prompt = p; return typed; }, env::get, (cmd, interactive, output) -> processes.run(cmd, interactive, output));
         return login.run(args);
     }
 
@@ -129,7 +138,129 @@ class CafeLoginTest {
         assertThat(err()).contains("cafeai login <vendor>");
         assertThat(run("login")).isEqualTo(2);
         assertThat(run("help")).isZero();
-        assertThat(out()).contains("Vendors: openai");
+        assertThat(out()).contains("Vendors: claude, openai");
+    }
+
+    // ── claude: a sign-in through Anthropic's ant CLI ───────────────────────────
+
+    private final List<List<String>> ran = new ArrayList<>();
+
+    private Path fakeAnt() throws IOException {
+        Path ant = Files.createDirectories(home.resolve("bin")).resolve("ant.exe");
+        Files.writeString(ant, "");
+        env.put("CAFEAI_ANT", ant.toString());
+        return ant;
+    }
+
+    /** What `ant auth login` leaves behind. */
+    private void signedIn() throws IOException {
+        Path anthropic = home.resolve("anthropic");
+        Files.createDirectories(anthropic.resolve("configs"));
+        Files.createDirectories(anthropic.resolve("credentials"));
+        Files.writeString(anthropic.resolve("configs/default.json"),
+                "{\"version\":\"1.0\",\"authentication\":{\"type\":\"user_oauth\",\"client_id\":\"cid\"}}");
+        Files.writeString(anthropic.resolve("credentials/default.json"),
+                "{\"type\":\"oauth_token\",\"access_token\":\"sk-ant-oat01-x\",\"expires_at\":"
+                + Instant.now().plusSeconds(3600).getEpochSecond() + ",\"refresh_token\":\"r\","
+                + "\"organization_name\":\"Acme\",\"account_email\":\"alice@acme.example\",\"workspace_name\":\"Engineering\"}");
+    }
+
+    @Test @DisplayName("login claude with no ant installed: how to install it, and nothing run")
+    void claudeNoAnt() {
+        env.put("PATH", home.resolve("empty").toString());
+        assertThat(run("login", "claude")).isEqualTo(1);
+        assertThat(err()).contains("brew install anthropics/tap/ant")
+                .contains("https://github.com/anthropics/anthropic-cli/releases").contains("CAFEAI_ANT");
+    }
+
+    @Test @DisplayName("login claude refuses Apache Ant and never runs `ant auth login` with it")
+    void claudeApacheAnt() throws IOException {
+        fakeAnt();
+        processes = (cmd, interactive, output) -> {
+            ran.add(cmd);
+            output.append("Apache Ant(TM) version 1.10.15 compiled on August 25 2024");
+            return 0;
+        };
+        assertThat(run("login", "claude")).isEqualTo(1);
+        assertThat(err()).contains("is Apache Ant, the Java build tool");
+        assertThat(ran).extracting(c -> c.subList(1, c.size())).containsExactly(List.of("--version"));
+    }
+
+    @Test @DisplayName("login claude: checks the version, hands the terminal to `ant auth login`, then says who signed in")
+    void claudeLogin() throws IOException {
+        Path ant = fakeAnt();
+        List<Boolean> interactive = new ArrayList<>();
+        processes = (cmd, handover, output) -> {
+            ran.add(cmd);
+            interactive.add(handover);
+            if (cmd.contains("--version")) {
+                output.append("ant version 1.40.0\n");
+                return 0;
+            }
+            try {
+                signedIn();
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            return 0;
+        };
+        assertThat(run("login", "claude")).isZero();
+        assertThat(ran).containsExactly(List.of(ant.toString(), "--version"), List.of(ant.toString(), "auth", "login"));
+        assertThat(interactive).containsExactly(false, true);
+        assertThat(out()).contains("Signed in to Claude: Acme, as alice@acme.example, workspace Engineering")
+                .contains("profile 'default'");
+    }
+
+    @Test @DisplayName("login claude: a failed `ant auth login` is reported, not called a sign-in")
+    void claudeLoginFails() throws IOException {
+        fakeAnt();
+        processes = (cmd, handover, output) -> {
+            if (cmd.contains("--version")) {
+                output.append("ant version 1.40.0");
+                return 0;
+            }
+            return 3;
+        };
+        assertThat(run("login", "claude")).isEqualTo(1);
+        assertThat(err()).contains("`ant auth login` failed (exit 3)");
+    }
+
+    @Test @DisplayName("status shows the Claude sign-in; ANTHROPIC_API_KEY, when set, is what apps use")
+    void claudeStatus() throws IOException {
+        assertThat(run("status")).isZero();
+        assertThat(out()).containsPattern("claude\\s+not signed in \\(cafeai login claude\\)");
+
+        signedIn();
+        assertThat(run("status")).isZero();
+        assertThat(out()).containsPattern("claude\\s+signed in: Acme, as alice@acme.example, workspace Engineering")
+                .contains("token valid until").doesNotContain("sk-ant-oat01-x");
+
+        env.put("ANTHROPIC_API_KEY", "sk-ant-api");
+        assertThat(run("status")).isZero();
+        assertThat(out()).containsPattern("claude\\s+from ANTHROPIC_API_KEY");
+    }
+
+    @Test @DisplayName("logout claude removes the sign-in from this machine, keeping the profile, as ant does")
+    void claudeLogout() throws IOException {
+        signedIn();
+        assertThat(run("logout", "claude")).isZero();
+        assertThat(out()).contains("Removed the Claude sign-in");
+        assertThat(home.resolve("anthropic/credentials/default.json")).doesNotExist();
+        assertThat(home.resolve("anthropic/configs/default.json")).exists();
+        assertThat(run("logout", "claude")).isZero();
+        assertThat(out()).contains("Not signed in to Claude");
+    }
+
+    @Test @DisplayName("ant is found on the PATH (ant.exe, or Apache's ant.bat on Windows)")
+    void findsAntOnPath() throws IOException {
+        boolean windows = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).startsWith("windows");
+        Path bin = Files.createDirectories(home.resolve("tools"));
+        Path ant = bin.resolve(windows ? "ant.exe" : "ant");
+        Files.writeString(ant, "");
+        ant.toFile().setExecutable(true);
+        env.put("PATH", home.resolve("nothing-here") + java.io.File.pathSeparator + bin);
+        var claude = new ClaudeLogin(System.out, System.err, env::get, processes);
+        assertThat(claude.findAnt()).contains(ant);
     }
 
     @Test @DisplayName("short keys are masked completely")

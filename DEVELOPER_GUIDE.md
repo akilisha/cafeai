@@ -766,6 +766,24 @@ The environment variable, when set, wins over the saved key. For endpoints with 
 their own (Kimi, DeepSeek), `Credentials.saved("deepseek")` looks the key up the same way, on
 every call.
 
+**Claude with no API key: `cafeai login claude`.** This signs in to the Claude Console with
+Anthropic's own `ant` CLI (`ant auth login`): the browser opens, you sign in, through your
+company's single sign-on if it has one, and pick a workspace. Nothing else is needed in code:
+
+```java
+app.ai(Anthropic.of("claude-opus-5-5"));   // no ANTHROPIC_API_KEY: uses the sign-in
+```
+
+CafeAI reads the profile `ant` saved (`%APPDATA%\Anthropic` on Windows, `~/.config/anthropic`
+elsewhere, `ANTHROPIC_CONFIG_DIR` and `ANTHROPIC_PROFILE` as in Anthropic's SDKs) and renews its
+short-lived token itself, the way Anthropic's SDKs do, writing it back so `ant` and Claude Code see
+it too. `ANTHROPIC_API_KEY`, when set, wins. The sign-in is only used for Anthropic's own API: a
+provider with `withBaseUrl(...)` (DeepSeek, Kimi, a gateway) never gets its token. Install `ant`
+from [its releases](https://github.com/anthropics/anthropic-cli/releases) (or
+`brew install anthropics/tap/ant`); if Apache Ant is first on your PATH, point `CAFEAI_ANT` at
+Anthropic's. This is a Claude Console (API) sign-in: a claude.ai subscription login can't be used
+by other apps.
+
 If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
 with an exact message telling you which variable to set or which `cafeai login` to run —
 including a suggestion to use Ollama locally if you don't have a key.

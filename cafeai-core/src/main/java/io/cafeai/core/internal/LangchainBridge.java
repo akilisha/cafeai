@@ -19,8 +19,10 @@ import io.cafeai.core.config.ConfigKey;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Internal factory that converts a CafeAI {@link AiProvider} into a Langchain4j
@@ -229,8 +231,37 @@ public final class LangchainBridge {
     private static JdkHttpClientBuilder anthropicHttp(AiProvider provider) {
         ProviderHttp.Rewrite rewrite = vertex(provider) == null ? null
                 : new ProviderHttp.VertexRewrite(vertex(provider).vertexProject(), vertex(provider).vertexLocation());
-        if (provider.credentials() == null && rewrite == null) return http();
-        return new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder(provider.credentials(), "x-api-key", rewrite));
+        Credentials credentials = anthropicCredentials(provider);
+        if (credentials == null && rewrite == null) return http();
+        return new JdkHttpClientBuilder().httpClientBuilder(ProviderHttp.builder(credentials, "x-api-key", rewrite));
+    }
+
+    /** Where the bridge reads the Anthropic environment variables; replaced in tests. */
+    static volatile UnaryOperator<String> environment = System::getenv;
+
+    /**
+     * What authenticates an Anthropic provider's calls, in the order Anthropic's own SDKs use:
+     * {@code withCredentials(...)}; {@code ANTHROPIC_API_KEY} (then {@code null}: the client
+     * sends it); the Claude Console sign-in {@code ant auth login} (or {@code cafeai login
+     * claude}) made. The sign-in only for Anthropic's own API: its token is never sent to another
+     * host.
+     */
+    private static Credentials anthropicCredentials(AiProvider provider) {
+        if (provider.credentials() != null || vertex(provider) != null) return provider.credentials();
+        return signIn(provider).map(AnthropicProfile::credentials).orElse(null);
+    }
+
+    /** The Claude Console sign-in this provider would use, if it uses one. */
+    private static Optional<AnthropicProfile> signIn(AiProvider provider) {
+        if (provider.credentials() != null || vertex(provider) != null || provider.baseUrl() != null
+                || present(environment.apply("ANTHROPIC_API_KEY"))) {
+            return Optional.empty();
+        }
+        return AnthropicProfile.active(environment).filter(AnthropicProfile::isSignIn);
+    }
+
+    private static boolean present(String value) {
+        return value != null && !value.isBlank();
     }
 
     /** The provider's Vertex AI target, or {@code null} when it calls an Anthropic-compatible API. */
@@ -245,12 +276,14 @@ public final class LangchainBridge {
     private static String anthropicBase(AiProvider provider) {
         if (provider.baseUrl() != null) return anthropicBaseUrl(provider.baseUrl());
         VertexAccess v = vertex(provider);
-        return v == null ? null : ProviderHttp.VertexRewrite.host(v.vertexLocation()) + "/v1/";
+        if (v != null) return ProviderHttp.VertexRewrite.host(v.vertexLocation()) + "/v1/";
+        String profileBase = signIn(provider).map(AnthropicProfile::baseUrl).orElse(null);
+        return profileBase == null ? null : anthropicBaseUrl(profileBase);
     }
 
     /** The key Anthropic's client is built with: with per-request credentials, a placeholder that is never sent. */
     private String anthropicKey(AiProvider provider) {
-        return provider.credentials() != null ? "per-request" : resolveApiKey("ANTHROPIC_API_KEY", provider);
+        return anthropicCredentials(provider) != null ? "per-request" : resolveApiKey("ANTHROPIC_API_KEY", provider);
     }
 
     /**
@@ -286,11 +319,15 @@ public final class LangchainBridge {
                 "  app.ai(Ollama.of(llama3.3))  // via a local Ollama server\n" +
                 "  app.ai(Jlama.of(tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4)) // pure-Java, in-process, no server");
         }
-        String key = System.getenv(envVar);
+        String key = environment.apply(envVar);
         if (key == null || key.isBlank()) {
+            String signIn = envVar.equals("ANTHROPIC_API_KEY") && provider.baseUrl() == null
+                ? "Sign in with your Claude Console account (no key needed):\n\n" +
+                  "  cafeai login claude\n\nOr set the " + envVar + " environment variable:\n\n"
+                : "Set the " + envVar + " environment variable:\n\n";
             throw new IllegalStateException(
                 "Missing API key for " + provider.name() + " provider. " +
-                "Set the " + envVar + " environment variable:\n\n" +
+                signIn +
                 "  export " + envVar + "=your-key-here\n\n" +
                 "Or use a local model with no API key:\n" +
                 "  app.ai(Ollama.of(llama3.3))  // via a local Ollama server\n" +

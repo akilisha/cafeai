@@ -163,7 +163,9 @@ role credentials until their expiry.
 
 1. ✅ **Key store and `cafeai login` for key vendors** (openai, grok, mistral, nova, kimi, deepseek), plus the
    lookup order in §3 for every provider. Smallest, and sets the command's shape.
-2. **Claude via `ant auth login`.**
+2. ✅ **Claude via `ant auth login`.** Checked against Anthropic's real `ant` 1.40.0 with a local
+   token endpoint (`AntInteropTest`, runs when `ANT_BIN` is set): each renews, the other picks up
+   the new token without renewing again.
 3. **Cloud CLIs:** azure, aws, google.
 
 Each phase ends with a demo a developer can run on their own machine, like the identity demos.

@@ -14,13 +14,14 @@ import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
- * The {@code cafeai} command: save a model vendor's API key once, so CafeAI apps on this machine
- * find it without the key in code, in a shell profile, or in an environment variable.
+ * The {@code cafeai} command: sign in to a model vendor once, so CafeAI apps on this machine
+ * reach it without a key in code, in a shell profile, or in an environment variable.
  *
  * <pre>
+ *   cafeai login claude      signs in to the Claude Console with Anthropic's ant CLI (no key)
  *   cafeai login openai      asks for the key (hidden) and saves it
  *   cafeai logout openai     forgets the saved key
- *   cafeai status            where each vendor's key comes from
+ *   cafeai status            where each vendor's credential comes from
  * </pre>
  *
  * <p>When the key is piped in ({@code echo $KEY | cafeai login openai}) it is read from standard
@@ -38,16 +39,19 @@ public final class CafeLogin {
     private final PrintStream err;
     private final KeyReader keys;
     private final UnaryOperator<String> env;
+    private final ClaudeLogin claude;
 
-    CafeLogin(PrintStream out, PrintStream err, KeyReader keys, UnaryOperator<String> env) {
+    CafeLogin(PrintStream out, PrintStream err, KeyReader keys, UnaryOperator<String> env,
+              ClaudeLogin.Processes processes) {
         this.out = out;
         this.err = err;
         this.keys = keys;
         this.env = env;
+        this.claude = new ClaudeLogin(out, err, env, processes);
     }
 
     public static void main(String[] args) {
-        var login = new CafeLogin(System.out, System.err, CafeLogin::readKey, System::getenv);
+        var login = new CafeLogin(System.out, System.err, CafeLogin::readKey, System::getenv, ClaudeLogin::runProcess);
         System.exit(login.run(args));
     }
 
@@ -69,6 +73,7 @@ public final class CafeLogin {
     }
 
     private int login(String name) {
+        if (isClaude(name)) return claude.login();
         Optional<KeyVendor> found = vendor(name);
         if (found.isEmpty()) return 2;
         KeyVendor vendor = found.get();
@@ -95,6 +100,7 @@ public final class CafeLogin {
     }
 
     private int logout(String name) {
+        if (isClaude(name)) return claude.logout();
         Optional<KeyVendor> found = vendor(name);
         if (found.isEmpty()) return 2;
         KeyVendor vendor = found.get();
@@ -110,6 +116,7 @@ public final class CafeLogin {
     private int status() {
         out.println("Keys file: " + SavedKeys.file());
         out.println();
+        out.printf("  %-9s %s%n", "claude", claude.status());
         for (KeyVendor vendor : KeyVendor.values()) {
             SavedKeys.Resolved r = SavedKeys.resolve(vendor, env);
             String where = switch (r.source()) {
@@ -125,7 +132,7 @@ public final class CafeLogin {
     private Optional<KeyVendor> vendor(String name) {
         Optional<KeyVendor> vendor = KeyVendor.byId(name);
         if (vendor.isEmpty()) {
-            err.println("cafeai: unknown vendor '" + name + "'. Known vendors: " + KeyVendor.ids());
+            err.println("cafeai: unknown vendor '" + name + "'. Known vendors: claude, " + KeyVendor.ids());
         }
         return vendor;
     }
@@ -137,11 +144,16 @@ public final class CafeLogin {
 
     private static void help(PrintStream to) {
         to.println("Usage:");
+        to.println("  cafeai login claude      sign in to the Claude Console (Anthropic's ant CLI, no key)");
         to.println("  cafeai login <vendor>    save the vendor's API key on this machine");
-        to.println("  cafeai logout <vendor>   forget the saved key");
-        to.println("  cafeai status            where each vendor's key comes from");
+        to.println("  cafeai logout <vendor>   sign out, or forget the saved key");
+        to.println("  cafeai status            where each vendor's credential comes from");
         to.println();
-        to.println("Vendors: " + KeyVendor.ids());
+        to.println("Vendors: claude, " + KeyVendor.ids());
+    }
+
+    private static boolean isClaude(String name) {
+        return name.equalsIgnoreCase("claude");
     }
 
     /** The last four characters only, e.g. {@code ****wxyz}. */
