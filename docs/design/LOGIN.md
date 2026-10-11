@@ -1,6 +1,6 @@
 # `cafeai login`: sign in to a model once, the way you sign in to `claude` or `az`
 
-Status: design, for review. Nothing here is built yet.
+Status: built (phases 1–3); validation against real accounts tracked in ROADMAP-20 / MILESTONE-20 (`docs/roadmap/`).
 
 ## 1. The problem
 
