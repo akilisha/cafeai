@@ -63,7 +63,7 @@ project in Vertex AI Model Garden.
 ### End to end
 - [ ] A Claude call through `Anthropic.onVertex(...)` with `GoogleApplicationDefault` returns an answer
 - [ ] A streamed call works (`:streamRawPredict`)
-- [ ] Record whether Vertex AI wants an `x-goog-user-project` header with a person's token; add it if so
+- [x] Record whether Vertex AI wants an `x-goog-user-project` header with a person's token; add it if so: it doesn't
 
 ### Results
 
@@ -88,6 +88,25 @@ set. `cafeai` installed from source (`./gradlew :cafeai-cli:install`); `GoogleAp
   account (the file doesn't hold it; tokeninfo returns the email, at the cost of two requests).
 - Running a live test again with other variables needs `--rerun`: Gradle doesn't count
   environment variables as test inputs.
+
+**2026-10-11, Claude on Vertex AI, a new project.** The same personal account, signed in again;
+a new project, upgraded from the free trial to a paid account (Claude can't be enabled on a
+trial), the Agent Platform API (`aiplatform.googleapis.com`, Vertex AI's new name) enabled, and
+Claude Sonnet and Haiku enabled in Model Garden. No quota project set.
+
+- Every call reached the model's quota check, so the sign-in's token, the
+  `publishers/anthropic/models/<model>:rawPredict` URL and the reshaped body were all accepted,
+  with no `x-goog-user-project` header: the quota is charged to the project in the URL.
+- `global`, `claude-haiku-4-5`: HTTP 429, *Quota exceeded for
+  aiplatform.googleapis.com/global_online_prediction_requests_per_base_model with base model:
+  anthropic-claude-haiku-4-5*.
+- `us-east5` and `europe-west1`, `claude-sonnet-5-5`: HTTP 429, quota exceeded for
+  `online_prediction_input_tokens_per_minute_per_base_model`.
+- `us-east5` and `europe-west1`, `claude-haiku-4-5`: HTTP 404, *Publisher model ... was not found
+  or your project does not have access to it*: not offered under that ID in those regions.
+- A new project has no Claude quota, and Google refused the increase: *If this is a new project
+  please wait 48h until you resubmit the request or until your Billing account has additional
+  history.* The plain and streamed calls wait for a project with quota.
 
 ---
 
