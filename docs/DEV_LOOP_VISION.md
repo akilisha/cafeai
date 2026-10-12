@@ -1,4 +1,4 @@
-# CafeAI as a development methodology: the vision
+# CafeAI as a development loop: the vision
 
 *Shaken down in conversation, 2026-10-11. A north star, not a plan: what held after pushing on
 it, what changed, and what is still open. It evolves through the same review as everything else.*
@@ -108,7 +108,7 @@ still gets a project built the way a seasoned Java developer would build it.
    `run` → observe → `review` brings problems back up → `design` → `plan` → `brew`. CafeAI's
    observability (OpenTelemetry tracing, Java Flight Recorder through `cafeai-flight`) and its
    Kubernetes incident pipeline (`cafeai-sentinel`) are first-class benefits of following the
-   method, not afterthoughts. This is where CafeAI's existing modules meet the methodology.
+   method, not afterthoughts. This is where CafeAI's existing modules meet the development loop.
 8. **Each command is its own agent, and the prompts are CafeAI's IP.** `init`, `design`,
    `plan`, `brew`, `run` and `review` each run as an agent with its own system prompt, its own
    guardrails, possibly its own model, and its own cost tracking. The method lives in these

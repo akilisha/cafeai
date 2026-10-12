@@ -1,0 +1,281 @@
+# `cafeai-loop`: the development loop, as a module
+
+Status: design, for review. The vision this implements is `docs/DEV_LOOP_VISION.md`;
+this document is how. The module is also the first project built with the method: it practises
+on itself (§13). This file is the module's design spec, where the method puts every project's:
+`DESIGN_SPEC.md` at the project's root, as a real greenfield project would have it.
+
+## 1. What it is
+
+`cafeai-loop` is the method in `docs/DEV_LOOP_VISION.md`, made runnable: the commands
+`init`, `design`, `plan`, `brew`, `run` and `review`, each an agent, working on a project's
+living artifacts, with a local web app as the window onto them.
+
+What it isn't:
+
+- **Not published, not in the BOM.** It lives in this repository, alongside the framework, and
+  nothing in the framework depends on it. The dependency only goes one way, so it can move to a
+  repository of its own later with no change to the framework.
+- **Not an IDE plugin yet.** A web app first; IntelliJ and VS Code plugins later, as windows onto
+  the same commands (vision §7).
+- **Not a tracker integration.** The roadmap and milestones are what a team plans from, in
+  whatever tracker it uses (vision §7).
+
+## 2. Where it sits
+
+```
+cafeai-loop  ──depends on──►  cafeai-cli (login, logout, status)
+                                  cafeai-core (models, usage, the web server)
+                                  cafeai-aiservices (the agents behind app.agent(...))
+                                  cafeai-guardrails (screening what leaves the machine)
+                                  cafeai-observability (tracing the agents)
+                 ──tests with──►  cafeai-test (evals of the commands' agents)
+```
+
+- **Package:** `io.cafeai.loop`.
+- **The `cafeai` command:** `./gradlew :cafeai-loop:install` installs a `cafeai` command
+  with every command: the method's, plus `login`, `logout` and `status` from `cafeai-cli`. It
+  replaces the `cafeai-cli`-only install in `~/.cafeai/cli`. `cafeai-cli` stays as it is,
+  published, for people who only want `cafeai login`.
+- **Built with CafeAI itself.** Each command's agent is a CafeAI agent (`app.agent(...)`, with
+  its own model, system prompt and tools); the web app is a CafeAI app; model calls go through
+  CafeAI's credential lookup (`cafeai login`, no keys), its guardrails and its usage metering.
+  The framework is the proof of the method.
+
+## 3. Tech stack
+
+What `cafeai-loop` is built with. Every design spec has this section (§5): `init` asks about it,
+or reads it from an existing codebase, and every agent follows it.
+
+| Layer | Choice | Version | Notes |
+|---|---|---|---|
+| Language | Java | 23 | The build's toolchain; runs on 23 and later. |
+| Build | Gradle, a module of this repository's build | 9.7 (wrapper) | `./gradlew :cafeai-loop:...` |
+| **Development framework** | **CafeAI** | this repository (0.6.0 line) | `cafeai-loop` is a CafeAI application: the web app, the agents, model access, guardrails, usage and tracing are CafeAI's own. |
+| Web server | Helidon SE, through CafeAI | 4.5 | Express-style routes and streaming, CafeAI's API. |
+| AI | LangChain4j, through CafeAI | 1.20 | Each command's agent is `app.agent(...)` (`cafeai-aiservices`): its own model, system prompt and tools. |
+| Model access | CafeAI's credential lookup | | `cafeai login` (no keys at work), the vendor's environment variable, or code. |
+| Guardrails | `cafeai-guardrails` | | Screening what leaves the machine (secrets, tokens, personal data), `run`'s output included. |
+| Observability | `cafeai-observability` (OpenTelemetry) | 1.40 | Tracing each agent and its tool calls. |
+| JSON | Jackson | 2.22 | As in the rest of CafeAI. |
+| Git | the `git` command, run through CafeAI's `Cli` helper | the developer's | Branches and commits; no Git library to add. |
+| Tests | JUnit 5, AssertJ | 5.14, 3.27 | |
+| Evals | `cafeai-test` | | Recorded model calls (no key, no cost) and evals for each command's prompt. |
+| Mutation testing | open (§14) | | PIT, or a smaller tool of our own. |
+| Web app front end | open (§14) | | Pages served by the CafeAI app; how much script they need is decided in phase 3. |
+
+## 4. Conventions
+
+The parts of the process so ordinary nobody thinks about them, without which there is no
+process. A branch name tells a reviewer what a change is for; many organisations fix their
+conventions and enforce them with git hooks. Every design spec has this section (§5). `init`
+asks about each one, or reads it from an existing repository (its branches, history, hooks),
+and shows the developer what it found. It offers a default where one is meaningful, but never
+assumes one: the developer confirms. Every agent follows what is recorded here, and `brew`
+works within the project's hooks, never around them.
+
+| Convention | What `init` asks | Offered default | This module |
+|---|---|---|---|
+| Default branch | the branch changes merge into | `main` | `main` |
+| Branch names | the pattern for a change's branch; which prefixes mean what | `<type>/<milestone>-<short-description>` (`feat/`, `fix/`, `docs/`) | none so far: this repository commits to `main` directly (one maintainer). `brew`'s own branches here: open (§14) |
+| Commit messages | the format, and whether a tool or hook checks it | Conventional Commits, `type(scope): summary` | Conventional Commits with a scope (`feat(login)`, `docs(vision)`); the scope here is `loop` |
+| Commit cadence | how often work is committed, and when it's pushed | one well-documented commit after each discussion or iteration, so the history tells the story and each change has a small blast radius; a prompt to push and sync with the remote now and then | the same |
+| Commit trailers | lines the organisation requires or forbids | none | no `Co-Authored-By` or "Generated with" lines |
+| Hooks and checks | what the repository enforces before a commit or merge (git hooks, required checks, protected branches) | whatever exists, read from the repository | none installed |
+| Merge style | merge commits, squash or rebase | the repository's setting | direct commits to `main` |
+| Versions and tags | how releases are numbered and tagged | Semantic Versioning, `vX.Y.Z` | `vX.Y.Z` for the framework; this module isn't released |
+| Changelog | where changes are recorded for people, and in what form | `CHANGELOG.md`, newest first | the repository's `CHANGELOG.md`, once the module is usable |
+
+## 5. The artifacts
+
+Plain Markdown in the project, readable and usable without CafeAI (vision principle 3). The
+layout follows what this repository does:
+
+| Artifact | Where | Written by | Holds |
+|---|---|---|---|
+| Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
+| Roadmap | `docs/roadmap/ROADMAP-NN-<topic>.md` | `plan` | phases, each with what it needs and its status; optional estimation notes |
+| Milestones | `docs/roadmap/MILESTONE-NN-<topic>.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
+| Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
+| Changelog | `CHANGELOG.md` | `brew` | what changed, for people |
+| Docs after the fact | `README.md`, OpenAPI, guides | `brew`, `review` | the product, approachable for a newcomer |
+| Settings | `cafeai-loop.yaml` | the developer | the dials (§9) and each command's model |
+
+The format is written down in full (the required sections of each artifact, the status marks,
+the evidence entries) as the first deliverable (§12, phase 0), from this repository's own
+LOGIN.md, ROADMAP-20 and MILESTONE-20.
+
+**No hidden state.** Where the project stands is read from the artifacts themselves: the ticked
+and unticked criteria in the milestones, each phase's status in the roadmap. `brew` picks up
+"from the last place in the roadmap" by reading it.
+
+## 6. The commands
+
+Every command reads `docs/STANDARDS.md` and the artifacts it needs. **Every change it makes
+arrives through the project's own change process.** It works on a branch and commits there;
+it never merges, and never pushes to a protected branch. Whatever review the project has
+applies; the loop adds none and removes none (vision principle 1).
+
+| Command | Reads | Produces | Stops and asks when |
+|---|---|---|---|
+| `init` | the codebase, if there is one (after asking permission to read it); the developer's description, in conversation | the design spec | the description leaves a decision open; code and stated intent disagree |
+| `design` | the design spec; the developer's new or changed requirements | an updated design spec; then, if the change affects them, an updated roadmap and milestones | the change contradicts a decision already made |
+| `plan` | the design spec | the roadmap and milestones, each milestone with acceptance criteria | the spec is too vague to write a testable criterion |
+| `brew` | the roadmap and milestones, from the first unfinished item; the code | code, tests, evidence in the milestone, changelog; one change per stopping point (§9) | a criterion can't be met as written; validation fails and the fix isn't clear; it reaches its stopping point |
+| `run <target>` | `<target>`: a jar or class file locally, or the platform's own command (`cafeai run oc get pods -o wide -o json`) | the command's result; findings for `review` | — |
+| `review` | the milestones (unticked, deferred, blocked), the open questions, `run`'s findings | a report, and a change adding what it found to the milestones | — |
+
+**Reading an existing codebase** (`init`): map the modules and their dependencies first,
+summarise each, then ask the developer targeted questions about what's unclear. Never the
+whole codebase into one prompt: a large codebase doesn't fit, and summaries read better. After
+`init`, a new codebase and an existing one are handled the same way (vision §3).
+
+**`run`** hands over to the real command, as `cafeai login` hands over to a vendor's CLI. Its
+output is screened by guardrails (secrets, tokens, personal data) before anything is kept or
+sent to a model: `oc login` prints a token.
+
+**Observability is built in by `brew`, not adapted** (vision §7): OpenTelemetry tracing, Java
+Flight Recorder events, health probes, and the labels and structured logs `cafeai-sentinel`
+reads, as ordinary code in the product, on open standards.
+
+## 7. The agents
+
+Each command is an agent of its own (vision principle 8):
+
+- **System prompt:** a versioned resource in the module, `prompts/<command>.md`. The version is
+  CafeAI's, so a project knows which version of the method produced its artifacts; each
+  artifact records it. The prompts are open (in this repository) and part of the framework,
+  not the user's work. Users steer through their artifacts and `docs/STANDARDS.md`, never the
+  prompts.
+- **Model:** its own, if `cafeai-loop.yaml` says so (a reasoning model for `init` and
+  `design`, a faster one for `brew`'s small steps); else one for all. Reached through CafeAI's
+  credential lookup, so `cafeai login` is all a developer needs, at work as at home.
+- **Guardrails:** what leaves the machine is screened (secrets, personal data), and what each
+  agent may do is bounded by its tools (below) and the dials (§9).
+- **Cost:** every model call is metered by CafeAI and credited to the command that made it;
+  the web app and `review` show it. The loop doesn't enforce a budget (vision: cost becomes
+  visible through observability).
+- **Tools,** the only way an agent acts:
+
+  | Tool | `init` | `design` | `plan` | `brew` | `run` | `review` |
+  |---|---|---|---|---|---|---|
+  | read files, list, search the project | ✓ | ✓ | ✓ | ✓ | | ✓ |
+  | write files on the working branch | artifacts | artifacts | artifacts | code, tests, artifacts | | artifacts |
+  | ask the developer | ✓ | ✓ | ✓ | ✓ | | |
+  | build and test (Gradle, Maven) | | | | ✓ | | |
+  | run commands the dials allow | | | | ✓ | the developer's `<target>` | |
+  | git: branch, commit | ✓ | ✓ | ✓ | ✓ | | ✓ |
+
+## 8. The validation ladder
+
+How `brew` keeps the project on course (vision principle 2):
+
+1. **Acceptance criteria before code.** `plan` writes them into the milestone; they go through
+   the project's change process before `brew` starts on them.
+2. **Tests, checked by mutation.** For each criterion `brew` writes tests, then breaks the code
+   on purpose and checks the tests fail; a test that still passes is rewritten. (Tooling:
+   PIT where the build allows it; otherwise the targeted mutations this repository used for
+   `cafeai login`.)
+3. **Real dependencies, where configured.** Live tests against real services, switched on per
+   environment, as `GoogleApplicationDefaultLiveTest` and its siblings are.
+4. **Evidence in the milestone.** Each ticked criterion points to its tests and, in Results,
+   records what was run, what happened, and what was fixed in which commit.
+
+The developer leads the defence (vision principle 10): the clearer the spec and the more
+carefully the test and validation criteria are reviewed, the better the ladder works.
+
+## 9. The dials
+
+`cafeai-loop.yaml`, the team's style (vision principle 9):
+
+| Dial | Values | Default |
+|---|---|---|
+| `brew.stopAt` | `criterion` (one change per acceptance criterion), `milestone`, `phase` | `criterion` |
+| `brew.commands` | which commands `brew` may run by itself, beyond build and test: `none`, an allowed list, `ask` | `ask` |
+| `models.<command>` | a model id, through CafeAI's providers | one model for all |
+| `validation.mutation` | on or off | on |
+| `validation.live` | which environments' live tests `brew` runs | none |
+
+## 10. The web app
+
+A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser.
+
+- **The conversation** for `init` and `design`: describing the product, answering the agent's
+  questions, streamed as it writes.
+- **The project at a glance:** the design spec, roadmap and milestones as they stand, what each
+  command is doing, what it has cost.
+- **The same agents as the command line.** The web app is a window, not a second
+  implementation: every command works from the terminal too, and the IDE plugins later will be
+  windows onto the same thing.
+
+## 11. Testing the loop itself
+
+- **The prompts are tested like code** (vision principle 8): evals with `cafeai-test` give each
+  command's agent fixed inputs and check what it produces (`plan` on a fixed design spec must
+  yield criteria a test can check; `init` on a fixed codebase must find its modules). Recorded
+  model calls let them run with no key and no cost; the same evals run against each supported
+  model show whether the engine really can change.
+- **The fixtures** start with a snapshot of the Spring PetClinic (vision §8).
+- **The tools** are ordinary Java, tested as such: no write outside the project, no merge, no
+  push to a protected branch.
+
+## 12. Phases
+
+0. **The artifact format, written down,** from this repository (LOGIN.md, ROADMAP-20,
+   MILESTONE-20, the CHANGELOG): `docs/design/ARTIFACTS.md`.
+1. **The method by hand on PetClinic.** No code. An agent (Claude, in a session) follows draft
+   `init` and `plan` prompts on PetClinic; the developer plays the product owner for a new
+   feature. Out come a design spec, roadmap and milestones in the format, and the first drafts
+   of the two prompts. Judged by one question: would a newcomer thank us for them?
+
+   **The `init` system prompt starts from how this module's own spec came about:** the
+   conversation that produced `docs/DEV_LOOP_VISION.md` and this document. What it
+   taught, so far:
+   - the vision before the spec: shake the idea down first, and let the spec claim only what
+     survived;
+   - offer named options with a recommendation, and let the person decide (this module's name;
+     where its spec lives);
+   - ask about the tech stack, the development framework first;
+   - ask where the code lives and how it's released (published or not, in the BOM or not);
+   - surface the conventions (default branch, branch names, commit messages, hooks) instead of
+     assuming them; offer a meaningful default, like `main`, but let the developer confirm;
+   - commit after each discussion or iteration, with a message that tells what was decided and
+     why; prompt to push now and then;
+   - challenge only what the product claims to solve, not what any team or tool already handles;
+   - write decisions down as they're made; keep genuine open questions visible, unanswered.
+2. **The module and its runtime:** `cafeai-loop`, the tools, git on a working branch,
+   `cafeai-loop.yaml`, the install. `init` and `plan` from the terminal, with the phase 1
+   prompts; evals on the PetClinic fixture.
+3. **The web app,** for the conversation and the project at a glance.
+4. **`brew` and the validation ladder,** first with `brew.stopAt: criterion`; evidence written
+   into the milestones.
+5. **`design`, with changes flowing into the roadmap and milestones.**
+6. **`review`.**
+7. **`run`,** locally, then the platform's own commands.
+8. **The proof:** a new feature in PetClinic, end to end, with an OpenAPI document tested
+   against a live instance (vision §8).
+
+## 13. Practising on itself
+
+This module is built with the method it implements:
+
+- this document is its design spec;
+- its roadmap and milestones sit beside it in `cafeai-loop/`, written in the format of phase 0
+  (which also settles their names), with acceptance criteria before code and evidence after;
+- once `init` works (phase 2), it is run on this repository; what it produces is compared with
+  these hand-written artifacts. Where they differ, one of them is wrong, and finding out which
+  is the point.
+
+## 14. Open questions
+
+- Settings in YAML (`cafeai-loop.yaml`, read with `cafeai-config`) or plain properties.
+- How `run` reports what it found for `review`: in the milestones directly, or a log of its
+  own that `review` reads.
+- Whether `brew` uses the developer's own coding agent at first (vision §8, first slice) or
+  starts with CafeAI's own agents straight away, now that the agents are cheap to build on
+  CafeAI.
+- The mutation tool: PIT, or a smaller one of our own.
+- How `brew` names its branches in this repository, which commits to `main` directly: a
+  pattern of its own, or straight to `main` as a dial.
+- The web app's front end: pages served by the CafeAI app, and how much script they need for the
+  conversation and streaming (phase 3).

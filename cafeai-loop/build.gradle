@@ -1,0 +1,24 @@
+// ============================================================
+//  cafeai-loop
+//  The development loop (docs/DEV_LOOP_VISION.md),
+//  made runnable: init, design, plan, brew, run and review, each
+//  an agent working on a project's living artifacts.
+//
+//  Design spec: DESIGN_SPEC.md, beside this file. The module is
+//  built with the method it implements.
+//
+//  Not published, not in the BOM: nothing in the framework depends
+//  on it, so it can move to a repository of its own later.
+// ============================================================
+
+description = 'The CafeAI development loop: init, design, plan, brew, run, review.'
+
+dependencies {
+    implementation project(':cafeai-cli')
+    implementation project(':cafeai-core')
+    implementation project(':cafeai-aiservices')   // the agents behind app.agent(...)
+    implementation project(':cafeai-guardrails')
+    implementation project(':cafeai-observability')
+
+    testImplementation project(':cafeai-test')
+}
