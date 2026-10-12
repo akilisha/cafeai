@@ -1,7 +1,7 @@
 # cluster-sentinel
 
 Runnable companion to **`cafeai-sentinel`** — an AI cluster incident pipeline for
-Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18-sentinel.md` for the design.
+Kubernetes / OpenShift. See `docs/roadmap/ROADMAP-18.md` for the design.
 
 ## Status — ROADMAP-18 Phase 5 (full pipeline: triage → investigate → sinks)
 

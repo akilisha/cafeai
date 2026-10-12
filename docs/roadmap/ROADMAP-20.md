@@ -3,7 +3,7 @@
 > Sign in to a model once, the way developers sign in to `claude` or `az`, so CafeAI apps reach
 > it without a key in code or a shell profile; on a work computer, through the company's own
 > sign-in and within its rules. The design and its decisions are `docs/design/LOGIN.md`; this
-> file tracks the work. Acceptance criteria per phase: **[MILESTONE-20](MILESTONE-20-login.md)**.
+> file tracks the work. Acceptance criteria per phase: **[MILESTONE-20](MILESTONE-20.md)**.
 >
 > **Status (2026-10-10):** 🟡 Built (phases 1–3), not yet validated against real accounts
 > (phases 4–10). Every flow is tested against fakes; Anthropic's sign-in is also checked against

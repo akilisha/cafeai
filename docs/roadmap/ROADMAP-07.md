@@ -374,7 +374,7 @@ app.post("/support", (req, res, next) ->
 
 > The bespoke `AgentDefinition.react()` / `app.orchestrate()` / `StructuredTaskScope`
 > design below was abandoned. CafeAI binds LangChain4j `AiServices` instead of
-> reimplementing the reasoning loop. Current plan: **[ROADMAP-12](ROADMAP-12-agents.md)**.
+> reimplementing the reasoning loop. Current plan: **[ROADMAP-12](ROADMAP-12.md)**.
 > The rest of this section is a historical record.
 
 **Goal:** Agentic patterns powered by Java 21 Structured Concurrency.

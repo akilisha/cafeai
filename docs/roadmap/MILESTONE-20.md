@@ -1,7 +1,7 @@
 # MILESTONE-20 — `cafeai login`
 
 **Current Status:** 🟡 Built and tested against fakes (phases 1–3); validation against real
-accounts not started (phases 4–10); the `cafeai` command installs from source (phase 11). Plan and reasons: **[ROADMAP-20](ROADMAP-20-login.md)**.
+accounts not started (phases 4–10); the `cafeai` command installs from source (phase 11). Plan and reasons: **[ROADMAP-20](ROADMAP-20.md)**.
 Design: `docs/design/LOGIN.md`.
 
 | Phase | Description | Status |

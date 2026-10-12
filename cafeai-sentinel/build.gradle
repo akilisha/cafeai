@@ -10,7 +10,7 @@
 //  A pipeline, not a product — it ends at "incident published".
 //  Runnable companion: capstones/cluster-sentinel.
 //
-//  See docs/roadmap/ROADMAP-18-sentinel.md.
+//  See docs/roadmap/ROADMAP-18.md.
 // ============================================================
 
 description = 'AI cluster incident pipeline — watch a Kubernetes/OpenShift cluster, ' +

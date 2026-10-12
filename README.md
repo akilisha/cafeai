@@ -369,7 +369,7 @@ Watches one Kubernetes/OpenShift namespace, triages pod failures with rules
 workload, and runs a read-only agentic investigation on confirmed incidents —
 secrets and PII redacted before anything reaches the prompt. A pipeline, not a
 product: it ends at "incident published," fanned out to a log, a webhook, an
-SSE stream, or your own `IncidentSink`. See `docs/roadmap/ROADMAP-18-sentinel.md`
+SSE stream, or your own `IncidentSink`. See `docs/roadmap/ROADMAP-18.md`
 and the runnable `capstones/cluster-sentinel` companion.
 
 ### `cafeai-identity` — Callers, Not API Keys

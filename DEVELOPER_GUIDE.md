@@ -2727,7 +2727,7 @@ per replica), and — on a confirmed incident — runs an agentic investigation
 against the live cluster with a CafeAI `app.agent(...)` and a read-only tool
 bundle. It is a pipeline, not a product: it ends at "incident published," with
 no dashboard, incident store, or remediation baked in. See
-`docs/roadmap/ROADMAP-18-sentinel.md` for the full design and the runnable
+`docs/roadmap/ROADMAP-18.md` for the full design and the runnable
 `capstones/cluster-sentinel` companion for a complete HTTP + dashboard app
 built on top of it.
 

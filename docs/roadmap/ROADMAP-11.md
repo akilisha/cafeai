@@ -3,7 +3,7 @@
 > **Note:** `cafeai-tools` was removed in session 9 (deprecated
 > `dev.langchain4j.agent.tool` APIs). MCP *consumption* (calling an MCP server's
 > tools) is now part of the agent story — LangChain4j's `McpToolProvider`, see
-> [ROADMAP-12](ROADMAP-12-agents.md). MCP *exposure* (serving CafeAI capabilities
+> [ROADMAP-12](ROADMAP-12.md). MCP *exposure* (serving CafeAI capabilities
 > as MCP tools) is the `app.helidon()` escape-hatch pattern this document
 > describes, which is implemented and current.
 

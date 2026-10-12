@@ -327,7 +327,7 @@ incident triggers a read-only agentic investigation
 `Redactor` before anything reaches the prompt. It ends at "incident
 published," fanned out to a pluggable `IncidentSink` (log, webhook, SSE, or
 your own) — no dashboard, incident store, or remediation. See
-`docs/roadmap/ROADMAP-18-sentinel.md` and the runnable `capstones/cluster-sentinel`
+`docs/roadmap/ROADMAP-18.md` and the runnable `capstones/cluster-sentinel`
 companion.
 
 ### 3.12 Identity Primitives &nbsp;<sub>✅ built — `cafeai-identity` (ROADMAP-19), not yet released</sub>
@@ -355,7 +355,7 @@ issuer and subject) from any OpenID Connect issuer, and the caller goes everywhe
 - **WebSockets:** they run as the caller who opened them.
 
 CafeAI decides no access policy: the issuer and the data's store do. Open standards only. See
-`docs/design/IDENTITY.md` and `docs/roadmap/ROADMAP-19-identity.md`.
+`docs/design/IDENTITY.md` and `docs/roadmap/ROADMAP-19.md`.
 
 ---
 
@@ -754,7 +754,7 @@ identity every other CafeAI capability has — a registration name, session thre
 guardrail pre-screening, an observability context — plus a `.configure()` escape hatch to the
 raw `AiServices.Builder`.
 
-**[ROADMAP-12](../roadmap/ROADMAP-12-agents.md)** is that redesign: a small `cafeai-aiservices`
+**[ROADMAP-12](../roadmap/ROADMAP-12.md)** is that redesign: a small `cafeai-aiservices`
 module (~250 lines) that binds, and does not wrap. `app.helidon()` covers anything the binding
 doesn't.
 

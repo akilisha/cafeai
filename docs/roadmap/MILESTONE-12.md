@@ -9,7 +9,7 @@
 
 ## Progress Tracker
 
-Phases mirror [ROADMAP-12](ROADMAP-12-agents.md).
+Phases mirror [ROADMAP-12](ROADMAP-12.md).
 
 | Phase | Description | Module | Status |
 |---|---|---|---|

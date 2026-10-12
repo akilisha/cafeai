@@ -94,8 +94,8 @@ layout follows what this repository does:
 | Artifact | Where | Written by | Holds |
 |---|---|---|---|
 | Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
-| Roadmap | `docs/roadmap/ROADMAP-NN-<topic>.md` | `plan` | phases, each with what it needs and its status; optional estimation notes |
-| Milestones | `docs/roadmap/MILESTONE-NN-<topic>.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
+| Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | phases, each with what it needs and its status; optional estimation notes |
+| Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
 | Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
 | Changelog | `CHANGELOG.md` | `brew` | what changed, for people |
 | Docs after the fact | `README.md`, OpenAPI, guides | `brew`, `review` | the product, approachable for a newcomer |
@@ -104,6 +104,12 @@ layout follows what this repository does:
 The format is written down in full (the required sections of each artifact, the status marks,
 the evidence entries) as the first deliverable (§12, phase 0), from this repository's own
 LOGIN.md, ROADMAP-20 and MILESTONE-20.
+
+**Roadmaps are named by number only,** in the order the work began (`ROADMAP-20.md`, with its
+`MILESTONE-20.md`). The number is how they're referred to in prose and in commits, and it never
+changes. The topic is a description that drifts as the work does, so it lives in the file's title
+(`# ROADMAP-20 — cafeai login`) and in an index, `docs/roadmap/README.md` (number, milestones,
+topic, status, dates), never in the file name. This repository follows it.
 
 **No hidden state.** Where the project stands is read from the artifacts themselves: the ticked
 and unticked criteria in the milestones, each phase's status in the roadmap. `brew` picks up

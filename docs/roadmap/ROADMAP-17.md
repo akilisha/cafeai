@@ -13,7 +13,7 @@
 >   `.denseWeight`/`.sparseWeight`.
 >
 > **Superseded:** the agent + orchestration portions of this roadmap (Phases 1–6)
-> were replaced by **[ROADMAP-12](ROADMAP-12-agents.md)** — CafeAI binds LangChain4j
+> were replaced by **[ROADMAP-12](ROADMAP-12.md)** — CafeAI binds LangChain4j
 > `AiServices` rather than implementing its own ReAct loop / `app.orchestrate()`.
 
 ---
@@ -45,7 +45,7 @@ The bespoke `AgentDefinition.react()` builder, `AgentResult.trace()`, and the
 `app.orchestrate()` Structured-Concurrency primitive were dropped. CafeAI binds
 LangChain4j `AiServices` — which owns the reasoning loop, tool dispatch, and chat
 memory — and gives it an HTTP identity. Multi-agent workflows are supervisor-as-tool
-or a middleware chain. See **[ROADMAP-12](ROADMAP-12-agents.md)**.
+or a middleware chain. See **[ROADMAP-12](ROADMAP-12.md)**.
 
 ### PgVector — `VectorStore.pgVector()`
 
@@ -105,7 +105,7 @@ is the optional follow-up.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 1–6 | ~~Agents & orchestration~~ → **[ROADMAP-12](ROADMAP-12-agents.md)** | ⚫ superseded |
+| 1–6 | ~~Agents & orchestration~~ → **[ROADMAP-12](ROADMAP-12.md)** | ⚫ superseded |
 | 7 | PgVector implementation | 🟢 |
 | 8 | PgVector integration test (Testcontainers) | 🟢 (needs Docker to run) |
 | 9 | OTel spans → GenAI semconv attribute names | 🟢 |

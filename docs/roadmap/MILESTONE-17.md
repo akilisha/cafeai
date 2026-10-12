@@ -39,7 +39,7 @@ writes only the HTTP binding (typed agent interface → `AiService`, plus sessio
 threading, guardrail pre-screening, an observability context). Multi-agent
 workflows are supervisor-as-tool or a middleware chain, not a bespoke primitive.
 
-Current plan: **[ROADMAP-12](ROADMAP-12-agents.md)** / **[MILESTONE-12](MILESTONE-12-agents.md)**.
+Current plan: **[ROADMAP-12](ROADMAP-12.md)** / **[MILESTONE-12](MILESTONE-12.md)**.
 
 *(nova-tutor's manual agent loop, formerly Phase 6, migrates to `app.agent()` once
 ROADMAP-12 Phase 5 lands.)*

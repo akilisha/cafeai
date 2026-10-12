@@ -565,7 +565,7 @@ public interface CafeAI extends Router {
      * <p>CafeAI does not implement the agent loop — LangChain4j {@code AiServices}
      * owns the reasoning, tool dispatch, and chat memory. This binding gives the
      * agent an HTTP identity: a name, session threading, guardrail pre-screening,
-     * and an observability context. See {@code docs/roadmap/ROADMAP-12-agents.md}.
+     * and an observability context. See {@code docs/roadmap/ROADMAP-12.md}.
      *
      * <p>Requires {@code cafeai-aiservices} on the classpath.
      *

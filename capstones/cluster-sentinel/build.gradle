@@ -5,7 +5,7 @@
 //  sinks, serves the incident stream over SSE, and ships the
 //  read-only RBAC manifests + the broken-manifest demo scenarios.
 //
-//  See docs/roadmap/ROADMAP-18-sentinel.md.
+//  See docs/roadmap/ROADMAP-18.md.
 // ============================================================
 
 description = 'Capstone: cluster-sentinel — cafeai-sentinel pointed at a live cluster, ' +

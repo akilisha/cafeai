@@ -79,11 +79,11 @@ documented results.
 
 | Document | Location |
 |----------|----------|
-| `ROADMAP-15-pipeline-completion.md` | outputs |
-| `MILESTONE-15-pipeline-completion.md` | outputs |
+| `ROADMAP-15.md` | outputs |
+| `MILESTONE-15.md` | outputs |
 | `CAPSTONE-5-nova-tutor-spec.md` | outputs |
 | `CAFEAI-CAPSTONE-SERIES.md` | outputs (updated) |
-| `MILESTONE-14-multimodal-pipeline.md` | outputs (all phases marked ✅) |
+| `MILESTONE-14.md` | outputs (all phases marked ✅) |
 | `VALIDATION.md` | outputs → `atlas-inbox/` root |
 
 ### Code Delivered This Session

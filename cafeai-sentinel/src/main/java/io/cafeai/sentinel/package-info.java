@@ -12,7 +12,7 @@
  *
  * <p><strong>Status:</strong> released at 0.3.2 — validated live against both
  * minikube and a real OpenShift cluster (see
- * {@code docs/roadmap/ROADMAP-18-sentinel.md}).
+ * {@code docs/roadmap/ROADMAP-18.md}).
  * {@link io.cafeai.sentinel.ClusterWatch}
  * watches one namespace and emits a correlated {@link io.cafeai.sentinel.watch.PodState};
  * {@link io.cafeai.sentinel.IncidentTracker} triages each snapshot with
@@ -30,6 +30,6 @@
  * {@link io.cafeai.sentinel.sink.LogSink}, a
  * {@link io.cafeai.sentinel.sink.WebhookSink}, an
  * {@link io.cafeai.sentinel.sink.SsePublisher} served over HTTP, or your own.
- * See {@code docs/roadmap/ROADMAP-18-sentinel.md}.
+ * See {@code docs/roadmap/ROADMAP-18.md}.
  */
 package io.cafeai.sentinel;
