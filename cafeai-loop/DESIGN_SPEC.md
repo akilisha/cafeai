@@ -200,6 +200,7 @@ carefully the test and validation criteria are reviewed, the better the ladder w
 
 | Dial | Values | Default |
 |---|---|---|
+| `branches` | `per-artifact` (the spec, the plan and each change on a branch of its own) or `single` (one branch for all): a matter of style, neither better | `per-artifact` |
 | `brew.stopAt` | `criterion` (one change per acceptance criterion), `milestone`, `phase` | `criterion` |
 | `brew.commands` | which commands `brew` may run by itself, beyond build and test: `none`, an allowed list, `ask` | `ask` |
 | `models.<command>` | a model id, through CafeAI's providers | one model for all |
