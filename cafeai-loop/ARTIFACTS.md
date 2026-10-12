@@ -4,6 +4,21 @@ Status: written (phase 0 of `DESIGN_SPEC.md`): the roadmap, the milestones and t
 
 ---
 
+## Where they live
+
+**The root is for documents about the whole project, which everyone should see first; `docs/` is
+for working detail.**
+
+| At the root | In `docs/` |
+|---|---|
+| `README.md`: what the product is | `docs/roadmap/`: the roadmaps, their milestones, and the index |
+| `CHANGELOG.md`: what changed | `docs/design/`: further design detail, as the product grows, each linked from the spec |
+| `DESIGN_SPEC.md`: what it is meant to be | |
+
+The design spec is the north star: every command and every newcomer starts there, so it sits
+beside the README, where people look first. It stays one file; detail that would make it unwieldy
+moves to `docs/design/`.
+
 ## The three records of progress
 
 | Artifact | Its role |

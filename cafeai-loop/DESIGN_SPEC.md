@@ -93,7 +93,7 @@ layout follows what this repository does:
 
 | Artifact | Where | Written by | Holds |
 |---|---|---|---|
-| Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
+| Design spec | `DESIGN_SPEC.md` at the project's root; further design detail, as the product grows, in `docs/design/`, linked from it | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
 | Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | the plan for one design goal: its phases, each with an objective, optional prerequisites, inputs and outputs, acceptance, testing and validation criteria, and a status. No narrative (`ARTIFACTS.md`) |
 | Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | the honest inventory of the roadmap's progress, phase by phase: reasons, difficulties, decisions, risks, estimates and timelines; each acceptance criterion tracked by its number, with its evidence (what was run, what happened, what was fixed and in which commit) (`ARTIFACTS.md`) |
 | Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
