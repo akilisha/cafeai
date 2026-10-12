@@ -155,6 +155,8 @@ still gets a project built the way a seasoned Java developer would build it.
 
 ## 6. Open questions
 
+Genuine questions with no immediate answers. They stay here, visible, until they have one.
+
 - What other commands the method needs (they will emerge, as `review` did).
 - The artifact format itself: written down from what this repository already does (design specs,
   ROADMAP and MILESTONE pairs with evidence, the CHANGELOG), so CafeAI is its own reference project.
