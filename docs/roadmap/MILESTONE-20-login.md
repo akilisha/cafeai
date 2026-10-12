@@ -10,10 +10,10 @@ Design: `docs/design/LOGIN.md`.
 | 2 | Claude with no key (`ant auth login`) | 🟢 `bc879a0` |
 | 3 | The company's cloud (az, aws, gcloud) | 🟢 `f31fdf3` |
 | 4 | Validate Google | 🟡 sign-in validated; impersonation and Vertex AI need a project |
-| 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug open |
+| 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug fixed |
 | 6 | Validate Azure | 🟡 sign-in validated; model calls need a pay-as-you-go subscription |
 | 7 | Validate AWS | 🟡 IAM Identity Center sign-in validated, two fixes; Bedrock open |
-| 8 | Validate the saved-key vendors | ⚪ needs a key per vendor |
+| 8 | Validate the saved-key vendors | 🟡 Mistral and Nova validated; OpenAI, xAI, Kimi, DeepSeek need keys |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
 | 10 | Validate on macOS and Linux | ⚪ needs the machines |
 | 11 | The `cafeai` command | 🟡 from source; the JBang alias needs 0.6.0 |
@@ -123,7 +123,7 @@ enough.
 - [x] `ant auth print-credentials --access-token` afterwards prints CafeAI's renewed token without renewing again
 - [x] `ant auth status` reads the file CafeAI wrote back without complaint
 - [x] `cafeai logout claude` then a call: the message says to sign in again
-- [ ] A name with characters outside the console's code page shows right (found here: `Rah?s`)
+- [x] A name with characters outside the console's code page shows right (found here: `Rah?s`; fixed)
 - [ ] With an organisation and SSO: the sign-in goes through the company's identity provider
 
 ### Results
@@ -160,6 +160,12 @@ organisation, workspace "Default"). `cafeai` installed from source; `AnthropicSi
   `Rah’s`, and CafeAI's line right after it shows `Rah?s`: Java encodes output in the console's
   code page, which has no `’`; `ant` writes Unicode to the console. (Piped, Java writes
   Windows-1252.)
+- **Fixed:** measured in a real console (code page 437), screen read back: `System.out` prints
+  `Rah?s`; `System.out` forced to UTF-8 prints `RahΓÇÖs`; `System.console().writer()` prints
+  `Rah’s` on Java 23, and on Java 25 only with `-Djdk.console=jdk.internal.le` (Java's own terminal
+  support, the default in 23, not in 25). `cafeai` now prints through the terminal's writer when
+  its output is a terminal, and its start scripts set that option: `cafeai status` shows `Rah’s`
+  and `Défaut` on both. Piped output is unchanged.
 - No difference from the fakes needed a code fix.
 
 ---
@@ -268,25 +274,55 @@ source; `AwsCliCredentialsLiveTest` (`AWS_CLI_LIVE_PROFILE`).
 
 ---
 
-## Phase 8 — Validate the saved-key vendors &nbsp;⚪
+## Phase 8 — Validate the saved-key vendors &nbsp;🟡
 
 **Needs:** a key per vendor, each tested on its own. Small per-call costs; Amazon Nova's API has
 a free tier.
 
-For each of **OpenAI, xAI (Grok), Mistral, Amazon Nova, Kimi, DeepSeek**:
+For each vendor: (a) `cafeai login <vendor>` saves the key and `cafeai status` shows it as saved;
+(b) a call with the saved key and no environment variable answers; (c) with the environment
+variable set too, the variable's key is used; (d) `cafeai logout <vendor>`, then a call: the
+message names both ways to provide a key; (e) its live suite (`./gradlew :cafeai-core:liveTest`)
+passes with the saved key.
 
-- [ ] `cafeai login <vendor>` saves the key; `cafeai status` shows it as saved
-- [ ] A call with the saved key and no environment variable answers
-- [ ] With the environment variable set too, the variable's key is used
-- [ ] `cafeai logout <vendor>`, then a call: the message names both ways to provide a key
+| Vendor | a | b | c | d | e |
+|---|---|---|---|---|---|
+| Mistral | ✅ | ✅ | ✅ | ✅ | ✅ (`ministral-3b-latest`) |
+| Amazon Nova | ✅ | ✅ | ✅ (same code path) | ✅ | 🟡 9 of 11; two answers, not the key |
+| OpenAI | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
+| xAI (Grok) | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
+| Kimi | ⚪ | ⚪ | ⚪ | ⚪ | — |
+| DeepSeek | ⚪ | ⚪ | ⚪ | ⚪ | — |
 
 Plus:
-- [ ] `./gradlew :cafeai-core:liveTest` passes for Grok, Mistral and Nova (`GROK_LIVE_MODEL` etc.)
 - [ ] Kimi and DeepSeek through `Credentials.saved(...)` on their Anthropic- and OpenAI-compatible endpoints
 - [ ] `KimiCredentialsTest` (cafeai-identity) runs with `KIMI_API_KEY` and `KIMI_MODEL`
 
 ### Results
-*(none yet)*
+
+**2026-10-11, Mistral and Amazon Nova.** Free-tier keys, saved with `cafeai login` (the key on
+standard input). The live suites now take the key the way the providers do, the environment
+variable or else the saved key (they used to skip without the variable), and print where it came from.
+
+- `cafeai login mistral`: *Create an API key for Mistral AI at https://console.mistral.ai/api-keys*,
+  then *Saved the Mistral AI key (\*\*\*\*EohF) in ...\credentials.json*; `cafeai status`: *mistral
+  saved by cafeai login \*\*\*\*EohF*. The same for Nova. (The prompt read *Create a Amazon Nova API
+  key*; reworded.)
+- A plain app with no environment variable (`Mistral.of(...)`, `Nova.of(...)`) answered on both.
+- Mistral's free key: `/v1/models` HTTP 200 (a bad key gets 401), but `mistral-medium-latest` and
+  `mistral-small-latest` answered every call with HTTP 429 *Rate limit exceeded* (code 1300);
+  `ministral-3b-latest` answers. With `MISTRAL_LIVE_MODEL=ministral-3b-latest` the suite passed,
+  10 of 10 (vision skipped).
+- With a wrong `MISTRAL_API_KEY` set as well, the key came from the environment and Mistral said
+  *Invalid API Key*: the variable wins.
+- Nova (`nova-2-lite-v1`): 9 of 11. Failed: the system-prompt test (the model refused to say the
+  "secret word" as sensitive) and `lastMessages(2)` (it still named the number; it repeats facts
+  in its own answers, so the number stays inside the window; the same test passes on Mistral).
+  Both are about the model's answers, not the key.
+- `cafeai logout mistral`: *Forgot the saved Mistral AI key. (Revoke it at
+  https://console.mistral.ai/api-keys if it should stop working everywhere.)* A call then: *Missing
+  API key for mistral provider. Either save one once: ...* with `cafeai login mistral` and
+  `MISTRAL_API_KEY`. The same for Nova.
 
 ---
 
@@ -332,7 +368,8 @@ message compared with it.
 
 **The release** (needs a `cafeai-core` with `CafeLogin` on Maven Central, 0.6.0):
 
-- [ ] `jbang/cafeai.java` and the `cafeai` catalog alias added (distribution.md step 6)
+- [ ] `jbang/cafeai.java` and the `cafeai` catalog alias added (distribution.md step 6), with
+  `//JAVA_OPTIONS -Djdk.console=jdk.internal.le` as the start scripts have
 - [ ] `jbang app install --name cafeai cafeai@akilisha/cafeai` installs it on Windows, macOS and Linux
 - [ ] `cafeai status` works from the installed command
 - [ ] README and GETTING-STARTED show `cafeai login`

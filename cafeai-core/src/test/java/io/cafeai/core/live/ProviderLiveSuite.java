@@ -1,6 +1,8 @@
 package io.cafeai.core.live;
 
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.internal.KeyVendor;
+import io.cafeai.core.internal.SavedKeys;
 import io.cafeai.core.ai.AiProvider;
 import io.cafeai.core.ai.PromptResponse;
 import io.cafeai.core.memory.HistoryPolicy;
@@ -92,6 +94,19 @@ abstract class ProviderLiveSuite {
     static String env(String name, String fallback) {
         String v = System.getenv(name);
         return v == null || v.isBlank() ? fallback : v;
+    }
+
+    /**
+     * Why a vendor's key is missing, or null when there is one: its environment variable, else
+     * the key {@code cafeai login <vendor>} saved, as the providers look it up.
+     */
+    static String keyMissing(KeyVendor vendor) {
+        var resolved = SavedKeys.resolve(vendor);
+        if (resolved.source() == SavedKeys.Source.NONE || resolved.key().startsWith("test-key")) {
+            return vendor.envVar() + " is not set to a real key, and none is saved (cafeai login " + vendor.id() + ")";
+        }
+        System.out.println("[live] " + vendor.id() + " key from: " + resolved.source());
+        return null;
     }
 
     static boolean has(String name) {

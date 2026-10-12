@@ -1,11 +1,12 @@
 package io.cafeai.core.live;
 
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.ai.Grok;
 import org.junit.jupiter.api.DisplayName;
 
 /**
- * xAI's Grok. Needs {@code XAI_API_KEY}.
+ * xAI's Grok. Needs {@code XAI_API_KEY}, or a key saved with {@code cafeai login}.
  *
  * <ul>
  *   <li>{@code GROK_LIVE_MODEL} — the model (default {@code grok-4.7}).</li>
@@ -19,7 +20,7 @@ class GrokLiveTest extends ProviderLiveSuite {
     @Override String label() { return "Grok"; }
 
     @Override String skipReason() {
-        return has("XAI_API_KEY") ? null : "XAI_API_KEY is not set to a real key";
+        return keyMissing(KeyVendor.GROK);
     }
 
     @Override AiProvider provider() { return Grok.of(model); }

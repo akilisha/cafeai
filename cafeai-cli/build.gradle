@@ -24,6 +24,9 @@ dependencies {
 application {
     applicationName = 'cafeai'
     mainClass = 'io.cafeai.core.login.CafeLogin'
+    // Java's own terminal support, so names print in Unicode on a Windows console (Java 23 uses it
+    // by default; later releases need it asked for). See CafeLogin.screen().
+    applicationDefaultJvmArgs = ['-Djdk.console=jdk.internal.le']
 }
 
 // An install from source runs on the JDK it was built with, whatever JAVA_HOME says

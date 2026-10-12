@@ -4,9 +4,11 @@ import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.SavedKeys;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -55,9 +57,31 @@ public final class CafeLogin {
     }
 
     public static void main(String[] args) {
-        var login = new CafeLogin(System.out, System.err, CafeLogin::readKey, System::getenv, ClaudeLogin::runProcess,
+        var login = new CafeLogin(screen(), System.err, CafeLogin::readKey, System::getenv, ClaudeLogin::runProcess,
                 CloudLogin.Tools.real(System::getenv));
         System.exit(login.run(args));
+    }
+
+    /**
+     * Standard output, or the terminal itself when output goes to one. {@code System.out} encodes in
+     * the console's code page, so on Windows a name such as {@code Rah’s} prints as {@code Rah?s};
+     * the terminal's writer (with {@code -Djdk.console=jdk.internal.le}, as the start scripts set)
+     * writes Unicode, as {@code ant} and the cloud CLIs do.
+     */
+    private static PrintStream screen() {
+        Console console = System.console();
+        if (console == null || !console.isTerminal()) return System.out;
+        var writer = console.writer();
+        var bytes = new ByteArrayOutputStream();
+        return new PrintStream(new OutputStream() {
+            @Override public void write(int b) { bytes.write(b); }
+            @Override public void write(byte[] b, int off, int len) { bytes.write(b, off, len); }
+            @Override public void flush() {
+                writer.write(bytes.toString(StandardCharsets.UTF_8));
+                writer.flush();
+                bytes.reset();
+            }
+        }, true, StandardCharsets.UTF_8);
     }
 
     /** Runs one command; returns the exit status (0 done, 1 failed, 2 wrong usage). */
@@ -85,7 +109,7 @@ public final class CafeLogin {
         if (found.isEmpty()) return 2;
         KeyVendor vendor = found.get();
 
-        out.println("Create a " + vendor.displayName() + " API key at " + vendor.keysPage());
+        out.println("Create an API key for " + vendor.displayName() + " at " + vendor.keysPage());
         String key = keys.read("Paste the key: ");
         key = key == null ? "" : key.strip();
         if (key.isEmpty()) {

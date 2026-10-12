@@ -1,11 +1,12 @@
 package io.cafeai.core.live;
 
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.ai.Nova;
 import org.junit.jupiter.api.DisplayName;
 
 /**
- * Amazon Nova (the Nova API, not Bedrock). Needs {@code NOVA_API_KEY}.
+ * Amazon Nova (the Nova API, not Bedrock). Needs {@code NOVA_API_KEY}, or a key saved with {@code cafeai login}.
  *
  * <ul>
  *   <li>{@code NOVA_LIVE_MODEL} — the model (default {@code nova-2-lite-v1}).</li>
@@ -19,7 +20,7 @@ class NovaLiveTest extends ProviderLiveSuite {
     @Override String label() { return "Nova"; }
 
     @Override String skipReason() {
-        return has("NOVA_API_KEY") ? null : "NOVA_API_KEY is not set to a real key";
+        return keyMissing(KeyVendor.NOVA);
     }
 
     @Override AiProvider provider() { return Nova.of(model); }

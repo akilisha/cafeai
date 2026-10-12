@@ -2,6 +2,7 @@ package io.cafeai.core.live;
 
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.guardrails.GuardRail;
 import io.cafeai.core.guardrails.GuardRailViolationException;
@@ -12,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * OpenAI. Needs {@code OPENAI_API_KEY}.
+ * OpenAI. Needs {@code OPENAI_API_KEY}, or a key saved with {@code cafeai login}.
  *
  * <ul>
  *   <li>{@code OPENAI_LIVE_MODEL} — a small chat model that reads images (default {@code gpt-4o-mini}).</li>
@@ -30,7 +31,7 @@ class OpenAiLiveTest extends ProviderLiveSuite {
     @Override String label() { return "OpenAI"; }
 
     @Override String skipReason() {
-        return has("OPENAI_API_KEY") ? null : "OPENAI_API_KEY is not set to a real key";
+        return keyMissing(KeyVendor.OPENAI);
     }
 
     @Override AiProvider provider() { return OpenAI.of(model); }

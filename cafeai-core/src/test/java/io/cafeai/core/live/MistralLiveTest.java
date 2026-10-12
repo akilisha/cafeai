@@ -1,11 +1,12 @@
 package io.cafeai.core.live;
 
 import io.cafeai.core.ai.AiProvider;
+import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.ai.Mistral;
 import org.junit.jupiter.api.DisplayName;
 
 /**
- * Mistral AI. Needs {@code MISTRAL_API_KEY}.
+ * Mistral AI. Needs {@code MISTRAL_API_KEY}, or a key saved with {@code cafeai login}.
  *
  * <ul>
  *   <li>{@code MISTRAL_LIVE_MODEL} — the model (default {@code mistral-medium-latest}).</li>
@@ -19,7 +20,7 @@ class MistralLiveTest extends ProviderLiveSuite {
     @Override String label() { return "Mistral"; }
 
     @Override String skipReason() {
-        return has("MISTRAL_API_KEY") ? null : "MISTRAL_API_KEY is not set to a real key";
+        return keyMissing(KeyVendor.MISTRAL);
     }
 
     @Override AiProvider provider() { return Mistral.of(model); }
