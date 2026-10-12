@@ -129,7 +129,21 @@ still gets a project built the way a seasoned Java developer would build it.
      evals (`cafeai-test`) give each command's agent fixed inputs and check what it produces; a
      prompt change goes through those tests and review like any change. The same evals, run
      against each supported model, show whether the engine really can change.
-9. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
+9. **The development experience is configurable.** How big each change is, how far `brew` goes
+   before it stops, and what a command's agent may run by itself are dials, like a model's
+   temperature: a style the team sets to what works for it, from small, frequent changes to
+   longer runs.
+10. **Defence comes in layers, and the developer leads it.** AI makes mistakes. The developer
+    should catch them; if they miss one, the tests should; if the tests miss it, validation
+    should; production is the worst case. The commands' system prompts and guardrails do what
+    they can, but most of the heavy lifting is the developer's: clear specs, and reviewing the
+    test and validation specs in the roadmap.
+11. **Developers are the target; companies because developers work there.** CafeAI is for the
+    developer, who must be able to use it at work. That's why company sign-in, privacy and
+    review matter: they're requirements, not a separate market.
+12. **Openness is the defence.** The method and its prompts are open. What keeps them CafeAI's is
+    being the place they are written, tested and improved, not secrecy.
+13. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
    target for those with no preference, but it is not the battleground.
 
 ## 5. What changed under pressure
@@ -197,3 +211,8 @@ Each step arrives through the project's change process, like everything after it
 run the flow by hand twice, once for an imagined new service and once backwards from an existing
 codebase (one of the capstones). If the backwards run produces something a newcomer would thank
 you for, the idea holds.
+
+**The proof on a known application:** the Spring PetClinic. Point CafeAI at it as an existing
+codebase, add a new feature through `init`, `design`, `plan` and `brew`, and look at what comes
+out: the design spec, the roadmap and milestones with evidence, and an OpenAPI document ready to
+test against a live instance.
