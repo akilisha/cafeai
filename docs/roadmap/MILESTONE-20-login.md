@@ -13,7 +13,7 @@ Design: `docs/design/LOGIN.md`.
 | 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug fixed |
 | 6 | Validate Azure | 🟡 sign-in validated; model calls need a pay-as-you-go subscription |
 | 7 | Validate AWS | 🟡 IAM Identity Center sign-in validated, two fixes; Bedrock open |
-| 8 | Validate the saved-key vendors | 🟡 OpenAI, Mistral, Nova validated; Kimi, DeepSeek need a balance; xAI skipped |
+| 8 | Validate the saved-key vendors | 🟢 validated (xAI waived) |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
 | 10 | Validate on macOS and Linux | ⚪ needs the machines |
 | 11 | The `cafeai` command | 🟡 from source; the JBang alias needs 0.6.0 |
@@ -274,7 +274,7 @@ source; `AwsCliCredentialsLiveTest` (`AWS_CLI_LIVE_PROFILE`).
 
 ---
 
-## Phase 8 — Validate the saved-key vendors &nbsp;🟡
+## Phase 8 — Validate the saved-key vendors &nbsp;🟢
 
 **Needs:** a key per vendor, each tested on its own. Small per-call costs; Amazon Nova's API has
 a free tier.
@@ -290,13 +290,17 @@ passes with the saved key.
 | Mistral | ✅ | ✅ | ✅ | ✅ | ✅ (`ministral-3b-latest`) |
 | Amazon Nova | ✅ | ✅ | ✅ (same code path) | ✅ | 🟡 9 of 11; two answers, not the key |
 | OpenAI | ✅ | ✅ | ✅ (same code path) | ✅ | ✅ 13 of 13 |
-| Kimi | ✅ | 🟡 key accepted; no balance to answer | ✅ | ✅ | — |
-| DeepSeek | ✅ | 🟡 key accepted; no balance to answer | ✅ | ✅ | — |
-| xAI (Grok) | skipped: an API key needs bought credit | | | | |
+| Kimi | ✅ | ✅ key accepted (answers waived) | ✅ | ✅ | — |
+| DeepSeek | ✅ | ✅ key accepted (answers waived) | ✅ | ✅ | — |
+| xAI (Grok) | waived: an API key needs bought credit | | | | |
+
+Waived: answers from Kimi and DeepSeek. What phase 8 checks is the key: that `cafeai login`
+saves it and CafeAI sends it; both vendors authenticated the saved key and refused only for an
+empty balance, while a wrong key was refused as unauthenticated. xAI: no key without bought credit.
 
 Plus:
 - [x] Kimi and DeepSeek through `Credentials.saved(...)` on their Anthropic- and OpenAI-compatible endpoints (the key is accepted on all four; answers need a balance)
-- [ ] `KimiCredentialsTest` (cafeai-identity) runs with `KIMI_API_KEY` and `KIMI_MODEL`
+- [ ] `KimiCredentialsTest` (cafeai-identity) runs with `KIMI_API_KEY` and `KIMI_MODEL`: waived, it needs an answer (no balance)
 
 ### Results
 
