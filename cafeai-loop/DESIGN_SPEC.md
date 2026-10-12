@@ -94,16 +94,16 @@ layout follows what this repository does:
 | Artifact | Where | Written by | Holds |
 |---|---|---|---|
 | Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
-| Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | phases, each with what it needs and its status; optional estimation notes |
+| Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | the plan for one design goal: its phases, each with an objective, optional prerequisites, inputs and outputs, acceptance, testing and validation criteria, and a status; optional estimation notes. No narrative (`ARTIFACTS.md`) |
 | Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
 | Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
 | Changelog | `CHANGELOG.md` | `brew` | what changed, for people |
 | Docs after the fact | `README.md`, OpenAPI, guides | `brew`, `review` | the product, approachable for a newcomer |
 | Settings | `cafeai-loop.yaml` | the developer | the dials (§9) and each command's model |
 
-The format is written down in full (the required sections of each artifact, the status marks,
-the evidence entries) as the first deliverable (§12, phase 0), from this repository's own
-LOGIN.md, ROADMAP-20 and MILESTONE-20.
+The format is written down in full (the required sections of each artifact, the statuses, the
+evidence entries) in `ARTIFACTS.md`, beside this file: the first deliverable (§12, phase 0),
+from this repository's own LOGIN.md, ROADMAP-20 and MILESTONE-20.
 
 **Roadmaps are named by number only,** in the order the work began (`ROADMAP-20.md`, with its
 `MILESTONE-20.md`). The number is how they're referred to in prose and in commits, and it never
@@ -181,7 +181,9 @@ How `brew` keeps the project on course (vision principle 2):
 1. **Acceptance criteria before code.** `plan` writes them into the milestone; they go through
    the project's change process before `brew` starts on them.
 2. **Tests, checked by mutation.** For each criterion `brew` writes tests, then breaks the code
-   on purpose and checks the tests fail; a test that still passes is rewritten. (Tooling:
+   on purpose and checks the tests fail; a test that still passes is rewritten or removed.
+   Every test earns its place: tests that add no value (duplicates, tests of the language or a
+   library, tests that can't fail) are removed, not kept for coverage (`ARTIFACTS.md`). (Tooling:
    PIT where the build allows it; otherwise the targeted mutations this repository used for
    `cafeai login`.)
 3. **Real dependencies, where configured.** Live tests against real services, switched on per
@@ -230,7 +232,8 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
 ## 12. Phases
 
 0. **The artifact format, written down,** from this repository (LOGIN.md, ROADMAP-20,
-   MILESTONE-20, the CHANGELOG): `docs/design/ARTIFACTS.md`.
+   MILESTONE-20, the CHANGELOG): `ARTIFACTS.md`, beside this file. The roadmap is defined; the
+   milestones and the changelog come next.
 1. **The method by hand on PetClinic.** No code. An agent (Claude, in a session) follows draft
    `init` and `plan` prompts on PetClinic; the developer plays the product owner for a new
    feature. Out come a design spec, roadmap and milestones in the format, and the first drafts
