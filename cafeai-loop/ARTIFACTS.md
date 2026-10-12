@@ -1,7 +1,7 @@
 # The artifacts of the development loop
 
-Status: being written (phase 0 of `DESIGN_SPEC.md`). The roadmap is defined; the milestones are
-next. Plain Markdown: readable and usable without CafeAI.
+Status: being written (phase 0 of `DESIGN_SPEC.md`). The roadmap and the milestones are
+defined; the changelog is next. Plain Markdown: readable and usable without CafeAI.
 
 ---
 
@@ -10,7 +10,7 @@ next. Plain Markdown: readable and usable without CafeAI.
 | Artifact | Its role |
 |---|---|
 | **Roadmap** | **The plan.** What will be done, in what phases, to what criteria. No narrative and no explanations of why anything is in the state it's in. |
-| **Milestones** | **The heartbeat.** What is happening and what happened: explanations, reasons, evidence. *(To be defined.)* |
+| **Milestones** | **The heartbeat.** The honest inventory of where the work stands: reasons, difficulties, decisions, risks, estimates, timelines, evidence. |
 | **Changelog** | **The log.** An immutable entry for each change, for people. A smaller role than the other two. |
 
 ---
@@ -33,12 +33,9 @@ executable steps, and the phases together complete the goal.
 
 ### What a roadmap holds
 
-- **Its number and title.**
-- **The design goal it serves:** a link to the part of the design spec it carries out, so a
-  change to the design finds the roadmaps it affects.
+- **Its number and title.** No link to the design spec: the spec is far more general than a
+  roadmap, and a roadmap exists only to serve it.
 - **Its phases,** in order.
-- **Estimation notes,** optional: the team's own estimates, for visibility; kept current in the
-  milestones as the work goes.
 
 ### What each phase holds
 
@@ -66,10 +63,11 @@ take in one go (the size is a dial: `DESIGN_SPEC.md`, The dials).
 | `escalated` | Waiting on an approval. |
 | `deferred` | Not now: priorities changed, or it waits until after something else. A step waived for now is deferred. |
 | `cancelled` | Not ever. A step waived for good is cancelled. |
+| `out-of-scope` | Not part of this design goal. A signal visible without opening the milestones, which say why. |
 | `completed` | Done: every acceptance criterion met, tested and validated. |
 
-The milestones say why a phase is `blocked`, `escalated`, `deferred` or `cancelled`: on what, on
-whom, until when.
+The milestones say why a phase is `blocked`, `escalated`, `deferred`, `cancelled` or
+`out-of-scope`: on what, on whom, until when.
 
 ### Every test earns its place
 
@@ -88,7 +86,45 @@ An instruction to the AI as much as a rule for people:
 
 ## Milestones
 
-*(To be defined.)*
+### Definition
+
+A milestones document is the progress tracker for one roadmap: **the honest inventory of where the
+work on it stands, phase by phase.** Plural, because each step is a milestone in itself.
+
+- **One to one with a roadmap,** by number: `MILESTONE-20.md` tracks `ROADMAP-20.md`.
+- **The heartbeat to the roadmap's plan.** Everything the roadmap leaves out lives here: why a
+  phase is in its status, what happened, what was learned.
+- **The manager's test:** a manager reading it should have every answer they need without talking
+  to a person.
+
+### What it captures, phase by phase
+
+- **Reasons for a status:** why a phase is blocked, escalated, deferred, cancelled or out of
+  scope, on what or whom, until when.
+- **Difficulties encountered** with a step.
+- **Discussions** that happened during the work, and what they concluded.
+- **Dependencies:** on other phases, roadmaps, people, vendors.
+- **Risks,** and **vulnerabilities unearthed.**
+- **Decisions that changed the scope,** or that **generated new roadmaps** (named by number).
+- **Effort estimates and timelines,** the team's own, published here.
+- **Evidence** (from the validation ladder, `DESIGN_SPEC.md`): for each acceptance criterion met,
+  what was run, what happened, and what was fixed in which commit. A criterion waived is recorded
+  with its reason.
+
+### Shape
+
+What this repository's milestones settled into (MILESTONE-20):
+
+- **At the top, a status table:** each phase, its status (as in the roadmap), its estimate and
+  timeline. A manager's one-glance answer.
+- **Then a section per phase:**
+  - its acceptance criteria as checkboxes, ticked when met, each pointing to its evidence;
+  - its entries: reasons, difficulties, discussions, dependencies, risks, vulnerabilities,
+    decisions, each dated;
+  - **Results:** the evidence, dated: what was run, against what, what came out, what was fixed.
+
+Entries are added, not rewritten: when the picture changes, a new dated entry says so, and the
+history of how the work went stays readable.
 
 ## Changelog
 

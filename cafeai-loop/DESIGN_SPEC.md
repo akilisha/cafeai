@@ -94,7 +94,7 @@ layout follows what this repository does:
 | Artifact | Where | Written by | Holds |
 |---|---|---|---|
 | Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
-| Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | the plan for one design goal: its phases, each with an objective, optional prerequisites, inputs and outputs, acceptance, testing and validation criteria, and a status; optional estimation notes. No narrative (`ARTIFACTS.md`) |
+| Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | the plan for one design goal: its phases, each with an objective, optional prerequisites, inputs and outputs, acceptance, testing and validation criteria, and a status. No narrative (`ARTIFACTS.md`) |
 | Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
 | Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
 | Changelog | `CHANGELOG.md` | `brew` | what changed, for people |
@@ -232,8 +232,8 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
 ## 12. Phases
 
 0. **The artifact format, written down,** from this repository (LOGIN.md, ROADMAP-20,
-   MILESTONE-20, the CHANGELOG): `ARTIFACTS.md`, beside this file. The roadmap is defined; the
-   milestones and the changelog come next.
+   MILESTONE-20, the CHANGELOG): `ARTIFACTS.md`, beside this file. The roadmap and the
+   milestones are defined; the changelog comes next.
 1. **The method by hand on PetClinic.** No code. An agent (Claude, in a session) follows draft
    `init` and `plan` prompts on PetClinic; the developer plays the product owner for a new
    feature. Out come a design spec, roadmap and milestones in the format, and the first drafts
