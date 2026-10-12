@@ -109,7 +109,27 @@ still gets a project built the way a seasoned Java developer would build it.
    observability (OpenTelemetry tracing, Java Flight Recorder through `cafeai-flight`) and its
    Kubernetes incident pipeline (`cafeai-sentinel`) are first-class benefits of following the
    method, not afterthoughts. This is where CafeAI's existing modules meet the methodology.
-8. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
+8. **Each command is its own agent, and the prompts are CafeAI's IP.** `init`, `design`,
+   `plan`, `brew`, `run` and `review` each run as an agent with its own system prompt, its own
+   guardrails, possibly its own model, and its own cost tracking. The method lives in these
+   prompts: how to interview, how to write a design spec, the validation ladder, when to stop and
+   ask. Writing, versioning and improving them is CafeAI's intellectual property.
+   - **They belong to the framework, not the user's work.** Users don't maintain or need to read
+     them, as nobody reads a compiler's internals to use it. They are maintained by CafeAI's
+     maintainers, and versioned with CafeAI, so a project knows which version of the method
+     produced its artifacts.
+   - **Not part of the user's work, but not secret.** Principle 1 holds: a company's security
+     team can see what instructions run against its code and data (they are in CafeAI's
+     repository, at a version).
+   - **Users steer through their artifacts, never the prompts.** A company's own rules (coding
+     standards, banned libraries, required patterns) go in a standards document in the project,
+     which the agents read and which goes through the project's change process. The prompts say
+     how to work; the artifacts say what this project wants.
+   - **The prompts are tested like code.** CafeAI's own validation principle, applied to itself:
+     evals (`cafeai-test`) give each command's agent fixed inputs and check what it produces; a
+     prompt change goes through those tests and review like any change. The same evals, run
+     against each supported model, show whether the engine really can change.
+9. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
    target for those with no preference, but it is not the battleground.
 
 ## 5. What changed under pressure
@@ -138,12 +158,6 @@ still gets a project built the way a seasoned Java developer would build it.
 - What other commands the method needs (they will emerge, as `review` did).
 - The artifact format itself: written down from what this repository already does (design specs,
   ROADMAP and MILESTONE pairs with evidence, the CHANGELOG), so CafeAI is its own reference project.
-- How `run`'s observability reaches a product that isn't built on CafeAI (a Spring or Quarkus
-  service). `cafeai-sentinel` watches the cluster, so it doesn't care what the workload is built
-  with. Java Flight Recorder is in every JVM, but `cafeai-flight` runs inside a CafeAI app today.
-  Tracing is OpenTelemetry, a shared standard, though `cafeai-observability` traces CafeAI's own
-  pipeline. What each needs to work for any Java service (an agent, a small library, generated
-  configuration) is still to be worked out.
 
 ## 7. Decided along the way
 
@@ -157,6 +171,12 @@ still gets a project built the way a seasoned Java developer would build it.
   CafeAI runs the real command and sees its output, so troubleshooting and `review` have
   something to work with. What it keeps or sends to a model is screened first: output can hold
   secrets (`oc login` prints a token).
+- **Observability in any product, with no adapter.** CafeAI writes the product's code, so
+  `brew` builds observability in: OpenTelemetry tracing, Java Flight Recorder events, health
+  probes, the labels and structured logs `cafeai-sentinel` reads. On open standards, so the
+  product isn't tied to CafeAI, and as ordinary code through the project's change process.
+- **Each command is its own agent** (principle 8): its own system prompt, guardrails, possibly
+  model, and cost tracking. The prompts, their versions and their improvement are CafeAI's IP.
 - **Review belongs to the process.** CafeAI follows whatever review the project's change process
   has, and adds none of its own.
 
