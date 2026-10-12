@@ -316,8 +316,8 @@ public final class LangchainBridge {
         if (vendor.isPresent()) {
             return SavedKeys.require(vendor.get(), provider.name(),
                 "\n\nOr use a local model with no API key:\n" +
-                "  app.ai(Ollama.of(llama3.3))  // via a local Ollama server\n" +
-                "  app.ai(Jlama.of(tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4)) // pure-Java, in-process, no server");
+                "  app.ai(Ollama.of(\"llama3.3\"))  // via a local Ollama server\n" +
+                "  app.ai(Jlama.of(\"tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4\")) // pure-Java, in-process, no server");
         }
         String key = environment.apply(envVar);
         if (key == null || key.isBlank()) {
@@ -330,8 +330,8 @@ public final class LangchainBridge {
                 signIn +
                 "  export " + envVar + "=your-key-here\n\n" +
                 "Or use a local model with no API key:\n" +
-                "  app.ai(Ollama.of(llama3.3))  // via a local Ollama server\n" +
-                "  app.ai(Jlama.of(tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4)) // pure-Java, in-process, no server");
+                "  app.ai(Ollama.of(\"llama3.3\"))  // via a local Ollama server\n" +
+                "  app.ai(Jlama.of(\"tjake/TinyLlama-1.1B-Chat-v1.0-Jlama-Q4\")) // pure-Java, in-process, no server");
         }
         return key;
     }

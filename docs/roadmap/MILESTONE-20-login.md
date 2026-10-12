@@ -13,7 +13,7 @@ Design: `docs/design/LOGIN.md`.
 | 5 | Validate Claude Console | 🟡 validated except company SSO; one display bug fixed |
 | 6 | Validate Azure | 🟡 sign-in validated; model calls need a pay-as-you-go subscription |
 | 7 | Validate AWS | 🟡 IAM Identity Center sign-in validated, two fixes; Bedrock open |
-| 8 | Validate the saved-key vendors | 🟡 Mistral and Nova validated; OpenAI, xAI, Kimi, DeepSeek need keys |
+| 8 | Validate the saved-key vendors | 🟡 OpenAI, Mistral, Nova validated; Kimi, DeepSeek need a balance; xAI skipped |
 | 9 | Validate the company's restrictions | ⚪ needs an organisation account |
 | 10 | Validate on macOS and Linux | ⚪ needs the machines |
 | 11 | The `cafeai` command | 🟡 from source; the JBang alias needs 0.6.0 |
@@ -289,13 +289,13 @@ passes with the saved key.
 |---|---|---|---|---|---|
 | Mistral | ✅ | ✅ | ✅ | ✅ | ✅ (`ministral-3b-latest`) |
 | Amazon Nova | ✅ | ✅ | ✅ (same code path) | ✅ | 🟡 9 of 11; two answers, not the key |
-| OpenAI | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
-| xAI (Grok) | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
-| Kimi | ⚪ | ⚪ | ⚪ | ⚪ | — |
-| DeepSeek | ⚪ | ⚪ | ⚪ | ⚪ | — |
+| OpenAI | ✅ | ✅ | ✅ (same code path) | ✅ | ✅ 13 of 13 |
+| Kimi | ✅ | 🟡 key accepted; no balance to answer | ✅ | ✅ | — |
+| DeepSeek | ✅ | 🟡 key accepted; no balance to answer | ✅ | ✅ | — |
+| xAI (Grok) | skipped: an API key needs bought credit | | | | |
 
 Plus:
-- [ ] Kimi and DeepSeek through `Credentials.saved(...)` on their Anthropic- and OpenAI-compatible endpoints
+- [x] Kimi and DeepSeek through `Credentials.saved(...)` on their Anthropic- and OpenAI-compatible endpoints (the key is accepted on all four; answers need a balance)
 - [ ] `KimiCredentialsTest` (cafeai-identity) runs with `KIMI_API_KEY` and `KIMI_MODEL`
 
 ### Results
@@ -323,6 +323,25 @@ variable or else the saved key (they used to skip without the variable), and pri
   https://console.mistral.ai/api-keys if it should stop working everywhere.)* A call then: *Missing
   API key for mistral provider. Either save one once: ...* with `cafeai login mistral` and
   `MISTRAL_API_KEY`. The same for Nova.
+
+**2026-10-11, OpenAI, Kimi and DeepSeek.** Keys saved with `cafeai login`.
+
+- OpenAI (`gpt-4o-mini`), saved key, no variable: the live suite passed 13 of 13, including
+  vision, the moderation guardrail and the speech round trip (which look the key up the same way).
+- Kimi lists `kimi-k2.6`, `kimi-k2.7-code`; DeepSeek lists `deepseek-flash`, `deepseek-v4-pro`.
+- `Credentials.saved("kimi")` and `Credentials.saved("deepseek")` with `OpenAI.of(...)` and
+  `Anthropic.of(...)` on `api.moonshot.ai/v1`, `api.moonshot.ai/anthropic`, `api.deepseek.com` and
+  `api.deepseek.com/anthropic`: all four got past authentication and were refused for money:
+  Kimi *Your account ... is suspended due to insufficient balance*, DeepSeek *Insufficient Balance*.
+  With a wrong `MOONSHOT_API_KEY` / `DEEPSEEK_API_KEY` set, all four answered *Invalid
+  Authentication* / *Authentication Fails, Your api key: \*\*\*\*pose is invalid*: the variable wins,
+  and the saved keys were authenticated.
+- `cafeai logout openai | kimi | deepseek`, then a call: *Missing API key for openai provider. Either
+  save one once: cafeai login openai, or set the OPENAI_API_KEY environment variable ...*;
+  `Credentials.saved("kimi")`: the same, with `cafeai login kimi` and `MOONSHOT_API_KEY`.
+- **Fixed:** that message's local-model examples had lost their quotes
+  (`app.ai(Ollama.of(llama3.3))`); they read `Ollama.of("llama3.3")` again.
+- xAI skipped: a Grok API key needs bought credit.
 
 ---
 
