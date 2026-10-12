@@ -109,7 +109,9 @@ LOGIN.md, ROADMAP-20 and MILESTONE-20.
 `MILESTONE-20.md`). The number is how they're referred to in prose and in commits, and it never
 changes. The topic is a description that drifts as the work does, so it lives in the file's title
 (`# ROADMAP-20 — cafeai login`) and in an index, `docs/roadmap/README.md` (number, milestones,
-topic, status, dates), never in the file name. This repository follows it.
+topic, status, dates), never in the file name. A name belongs after the number only when it is
+final, as a finished product's is: this repository's capstone specs keep theirs
+(`CAPSTONE-5-nova-tutor.md`). This repository follows the rule.
 
 **No hidden state.** Where the project stands is read from the artifacts themselves: the ticked
 and unticked criteria in the milestones, each phase's status in the roadmap. `brew` picks up

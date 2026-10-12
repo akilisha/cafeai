@@ -29,4 +29,5 @@ file's title and here, where it can change without breaking a link.
 | [ROADMAP-20](ROADMAP-20.md) | [MILESTONE-20](MILESTONE-20.md) | `cafeai login` | 🟡 in progress | 2026-10-11 | 2026-10-11 |
 
 Status is each roadmap's own status line, summarised; the file has the detail. Dates are from git.
-Capstone specs (`CAPSTONE-5-nova-tutor.md`) are not roadmaps and keep their names.
+Capstone specs keep a short name after the number (`CAPSTONE-5-nova-tutor.md`): a capstone is a
+finished product, and a product's name is final, where a roadmap's topic drifts with the work.
