@@ -226,7 +226,12 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
   yield criteria a test can check; `init` on a fixed codebase must find its modules). Recorded
   model calls let them run with no key and no cost; the same evals run against each supported
   model show whether the engine really can change.
-- **The fixtures** start with a snapshot of the Spring PetClinic (vision §8).
+- **The fixtures** start with the Spring PetClinic (vision §8), referenced, not copied: a clone of
+  `https://github.com/spring-projects/spring-petclinic` from `main` at
+  `500158f732419217507c7656904b8e6aa1bcc0d6` (2026-09-29). The first run by hand (phase 1) left
+  its artifacts in that clone, on two local branches: `feature/design-spec` (`DESIGN_SPEC.md`, at
+  `aabc476`) and `feature/roadmaps` (`docs/roadmap/`, at `400ff04`). An eval starts from the base
+  commit and compares what `init` and `plan` produce with those.
 - **The tools** are ordinary Java, tested as such: no write outside the project, no merge, no
   push to a protected branch.
 
