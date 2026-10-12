@@ -1,12 +1,12 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.Anthropic;
-import io.cafeai.core.ai.OpenAI;
 import io.cafeai.core.internal.Cli;
-import io.helidon.json.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -31,11 +31,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *       ({@code https://<resource>.openai.azure.com/openai/v1}).</li>
  * </ul>
  */
+@Tag("live")
 @DisplayName("Azure CLI sign-in, live")
 class AzureCliCredentialsLiveTest {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private static java.util.List<String> fields(JsonNode json) {
+        var names = new java.util.ArrayList<String>();
+        json.fieldNames().forEachRemaining(names::add);
+        return names;
+    }
+
     @Test @DisplayName("tokens for both scopes from the real az, kept for the second call")
-    void tokens() {
+    void tokens() throws Exception {
         Assumptions.assumeTrue("1".equals(System.getenv("AZURE_CLI_LIVE")),
                 "set AZURE_CLI_LIVE=1 after `cafeai login azure` to run against Azure");
 
@@ -44,9 +53,9 @@ class AzureCliCredentialsLiveTest {
             Cli.Result raw = Cli.run(List.of(az.toString(), "account", "get-access-token", "--scope", scope,
                     "--output", "json"), Duration.ofSeconds(60));
             assertThat(raw.ok()).as("az answered: " + raw.err()).isTrue();
-            var json = JsonParser.create(raw.out()).readJsonValue().asObject();
-            System.out.println("[live] az for " + scope + ": fields " + json.keys()
-                    + ", expires_on is a " + json.value("expires_on").map(v -> v.type().toString()).orElse("(absent)"));
+            JsonNode json = JSON.readTree(raw.out());
+            System.out.println("[live] az for " + scope + ": fields " + fields(json) + ", expires_on is a "
+                    + (json.has("expires_on") ? json.get("expires_on").getNodeType() : "(absent)"));
 
             var credentials = AzureCliCredentials.scope(scope);
             long start = System.nanoTime();
@@ -66,7 +75,7 @@ class AzureCliCredentialsLiveTest {
         Assumptions.assumeTrue("1".equals(System.getenv("AZURE_CLI_SIGNED_OUT")),
                 "set AZURE_CLI_SIGNED_OUT=1 after `cafeai logout azure`");
         assertThatThrownBy(() -> AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY).token())
-                .isInstanceOf(IdentityException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .satisfies(e -> System.out.println("[live] signed out: " + e.getMessage()))
                 .hasMessageContaining("cafeai login azure");
     }
@@ -103,9 +112,13 @@ class AzureCliCredentialsLiveTest {
     private static String claims(String jwt) {
         String[] parts = jwt.split("\\.");
         if (parts.length < 2) return "(not a JWT)";
-        var payload = JsonParser.create(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8))
-                .readJsonValue().asObject();
-        long iat = payload.longValue("iat", 0), exp = payload.longValue("exp", 0);
-        return "aud " + payload.stringValue("aud", "?") + ", lifetime " + (exp - iat) + "s";
+        JsonNode payload;
+        try {
+            payload = JSON.readTree(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            return "(not JSON)";
+        }
+        long iat = payload.path("iat").asLong(0), exp = payload.path("exp").asLong(0);
+        return "aud " + payload.path("aud").asText("?") + ", lifetime " + (exp - iat) + "s";
     }
 }

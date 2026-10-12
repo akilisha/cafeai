@@ -1,9 +1,9 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.Anthropic;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *       {@code global}): Claude on Vertex AI with the sign-in, plain and streamed.</li>
  * </ul>
  */
+@Tag("live")
 @DisplayName("Google Application Default Credentials, live")
 class GoogleApplicationDefaultLiveTest {
 
@@ -67,7 +68,7 @@ class GoogleApplicationDefaultLiveTest {
         var credentials = GoogleApplicationDefault.credentials().environment(name ->
                 "GOOGLE_APPLICATION_CREDENTIALS".equals(name) ? file : System.getenv(name));
         assertThatThrownBy(credentials::token)
-                .isInstanceOf(IdentityException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .satisfies(e -> System.out.println("[live] refused: " + e.getMessage()))
                 .hasMessageContaining("cafeai login google");
     }

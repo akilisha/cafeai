@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
  * <p>{@link #credentials()} renews the access token in-process the way Anthropic's SDKs do (the
  * {@code refresh_token} grant at {@code <base_url>/v1/oauth/token}, with the profile's
  * {@code client_id} and the {@code oauth-2025-04-20} beta) and writes it back, so {@code ant} and
- * Claude Code see the new token. Public only so {@code io.cafeai.core.login} can reach it.
+ * Claude Code see the new token. Public only so {@code cafeai-cli} can reach it.
  */
 public final class AnthropicProfile {
 

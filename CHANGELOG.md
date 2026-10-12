@@ -14,9 +14,9 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
   look a key up in this order: `withCredentials(...)`, the vendor's environment variable, the
   saved key; a missing key's message names both ways to provide one. `Credentials.saved(vendor)`
   does the same lookup on every call, for endpoints with no factory (Kimi, DeepSeek). The command
-  is `io.cafeai.core.login.CafeLogin`, packaged as the `cafeai` command by the new `cafeai-cli`
-  module (`./gradlew :cafeai-cli:install` puts it in `~/.cafeai/cli/bin`); the JBang `cafeai`
-  alias comes with the release.
+  is the new `cafeai-cli` module (`io.cafeai.cli.CafeLogin`; `./gradlew :cafeai-cli:install` puts
+  `cafeai` in `~/.cafeai/cli/bin`); apps don't depend on it. The JBang `cafeai` alias comes with
+  the release.
 - **Claude with no API key: `cafeai login claude`.** Signs in to the Claude Console through
   Anthropic's own `ant auth login` (browser, company single sign-on, a workspace); it checks the
   `ant` it finds is Anthropic's, not Apache Ant. `Anthropic.of(model)` with no
@@ -26,10 +26,13 @@ versions are the Maven Central coordinates under `com.akilisha.oss`.
 - **Claude through the company's cloud, with the developer's own CLI sign-in.** `cafeai login
   azure | aws | google` hands the terminal to `az login`, `aws sso login` or `gcloud auth
   application-default login` (options after the name go to the CLI), and `cafeai status` shows
-  each (for AWS, the profile in use and every IAM Identity Center profile). In `cafeai-identity`: `AzureCliCredentials.scope(FOUNDRY | AZURE_OPENAI)` (from
-  `az account get-access-token`), `AwsCredentials.fromCli(profile)` (from
-  `aws configure export-credentials`, signing with SigV4 in the region from `AWS_REGION`,
-  `AWS_DEFAULT_REGION` or the profile) and
+  each (for AWS, the profile in use and every IAM Identity Center profile). A provider pointed at
+  the cloud then uses the sign-in by itself (`Anthropic.onVertex(...)`, a Foundry, Azure OpenAI
+  or Bedrock base URL), after `withCredentials(...)` and the vendor's environment variable. In
+  `cafeai-core` (`io.cafeai.core.ai`), to name them: `AzureCliCredentials.scope(FOUNDRY |
+  AZURE_OPENAI)` (from `az account get-access-token`), `AwsCliCredentials.active()` /
+  `.profile(name)` (from `aws configure export-credentials`, signing with SigV4 in the region
+  from `AWS_REGION`, `AWS_DEFAULT_REGION` or the profile) and
   `GoogleApplicationDefault.credentials()` (the ADC file, its refresh token redeemed in-process;
   impersonated service accounts too; key files refused). CLI tokens are kept until shortly before
   they expire.

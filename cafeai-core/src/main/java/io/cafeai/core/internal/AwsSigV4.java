@@ -1,4 +1,4 @@
-package io.cafeai.identity;
+package io.cafeai.core.internal;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -33,18 +33,18 @@ import java.util.stream.Collectors;
  * </ol>
  * Checked against AWS's own published test suite.
  */
-final class AwsSigV4 {
+public final class AwsSigV4 {
 
-    static final String ALGORITHM = "AWS4-HMAC-SHA256";
+    public static final String ALGORITHM = "AWS4-HMAC-SHA256";
     private static final DateTimeFormatter AMZ_DATE = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
 
     /** A key pair, and the session token of temporary credentials ({@code null} for long-term ones). */
-    record Key(String accessKeyId, String secretAccessKey, String sessionToken) {
+    public record Key(String accessKeyId, String secretAccessKey, String sessionToken) {
         @Override public String toString() { return "Key[" + accessKeyId + "]"; }
     }
 
     /** What signing produced: the headers to add, and the steps, for tests. */
-    record Signed(Map<String, String> headers, String canonicalRequest, String stringToSign, String signature) { }
+    public record Signed(Map<String, String> headers, String canonicalRequest, String stringToSign, String signature) { }
 
     private AwsSigV4() {}
 
@@ -56,7 +56,7 @@ final class AwsSigV4 {
      * @param signSessionToken whether the session token header is signed (it normally is)
      * @param contentSha256  whether to send, and sign, {@code x-amz-content-sha256}
      */
-    static Signed sign(String method, String rawPath, String rawQuery, Map<String, String> headers, byte[] body,
+    public static Signed sign(String method, String rawPath, String rawQuery, Map<String, String> headers, byte[] body,
                        Key key, String region, String service, Instant now,
                        boolean signSessionToken, boolean contentSha256) {
         String amzDate = AMZ_DATE.format(now);
@@ -124,7 +124,7 @@ final class AwsSigV4 {
     }
 
     /** RFC 3986 encoding as SigV4 wants it: every byte but the unreserved characters, upper-case hex. */
-    static String encode(String s) {
+    public static String encode(String s) {
         StringBuilder out = new StringBuilder();
         for (byte b : s.getBytes(StandardCharsets.UTF_8)) {
             char c = (char) (b & 0xff);
@@ -143,7 +143,7 @@ final class AwsSigV4 {
         return value.trim().replaceAll("\\s+", " ");
     }
 
-    static byte[] sha256(byte[] data) {
+    public static byte[] sha256(byte[] data) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(data);
         } catch (GeneralSecurityException e) {

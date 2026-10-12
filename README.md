@@ -417,6 +417,7 @@ cafeai/
 ├── cafeai-identity       ← Verified callers (OpenID Connect, OAuth 2.0) through the AI layer; no API keys
 ├── cafeai-mcp            ← MCP server: chosen routes and @Tool objects as tools for AI agents
 ├── cafeai-dev            ← Development only: save a file, the app reloads in about half a second
+├── cafeai-cli            ← The `cafeai` command: `cafeai login <vendor>`, sign in to a model once
 ├── cafeai-sentinel       ← AI cluster incident pipeline for Kubernetes / OpenShift (ROADMAP-18)
 ├── cafeai-test           ← Tests only: record/replay model calls (no API key, no cost) and evals
 └── cafeai-examples       ← Runnable reference implementations — the adoption ladder

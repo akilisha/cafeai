@@ -35,7 +35,7 @@ Two levels per cloud:
 |---|---|---|---|
 | 1 | Saved keys: `cafeai login <vendor>` for openai, grok, mistral, nova, kimi, deepseek; the lookup order; `Credentials.saved` | — | 🟢 `9a644aa` |
 | 2 | Claude with no key: `cafeai login claude` through Anthropic's `ant auth login`; the profile renewed in-process | — | 🟢 `bc879a0` |
-| 3 | The company's cloud: `cafeai login azure \| aws \| google`; `AzureCliCredentials`, `AwsCredentials.fromCli`, `GoogleApplicationDefault` | — | 🟢 `f31fdf3` |
+| 3 | The company's cloud: `cafeai login azure \| aws \| google`; `AzureCliCredentials`, `AwsCliCredentials`, `GoogleApplicationDefault` | — | 🟢 `f31fdf3` |
 | 4 | Validate Google: ADC sign-in, then Claude on Vertex AI | a Google Cloud project (free for sign-in; billing and Claude enabled in Model Garden for a call) | ⚪ |
 | 5 | Validate Claude Console: `ant auth login`, a real renewal, a real call | a Claude Console account with API credit (personal is fine; an organisation with SSO is better) | ⚪ |
 | 6 | Validate Azure: `az login`, then Claude in Foundry and Azure OpenAI | an Azure account (free for sign-in; a Foundry resource with a Claude deployment for a call) | ⚪ |
@@ -44,6 +44,10 @@ Two levels per cloud:
 | 9 | Validate the company's restrictions: what a developer sees when the company says no | an organisation account on at least one vendor, with a restriction switched on | ⚪ |
 | 10 | Validate on macOS and Linux | a Mac and a Linux machine (or WSL) | ⚪ |
 | 11 | The `cafeai` command: from source now (`cafeai-cli`), shaped as the validations use it; then the JBang `cafeai` alias | the alias: 0.6.0 on Maven Central | 🟡 from source |
+
+After phases 4–8 had run, the parts were reshaped (LOGIN.md §9): a provider pointed at a cloud
+now uses that cloud's CLI sign-in by itself, the developer-machine credentials live in
+`cafeai-core`, and the command in `cafeai-cli`, published.
 
 Phases 4–10 are independent; do them in whatever order accounts become available. Phase 4 is the
 cheapest start: `gcloud` is already installed on the development machine.

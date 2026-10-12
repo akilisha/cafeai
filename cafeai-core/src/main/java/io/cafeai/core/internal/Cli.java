@@ -16,7 +16,7 @@ import java.util.function.UnaryOperator;
  * Finding and running another program's command-line tool ({@code az}, {@code aws},
  * {@code gcloud}): on the PATH, including Windows' {@code .exe} / {@code .cmd} / {@code .bat};
  * its output captured with a time limit, or the terminal handed over to it. Public only so
- * {@code io.cafeai.core.login} and {@code cafeai-identity} can reach it.
+ * {@code cafeai-cli} and {@code io.cafeai.core.ai} can reach it.
  */
 public final class Cli {
 

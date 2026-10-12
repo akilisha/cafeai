@@ -3,6 +3,7 @@ package io.cafeai.identity;
 import io.cafeai.core.ai.Credentials;
 import io.cafeai.core.identity.Identity;
 import io.cafeai.core.identity.IdentityRequiredException;
+import io.cafeai.core.internal.AwsSigV4;
 import io.cafeai.core.internal.CurrentRequest;
 import io.helidon.json.JsonArray;
 import io.helidon.json.JsonObject;

@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 /**
  * The vendors whose API key {@code cafeai login} can keep: each one's name on the command line,
  * the environment variable that takes precedence over the saved key, and where to create a key.
- * Public only so {@code io.cafeai.core.login} and {@code io.cafeai.core.ai} can reach it.
+ * Public only so {@code cafeai-cli} and {@code io.cafeai.core.ai} can reach it.
  */
 public enum KeyVendor {
 

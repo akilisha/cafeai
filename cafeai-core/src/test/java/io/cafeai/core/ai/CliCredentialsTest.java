@@ -1,10 +1,8 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.AiProvider;
-import io.cafeai.core.ai.Anthropic;
 import io.cafeai.core.internal.Cli;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,7 +121,7 @@ class CliCredentialsTest {
     void azureErrors() {
         var notSignedIn = AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY).cli(() -> program("az"),
                 command -> new Cli.Result(1, "", "ERROR: Please run 'az login' to setup account."), at(NOW));
-        assertThatThrownBy(notSignedIn::token).isInstanceOf(IdentityException.class)
+        assertThatThrownBy(notSignedIn::token).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cafeai login azure").hasMessageContaining("Please run 'az login'");
 
         var missing = AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY).cli(Optional::empty,
@@ -167,7 +165,7 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: the profile's role credentials sign each call (SigV4), in the profile's region")
     void awsCall() throws Exception {
-        var credentials = AwsCredentials.fromCli("work").environment(name -> null)
+        var credentials = AwsCliCredentials.profile("work").environment(name -> null)
                 .cli(() -> program("aws"), aws(Instant.now().plusSeconds(3600).toString()));
         assertThat(ask(Anthropic.of("anthropic.claude-opus-5-5").withBaseUrl(model.baseUrl("/anthropic"))
                 .withCredentials(credentials))).isEqualTo("ok");
@@ -184,7 +182,7 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: credentials are kept until five minutes before their Expiration")
     void awsCached() throws Exception {
-        var credentials = AwsCredentials.fromCli().region("us-east-1")
+        var credentials = AwsCliCredentials.active().region("us-east-1")
                 .cli(() -> program("aws"), aws(NOW.plusSeconds(3600).toString())).clock(at(NOW));
         var headers = Map.of("host", "bedrock-mantle.us-east-1.api.aws");
         credentials.sign("POST", URI.create("https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages"), headers, new byte[0]);
@@ -197,7 +195,7 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: AWS_DEFAULT_REGION, when set, is used instead of the profile's region")
     void awsDefaultRegion() {
-        var credentials = AwsCredentials.fromCli("work").environment(name -> "AWS_DEFAULT_REGION".equals(name) ? "eu-west-1" : null)
+        var credentials = AwsCliCredentials.profile("work").environment(name -> "AWS_DEFAULT_REGION".equals(name) ? "eu-west-1" : null)
                 .cli(() -> program("aws"), aws(NOW.plusSeconds(3600).toString())).clock(at(NOW));
         var headers = credentials.sign("POST", URI.create("https://x.example/v1/messages"), Map.of("host", "x.example"), new byte[0]);
         assertThat(headers.get("Authorization")).contains("/eu-west-1/bedrock-mantle/aws4_request");
@@ -206,7 +204,7 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: a profile with no region says how to set one")
     void awsNoRegion() {
-        var credentials = AwsCredentials.fromCli("work").environment(name -> null).cli(() -> program("aws"), command ->
+        var credentials = AwsCliCredentials.profile("work").environment(name -> null).cli(() -> program("aws"), command ->
                 command.contains("get") ? new Cli.Result(1, "", "") : aws(NOW.plusSeconds(3600).toString()).apply(command));
         assertThatThrownBy(() -> credentials.sign("POST", URI.create("https://x.example/v1/messages"),
                 Map.of("host", "x.example"), new byte[0]))
@@ -217,11 +215,11 @@ class CliCredentialsTest {
 
     @Test @DisplayName("aws: an expired SSO sign-in says to sign in again, with the profile")
     void awsExpired() {
-        var credentials = AwsCredentials.fromCli("work").region("us-east-1").cli(() -> program("aws"), command ->
+        var credentials = AwsCliCredentials.profile("work").region("us-east-1").cli(() -> program("aws"), command ->
                 new Cli.Result(255, "", "Error when retrieving token from sso: Token has expired and refresh failed"));
         assertThatThrownBy(() -> credentials.sign("POST", URI.create("https://x.example/v1/messages"),
                 Map.of("host", "x.example"), new byte[0]))
-                .isInstanceOf(IdentityException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cafeai login aws --profile work").hasMessageContaining("Token has expired");
     }
 

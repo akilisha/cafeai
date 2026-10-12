@@ -2,6 +2,7 @@ package io.cafeai.identity;
 
 import com.sun.net.httpserver.HttpServer;
 import io.cafeai.core.CafeAI;
+import io.cafeai.core.internal.AwsSigV4;
 import io.cafeai.core.ai.Anthropic;
 import io.cafeai.identity.dev.FakeIssuer;
 import org.junit.jupiter.api.AfterAll;

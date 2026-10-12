@@ -1,11 +1,10 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
-import io.cafeai.core.ai.Credentials;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.cafeai.core.internal.Cli;
-import io.helidon.json.JsonObject;
-import io.helidon.json.JsonParser;
-import io.helidon.json.JsonValueType;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -20,7 +19,8 @@ import java.util.function.Supplier;
 /**
  * Microsoft Entra ID tokens from the developer's own Azure CLI sign-in ({@code az login}, or
  * {@code cafeai login azure}): no key, no client secret. For Claude in Microsoft Foundry and Azure
- * OpenAI on a developer's machine.
+ * OpenAI on a developer's machine. A provider pointed at either with no credentials of its own
+ * uses it by itself; to name it (or a tenant):
  *
  * <pre>{@code
  *   app.ai(Anthropic.of("claude-opus-5-5")
@@ -30,8 +30,9 @@ import java.util.function.Supplier;
  *
  * <p>Runs {@code az account get-access-token --scope <scope>} (what Azure's own SDK does in its
  * {@code AzureCliCredential}) and keeps the token until {@link #RENEW_BEFORE} before it expires:
- * {@code az} takes a second or more to start, so it is never run per call. Calls are the signed-in
- * developer's, under the company's Entra policies.
+ * {@code az} takes up to a second or more to start, so it is never run per call. Calls are the
+ * signed-in developer's, under the company's Entra policies. For servers, use
+ * {@code cafeai-identity}'s {@code OAuthCredentials}.
  */
 public final class AzureCliCredentials implements Credentials {
 
@@ -40,6 +41,7 @@ public final class AzureCliCredentials implements Credentials {
     /** Azure OpenAI. */
     public static final String AZURE_OPENAI = "https://cognitiveservices.azure.com/.default";
 
+    private static final ObjectMapper JSON = new ObjectMapper();
     static final Duration RENEW_BEFORE = Duration.ofMinutes(5);
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     static final String INSTALL = "The Azure CLI (az) isn't installed. Install it from "
@@ -80,38 +82,37 @@ public final class AzureCliCredentials implements Credentials {
     public synchronized String token() {
         Instant now = clock.instant();
         if (cached != null && now.isBefore(cached.expires().minus(RENEW_BEFORE))) return cached.value();
-        Path az = locate.get().orElseThrow(() -> new IdentityException(INSTALL));
+        Path az = locate.get().orElseThrow(() -> new IllegalStateException(INSTALL));
         var command = new ArrayList<>(List.of(az.toString(), "account", "get-access-token", "--scope", scope, "--output", "json"));
         if (tenant != null) command.addAll(List.of("--tenant", tenant));
         Cli.Result result = runner.apply(command);
         if (!result.ok()) {
             String said = firstLine(result.err());
             if (result.err().contains("az login")) {
-                throw new IdentityException("Not signed in to Azure, or the sign-in has expired. Sign in: "
+                throw new IllegalStateException("Not signed in to Azure, or the sign-in has expired. Sign in: "
                         + "`cafeai login azure` (az login). Azure CLI said: " + said);
             }
-            throw new IdentityException("The Azure CLI couldn't get a token for " + scope + ": " + said);
+            throw new IllegalStateException("The Azure CLI couldn't get a token for " + scope + ": " + said);
         }
-        JsonObject json = parse(result.out());
-        String token = json.stringValue("accessToken").orElseThrow(() ->
-                new IdentityException("The Azure CLI answered without an accessToken"));
-        // expires_on is UTC epoch seconds (az 2.54+); expiresOn is local time, so it's not used.
-        Instant expires = json.value("expires_on").map(v -> v.type() == JsonValueType.NUMBER
-                        ? Instant.ofEpochSecond(v.asNumber().longValue())
-                        : Instant.ofEpochSecond(Long.parseLong(v.asString().value())))
-                .orElse(now.plus(Duration.ofMinutes(30)));
+        JsonNode json = parse(result.out());
+        String token = json.path("accessToken").asText("");
+        if (token.isEmpty()) throw new IllegalStateException("The Azure CLI answered without an accessToken");
+        // expires_on is UTC epoch seconds (az 2.54+, a number); expiresOn is local time, so it's not used.
+        JsonNode expiresOn = json.get("expires_on");
+        Instant expires = expiresOn == null || expiresOn.isNull() ? now.plus(Duration.ofMinutes(30))
+                : Instant.ofEpochSecond(expiresOn.isNumber() ? expiresOn.asLong() : Long.parseLong(expiresOn.asText()));
         cached = new Token(token, expires);
         return token;
     }
 
-    private static JsonObject parse(String out) {
+    private static JsonNode parse(String out) {
         try {
-            var value = JsonParser.create(out).readJsonValue();
-            if (value.type() == JsonValueType.OBJECT) return value.asObject();
-        } catch (RuntimeException ignored) {
+            JsonNode value = JSON.readTree(out);
+            if (value != null && value.isObject()) return value;
+        } catch (IOException ignored) {
             // reported below
         }
-        throw new IdentityException("The Azure CLI's answer wasn't JSON: " + firstLine(out));
+        throw new IllegalStateException("The Azure CLI's answer wasn't JSON: " + firstLine(out));
     }
 
     private static String firstLine(String s) {

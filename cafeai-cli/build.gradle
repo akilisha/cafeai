@@ -6,8 +6,10 @@
 //  From source, onto ~/.cafeai/cli (put ~/.cafeai/cli/bin on the PATH):
 //    ./gradlew :cafeai-cli:install
 //
-//  Not published yet; released versions will come through the JBang
-//  catalog (distribution.md step 6).
+//  Published, so the JBang catalog's `cafeai` alias can depend on
+//  it (distribution.md step 6). Apps don't depend on it: what a
+//  provider reads (saved keys, the Claude sign-in, the cloud CLI
+//  sign-ins) is in cafeai-core.
 // ============================================================
 
 plugins {
@@ -16,6 +18,8 @@ plugins {
 
 description = 'The cafeai command: sign in to a model once.'
 
+apply from: "$rootDir/gradle/maven-central.gradle"
+
 dependencies {
     implementation project(':cafeai-core')
     runtimeOnly "org.slf4j:slf4j-nop:${rootProject.ext.slf4jVersion}"
@@ -23,7 +27,7 @@ dependencies {
 
 application {
     applicationName = 'cafeai'
-    mainClass = 'io.cafeai.core.login.CafeLogin'
+    mainClass = 'io.cafeai.cli.CafeLogin'
     // Java's own terminal support, so names print in Unicode on a Windows console (Java 23 uses it
     // by default; later releases need it asked for). See CafeLogin.screen().
     applicationDefaultJvmArgs = ['-Djdk.console=jdk.internal.le']

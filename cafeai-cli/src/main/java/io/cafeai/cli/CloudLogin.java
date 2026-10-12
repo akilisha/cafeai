@@ -1,7 +1,8 @@
-package io.cafeai.core.login;
+package io.cafeai.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.cafeai.core.ai.GoogleApplicationDefault;
 import io.cafeai.core.internal.Cli;
 
 import java.io.IOException;
@@ -12,7 +13,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
@@ -184,7 +184,7 @@ final class CloudLogin {
 
     /** Reads the Application Default Credentials file instead of running gcloud, which is slow to start. */
     private String googleStatus() {
-        Path file = adcFile();
+        Path file = GoogleApplicationDefault.file(env);
         if (!Files.isRegularFile(file)) return "not signed in (cafeai login google)";
         try {
             JsonNode adc = JSON.readTree(file.toFile());
@@ -199,15 +199,4 @@ final class CloudLogin {
         }
     }
 
-    private Path adcFile() {
-        String explicit = env.apply("GOOGLE_APPLICATION_CREDENTIALS");
-        if (explicit != null && !explicit.isBlank()) return Path.of(explicit);
-        String config = env.apply("CLOUDSDK_CONFIG");
-        if (config != null && !config.isBlank()) return Path.of(config, "application_default_credentials.json");
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
-            String appData = env.apply("APPDATA");
-            if (appData != null && !appData.isBlank()) return Path.of(appData, "gcloud", "application_default_credentials.json");
-        }
-        return Path.of(System.getProperty("user.home"), ".config", "gcloud", "application_default_credentials.json");
-    }
 }

@@ -1,4 +1,4 @@
-package io.cafeai.core.login;
+package io.cafeai.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.cafeai.core.internal.AnthropicProfile;

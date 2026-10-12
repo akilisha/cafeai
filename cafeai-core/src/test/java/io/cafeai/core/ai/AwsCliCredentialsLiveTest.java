@@ -1,11 +1,12 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
 import io.cafeai.core.CafeAI;
-import io.cafeai.core.ai.Anthropic;
 import io.cafeai.core.internal.Cli;
-import io.helidon.json.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -21,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link AwsCredentials#fromCli(String)} against the real AWS CLI and AWS (MILESTONE-20 phase 7).
+ * {@link AwsCliCredentials#profile(String)} against the real AWS CLI and AWS (MILESTONE-20 phase 7).
  * Each part runs only when asked for, and is skipped otherwise:
  *
  * <ul>
@@ -34,8 +35,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *       plain and streamed, in the profile's region.</li>
  * </ul>
  */
+@Tag("live")
 @DisplayName("AWS CLI sign-in, live")
 class AwsCliCredentialsLiveTest {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private static java.util.List<String> fields(JsonNode json) {
+        var names = new java.util.ArrayList<String>();
+        json.fieldNames().forEachRemaining(names::add);
+        return names;
+    }
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
 
@@ -68,12 +78,12 @@ class AwsCliCredentialsLiveTest {
         String profile = profile();
         Cli.Result raw = aws("configure", "export-credentials", "--format", "process", "--profile", profile);
         assertThat(raw.ok()).as("aws answered: " + raw.err()).isTrue();
-        var json = JsonParser.create(raw.out()).readJsonValue().asObject();
-        System.out.println("[live] export-credentials: fields " + json.keys() + ", Expiration "
-                + json.stringValue("Expiration").orElse("(none: long-lived keys)"));
+        JsonNode json = JSON.readTree(raw.out());
+        System.out.println("[live] export-credentials: fields " + fields(json) + ", Expiration "
+                + json.path("Expiration").asText("(none: long-lived keys)"));
 
         String region = region(profile);
-        var credentials = AwsCredentials.fromCli(profile).service("sts");
+        var credentials = AwsCliCredentials.profile(profile).service("sts");
         if (region == null) {
             URI anywhere = URI.create("https://sts.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15");
             assertThatThrownBy(() -> credentials.sign("GET", anywhere, Map.of("host", anywhere.getHost()), new byte[0]))
@@ -97,10 +107,10 @@ class AwsCliCredentialsLiveTest {
         String profile = System.getenv("AWS_CLI_SIGNED_OUT_PROFILE");
         Assumptions.assumeTrue(profile != null && !profile.isBlank(),
                 "set AWS_CLI_SIGNED_OUT_PROFILE after `cafeai logout aws --profile <p>`");
-        var credentials = AwsCredentials.fromCli(profile).service("sts").region("us-east-1");
+        var credentials = AwsCliCredentials.profile(profile).service("sts").region("us-east-1");
         URI uri = URI.create("https://sts.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15");
         assertThatThrownBy(() -> credentials.sign("GET", uri, Map.of("host", uri.getHost()), new byte[0]))
-                .isInstanceOf(IdentityException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .satisfies(e -> System.out.println("[live] signed out: " + e.getMessage()))
                 .hasMessageContaining("cafeai login aws --profile " + profile);
     }
@@ -113,7 +123,7 @@ class AwsCliCredentialsLiveTest {
         String base = "https://bedrock-mantle." + region(profile) + ".api.aws/anthropic";
 
         var app = CafeAI.create();
-        app.ai(Anthropic.of(model).withBaseUrl(base).withCredentials(AwsCredentials.fromCli(profile)));
+        app.ai(Anthropic.of(model).withBaseUrl(base).withCredentials(AwsCliCredentials.profile(profile)));
         String answer = app.prompt("Reply with the single word: ready").call().text();
         System.out.println("[live] bedrock: " + answer);
         assertThat(answer).isNotBlank();

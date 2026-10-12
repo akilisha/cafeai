@@ -42,8 +42,12 @@ is done when every box is ticked or explicitly waived with a reason.
 ## Phase 3 — The company's cloud &nbsp;🟢
 
 - [x] `cafeai login | logout azure | aws | google`, CLI options passed through, status per cloud
-- [x] `AzureCliCredentials`, `AwsCredentials.fromCli`, `GoogleApplicationDefault`
+- [x] `AzureCliCredentials`, `AwsCliCredentials` (then `AwsCredentials.fromCli`), `GoogleApplicationDefault`
 - [x] Tests: `CliCredentialsTest` (with a real stand-in process for `az`), `CloudLoginTest`; mutation-checked
+- [x] Reshaped (LOGIN.md §9): a provider pointed at Vertex AI, Foundry, Azure OpenAI or Bedrock uses
+  the cloud's CLI sign-in by itself (`CloudSignInTest`; checked live on Vertex AI: with no
+  credentials in code, Google accepted the sign-in's token and answered with the quota refusal);
+  the credentials in `cafeai-core`; the command in `cafeai-cli`, published
 
 ---
 
@@ -226,13 +230,13 @@ access to Claude in one region.
 
 ### Sign-in only
 - [x] `cafeai login aws --profile <p>` runs `aws sso login`; `cafeai status` shows the credentials' expiry
-- [x] `AwsCredentials.fromCli("<p>")` gets credentials from the real `aws configure export-credentials`
+- [x] `AwsCliCredentials.profile("<p>")` gets credentials from the real `aws configure export-credentials`
 - [x] The region is read from the profile when not given (and from `AWS_DEFAULT_REGION`; a profile with none says how to set one)
 - [x] A request CafeAI signs with those credentials is accepted by AWS (STS `GetCallerIdentity`, free)
 - [x] After the SSO session expires (or `aws sso logout`), the error says to sign in again; record the real text
 
 ### End to end
-- [ ] Claude in Bedrock answers a SigV4-signed call with `AwsCredentials.fromCli`
+- [ ] Claude in Bedrock answers a SigV4-signed call with the AWS CLI sign-in (picked up by itself)
 - [ ] A streamed call works
 
 ### Results

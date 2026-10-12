@@ -29,7 +29,7 @@ import java.util.function.UnaryOperator;
  *
  * <p>A key is looked up in this order, the first found wins: the vendor's environment variable
  * ({@code OPENAI_API_KEY}, ...), then the saved key. (A provider's {@code withCredentials(...)},
- * when set, is used before either.) Public only so {@code io.cafeai.core.login} and
+ * when set, is used before either.) Public only so {@code cafeai-cli} and
  * {@code io.cafeai.core.ai} can reach it.
  */
 public final class SavedKeys {

@@ -790,25 +790,30 @@ by other apps.
 Azure, AWS or Google Cloud, the developer signs in with that cloud's own CLI, through the
 company's single sign-on (`cafeai login azure`, `aws`, `google` run `az login`,
 `aws sso login` and `gcloud auth application-default login`; options after the name, such as
-`--profile work`, go to the CLI). With `cafeai-identity`:
+`--profile work`, go to the CLI). A provider pointed at that cloud then uses the sign-in by
+itself, with nothing but `cafeai-core`:
 
 ```java
-// Claude in Microsoft Foundry (or Azure OpenAI with AzureCliCredentials.AZURE_OPENAI)
-app.ai(Anthropic.of("claude-opus-5-5").withBaseUrl("https://<resource>.services.ai.azure.com/anthropic")
-        .withCredentials(AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY)));
+// Claude on Vertex AI: the Application Default Credentials gcloud saved
+app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global"));
 
-// Claude in Amazon Bedrock, signed with the AWS CLI profile's role credentials
-app.ai(Anthropic.of("anthropic.claude-opus-5-5").withBaseUrl("https://bedrock-mantle.us-east-1.api.aws/anthropic")
-        .withCredentials(AwsCredentials.fromCli("work")));
+// Claude in Microsoft Foundry: the az sign-in (Azure OpenAI at <resource>.openai.azure.com likewise)
+app.ai(Anthropic.of("claude-opus-5-5").withBaseUrl("https://<resource>.services.ai.azure.com/anthropic"));
 
-// Claude on Vertex AI, with the Application Default Credentials gcloud saved
-app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global")
-        .withCredentials(GoogleApplicationDefault.credentials()));
+// Claude in Amazon Bedrock: the AWS CLI's sign-in (AWS_PROFILE, else default), signed for the host's region
+app.ai(Anthropic.of("anthropic.claude-opus-5-5").withBaseUrl("https://bedrock-mantle.us-east-1.api.aws/anthropic"));
 ```
 
-`az` and `aws` take a second or more to start, so their tokens are kept until shortly before they
-expire, never fetched per call. Google's file is read and its refresh token redeemed in-process,
-as Google's libraries do; service-account key files are refused.
+`withCredentials(...)`, and then the vendor's environment variable (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`), still come first. To name a profile, a tenant or a scope, say so:
+`.withCredentials(AwsCliCredentials.profile("work"))`,
+`.withCredentials(AzureCliCredentials.scope(AzureCliCredentials.FOUNDRY).tenant("..."))`,
+`.withCredentials(GoogleApplicationDefault.credentials())`. Each sign-in goes only to its own
+cloud's hosts, over https. `az` and `aws` take up to a second or more to start, so their tokens
+are kept until shortly before they expire, never fetched per call. Google's file is read and its
+refresh token redeemed in-process, as Google's libraries do; service-account key files are
+refused. On a server, use `cafeai-identity`'s federation instead (`GoogleFederation`,
+`AwsCredentials.assumeRole...`, `OAuthCredentials`).
 
 If the key is absent and you try to call the provider, CafeAI throws an `IllegalStateException`
 with an exact message telling you which variable to set or which `cafeai login` to run —

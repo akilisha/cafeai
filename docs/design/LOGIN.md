@@ -1,6 +1,6 @@
 # `cafeai login`: sign in to a model once, the way you sign in to `claude` or `az`
 
-Status: built (phases 1–3); validation against real accounts tracked in ROADMAP-20 / MILESTONE-20 (`docs/roadmap/`).
+Status: built (phases 1–4); validation against real accounts tracked in ROADMAP-20 / MILESTONE-20 (`docs/roadmap/`).
 
 ## 1. The problem
 
@@ -55,17 +55,19 @@ cafeai logout <vendor>    # forget it (and revoke, where the vendor can)
 cafeai status             # what each vendor will use, whose account, until when
 ```
 
-The command is `io.cafeai.core.login.CafeLogin`, packaged by the `cafeai-cli` module: from a
-checkout, `./gradlew :cafeai-cli:install` puts `cafeai` in `~/.cafeai/cli/bin`, running on the
-JDK it was built with. Once the release is on Maven Central it is
+The command is the `cafeai-cli` module (`io.cafeai.cli.CafeLogin`): from a checkout,
+`./gradlew :cafeai-cli:install` puts `cafeai` in `~/.cafeai/cli/bin`, running on the JDK it was
+built with. Once the release is on Maven Central it is
 shipped through the JBang catalog (`jbang cafeai@akilisha/cafeai login openai`), installable as
 a plain `cafeai` command with `jbang app install --name cafeai cafeai@akilisha/cafeai`.
 
-In code, a provider with no key finds the login by itself. Order, first wins:
+In code, a provider with no key finds the login by itself, with nothing but `cafeai-core`.
+Order, first wins:
 
 1. `withCredentials(...)` in code;
 2. the vendor's usual environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...);
-3. what `cafeai login` recorded for that vendor.
+3. what `cafeai login` recorded for that vendor: the saved key, the Claude Console sign-in, or,
+   for a provider pointed at a cloud, that cloud's CLI sign-in (§9).
 
 `cafeai status` and the startup log say which one was used, never the secret itself.
 
@@ -171,4 +173,46 @@ role credentials until their expiry.
 3. ✅ **Cloud CLIs:** azure, aws, google. Tested against fakes of the CLIs and of Google's token
    endpoint, plus a real process standing in for `az`; not yet against real cloud accounts.
 
+4. ✅ **One shape for every vendor** (§9): cloud sign-ins picked up by themselves, the
+   developer-machine credentials in `cafeai-core`, the command in `cafeai-cli`.
+
 Each phase ends with a demo a developer can run on their own machine, like the identity demos.
+
+## 9. Shape: where the parts live (2026-10-11)
+
+Validating phases 1–3 against real accounts showed one seam. After `cafeai login claude` or
+`cafeai login openai`, a plain `Anthropic.of(model)` works: no code, no other module. After
+`cafeai login azure`, `aws` or `google`, nothing happened by itself: the developer added
+`cafeai-identity` and wrote `.withCredentials(AzureCliCredentials...)`. The same command meant
+"done" for some vendors and "now write code" for others. And the command itself (terminal input,
+handing the terminal to other programs, printing) lived in `cafeai-core`, so every app carried it.
+
+The shape now:
+
+| Part | Module | Why there |
+|---|---|---|
+| The `cafeai` command (`CafeLogin`, `ClaudeLogin`, `CloudLogin`) | `cafeai-cli`, published | A tool, not something an app runs. Apps don't carry it; JBang's `cafeai` alias depends on it. |
+| What a provider reads: `SavedKeys`, `AnthropicProfile`, `Credentials.saved(...)` | `cafeai-core` | Every provider looks up its credential here. |
+| The developer's cloud sign-in: `AzureCliCredentials`, `AwsCliCredentials`, `GoogleApplicationDefault` (`io.cafeai.core.ai`), and SigV4 signing | `cafeai-core` | So the lookup can use them by itself. They read the developer's own sign-in; they are not identity. |
+| Verified callers (`Auth.bearer`, sign-in flows, MCP auth) and workload federation (`AnthropicFederation`, `GoogleFederation`, `AwsCredentials.assumeRole...`, `OAuthCredentials`) | `cafeai-identity` | Identity: who calls the app, and what the app (or its caller) proves to a vendor on a server. |
+
+**Picked up by themselves.** A provider with no `withCredentials(...)` and no vendor environment
+variable uses the cloud's CLI sign-in when it points at that cloud:
+
+| Provider | Uses |
+|---|---|
+| `Anthropic.onVertex(model, project, location)` | `GoogleApplicationDefault.credentials()` |
+| `Anthropic.of(model).withBaseUrl("https://<resource>.services.ai.azure.com/anthropic")` | `AzureCliCredentials.scope(FOUNDRY)` |
+| `OpenAI.of(deployment).withBaseUrl("https://<resource>.openai.azure.com/...")` (or `cognitiveservices.azure.com`) | `AzureCliCredentials.scope(AZURE_OPENAI)` |
+| `Anthropic.of(model).withBaseUrl("https://bedrock-mantle.<region>.api.aws/anthropic")` | `AwsCliCredentials.active()` (`AWS_PROFILE`, else `default`), signing for the region in the host |
+
+Only over https, and only to that cloud's own hosts: an Azure token never goes to AWS, nor a
+developer's sign-in anywhere else. The saved OpenAI key is not sent to Azure. If the CLI isn't
+signed in, the call says so, naming `cafeai login <cloud>` and the environment variable.
+`withCredentials(...)` still wins, so code that names its credentials is unchanged.
+
+**What moved** (nothing was released, so no deprecations): `AzureCliCredentials` and
+`GoogleApplicationDefault` from `io.cafeai.identity` to `io.cafeai.core.ai`;
+`AwsCredentials.fromCli(...)` became `AwsCliCredentials.active()` / `.profile(name)` in
+`io.cafeai.core.ai`; SigV4 signing moved to `cafeai-core` (`AwsCredentials`' server-side role
+paths stay in `cafeai-identity` and use it); `io.cafeai.core.login` became `io.cafeai.cli`.

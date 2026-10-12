@@ -111,7 +111,8 @@ public final class LangchainBridge {
                 // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
                 if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
                 if (provider.baseUrl() != null)     builder.baseUrl(provider.baseUrl());
-                if (provider.credentials() != null) builder.customHeaders(perCallAuthorization(provider.credentials()));
+                Credentials credentials = openAiCredentials(provider);
+                if (credentials != null)            builder.customHeaders(perCallAuthorization(credentials));
                 else                                builder.apiKey(resolveApiKey("OPENAI_API_KEY", provider));
                 yield builder.build();
             }
@@ -166,7 +167,8 @@ public final class LangchainBridge {
                 // max_completion_tokens, not max_tokens: newer OpenAI models reject the latter
                 if (provider.maxTokens() != null)   builder.maxCompletionTokens(provider.maxTokens());
                 if (provider.baseUrl() != null)     builder.baseUrl(provider.baseUrl());
-                if (provider.credentials() != null) builder.customHeaders(perCallAuthorization(provider.credentials()));
+                Credentials credentials = openAiCredentials(provider);
+                if (credentials != null)            builder.customHeaders(perCallAuthorization(credentials));
                 else                                builder.apiKey(resolveApiKey("OPENAI_API_KEY", provider));
                 yield builder.build();
             }
@@ -241,14 +243,28 @@ public final class LangchainBridge {
 
     /**
      * What authenticates an Anthropic provider's calls, in the order Anthropic's own SDKs use:
-     * {@code withCredentials(...)}; {@code ANTHROPIC_API_KEY} (then {@code null}: the client
-     * sends it); the Claude Console sign-in {@code ant auth login} (or {@code cafeai login
-     * claude}) made. The sign-in only for Anthropic's own API: its token is never sent to another
-     * host.
+     * {@code withCredentials(...)}; on Vertex AI, the Google sign-in; {@code ANTHROPIC_API_KEY}
+     * (then {@code null}: the client sends it); for a base URL in Microsoft Foundry or Amazon
+     * Bedrock, that cloud's CLI sign-in; else the Claude Console sign-in {@code ant auth login}
+     * (or {@code cafeai login claude}) made. Each sign-in only for its own vendor's hosts.
      */
-    private static Credentials anthropicCredentials(AiProvider provider) {
-        if (provider.credentials() != null || vertex(provider) != null) return provider.credentials();
+    static Credentials anthropicCredentials(AiProvider provider) {
+        if (provider.credentials() != null) return provider.credentials();
+        if (vertex(provider) != null) return CloudSignIn.google();
+        if (present(environment.apply("ANTHROPIC_API_KEY"))) return null;
+        if (provider.baseUrl() != null) return CloudSignIn.forAnthropic(provider.baseUrl()).orElse(null);
         return signIn(provider).map(AnthropicProfile::credentials).orElse(null);
+    }
+
+    /**
+     * What authenticates an OpenAI provider's calls, if not a key: {@code withCredentials(...)};
+     * with no {@code OPENAI_API_KEY}, for a base URL in Azure OpenAI, the Azure CLI sign-in (the
+     * saved OpenAI key is never sent to Azure).
+     */
+    static Credentials openAiCredentials(AiProvider provider) {
+        if (provider.credentials() != null) return provider.credentials();
+        if (provider.baseUrl() == null || present(environment.apply("OPENAI_API_KEY"))) return null;
+        return CloudSignIn.forOpenAi(provider.baseUrl()).orElse(null);
     }
 
     /** The Claude Console sign-in this provider would use, if it uses one. */

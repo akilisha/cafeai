@@ -1,4 +1,4 @@
-package io.cafeai.identity;
+package io.cafeai.core.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

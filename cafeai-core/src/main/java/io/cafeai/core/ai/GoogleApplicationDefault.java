@@ -1,12 +1,8 @@
-package io.cafeai.identity;
+package io.cafeai.core.ai;
 
-import io.cafeai.core.ai.Credentials;
-import io.helidon.json.JsonArray;
-import io.helidon.json.JsonObject;
-import io.helidon.json.JsonParser;
-import io.helidon.json.JsonString;
-import io.helidon.json.JsonValue;
-import io.helidon.json.JsonValueType;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.net.URI;
@@ -30,7 +26,8 @@ import java.util.function.UnaryOperator;
  * Google Cloud tokens from the developer's own Application Default Credentials: the file
  * {@code gcloud auth application-default login} (or {@code cafeai login google}) writes, through
  * the company's Google sign-in. No service-account key. For Claude on Vertex AI on a developer's
- * machine:
+ * machine; {@code Anthropic.onVertex(...)} with no credentials of its own uses it by itself, the
+ * same as:
  *
  * <pre>{@code
  *   app.ai(Anthropic.onVertex("claude-opus-5-5", "my-project", "global")
@@ -44,10 +41,12 @@ import java.util.function.UnaryOperator;
  * Google's libraries do; an {@code impersonated_service_account} file (from {@code --impersonate-
  * service-account}) then acts as that service account. Key files ({@code service_account}) are
  * refused: they are the long-lived keys companies forbid. Tokens are kept until
- * {@link #RENEW_BEFORE} before they expire.
+ * {@link #RENEW_BEFORE} before they expire. For servers, use {@code cafeai-identity}'s
+ * {@code GoogleFederation}.
  */
 public final class GoogleApplicationDefault implements Credentials {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
     static final Duration RENEW_BEFORE = Duration.ofMinutes(5);
     static final String CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform";
     private static final String FILE = "application_default_credentials.json";
@@ -92,8 +91,13 @@ public final class GoogleApplicationDefault implements Credentials {
         return this;
     }
 
-    /** Where the credentials file is looked for. */
-    Path file() {
+    /** Where the credentials file is looked for (it may not exist). */
+    public Path file() {
+        return file(env);
+    }
+
+    /** Where Google's libraries look for the credentials file, in this environment (it may not exist). */
+    public static Path file(UnaryOperator<String> env) {
         String explicit = env.apply("GOOGLE_APPLICATION_CREDENTIALS");
         if (explicit != null && !explicit.isBlank()) return Path.of(explicit);
         String config = env.apply("CLOUDSDK_CONFIG");
@@ -111,61 +115,64 @@ public final class GoogleApplicationDefault implements Credentials {
         if (cached != null && now.isBefore(cached.expires().minus(RENEW_BEFORE))) return cached.value();
         Path file = file();
         if (!Files.isRegularFile(file)) {
-            throw new IdentityException("No Google Application Default Credentials at " + file
+            throw new IllegalStateException("No Google Application Default Credentials at " + file
                     + ". Sign in: `cafeai login google` (gcloud auth application-default login).");
         }
-        JsonObject adc = read(file);
-        String type = adc.stringValue("type", "");
+        JsonNode adc = read(file);
+        String type = adc.path("type").asText("");
         cached = switch (type) {
             case "authorized_user" -> refresh(adc, now);
             case "impersonated_service_account" -> impersonate(adc, now);
-            case "service_account" -> throw new IdentityException("The Google credentials at " + file
+            case "service_account" -> throw new IllegalStateException("The Google credentials at " + file
                     + " are a service-account key, a long-lived key. Use your own sign-in instead"
                     + " (`cafeai login google`), or workload federation (GoogleFederation).");
-            case "external_account" -> throw new IdentityException("The Google credentials at " + file
+            case "external_account" -> throw new IllegalStateException("The Google credentials at " + file
                     + " are a workload identity federation configuration; use GoogleFederation for that.");
-            default -> throw new IdentityException("The Google credentials at " + file + " have a type CafeAI doesn't"
+            default -> throw new IllegalStateException("The Google credentials at " + file + " have a type CafeAI doesn't"
                     + " handle: '" + type + "'");
         };
         return cached.value();
     }
 
     /** {@code authorized_user}: the refresh token redeemed at Google's token endpoint. */
-    private Token refresh(JsonObject user, Instant now) {
+    private Token refresh(JsonNode user, Instant now) {
         String form = "grant_type=refresh_token"
                 + "&client_id=" + encode(required(user, "client_id"))
                 + "&client_secret=" + encode(required(user, "client_secret"))
                 + "&refresh_token=" + encode(required(user, "refresh_token"));
-        JsonObject answer = post(tokenEndpoint, "application/x-www-form-urlencoded", form, null);
-        String token = answer.stringValue("access_token").orElseThrow(() ->
-                new IdentityException("Google's token endpoint answered without an access_token"));
-        return new Token(token, now.plusSeconds(answer.longValue("expires_in", 3600)));
+        JsonNode answer = post(tokenEndpoint, "application/x-www-form-urlencoded", form, null);
+        String token = answer.path("access_token").asText("");
+        if (token.isEmpty()) throw new IllegalStateException("Google's token endpoint answered without an access_token");
+        return new Token(token, now.plusSeconds(answer.path("expires_in").asLong(3600)));
     }
 
     /** {@code impersonated_service_account}: the person's token, then generateAccessToken for the account. */
-    private Token impersonate(JsonObject adc, Instant now) {
-        JsonObject source = adc.objectValue("source_credentials").orElseThrow(() ->
-                new IdentityException("The impersonation credentials have no source_credentials"));
-        if (!"authorized_user".equals(source.stringValue("type", ""))) {
-            throw new IdentityException("Impersonation from '" + source.stringValue("type", "") + "' credentials isn't handled");
+    private Token impersonate(JsonNode adc, Instant now) {
+        JsonNode source = adc.get("source_credentials");
+        if (source == null || !source.isObject()) {
+            throw new IllegalStateException("The impersonation credentials have no source_credentials");
+        }
+        if (!"authorized_user".equals(source.path("type").asText(""))) {
+            throw new IllegalStateException("Impersonation from '" + source.path("type").asText("") + "' credentials isn't handled");
         }
         Token person = refresh(source, now);
         URI url = URI.create(required(adc, "service_account_impersonation_url"));
         if (!anyHost && (!"https".equals(url.getScheme()) || !url.getHost().endsWith(".googleapis.com"))) {
-            throw new IdentityException("Refusing to send a Google token to " + url);
+            throw new IllegalStateException("Refusing to send a Google token to " + url);
         }
-        var body = JsonObject.builder()
-                .set("scope", JsonArray.create(scopes.stream().map(s -> (JsonValue) JsonString.create(s)).toList()))
-                .set("lifetime", "3600s").build();
-        JsonObject answer = post(url, "application/json", body.toString(), person.value());
-        String token = answer.stringValue("accessToken").orElseThrow(() ->
-                new IdentityException("generateAccessToken answered without an accessToken"));
-        Instant expires = answer.stringValue("expireTime").map(t -> OffsetDateTime.parse(t).toInstant())
-                .orElse(now.plusSeconds(3600));
+        ObjectNode body = JSON.createObjectNode();
+        var scopeArray = body.putArray("scope");
+        scopes.forEach(scopeArray::add);
+        body.put("lifetime", "3600s");
+        JsonNode answer = post(url, "application/json", body.toString(), person.value());
+        String token = answer.path("accessToken").asText("");
+        if (token.isEmpty()) throw new IllegalStateException("generateAccessToken answered without an accessToken");
+        String expireTime = answer.path("expireTime").asText("");
+        Instant expires = expireTime.isEmpty() ? now.plusSeconds(3600) : OffsetDateTime.parse(expireTime).toInstant();
         return new Token(token, expires);
     }
 
-    private static JsonObject post(URI url, String contentType, String body, String bearer) {
+    private static JsonNode post(URI url, String contentType, String body, String bearer) {
         var request = HttpRequest.newBuilder(url).timeout(TIMEOUT)
                 .header("Content-Type", contentType).header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body));
@@ -175,46 +182,47 @@ public final class GoogleApplicationDefault implements Credentials {
             response = HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IdentityException("Interrupted while asking Google for a token", e);
+            throw new IllegalStateException("Interrupted while asking Google for a token", e);
         } catch (IOException e) {
-            throw new IdentityException("Could not reach " + url + ": " + e.getMessage(), e);
+            throw new IllegalStateException("Could not reach " + url + ": " + e.getMessage(), e);
         }
-        JsonObject json = parse(response.body());
+        JsonNode json = parse(response.body());
         if (response.statusCode() != 200 || json == null) {
-            String error = json == null ? "" : json.stringValue("error_description")
-                    .or(() -> json.stringValue("error")).map(e -> ": " + e).orElse("");
-            if (response.statusCode() == 400 && json != null && "invalid_grant".equals(json.stringValue("error", ""))) {
-                throw new IdentityException("The Google sign-in has expired or was revoked. Sign in again:"
+            String said = json == null ? "" : json.path("error_description").asText(json.path("error").asText(""));
+            String error = said.isEmpty() ? "" : ": " + said;
+            if (response.statusCode() == 400 && json != null && "invalid_grant".equals(json.path("error").asText(""))) {
+                throw new IllegalStateException("The Google sign-in has expired or was revoked. Sign in again:"
                         + " `cafeai login google` (gcloud auth application-default login)" + error);
             }
-            throw new IdentityException("Google refused the token request at " + url + " (HTTP "
+            throw new IllegalStateException("Google refused the token request at " + url + " (HTTP "
                     + response.statusCode() + ")" + error);
         }
         return json;
     }
 
-    private static JsonObject read(Path file) {
+    private static JsonNode read(Path file) {
         try {
-            JsonObject json = parse(Files.readString(file));
-            if (json == null) throw new IdentityException("The Google credentials at " + file + " aren't a JSON object");
+            JsonNode json = parse(Files.readString(file));
+            if (json == null) throw new IllegalStateException("The Google credentials at " + file + " aren't a JSON object");
             return json;
         } catch (IOException e) {
-            throw new IdentityException("Could not read " + file + ": " + e.getMessage(), e);
+            throw new IllegalStateException("Could not read " + file + ": " + e.getMessage(), e);
         }
     }
 
-    private static JsonObject parse(String body) {
+    private static JsonNode parse(String body) {
         try {
-            var value = JsonParser.create(body).readJsonValue();
-            return value.type() == JsonValueType.OBJECT ? value.asObject() : null;
-        } catch (RuntimeException e) {
+            JsonNode value = JSON.readTree(body);
+            return value != null && value.isObject() ? value : null;
+        } catch (IOException e) {
             return null;
         }
     }
 
-    private static String required(JsonObject json, String field) {
-        return json.stringValue(field).filter(s -> !s.isBlank()).orElseThrow(() ->
-                new IdentityException("The Google credentials have no " + field));
+    private static String required(JsonNode json, String field) {
+        String value = json.path(field).asText("");
+        if (value.isBlank()) throw new IllegalStateException("The Google credentials have no " + field);
+        return value;
     }
 
     private static String encode(String s) {

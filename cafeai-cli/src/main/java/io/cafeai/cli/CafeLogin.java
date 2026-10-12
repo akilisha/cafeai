@@ -1,4 +1,4 @@
-package io.cafeai.core.login;
+package io.cafeai.cli;
 
 import io.cafeai.core.internal.KeyVendor;
 import io.cafeai.core.internal.SavedKeys;
