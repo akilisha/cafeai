@@ -95,9 +95,9 @@ layout follows what this repository does:
 |---|---|---|---|
 | Design spec | `DESIGN_SPEC.md` at the project's root (more files beside it as the product grows) | `init`, `design`; the developer by hand | the problem, users, scope, the tech stack (the development framework first), the conventions, decisions, and for an existing codebase "as built" kept apart from "intended", with what's unsure marked for the developer to confirm; open questions |
 | Roadmap | `docs/roadmap/ROADMAP-NN.md` | `plan` | the plan for one design goal: its phases, each with an objective, optional prerequisites, inputs and outputs, acceptance, testing and validation criteria, and a status. No narrative (`ARTIFACTS.md`) |
-| Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | per phase: acceptance criteria written before the code, as checkboxes; a Results section with evidence (what was run, what happened, what was fixed and in which commit) |
+| Milestones | `docs/roadmap/MILESTONE-NN.md` | `plan`, then `brew` | the honest inventory of the roadmap's progress, phase by phase: reasons, difficulties, decisions, risks, estimates and timelines; each acceptance criterion tracked by its number, with its evidence (what was run, what happened, what was fixed and in which commit) (`ARTIFACTS.md`) |
 | Standards | `docs/STANDARDS.md` | the developer | the company's and team's own rules (coding standards, banned libraries, required patterns); every agent reads it |
-| Changelog | `CHANGELOG.md` | `brew` | what changed, for people |
+| Changelog | `CHANGELOG.md` | `brew`, with every completed phase | an immutable summary of what was added to or removed from the product; not the process behind it (`ARTIFACTS.md`) |
 | Docs after the fact | `README.md`, OpenAPI, guides | `brew`, `review` | the product, approachable for a newcomer |
 | Settings | `cafeai-loop.yaml` | the developer | the dials (§9) and each command's model |
 
@@ -128,7 +128,7 @@ applies; the loop adds none and removes none (vision principle 1).
 |---|---|---|---|
 | `init` | the codebase, if there is one (after asking permission to read it); the developer's description, in conversation | the design spec | the description leaves a decision open; code and stated intent disagree |
 | `design` | the design spec; the developer's new or changed requirements | an updated design spec; then, if the change affects them, an updated roadmap and milestones | the change contradicts a decision already made |
-| `plan` | the design spec | the roadmap and milestones, each milestone with acceptance criteria | the spec is too vague to write a testable criterion |
+| `plan` | the design spec | the roadmap (each phase with numbered acceptance criteria) and its milestones | the spec is too vague to write a testable criterion |
 | `brew` | the roadmap and milestones, from the first unfinished item; the code | code, tests, evidence in the milestone, changelog; one change per stopping point (§9) | a criterion can't be met as written; validation fails and the fix isn't clear; it reaches its stopping point |
 | `run <target>` | `<target>`: a jar or class file locally, or the platform's own command (`cafeai run oc get pods -o wide -o json`) | the command's result; findings for `review` | — |
 | `review` | the milestones (unticked, deferred, blocked), the open questions, `run`'s findings | a report, and a change adding what it found to the milestones | — |
@@ -178,7 +178,7 @@ Each command is an agent of its own (vision principle 8):
 
 How `brew` keeps the project on course (vision principle 2):
 
-1. **Acceptance criteria before code.** `plan` writes them into the milestone; they go through
+1. **Acceptance criteria before code.** `plan` writes them into the roadmap, numbered; they go through
    the project's change process before `brew` starts on them.
 2. **Tests, checked by mutation.** For each criterion `brew` writes tests, then breaks the code
    on purpose and checks the tests fail; a test that still passes is rewritten or removed.
@@ -188,8 +188,8 @@ How `brew` keeps the project on course (vision principle 2):
    `cafeai login`.)
 3. **Real dependencies, where configured.** Live tests against real services, switched on per
    environment, as `GoogleApplicationDefaultLiveTest` and its siblings are.
-4. **Evidence in the milestone.** Each ticked criterion points to its tests and, in Results,
-   records what was run, what happened, and what was fixed in which commit.
+4. **Evidence in the milestones.** Each criterion met is recorded by its number, pointing to its
+   tests and to what was run, what happened, and what was fixed in which commit.
 
 The developer leads the defence (vision principle 10): the clearer the spec and the more
 carefully the test and validation criteria are reviewed, the better the ladder works.
@@ -232,8 +232,8 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
 ## 12. Phases
 
 0. **The artifact format, written down,** from this repository (LOGIN.md, ROADMAP-20,
-   MILESTONE-20, the CHANGELOG): `ARTIFACTS.md`, beside this file. The roadmap and the
-   milestones are defined; the changelog comes next.
+   MILESTONE-20, the CHANGELOG): `ARTIFACTS.md`, beside this file. Written: the roadmap, the
+   milestones and the changelog.
 1. **The method by hand on PetClinic.** No code. An agent (Claude, in a session) follows draft
    `init` and `plan` prompts on PetClinic; the developer plays the product owner for a new
    feature. Out come a design spec, roadmap and milestones in the format, and the first drafts

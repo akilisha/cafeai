@@ -202,7 +202,7 @@ To test the whole idea before building all of it:
 
 1. Write the artifact format down, from this repository.
 2. `cafeai init`: the interview, or reading an existing codebase, producing the design spec.
-3. `cafeai plan`: roadmap and milestones, each milestone with acceptance criteria.
+3. `cafeai plan`: the roadmap, each phase with numbered acceptance criteria, and its milestones.
 4. The validation ladder, recording evidence in the milestones.
 5. `cafeai brew`, first with the developer's own agent writing the code from the artifacts, then
    with CafeAI driving the engine itself.

@@ -1,7 +1,6 @@
 # The artifacts of the development loop
 
-Status: being written (phase 0 of `DESIGN_SPEC.md`). The roadmap and the milestones are
-defined; the changelog is next. Plain Markdown: readable and usable without CafeAI.
+Status: written (phase 0 of `DESIGN_SPEC.md`): the roadmap, the milestones and the changelog. Plain Markdown: readable and usable without CafeAI.
 
 ---
 
@@ -11,7 +10,7 @@ defined; the changelog is next. Plain Markdown: readable and usable without Cafe
 |---|---|
 | **Roadmap** | **The plan.** What will be done, in what phases, to what criteria. No narrative and no explanations of why anything is in the state it's in. |
 | **Milestones** | **The heartbeat.** The honest inventory of where the work stands: reasons, difficulties, decisions, risks, estimates, timelines, evidence. |
-| **Changelog** | **The log.** An immutable entry for each change, for people. A smaller role than the other two. |
+| **Changelog** | **The log.** An immutable summary of what was added to or removed from the product, for anyone following it. A smaller role than the other two. |
 
 ---
 
@@ -45,7 +44,7 @@ executable steps, and the phases together complete the goal.
 | **Prerequisites** | optional | What must be done or exist before the phase can start: another phase or roadmap (beyond what the numbering already implies), an account, an environment, an approval. |
 | **Inputs** (pre-conditions) | optional | What the phase starts from. |
 | **Outputs** (post-conditions) | optional | What exists when the phase is done. |
-| **Acceptance criteria** | required | The outcomes without which the phase can't be accepted as completed. |
+| **Acceptance criteria** | required | The outcomes without which the phase can't be accepted as completed. Numbered *phase.criterion* (`3.2`), so the milestones can track them by reference. |
 | **Testing criteria** | required | The automated tests: extensive, even aggressive, coverage of the acceptance criteria. See *Every test earns its place*, below. |
 | **Validation criteria** | required | How the AI and the developer validate each acceptance criterion together, against the real thing where there is one. |
 | **Status** | required | One of the statuses below. Nothing else: the reasons live in the milestones. |
@@ -111,6 +110,11 @@ work on it stands, phase by phase.** Plural, because each step is a milestone in
   what was run, what happened, and what was fixed in which commit. A criterion waived is recorded
   with its reason.
 
+**Criteria are tracked by reference, never restated.** The roadmap defines each acceptance
+criterion once, numbered (`3.2`); the milestones refer to it by that number ("3.2 met: ...",
+"3.4 waived: ..."). One source of truth: a criterion can't say one thing in the plan and another
+in the tracker.
+
 ### Shape
 
 What this repository's milestones settled into (MILESTONE-20):
@@ -118,7 +122,8 @@ What this repository's milestones settled into (MILESTONE-20):
 - **At the top, a status table:** each phase, its status (as in the roadmap), its estimate and
   timeline. A manager's one-glance answer.
 - **Then a section per phase:**
-  - its acceptance criteria as checkboxes, ticked when met, each pointing to its evidence;
+  - each of the roadmap's acceptance criteria, by number, with its state (met, waived, open)
+    and a pointer to its evidence;
   - its entries: reasons, difficulties, discussions, dependencies, risks, vulnerabilities,
     decisions, each dated;
   - **Results:** the evidence, dated: what was run, against what, what came out, what was fixed.
@@ -128,4 +133,26 @@ history of how the work went stays readable.
 
 ## Changelog
 
-*(To be defined.)*
+### Definition
+
+The changelog is an immutable summary of what changed in the product: what was added to it, or
+removed from it. It is what anyone following the project reads for an overview of what has been
+happening. Not a complicated document, but it says a lot about the state and direction of the
+project.
+
+- **Updated with every completed phase.** When a phase reaches `completed`, what it added to or
+  removed from the product goes in.
+- **The product, not the process.** What changed, as someone using the product sees it. Not the
+  decisions, discussions or difficulties behind it: those are the milestones'.
+- **Immutable.** Entries are never rewritten. A correction is a new entry.
+
+### Shape
+
+The form this repository's `CHANGELOG.md` uses (loosely [Keep a Changelog](https://keepachangelog.com/)):
+
+- **One file,** `CHANGELOG.md` at the project's root.
+- **Newest first,** grouped by release (`## [0.6.0] — 2026-10-07`), with what isn't released yet
+  at the top.
+- **Within a release,** headed by kind: *Added*, *Changed*, *Removed*, *Fixed*, and *Breaking
+  changes* called out on their own.
+- **Each entry** a short, plain statement of what the product now does or no longer does.
