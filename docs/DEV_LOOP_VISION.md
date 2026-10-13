@@ -213,7 +213,7 @@ Genuine questions with no immediate answers. They stay here, visible, until they
   `cafeai-core`, built in `cafeai-aiservices`), so any CafeAI app can use it (`cafeai-sentinel`'s
   investigations, for one) and the loop proves it rather than containing it; `cafeai-agentic`'s
   workflows may run on it, but don't own it (their LangChain4j module is experimental upstream).
-  **The policy is the loop's:** which commands spawn children and for what, their tools, the
+  The framework's design: `docs/design/CHILD_AGENTS.md`. **The policy is the loop's:** which commands spawn children and for what, their tools, the
   limits, how the developer sees them. Built on final Java APIs (virtual threads, an
   `ExecutorService` closed by try-with-resources) behind a small abstraction, moving to
   `StructuredTaskScope` once it is final: it is still a preview API in JDK 26 and 27.

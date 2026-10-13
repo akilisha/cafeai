@@ -201,8 +201,8 @@ conclusion, with pointers to its evidence, so the parent's context stays clean. 
 codebase one child per package; `run` investigates a failure with children reading the logs, the
 recent commits, and what `cafeai-sentinel` reports. The developer can start one explicitly too.
 
-- **The mechanism is the framework's, not this module's** (a framework design goal still to be
-  planned): a child on a virtual thread, its lifetime bound to the parent (it can't outlive it;
+- **The mechanism is the framework's, not this module's** (`docs/design/CHILD_AGENTS.md`, a
+  framework design goal still to be planned): a child on a virtual thread, its lifetime bound to the parent (it can't outlive it;
   cancellation and deadlines propagate), its cost credited to the parent command, its start and
   finish published for observability. Next to `app.agent`: the API in `cafeai-core`, built in
   `cafeai-aiservices`. On final Java APIs behind a small abstraction, moving to
