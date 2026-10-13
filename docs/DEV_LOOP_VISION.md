@@ -143,7 +143,15 @@ still gets a project built the way a seasoned Java developer would build it.
     review matter: they're requirements, not a separate market.
 12. **Openness is the defence.** The method and its prompts are open. What keeps them CafeAI's is
     being the place they are written, tested and improved, not secrecy.
-13. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
+13. **No corporate policy of its own.** Rules about using the model (which models, data
+    retention, permitted use) are enforced where the company configures them: its model
+    vendor's organisation, its cloud account. CafeAI reaches the model through the company's own
+    sign-in, so they apply, and CafeAI doesn't duplicate them. Engineering rules (standards,
+    conventions, hooks, checks) belong to each project, and CafeAI follows them from its
+    artifacts. The one part a model's policy can't cover is what leaves the machine, since a
+    policy at the far end can't un-send data: CafeAI, as the sender, asks before reading, screens
+    out personal data, and keeps uploads as references.
+14. **Not a competitor on the web-server plane.** CafeAI the framework stays, and is the native
    target for those with no preference, but it is not the battleground.
 
 ## 5. What changed under pressure
@@ -193,6 +201,11 @@ Genuine questions with no immediate answers. They stay here, visible, until they
   product isn't tied to CafeAI, and as ordinary code through the project's change process.
 - **Each command is its own agent** (principle 8): its own system prompt, guardrails, possibly
   model, and cost tracking. The prompts, their versions and their improvement are CafeAI's IP.
+- **Uploads are sources, not decisions.** `init` and `design` accept uploaded material
+  (documents, images, recordings); nothing from it enters the design spec until the developer
+  confirms it, and the spec notes where each requirement came from. By default only a reference
+  to an upload is kept, not the original (confidentiality, size); keeping originals is a dial.
+- **Corporate policy stays where it is enforced** (principle 13).
 - **Review belongs to the process.** CafeAI follows whatever review the project's change process
   has, and adds none of its own.
 

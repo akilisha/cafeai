@@ -133,6 +133,26 @@ applies; the loop adds none and removes none (vision principle 1).
 | `run <target>` | `<target>`: a jar or class file locally, or the platform's own command (`cafeai run oc get pods -o wide -o json`) | the command's result; findings for `review` | — |
 | `review` | the milestones (unticked, deferred, blocked), the open questions, `run`'s findings | a report, and a change adding what it found to the milestones | — |
 
+**Uploads** (`init` and `design`): the developer adds material in the conversation (dragged
+into the web app, or `--attach <file>` on the command line). What CafeAI reads, with what it
+already has:
+
+| Content | Read by |
+|---|---|
+| Text, Markdown, structured text (OpenAPI, SQL, sample JSON or CSV) | read directly |
+| PDF | Apache Tika, through `cafeai-rag` |
+| Web pages | `cafeai-rag`'s URL source |
+| Images (screenshots, whiteboards, mock-ups, diagrams) | a vision model (`app.vision`) |
+| Recordings | transcription (`app.audio`), then read as text |
+
+Small items go straight to the agent; large documents are ingested with `cafeai-rag` and looked
+up, never read whole. Video and tools' own formats (Figma, Visio) are exported to images or PDF
+first. The same rules as reading code apply: the developer is told what will be sent, and
+guardrails screen out personal data. **An upload is a source, not a decision:** the agent
+checks it against the spec and other uploads, brings out conflicts and gaps, and asks; nothing
+from it enters the spec until the developer confirms, and the spec notes its source. By default
+only a reference is kept (`uploads.keep`, §9).
+
 **Reading an existing codebase** (`init`): map the modules and their dependencies first,
 summarise each, then ask the developer targeted questions about what's unclear. Never the
 whole codebase into one prompt: a large codebase doesn't fit, and summaries read better. After
@@ -206,6 +226,7 @@ carefully the test and validation criteria are reviewed, the better the ladder w
 | `models.<command>` | a model id, through CafeAI's providers | one model for all |
 | `validation.mutation` | on or off | on |
 | `validation.live` | which environments' live tests `brew` runs | none |
+| `uploads.keep` | `reference` (a reference and what was taken from it, in the spec) or `original` (the file too, in `docs/design/sources/`) | `reference` |
 
 ## 10. The web app
 
