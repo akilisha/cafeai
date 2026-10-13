@@ -99,7 +99,7 @@ class AgentsTest {
             try (var s = session(command)) {
                 s.ask("Go.");
             }
-            assertThat(toolNames()).as(command).containsExactly("commit", "list", "read", "search", "startBranch", "write");
+            assertThat(toolNames()).as(command).containsExactly("commit", "history", "list", "read", "search", "startBranch", "write");
         }
     }
 

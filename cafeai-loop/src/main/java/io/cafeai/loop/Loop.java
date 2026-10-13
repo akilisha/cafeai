@@ -2,10 +2,15 @@ package io.cafeai.loop;
 
 import io.cafeai.cli.CafeLogin;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 /**
  * The {@code cafeai} command with the development loop in it: the loop's commands, and
@@ -14,11 +19,11 @@ import java.util.function.Consumer;
  */
 public final class Loop {
 
-    /** The loop's commands, what each is for, and where it is planned while it isn't built. */
+    /** The loop's commands, what each is for, and where it is planned while it isn't built (null once it is). */
     static final Map<String, String[]> COMMANDS = new LinkedHashMap<>();
 
     static {
-        COMMANDS.put("init",   new String[] {"start a product: its design spec", "ROADMAP-03 phase 3"});
+        COMMANDS.put("init",   new String[] {"start a product: its design spec", null});
         COMMANDS.put("design", new String[] {"change the design spec", "ROADMAP-06"});
         COMMANDS.put("plan",   new String[] {"roadmaps and milestones from the design spec", "ROADMAP-03 phase 4"});
         COMMANDS.put("brew",   new String[] {"build from the roadmap, with evidence", "ROADMAP-05"});
@@ -30,15 +35,22 @@ public final class Loop {
     private final PrintStream out;
     private final PrintStream err;
     private final Consumer<String[]> others;
+    private final Map<String, IntSupplier> built;
 
-    Loop(PrintStream out, PrintStream err, Consumer<String[]> others) {
+    Loop(PrintStream out, PrintStream err, Consumer<String[]> others, Map<String, IntSupplier> built) {
         this.out = out;
         this.err = err;
         this.others = others;
+        this.built = built;
     }
 
     public static void main(String[] args) {
-        int status = new Loop(System.out, System.err, CafeLogin::main).run(args);
+        Path here = Path.of("").toAbsolutePath();
+        var developer = new TerminalDeveloper(
+                new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8)), System.out);
+        Map<String, IntSupplier> built = Map.of(
+                "init", () -> new InitCommand(here, developer, settings -> Models.forCommand(settings, "init")).run());
+        int status = new Loop(System.out, System.err, CafeLogin::main, built).run(args);
         System.exit(status);
     }
 
@@ -53,6 +65,8 @@ public final class Loop {
             others.accept(args);
             return 0;
         }
+        IntSupplier runs = built.get(args[0]);
+        if (runs != null) return runs.getAsInt();
         err.println("`cafeai " + args[0] + "` isn't built yet: it is planned in cafeai-loop's " + command[1] + ".");
         return 1;
     }

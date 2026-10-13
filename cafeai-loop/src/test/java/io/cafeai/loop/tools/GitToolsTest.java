@@ -146,6 +146,32 @@ class GitToolsTest {
         assertThatThrownBy(() -> git.commit("Msg", List.of("missing.md"))).hasMessageContaining("git add failed");
     }
 
+    @Test @DisplayName("with no developer to ask, a sign-off is refused and nothing is committed")
+    void signOffWithNobodyToAsk() throws IOException {
+        git.startBranch("feature/x");
+        Files.writeString(repo.resolve("a.txt"), "a\n");
+        assertThat(git.commitAsked("Add a", List.of("a.txt"), true)).contains("nothing was committed");
+        assertThat(log("%s")).isEqualTo("Initial commit");
+        git.commitAsked("Add a", List.of("a.txt"), false);
+        assertThat(log("%B")).isEqualTo("Add a");
+    }
+
+    @Test @DisplayName("a new repository: its default branch as named, and an invalid name refused before anything is created")
+    void createRepository(@TempDir Path fresh) {
+        assertThatThrownBy(() -> GitTools.createRepository(fresh, "bad..name")).hasMessageContaining("Not a valid branch name");
+        assertThat(fresh.resolve(".git")).doesNotExist();
+        GitTools.createRepository(fresh, "trunk");
+        assertThat(new GitTools(fresh, "trunk").currentBranch()).isEqualTo("trunk");
+    }
+
+    @Test @DisplayName("the remote's default branch, by its name, when the remote names one")
+    void remoteDefault() {
+        assertThat(GitTools.remoteDefault(repo)).isEmpty();
+        raw("update-ref", "refs/remotes/origin/trunk", "HEAD");
+        raw("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
+        assertThat(GitTools.remoteDefault(repo)).contains("trunk");
+    }
+
     @Test @DisplayName("a project's default branch need not be main")
     void otherDefault() {
         raw("branch", "-m", "main", "trunk");

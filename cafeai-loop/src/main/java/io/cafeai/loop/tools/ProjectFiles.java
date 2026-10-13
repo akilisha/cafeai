@@ -44,6 +44,7 @@ public final class ProjectFiles {
     private final String stamp;
     private final Screen screen;
     private final boolean artifactsOnly;
+    private final BooleanSupplier readAllowed;
 
     /**
      * @param root            the project's root directory
@@ -68,6 +69,13 @@ public final class ProjectFiles {
      * can be written (the commands that plan rather than build).
      */
     public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp, Screen screen, boolean artifactsOnly) {
+        this(root, onWorkingBranch, stamp, screen, artifactsOnly, () -> true);
+    }
+
+    /** As above, reading only when {@code readAllowed}: the developer's permission, asked for by {@code init}. */
+    public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp, Screen screen, boolean artifactsOnly,
+                        BooleanSupplier readAllowed) {
+        this.readAllowed = readAllowed;
         this.stamp = stamp;
         this.screen = screen;
         this.artifactsOnly = artifactsOnly;
@@ -81,6 +89,7 @@ public final class ProjectFiles {
 
     @Tool("Reads a file of the project, by its path from the project's root.")
     public String read(@P("the file's path, relative to the project's root") String path) {
+        mayRead();
         Path file = inside(screen.in(path));
         if (!Files.isRegularFile(file)) throw new IllegalArgumentException("No such file in the project: " + path);
         try {
@@ -94,6 +103,7 @@ public final class ProjectFiles {
 
     @Tool("Lists a directory of the project: its files, and its directories ending in '/'.")
     public List<String> list(@P("the directory's path, relative to the project's root; empty for the root") String path) {
+        mayRead();
         Path dir = inside(screen.in(path));
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("No such directory in the project: " + path);
         try (Stream<Path> entries = Files.list(dir)) {
@@ -107,6 +117,7 @@ public final class ProjectFiles {
 
     @Tool("Searches the project's text files for lines containing the given text, ignoring case.")
     public List<String> search(@P("the text to look for") String text) {
+        mayRead();
         if (text == null || text.isBlank()) throw new IllegalArgumentException("Say what to search for");
         String needle = screen.in(text).toLowerCase(Locale.ROOT);
         var matches = new ArrayList<String>();
@@ -166,6 +177,10 @@ public final class ProjectFiles {
             throw new UncheckedIOException("Could not write " + path, e);
         }
         return screen.out("Wrote " + relative(file));
+    }
+
+    private void mayRead() {
+        if (!readAllowed.getAsBoolean()) throw new IllegalStateException("The developer hasn't allowed reading the project.");
     }
 
     /** The content as written: an artifact starts with the stamp, replacing an earlier one. */

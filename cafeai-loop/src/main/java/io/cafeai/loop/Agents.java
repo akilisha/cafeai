@@ -59,7 +59,23 @@ public final class Agents {
 
     /** A session of {@code command} in the project, with the given model and screen. */
     public static Session session(String command, AiProvider model, Path project, String defaultBranch, Screen screen) {
-        return new Session(command, model, project, defaultBranch, screen);
+        return session(command, model, project, defaultBranch, screen, Options.DEFAULT);
+    }
+
+    /** A session of {@code command} in the project, with the given model, screen and options. */
+    public static Session session(String command, AiProvider model, Path project, String defaultBranch, Screen screen,
+                                  Options options) {
+        return new Session(command, model, project, defaultBranch, screen, options);
+    }
+
+    /**
+     * How a session's tools behave: whether the agent may read the project (the developer's
+     * permission), who is asked before each commit ({@code null}: nobody), and tools of the
+     * command's own (for {@code init}, {@code finish}).
+     */
+    public record Options(boolean readAllowed, Developer developer, List<Object> extraTools) {
+        public static final Options DEFAULT = new Options(true, null, List.of());
+        public Options { extraTools = List.copyOf(extraTools); }
     }
 
     /** One command's conversation with its agent. Closing it records its use. */
@@ -72,7 +88,8 @@ public final class Agents {
         private final CommandAgent agent;
         private boolean closed;
 
-        private Session(String command, AiProvider model, Path project, String defaultBranch, Screen screen) {
+        private Session(String command, AiProvider model, Path project, String defaultBranch, Screen screen,
+                        Options options) {
             Prompts.Prompt prompt = Prompts.of(command);
             this.command = command;
             this.model = model;
@@ -81,17 +98,23 @@ public final class Agents {
             this.app = CafeAI.create();
             AgentConfig<CommandAgent> config = app.agent(command, CommandAgent.class)
                     .system(prompt.text()).model(model).memory(MemoryStrategy.inMemory());
-            for (Object tool : tools(command, project, defaultBranch, screen)) config.tool(tool);
+            for (Object tool : tools(command, project, defaultBranch, screen, options)) config.tool(tool);
             this.agent = app.agent(command, CommandAgent.class, command);
         }
 
         static List<Object> tools(String command, Path project, String defaultBranch, Screen screen) {
+            return tools(command, project, defaultBranch, screen, Options.DEFAULT);
+        }
+
+        static List<Object> tools(String command, Path project, String defaultBranch, Screen screen, Options options) {
             Writes writes = writes(command);
-            if (writes == Writes.NONE) return List.of();
-            var git = new GitTools(project, defaultBranch, screen);
+            if (writes == Writes.NONE) return List.copyOf(options.extraTools());
+            var git = new GitTools(project, defaultBranch, screen, options::readAllowed, options.developer());
             var files = new ProjectFiles(project, git::onWorkingBranch, Prompts.stamp(command), screen,
-                    writes == Writes.ARTIFACTS);
-            return List.of(files, git);
+                    writes == Writes.ARTIFACTS, options::readAllowed);
+            var tools = new ArrayList<Object>(List.of(files, git));
+            tools.addAll(options.extraTools());
+            return tools;
         }
 
         /** Says {@code message} to the agent, screened; its reply comes back restored. */

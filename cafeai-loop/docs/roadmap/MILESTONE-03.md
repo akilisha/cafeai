@@ -75,20 +75,27 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **3.1** open
-- **3.2** open
-- **3.3** open
-- **3.4** open
-- **3.5** open
-- **3.6** open
+- **3.1** met: `Surface` notices a project by the names at its top level only (a git repository, build files, deployment files), nothing read; for an existing codebase, `InitCommand` says what it found, what reading means, and that what is read goes to the named model, screened, and asks; without a yes, the file and history tools refuse, so nothing is read whatever the model tries (`ProjectFiles`, `GitTools.history`). `SurfaceAndSpecTest`, `InitCommandTest` (permission asked, naming the model; refused, the model never sees the contents).
+- **3.2** in the prompt, to show in validation: the order (structure, the code package by package, the history) and the report are the agent's, following `init.md`; the code supplies the means, with the `history` tool reading branches, commit subjects, merges, trailers and hooks. `InitCommandTest` (allowed: the agent reads the project and its history).
+- **3.3** in the prompt, to show in validation: numbered questions with recommendations are `init.md`'s §3; a stand-in model can't show a real one follows it. Phase 5's evals measure it.
+- **3.4** met for the sections, in the prompt for the rest: `init` can't finish until `DESIGN_SPEC.md` has its sections (As built only for an existing codebase), matched by name whatever their number, level or case (`SpecCheck`, the `finish` tool); the agent is told which are missing. Keeping assumptions out of the decisions is `init.md`'s §5, for validation and phase 5's evals. `SurfaceAndSpecTest`, `InitCommandTest`.
+- **3.5** met: `finish` reads the spec's Open questions and, if any are listed, puts them to the developer; without their agreement it refuses, and the agent is told to settle them first. `InitCommandTest` (declined, then agreed).
+- **3.6** met: the `commit` tool shows the developer the branch, the files and the message, and commits only with their yes; a sign-off is asked for separately and added only with a second yes, and with no developer to ask it is refused. `InitCommandTest` (declined; sign-off refused, then given), `GitToolsTest`.
 
 **Entries**
 
-None yet.
+- **2026-10-13.** Readings of the plan's, to confirm in review:
+  - the code, not the agent, asks the opening questions (the default branch, permission to read, the product in a sentence), so a model can't skip them; the agent starts from what was answered;
+  - a folder that isn't a git repository is made one only with the developer's yes, its default branch theirs to name (`main` offered); for an existing repository the remote's default is offered;
+  - `init` ends when `finish` succeeds, or when the developer types `/quit`; it exits 0 when the spec is finished, 1 when not, 2 when it can't start (no model named).
+- **2026-10-13.** Tests written before the code. One was wrong and fixed: it searched for the very word it then checked the model never saw, and the search request itself carries the word.
+- **2026-10-13.** This phase's validation, the developer running `cafeai init` on a small project of their own with `models.default` set, is phase 2's too: it shows what was sent and what it cost.
+- **2026-10-13.** The readings above confirmed by the developer in review.
 
 **Results**
 
-None yet.
+- **2026-10-13.** `./gradlew :cafeai-loop:test`: 139 tests, all passing (`InitCommandTest` 11, `SurfaceAndSpecTest` 7, `TerminalDeveloperTest` 12, `GitToolsTest` 24, `AgentsTest` 11, `LoopTest` 4, `ModelsTest` 5, `ScreenTest` 17, `PromptsTest` 7, `SettingsTest` 24, `ProjectFilesTest` 17).
+- **2026-10-13.** Mutation testing, 44 mutations across `InitCommand`, `InitTools`, `SpecCheck`, `Surface`, `GitTools`, `ProjectFiles`, `Agents`, `Loop` and `TerminalDeveloper`, each verified to apply and to compile: 32 caught, 12 survived. Every survivor was a gap in the tests, not dead code. Tests were added for each: the branch the developer names is the one used; the reading request names the model; nothing more is asked once finished; `/quit` isn't sent to the model; As built is required for an existing codebase; open questions end at the next section and are found in any case; a sign-off with nobody to ask is refused; an invalid branch name for a new repository is refused; the remote's default branch is read by name; only `y` or `yes` is a yes at the terminal. All 12 re-run: caught.
 
 ## Phase 4 — `cafeai plan` from the terminal
 

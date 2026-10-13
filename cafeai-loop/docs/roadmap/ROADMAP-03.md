@@ -73,7 +73,7 @@ shown before it's made, and a sign-off never added unasked. Mutation-checked.
 
 **Validation criteria:** the developer runs `cafeai init` on a small project of their own.
 
-**Status:** `defined`
+**Status:** `in-progress`
 
 ## Phase 4 — `cafeai plan` from the terminal
 

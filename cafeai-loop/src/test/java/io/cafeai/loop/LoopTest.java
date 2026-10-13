@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,8 +19,10 @@ class LoopTest {
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
     private final List<List<String>> handedOn = new ArrayList<>();
+    private final List<String> ran = new ArrayList<>();
     private final Loop loop = new Loop(new PrintStream(out, true, StandardCharsets.UTF_8),
-            new PrintStream(err, true, StandardCharsets.UTF_8), args -> handedOn.add(List.of(args)));
+            new PrintStream(err, true, StandardCharsets.UTF_8), args -> handedOn.add(List.of(args)),
+            Map.of("init", () -> { ran.add("init"); return 0; }));
 
     @Test @DisplayName("help lists the loop's commands, then login, logout and status")
     void help() {
@@ -48,10 +51,19 @@ class LoopTest {
 
     @Test @DisplayName("a loop command not built yet says where it is planned, and fails")
     void notBuiltYet() {
-        assertThat(loop.run("init")).isEqualTo(1);
-        assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai init` isn't built yet").contains("ROADMAP-03 phase 3");
+        assertThat(loop.run("plan")).isEqualTo(1);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai plan` isn't built yet").contains("ROADMAP-03 phase 4");
         assertThat(loop.run("brew")).isEqualTo(1);
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-05");
         assertThat(handedOn).isEmpty();
+        assertThat(ran).isEmpty();
+    }
+
+    @Test @DisplayName("a built command runs, and its status is the command's")
+    void built() {
+        assertThat(loop.run("init")).isZero();
+        assertThat(ran).containsExactly("init");
+        assertThat(handedOn).isEmpty();
+        assertThat(err.toString(StandardCharsets.UTF_8)).isEmpty();
     }
 }
