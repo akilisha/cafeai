@@ -74,6 +74,21 @@ class GitToolsTest {
                 .isNotEqualTo(raw("rev-parse", "HEAD").out());
     }
 
+    @Test @DisplayName("screened: a commit message written with placeholders is committed with the originals")
+    void screenedMessage() throws IOException {
+        var screen = new io.cafeai.loop.Screen();
+        String placeholder = screen.out("alice@acme.example");
+        var screened = new GitTools(repo, "main", screen);
+        screened.startBranch("feature/contact");
+        Files.writeString(repo.resolve("CONTACT.md"), "alice@acme.example\n");
+        screened.commit("Add contact " + placeholder, List.of("CONTACT.md"));
+        assertThat(log("%s")).isEqualTo("Add contact alice@acme.example");
+
+        Files.writeString(repo.resolve("notes-alice@acme.example.md"), "notes\n");
+        screened.commit("Add notes", List.of("notes-" + placeholder + ".md"));
+        assertThat(raw("show", "--name-only", "--format=", "HEAD").out().strip()).isEqualTo("notes-alice@acme.example.md");
+    }
+
     @Test @DisplayName("a sign-off only when the developer has said so")
     void signOff() throws IOException {
         git.startBranch("feature/signed");

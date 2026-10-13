@@ -128,6 +128,42 @@ class ProjectFilesTest {
         assertThat(files.search("visit")).noneMatch(line -> line.startsWith(".git"));
     }
 
+    @Test @DisplayName("screened: what is read leaves as placeholders; what is written with them lands as the original")
+    void screened() throws IOException {
+        Files.writeString(project.resolve("config.properties"), "admin=alice@acme.example\nport=8080\n");
+        var screen = new io.cafeai.loop.Screen();
+        var screenedFiles = new ProjectFiles(project, () -> working, null, screen, false);
+        String read = screenedFiles.read("config.properties");
+        assertThat(read).doesNotContain("alice@acme.example").contains("port=8080");
+        String placeholder = read.substring("admin=".length(), read.indexOf('\n'));
+
+        screenedFiles.write("config.properties", "admin=" + placeholder + "\nport=9090\n");
+        assertThat(Files.readString(project.resolve("config.properties"))).isEqualTo("admin=alice@acme.example\nport=9090\n");
+
+        assertThat(screenedFiles.search(placeholder)).as("searching by placeholder finds the original")
+                .singleElement().satisfies(line -> assertThat(line).startsWith("config.properties:1:").doesNotContain("alice"));
+    }
+
+    @Test @DisplayName("screened: a file named with personal data is listed as a placeholder, and read back by it")
+    void screenedNames() throws IOException {
+        Files.writeString(project.resolve("notes-bob@acme.example.md"), "notes\n");
+        var screenedFiles = new ProjectFiles(project, () -> working, null, new io.cafeai.loop.Screen(), false);
+        String listed = screenedFiles.list("").stream().filter(name -> name.contains("[EMAIL_")).findFirst().orElseThrow();
+        assertThat(screenedFiles.list("")).noneMatch(name -> name.contains("bob@acme.example"));
+        assertThat(screenedFiles.read(listed)).isEqualTo("notes\n");
+    }
+
+    @Test @DisplayName("artifacts only: the loop's artifacts can be written; code and other files can't")
+    void artifactsOnly() throws IOException {
+        var planning = new ProjectFiles(project, () -> working, null, io.cafeai.loop.Screen.none(), true);
+        planning.write("DESIGN_SPEC.md", "# Spec\n");
+        planning.write("docs/roadmap/ROADMAP-01.md", "# ROADMAP-01\n");
+        assertThatThrownBy(() -> planning.write("src/main/App.java", "class App {}"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("only the loop's artifacts");
+        assertThatThrownBy(() -> planning.write("README.md", "# Changed")).hasMessageContaining("only the loop's artifacts");
+        assertThat(Files.readString(project.resolve("src/main/App.java"))).startsWith("class App {\n");
+    }
+
     @Test @DisplayName("what isn't there, isn't a directory, or isn't text says so")
     void notThere() throws IOException {
         assertThatThrownBy(() -> files.read("missing.md")).hasMessageContaining("No such file");

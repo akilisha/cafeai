@@ -32,7 +32,7 @@ class SettingsTest {
         assertThat(s.stopAt()).isEqualTo(Settings.StopAt.CRITERION);
         assertThat(s.brewCommands()).isEqualTo(Settings.BrewCommands.ASK);
         assertThat(s.models()).isEmpty();
-        assertThat(s.model("init")).isEmpty();
+        assertThat(s.model("init")).as("no model named: the loop names none itself").isEmpty();
         assertThat(s.mutation()).isTrue();
         assertThat(s.live()).isEmpty();
         assertThat(s.childrenDepth()).isEqualTo(1);
@@ -61,8 +61,9 @@ class SettingsTest {
                   stopAt: phase
                   commands: ["./gradlew build", "docker compose up -d"]
                 models:
-                  init: claude-opus-5-5
-                  brew: claude-haiku-5-5
+                  default: anthropic:claude-sonnet-5-5
+                  init: anthropic:claude-opus-5-5
+                  brew: ollama:llama3.3
                 validation:
                   mutation: off
                   live: [mysql, postgres]
@@ -77,9 +78,10 @@ class SettingsTest {
         assertThat(s.stopAt()).isEqualTo(Settings.StopAt.PHASE);
         assertThat(s.brewCommands().allowed()).containsExactly("./gradlew build", "docker compose up -d");
         assertThat(s.brewCommands().mode()).isEqualTo(Settings.BrewCommands.Mode.ALLOWED);
-        assertThat(s.models()).containsExactlyInAnyOrderEntriesOf(Map.of("init", "claude-opus-5-5", "brew", "claude-haiku-5-5"));
-        assertThat(s.model("brew")).contains("claude-haiku-5-5");
-        assertThat(s.model("plan")).as("unset: one model for all").isEmpty();
+        assertThat(s.models()).containsExactlyInAnyOrderEntriesOf(Map.of("default", "anthropic:claude-sonnet-5-5",
+                "init", "anthropic:claude-opus-5-5", "brew", "ollama:llama3.3"));
+        assertThat(s.model("brew")).contains("ollama:llama3.3");
+        assertThat(s.model("plan")).as("its own unset: models.default").contains("anthropic:claude-sonnet-5-5");
         assertThat(s.mutation()).isFalse();
         assertThat(s.live()).containsExactly("mysql", "postgres");
         assertThat(s.childrenDepth()).isEqualTo(2);
@@ -134,9 +136,13 @@ class SettingsTest {
             "children: {depth: deep}            | children.depth   | 0 or more",
             "children: {parallel: 0}            | children.parallel | 1 or more",
             "validation: {live: mysql}          | validation.live  | a list",
-            "models: {init: 42}                 | models.init      | a model id",
-            "models: {init: \"\"}               | models.init      | a model id",
-            "models: {deploy: claude-opus-5-5}  | models.deploy    | init, design, plan, brew, run, review"})
+            "models: {init: 42}                 | models.init      | provider:model",
+            "models: {init: \"\"}               | models.init      | provider:model",
+            "models: {init: claude-opus-5-5}    | models.init      | provider:model",
+            "models: {init: \"anthropic:\"}     | models.init      | provider:model",
+            "models: {init: acme:model-1}       | models.init      | anthropic, openai, gemini, grok, mistral, nova, ollama",
+            "models: {default: gpt}             | models.default   | provider:model",
+            "models: {deploy: anthropic:x}      | models.deploy    | default, init, design, plan, brew, run, review"})
     @DisplayName("a malformed value is refused, naming the dial and what it takes")
     void malformed(String yaml, String dial, String expected) {
         assertThatThrownBy(() -> read(yaml))
@@ -162,7 +168,7 @@ class SettingsTest {
 
     @Test @DisplayName("the file's dials are listed for help and errors")
     void known() {
-        assertThat(Settings.DIALS).containsExactly("branches", "brew.stopAt", "brew.commands", "models.<command>",
+        assertThat(Settings.DIALS).containsExactly("branches", "brew.stopAt", "brew.commands", "models.default", "models.<command>",
                 "validation.mutation", "validation.live", "children.depth", "children.parallel", "children.deadline",
                 "uploads.keep");
         assertThat(Settings.COMMANDS).isEqualTo(List.of("init", "design", "plan", "brew", "run", "review"));

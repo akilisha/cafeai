@@ -2,6 +2,7 @@ package io.cafeai.loop.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import io.cafeai.loop.Screen;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -41,6 +42,8 @@ public final class ProjectFiles {
     private final Path root;
     private final BooleanSupplier onWorkingBranch;
     private final String stamp;
+    private final Screen screen;
+    private final boolean artifactsOnly;
 
     /**
      * @param root            the project's root directory
@@ -56,7 +59,18 @@ public final class ProjectFiles {
      * ({@code Prompts.stamp(command)}), replacing an earlier one.
      */
     public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp) {
+        this(root, onWorkingBranch, stamp, Screen.none(), false);
+    }
+
+    /**
+     * Tools for a command's agent, screened: what they read leaves through {@code screen}, what they
+     * write comes back through it, restored. With {@code artifactsOnly}, only the loop's artifacts
+     * can be written (the commands that plan rather than build).
+     */
+    public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp, Screen screen, boolean artifactsOnly) {
         this.stamp = stamp;
+        this.screen = screen;
+        this.artifactsOnly = artifactsOnly;
         try {
             this.root = root.toRealPath();
         } catch (IOException e) {
@@ -67,10 +81,10 @@ public final class ProjectFiles {
 
     @Tool("Reads a file of the project, by its path from the project's root.")
     public String read(@P("the file's path, relative to the project's root") String path) {
-        Path file = inside(path);
+        Path file = inside(screen.in(path));
         if (!Files.isRegularFile(file)) throw new IllegalArgumentException("No such file in the project: " + path);
         try {
-            return Files.readString(file, StandardCharsets.UTF_8);
+            return screen.out(Files.readString(file, StandardCharsets.UTF_8));
         } catch (MalformedInputException e) {
             throw new IllegalArgumentException("Not a text file: " + path);
         } catch (IOException e) {
@@ -80,12 +94,12 @@ public final class ProjectFiles {
 
     @Tool("Lists a directory of the project: its files, and its directories ending in '/'.")
     public List<String> list(@P("the directory's path, relative to the project's root; empty for the root") String path) {
-        Path dir = inside(path);
+        Path dir = inside(screen.in(path));
         if (!Files.isDirectory(dir)) throw new IllegalArgumentException("No such directory in the project: " + path);
         try (Stream<Path> entries = Files.list(dir)) {
             return entries.filter(p -> !isGitDirectory(p))
                     .map(p -> relative(p) + (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS) ? "/" : ""))
-                    .sorted().toList();
+                    .sorted().map(screen::out).toList();
         } catch (IOException e) {
             throw new UncheckedIOException("Could not list " + path, e);
         }
@@ -94,7 +108,7 @@ public final class ProjectFiles {
     @Tool("Searches the project's text files for lines containing the given text, ignoring case.")
     public List<String> search(@P("the text to look for") String text) {
         if (text == null || text.isBlank()) throw new IllegalArgumentException("Say what to search for");
-        String needle = text.toLowerCase(Locale.ROOT);
+        String needle = screen.in(text).toLowerCase(Locale.ROOT);
         var matches = new ArrayList<String>();
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -114,7 +128,7 @@ public final class ProjectFiles {
                     }
                     for (int i = 0; i < lines.size(); i++) {
                         if (lines.get(i).toLowerCase(Locale.ROOT).contains(needle)) {
-                            matches.add(relative(file) + ":" + (i + 1) + ": " + lines.get(i).strip());
+                            matches.add(screen.out(relative(file) + ":" + (i + 1) + ": " + lines.get(i).strip()));
                             if (matches.size() >= MAX_MATCHES) return FileVisitResult.TERMINATE;
                         }
                     }
@@ -139,15 +153,19 @@ public final class ProjectFiles {
             throw new IllegalStateException("Writing is only allowed on a working branch, never on the default"
                     + " branch: start one first");
         }
-        Path file = inside(path);
+        Path file = inside(screen.in(path));
         if (Files.isDirectory(file)) throw new IllegalArgumentException("That's a directory: " + path);
+        if (artifactsOnly && !ARTIFACT.matcher(relative(file)).matches()) {
+            throw new IllegalArgumentException("This command writes only the loop's artifacts (DESIGN_SPEC.md, CHANGELOG.md,"
+                    + " docs/roadmap/, docs/design/), not " + path);
+        }
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, stamped(relative(file), content), StandardCharsets.UTF_8);
+            Files.writeString(file, stamped(relative(file), screen.in(content)), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write " + path, e);
         }
-        return "Wrote " + relative(file);
+        return screen.out("Wrote " + relative(file));
     }
 
     /** The content as written: an artifact starts with the stamp, replacing an earlier one. */

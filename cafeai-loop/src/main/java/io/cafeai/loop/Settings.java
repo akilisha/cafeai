@@ -34,7 +34,7 @@ public record Settings(Branches branches, StopAt stopAt, BrewCommands brewComman
     public static final String FILE = "cafeai-loop.yaml";
 
     /** Every dial, as written in the file. */
-    public static final List<String> DIALS = List.of("branches", "brew.stopAt", "brew.commands", "models.<command>",
+    public static final List<String> DIALS = List.of("branches", "brew.stopAt", "brew.commands", "models.default", "models.<command>",
             "validation.mutation", "validation.live", "children.depth", "children.parallel", "children.deadline",
             "uploads.keep");
 
@@ -107,9 +107,9 @@ public record Settings(Branches branches, StopAt stopAt, BrewCommands brewComman
         return parse(root);
     }
 
-    /** The model a command's agent uses, if the settings name one; else the one model for all. */
+    /** The model a command's agent uses, {@code provider:model}: its own, else {@code models.default}; none if neither is set. */
     public Optional<String> model(String command) {
-        return Optional.ofNullable(models.get(command));
+        return Optional.ofNullable(models.getOrDefault(command, models.get("default")));
     }
 
     private static Settings parse(JsonNode root) {
@@ -172,14 +172,18 @@ public record Settings(Branches branches, StopAt stopAt, BrewCommands brewComman
 
     private static Map<String, String> models(JsonNode node) {
         if (node == null || node.isNull()) return Map.of();
-        if (!node.isObject()) throw refused("models should map commands to model ids (" + String.join(", ", COMMANDS) + ")");
+        var keys = new ArrayList<String>();
+        keys.add("default");
+        keys.addAll(COMMANDS);
+        if (!node.isObject()) throw refused("models should map " + String.join(", ", keys) + " to provider:model");
         var models = new LinkedHashMap<String, String>();
         for (Map.Entry<String, JsonNode> e : node.properties()) {
             String dial = "models." + e.getKey();
-            if (!COMMANDS.contains(e.getKey())) {
-                throw refused("has no dial '" + dial + "'; models can name " + String.join(", ", COMMANDS));
+            if (!keys.contains(e.getKey())) {
+                throw refused("has no dial '" + dial + "'; models can name " + String.join(", ", keys));
             }
-            if (!e.getValue().isTextual() || e.getValue().asText().isBlank()) throw refused(dial + " should be a model id");
+            String problem = e.getValue().isTextual() ? Models.problem(e.getValue().asText()) : "it should be provider:model";
+            if (problem != null) throw refused(dial + ": " + problem);
             models.put(e.getKey(), e.getValue().asText());
         }
         return models;

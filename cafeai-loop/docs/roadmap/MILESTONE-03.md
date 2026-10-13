@@ -50,10 +50,10 @@ Estimates and timelines are the team's own, added here when the team makes them.
 **Criteria**
 
 - **2.1** met: `Prompts`: each command's prompt a resource of the module (`init.md`, `plan.md` moved there from `cafeai-loop/prompts/`), with CafeAI's version written by the build (`version.properties`); the file tools, given a command's stamp, start every artifact they write (the design spec, the changelog, roadmaps, milestones, design detail) with `<!-- cafeai-loop <version> · <command> -->`, replacing an earlier one. `PromptsTest`, 7 tests, written first.
-- **2.2** open
-- **2.3** open
-- **2.4** open
-- **2.5** open
+- **2.2** met: `Agents`: each command a session on a CafeAI app of its own, its agent an `app.agent(...)` with its own prompt, the model the settings name (`Models`: `models.<command>`, else `models.default`, as `provider:model`), and only its own tools: `init`, `design`, `plan`, `review` write the loop's artifacts only, `brew` anything, `run` nothing. `AgentsTest` (through a stand-in model: the system message is the prompt; `init` writes its spec, stamped, and is refused writing code), `ModelsTest`, `SettingsTest`.
+- **2.3** met: every model is one of CafeAI's providers with no credentials of the loop's, so CafeAI's lookup decides (code, the vendor's variable, `cafeai login`); `ModelsTest`.
+- **2.4** met: `Screen`: secrets and personal data (CafeAI's own patterns, matched on the text as it is) leave as stable placeholders tagged per session, and are restored exactly when the agent writes, commits, or answers; the developer's words, file contents, listings and search results all screened. `ScreenTest` (round trips byte for byte, Unicode, CRLF, keys, tokens, JWTs; text already looking like a placeholder left alone), and the tools' and agents' tests.
+- **2.5** met: when a session closes, its use (calls, input and output tokens, the model) is recorded in `usage.jsonl` under CafeAI's configuration directory, on the machine, and can be shown (`Agents.Usage.summary()`, `Agents.Usage.log()`); recorded once, never mixed between commands. `AgentsTest`.
 
 **Entries**
 
@@ -62,9 +62,14 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 - **2026-10-12.** Decided by the developer, and written into the spec: a `models.default` dial and `provider:model` ids, the loop naming no model itself; screening with reversible placeholders; usage in a log on the developer's machine, tokens for now.
 
+- **2026-10-13.** Tests written before the code for 2.2 to 2.5; two of them were wrong and fixed (a stand-in that picked the wrong placeholder; a repository with no commits, where git can't name the branch), and one message was improved because a test asked for the dial's name, `models.default`.
+- **2026-10-13.** A reading of the plan's, to confirm in review: a placeholder carries a short tag of its session (`[EMAIL_1_c4e1]`), so text that already contains `[EMAIL_1]` is never restored by mistake.
+- **2026-10-13.** The phase stays `in-progress` until its validation: the developer runs a command and reads what was sent and what it cost. No command can run yet; that comes with phase 3.
+
 **Results**
 
-None yet.
+- **2026-10-13.** `./gradlew :cafeai-loop:test`: 105 tests, all passing (`AgentsTest` 11, `ModelsTest` 5, `ScreenTest` 17, `PromptsTest` 7, `SettingsTest` 24, `GitToolsTest` 21, `ProjectFilesTest` 17, `LoopTest` 3).
+- **2026-10-13.** Mutation testing, 32 mutations, each verified to apply and to compile: 31 caught. The survivor, a check never to screen inside a placeholder, was dead code (no pattern can match inside `[EMAIL_1_c4e1]`) and was removed; all tests passing after.
 
 ## Phase 3 — `cafeai init` from the terminal
 

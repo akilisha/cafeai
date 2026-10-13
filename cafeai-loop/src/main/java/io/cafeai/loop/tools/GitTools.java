@@ -3,6 +3,7 @@ package io.cafeai.loop.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import io.cafeai.core.internal.Cli;
+import io.cafeai.loop.Screen;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -32,18 +33,25 @@ public final class GitTools {
     private final String defaultBranch;
     private final Function<List<String>, Cli.Result> runner;
     private final String git;
+    private final Screen screen;
 
     /** @param defaultBranch the project's default branch, from its conventions (often {@code main}) */
     public GitTools(Path root, String defaultBranch) {
-        this(root, defaultBranch, command -> Cli.run(command, TIMEOUT),
-                Cli.find("git", System::getenv).map(Path::toString).orElse("git"));
+        this(root, defaultBranch, Screen.none());
     }
 
-    GitTools(Path root, String defaultBranch, Function<List<String>, Cli.Result> runner, String git) {
+    /** Git tools for a command's agent: what it commits (the message, the paths) comes back through {@code screen}, restored. */
+    public GitTools(Path root, String defaultBranch, Screen screen) {
+        this(root, defaultBranch, command -> Cli.run(command, TIMEOUT),
+                Cli.find("git", System::getenv).map(Path::toString).orElse("git"), screen);
+    }
+
+    GitTools(Path root, String defaultBranch, Function<List<String>, Cli.Result> runner, String git, Screen screen) {
         this.root = Objects.requireNonNull(root, "root");
         this.defaultBranch = Objects.requireNonNull(defaultBranch, "defaultBranch");
         this.runner = runner;
         this.git = git;
+        this.screen = screen;
     }
 
     /** The branch checked out now; {@code HEAD} when none is (a detached head). */
@@ -88,9 +96,9 @@ public final class GitTools {
                     + defaultBranch + "') or a detached head: start a branch first");
         }
         var add = new ArrayList<>(List.of("add", "--"));
-        add.addAll(paths);
+        paths.forEach(path -> add.add(screen.in(path)));
         git(add.toArray(String[]::new));
-        var commit = new ArrayList<>(List.of("commit", "-m", message));
+        var commit = new ArrayList<>(List.of("commit", "-m", screen.in(message)));
         if (signedOffByTheDeveloper) commit.add("--signoff");
         git(commit.toArray(String[]::new));
         return git("log", "-1", "--format=%h").strip();
