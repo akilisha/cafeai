@@ -198,7 +198,7 @@ Each command is an agent of its own (vision principle 8):
 
 A command's agent can delegate to **child agents**: a child works on its own and returns only its
 conclusion, with pointers to its evidence, so the parent's context stays clean. `init` reads a
-codebase one child per package; `run` investigates a failure with children reading the logs, the
+codebase one child per package (until the framework provides children, one package at a time); `run` investigates a failure with children reading the logs, the
 recent commits, and what `cafeai-sentinel` reports. The developer can start one explicitly too.
 
 - **The mechanism is the framework's, not this module's** (`docs/design/CHILD_AGENTS.md`, a
@@ -310,16 +310,20 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
 5. **`design`, with changes flowing into the roadmap and milestones.**
 6. **`review`.**
 7. **`run`,** locally, then the platform's own commands.
-8. **The proof:** a new feature in PetClinic, end to end, with an OpenAPI document tested
-   against a live instance (vision §8).
+8. **The proof:** `brew` delivers PetClinic's own ROADMAP-01 end to end (the plan the developer
+   accepted in phase 1), every criterion met with evidence in its milestones, and the developer
+   validates it in the browser (vision §8). Not an OpenAPI document: PetClinic's spec decided
+   against one, and the proof can't require what its project decided against.
 
 ## 13. Practising on itself
 
 This module is built with the method it implements:
 
 - this document is its design spec;
-- its roadmap and milestones sit beside it in `cafeai-loop/`, written in the format of phase 0
-  (which also settles their names), with acceptance criteria before code and evidence after;
+- its roadmaps and milestones are in `cafeai-loop/docs/roadmap/`, numbered from `ROADMAP-01` with
+  an index: the module is its own project (it may move to its own repository), and the
+  repository's `docs/roadmap/` belongs to the framework. In the format of phase 0, with acceptance
+  criteria before code and evidence after;
 - once `init` works (phase 2), it is run on this repository; what it produces is compared with
   these hand-written artifacts. Where they differ, one of them is wrong, and finding out which
   is the point.

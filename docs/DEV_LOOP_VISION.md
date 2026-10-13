@@ -237,6 +237,8 @@ codebase (one of the capstones). If the backwards run produces something a newco
 you for, the idea holds.
 
 **The proof on a known application:** the Spring PetClinic. Point CafeAI at it as an existing
-codebase, add a new feature through `init`, `design`, `plan` and `brew`, and look at what comes
-out: the design spec, the roadmap and milestones with evidence, and an OpenAPI document ready to
-test against a live instance.
+codebase, add new features through `init`, `design`, `plan` and `brew`, and look at what comes
+out: the design spec, the roadmaps and milestones with evidence, and the features themselves,
+validated by the developer in the browser. (Phase 1 ran `init` and `plan` by hand; the proof is
+`brew` delivering PetClinic's ROADMAP-01. An OpenAPI document was the first idea, and PetClinic's
+own design decided against it.)
