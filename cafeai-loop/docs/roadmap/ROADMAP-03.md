@@ -22,7 +22,7 @@ set, unset, and malformed. Mutation-checked.
 
 **Validation criteria:** install it; `cafeai help` and `cafeai status` work.
 
-**Status:** `in-progress`
+**Status:** `completed`
 
 ## Phase 2 — The agents and their prompts
 
