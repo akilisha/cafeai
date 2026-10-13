@@ -194,6 +194,23 @@ Each command is an agent of its own (vision principle 8):
   | run commands the dials allow | | | | ✓ | the developer's `<target>` | |
   | git: branch, commit | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
+### Child agents
+
+A command's agent can delegate to **child agents**: a child works on its own and returns only its
+conclusion, with pointers to its evidence, so the parent's context stays clean. `init` reads a
+codebase one child per package; `run` investigates a failure with children reading the logs, the
+recent commits, and what `cafeai-sentinel` reports. The developer can start one explicitly too.
+
+- **The mechanism is the framework's, not this module's** (a framework design goal still to be
+  planned): a child on a virtual thread, its lifetime bound to the parent (it can't outlive it;
+  cancellation and deadlines propagate), its cost credited to the parent command, its start and
+  finish published for observability. Next to `app.agent`: the API in `cafeai-core`, built in
+  `cafeai-aiservices`. On final Java APIs behind a small abstraction, moving to
+  `StructuredTaskScope` when it is final (a preview API through JDK 27).
+- **The policy is this module's:** which commands spawn children and for what; children's tools,
+  read-only by default (only the parent changes files); the limits (dials, §9); and the tree of
+  children in the web app, so no work is hidden.
+
 ## 8. The validation ladder
 
 How `brew` keeps the project on course (vision principle 2):
@@ -226,6 +243,9 @@ carefully the test and validation criteria are reviewed, the better the ladder w
 | `models.<command>` | a model id, through CafeAI's providers | one model for all |
 | `validation.mutation` | on or off | on |
 | `validation.live` | which environments' live tests `brew` runs | none |
+| `children.depth` | how deep child agents may nest | 1 (children don't spawn children) |
+| `children.parallel` | how many children run at once | 4 |
+| `children.deadline` | how long a child may take | 60 seconds |
 | `uploads.keep` | `reference` (a reference and what was taken from it, in the spec) or `original` (the file too, in `docs/design/sources/`) | `reference` |
 
 ## 10. The web app

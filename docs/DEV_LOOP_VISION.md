@@ -206,6 +206,17 @@ Genuine questions with no immediate answers. They stay here, visible, until they
   confirms it, and the spec notes where each requirement came from. By default only a reference
   to an upload is kept, not the original (confidentiality, size); keeping originals is a dial.
 - **Corporate policy stays where it is enforced** (principle 13).
+- **Commands can delegate to child agents, with structured lifetimes.** A child works on its own
+  (reads the logs, explores a module) and returns only its conclusion, keeping the parent's
+  context clean; it can't outlive its parent; cancellation and deadlines propagate. Split by
+  mechanism and policy: **the mechanism is the framework's**, next to `app.agent` (the API in
+  `cafeai-core`, built in `cafeai-aiservices`), so any CafeAI app can use it (`cafeai-sentinel`'s
+  investigations, for one) and the loop proves it rather than containing it; `cafeai-agentic`'s
+  workflows may run on it, but don't own it (their LangChain4j module is experimental upstream).
+  **The policy is the loop's:** which commands spawn children and for what, their tools, the
+  limits, how the developer sees them. Built on final Java APIs (virtual threads, an
+  `ExecutorService` closed by try-with-resources) behind a small abstraction, moving to
+  `StructuredTaskScope` once it is final: it is still a preview API in JDK 26 and 27.
 - **Review belongs to the process.** CafeAI follows whatever review the project's change process
   has, and adds none of its own.
 
