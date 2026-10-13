@@ -233,7 +233,7 @@ carefully the test and validation criteria are reviewed, the better the ladder w
 
 ## 9. The dials
 
-`cafeai-loop.yaml`, the team's style (vision principle 9):
+`cafeai-loop.yaml` at the project's root, in YAML (decided 2026-10-12: the dials are nested, `brew.stopAt`, `models.init`, and Jackson's YAML support is already on the classpath), the team's style (vision principle 9):
 
 | Dial | Values | Default |
 |---|---|---|
@@ -330,7 +330,6 @@ This module is built with the method it implements:
 
 ## 14. Open questions
 
-- Settings in YAML (`cafeai-loop.yaml`, read with `cafeai-config`) or plain properties.
 - How `run` reports what it found for `review`: in the milestones directly, or a log of its
   own that `review` reads.
 - Whether `brew` uses the developer's own coding agent at first (vision §8, first slice) or

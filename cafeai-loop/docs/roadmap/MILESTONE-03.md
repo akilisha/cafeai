@@ -4,7 +4,7 @@ Tracks [ROADMAP-03](ROADMAP-03.md). Criteria are referred to by number; the road
 
 | Phase | Status | Estimate | Timeline |
 |---|---|---|---|
-| 1. The command and its tools | `defined` | — | — |
+| 1. The command and its tools | `in-progress` | — | — |
 | 2. The agents and their prompts | `defined` | — | — |
 | 3. `cafeai init` from the terminal | `defined` | — | — |
 | 4. `cafeai plan` from the terminal | `defined` | — | — |
@@ -20,18 +20,25 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **1.1** open
-- **1.2** open
-- **1.3** open
-- **1.4** open
+- **1.1** met: `cafeai-loop`'s `install` (from `gradle/cafeai-command.gradle`, now shared with `cafeai-cli`) installs one `cafeai` with the loop's commands and `cafeai-cli`'s; `LoopTest` (help lists both; others handed on untouched; a command not built yet says where it is planned and fails).
+- **1.2** met: `ProjectFiles`; `ProjectFilesTest`, 14 tests: reads, lists, searches and writes inside; refuses `..` in every form (even staying inside), absolute and drive-relative paths, symbolic links pointing out (file and directory; run on this machine, not skipped), the git directory; writes only on a working branch.
+- **1.3** met: `GitTools`; `GitToolsTest` against real git, 20 tests: starts a working branch and commits named files, with no sign-off unless the developer said so; refuses committing on the default branch or a detached head; refuses `merge`, `push`, `rebase`, `reset`, `checkout`, `pull`, `fetch`, `branch`, `tag`, `config`, `remote`, and switching to anything but a branch just created.
+- **1.4** open: YAML, as decided; next.
 
 **Entries**
 
-- **2026-10-12.** 1.4 is affected by an open question in the spec: the settings file's format (YAML or properties). The criterion holds either way.
+- **2026-10-12.** Built by hand, not by `brew` (which doesn't exist yet): the tests were written after the code, not before it as the validation ladder asks. Mutation testing stood in for that order.
+- **2026-10-12.** Readings of the plan's, to confirm in review: the git directory is out of bounds for the file tools (it holds remote addresses and history); any `..` is refused, even one staying inside; the git tools allow only `rev-parse`, `status`, `check-ref-format`, `switch -c`, `add`, `commit`, `log`; a branch's name is the agent's to choose from the project's conventions, the tools only refusing the default branch and invalid names.
+- **2026-10-12.** 1.4 is blocked on the spec's open question (YAML or properties for the settings file); asked of the developer at this stop.
+
+- **2026-10-12.** The four readings above confirmed by the developer in review.
+- **2026-10-12.** 1.4 unblocked: the developer chose YAML (`cafeai-loop.yaml`); the spec records it as decided.
 
 **Results**
 
-None yet.
+- **2026-10-12.** `./gradlew :cafeai-loop:test`: 37 tests (`LoopTest` 3, `ProjectFilesTest` 14, `GitToolsTest` 20), all passing; `cafeai-cli`'s 23 still passing after its install moved to the shared script.
+- **2026-10-12.** Mutation testing, 20 mutations of the safety checks, each restored from a copy: 18 caught at first. Two survived and were dealt with: removing the `..` check survived because the "still inside" check also refuses every escape, and the test only looked for `..` in the message; the check also refuses `..` that stays inside, so a test now pins that down (caught). Removing the "branch already exists" check survived because git refuses an existing branch itself, with the same words: the check duplicated git's and was removed. Final: 19 of 19 caught.
+- **2026-10-12.** Validation: `./gradlew :cafeai-loop:install` installed `cafeai` on the JDK it was built with; `cafeai help` lists the loop's commands then `login`, `logout`, `status`; `cafeai init` says where it is planned and exits 1; `cafeai status` works, handed on to `cafeai-cli`.
 
 ## Phase 2 — The agents and their prompts
 

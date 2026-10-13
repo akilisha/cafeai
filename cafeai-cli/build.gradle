@@ -12,10 +12,6 @@
 //  sign-ins) is in cafeai-core.
 // ============================================================
 
-plugins {
-    id 'application'
-}
-
 description = 'The cafeai command: sign in to a model once.'
 
 apply from: "$rootDir/gradle/maven-central.gradle"
@@ -25,32 +21,9 @@ dependencies {
     runtimeOnly "org.slf4j:slf4j-nop:${rootProject.ext.slf4jVersion}"
 }
 
+// The command's name, JVM options and `install`: gradle/cafeai-command.gradle.
+apply from: "$rootDir/gradle/cafeai-command.gradle"
+
 application {
-    applicationName = 'cafeai'
     mainClass = 'io.cafeai.cli.CafeLogin'
-    // Java's own terminal support, so names print in Unicode on a Windows console (Java 23 uses it
-    // by default; later releases need it asked for). See CafeLogin.screen().
-    applicationDefaultJvmArgs = ['-Djdk.console=jdk.internal.le']
-}
-
-// An install from source runs on the JDK it was built with, whatever JAVA_HOME says
-// (CAFEAI_JAVA_HOME overrides). The shipped scripts (installDist, distZip) are left as they are.
-def builtWith = javaToolchains.launcherFor(java.toolchain).map { it.metadata.installationPath.asFile.absolutePath }
-
-tasks.register('install', Sync) {
-    group = 'distribution'
-    description = 'Installs the cafeai command into ~/.cafeai/cli (bin/ goes on the PATH).'
-    from tasks.named('installDist')
-    into "${System.getProperty('user.home')}/.cafeai/cli"
-    def jdk = builtWith.get()
-    inputs.property('jdk', jdk)
-    filesMatching('bin/cafeai') {
-        filter { line -> line.startsWith('if [ -n "$JAVA_HOME" ]')
-                ? "JAVA_HOME=\${CAFEAI_JAVA_HOME:-'${jdk.replace('\\', '/')}'}\n" + line : line }
-    }
-    filesMatching('bin/cafeai.bat') {
-        filter { line -> line == 'if defined JAVA_HOME goto findJavaFromJavaHome'
-                ? "set JAVA_HOME=${jdk}\r\nif defined CAFEAI_JAVA_HOME set JAVA_HOME=%CAFEAI_JAVA_HOME%\r\n" + line : line }
-    }
-    doLast { println "cafeai installed: ${destinationDir}${File.separator}bin" }
 }

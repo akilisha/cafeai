@@ -4,8 +4,12 @@
 //  made runnable: init, design, plan, brew, run and review, each
 //  an agent working on a project's living artifacts.
 //
-//  Design spec: DESIGN_SPEC.md, beside this file. The module is
-//  built with the method it implements.
+//  Design spec: DESIGN_SPEC.md, beside this file; its plan is
+//  docs/roadmap/. The module is built with the loop it implements.
+//
+//  From source, the whole `cafeai` command (the loop's commands,
+//  and login, logout and status from cafeai-cli):
+//    ./gradlew :cafeai-loop:install
 //
 //  Not published, not in the BOM: nothing in the framework depends
 //  on it, so it can move to a repository of its own later.
@@ -19,6 +23,14 @@ dependencies {
     implementation project(':cafeai-aiservices')   // the agents behind app.agent(...)
     implementation project(':cafeai-guardrails')
     implementation project(':cafeai-observability')
+    runtimeOnly "org.slf4j:slf4j-nop:${rootProject.ext.slf4jVersion}"
 
     testImplementation project(':cafeai-test')
+}
+
+// The command's name, JVM options and `install`: gradle/cafeai-command.gradle.
+apply from: "$rootDir/gradle/cafeai-command.gradle"
+
+application {
+    mainClass = 'io.cafeai.loop.Loop'
 }
