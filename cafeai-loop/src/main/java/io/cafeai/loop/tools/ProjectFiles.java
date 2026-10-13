@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -32,8 +33,14 @@ public final class ProjectFiles {
     static final int MAX_MATCHES = 200;
     static final long MAX_SEARCHED_BYTES = 1_000_000;
 
+    /** What the loop calls its artifacts: they carry the stamp of the version and command that wrote them. */
+    private static final Pattern ARTIFACT =
+            Pattern.compile("DESIGN_SPEC\\.md|CHANGELOG\\.md|docs/roadmap/[^/]+\\.md|docs/design/.+\\.md");
+    private static final Pattern STAMP = Pattern.compile("<!-- cafeai-loop .* -->");
+
     private final Path root;
     private final BooleanSupplier onWorkingBranch;
+    private final String stamp;
 
     /**
      * @param root            the project's root directory
@@ -41,6 +48,15 @@ public final class ProjectFiles {
      *                        the default branch ({@link GitTools#onWorkingBranch()})
      */
     public ProjectFiles(Path root, BooleanSupplier onWorkingBranch) {
+        this(root, onWorkingBranch, null);
+    }
+
+    /**
+     * Tools for a command's agent: every artifact it writes starts with {@code stamp}
+     * ({@code Prompts.stamp(command)}), replacing an earlier one.
+     */
+    public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp) {
+        this.stamp = stamp;
         try {
             this.root = root.toRealPath();
         } catch (IOException e) {
@@ -127,11 +143,20 @@ public final class ProjectFiles {
         if (Files.isDirectory(file)) throw new IllegalArgumentException("That's a directory: " + path);
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, content, StandardCharsets.UTF_8);
+            Files.writeString(file, stamped(relative(file), content), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write " + path, e);
         }
         return "Wrote " + relative(file);
+    }
+
+    /** The content as written: an artifact starts with the stamp, replacing an earlier one. */
+    private String stamped(String path, String content) {
+        if (stamp == null || !ARTIFACT.matcher(path).matches()) return content;
+        String body = content;
+        int end = body.indexOf('\n');
+        if (STAMP.matcher(end < 0 ? body : body.substring(0, end)).matches()) body = end < 0 ? "" : body.substring(end + 1);
+        return stamp + "\n" + body;
     }
 
     /** The path inside the project that {@code path} names, or a refusal saying why it isn't one. */

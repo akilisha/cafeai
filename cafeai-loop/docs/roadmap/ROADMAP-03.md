@@ -46,7 +46,7 @@ to the right command. Mutation-checked.
 
 **Validation criteria:** the developer runs a command and reads what was sent and what it cost.
 
-**Status:** `defined`
+**Status:** `in-progress`
 
 ## Phase 3 — `cafeai init` from the terminal
 

@@ -36,3 +36,9 @@ apply from: "$rootDir/gradle/cafeai-command.gradle"
 application {
     mainClass = 'io.cafeai.loop.Loop'
 }
+
+// The prompts are versioned with CafeAI: the build writes its version beside them (Prompts.version()).
+processResources {
+    inputs.property('version', project.version)
+    filesMatching('io/cafeai/loop/version.properties') { expand(version: project.version) }
+}

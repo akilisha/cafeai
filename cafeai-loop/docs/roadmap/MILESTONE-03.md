@@ -5,7 +5,7 @@ Tracks [ROADMAP-03](ROADMAP-03.md). Criteria are referred to by number; the road
 | Phase | Status | Estimate | Timeline |
 |---|---|---|---|
 | 1. The command and its tools | `completed` | — | — |
-| 2. The agents and their prompts | `defined` | — | — |
+| 2. The agents and their prompts | `in-progress` | — | — |
 | 3. `cafeai init` from the terminal | `defined` | — | — |
 | 4. `cafeai plan` from the terminal | `defined` | — | — |
 | 5. Evals on PetClinic | `defined` | — | — |
@@ -49,7 +49,7 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **2.1** open
+- **2.1** met: `Prompts`: each command's prompt a resource of the module (`init.md`, `plan.md` moved there from `cafeai-loop/prompts/`), with CafeAI's version written by the build (`version.properties`); the file tools, given a command's stamp, start every artifact they write (the design spec, the changelog, roadmaps, milestones, design detail) with `<!-- cafeai-loop <version> · <command> -->`, replacing an earlier one. `PromptsTest`, 7 tests, written first.
 - **2.2** open
 - **2.3** open
 - **2.4** open
@@ -57,7 +57,10 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Entries**
 
-None yet.
+- **2026-10-12.** 2.1 is the plan's reading in two places, to confirm in review: an artifact records its version as an HTML comment on its first line (invisible when read); the design spec, the changelog, `docs/roadmap/` and `docs/design/` are what count as artifacts (the README and code don't).
+- **2026-10-12.** Stopped for three design questions before 2.2, 2.4 and 2.5: what "one model for all" is and how a model id names its provider; how screening personal data fits with agents writing files back; where a command's usage is recorded.
+
+- **2026-10-12.** Decided by the developer, and written into the spec: a `models.default` dial and `provider:model` ids, the loop naming no model itself; screening with reversible placeholders; usage in a log on the developer's machine, tokens for now.
 
 **Results**
 

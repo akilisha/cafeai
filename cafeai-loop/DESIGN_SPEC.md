@@ -170,18 +170,30 @@ reads, as ordinary code in the product, on open standards.
 
 Each command is an agent of its own (vision principle 8):
 
-- **System prompt:** a versioned resource in the module, `prompts/<command>.md`. The version is
+- **System prompt:** a versioned resource in the module, `src/main/resources/io/cafeai/loop/prompts/<command>.md`. The version is
   CafeAI's, so a project knows which version of the method produced its artifacts; each
   artifact records it. The prompts are open (in this repository) and part of the framework,
   not the user's work. Users steer through their artifacts and `docs/STANDARDS.md`, never the
   prompts.
-- **Model:** its own, if `cafeai-loop.yaml` says so (a reasoning model for `init` and
-  `design`, a faster one for `brew`'s small steps); else one for all. Reached through CafeAI's
-  credential lookup, so `cafeai login` is all a developer needs, at work as at home.
+- **Model:** its own, if `cafeai-loop.yaml` says so (`models.<command>`: a reasoning model for
+  `init` and `design`, a faster one for `brew`'s small steps); else `models.default`, the one for
+  all. A model is named with its provider, `provider:model` (`anthropic:<model-id>`,
+  `openai:<model-id>`, `ollama:<model-id>`), explicit rather than guessed from the id. The loop
+  names no model itself (model ids go stale): with neither set, a command says how to set one.
+  Reached through CafeAI's credential lookup, so `cafeai login` is all a developer needs, at work
+  as at home.
 - **Guardrails:** what leaves the machine is screened (secrets, personal data), and what each
-  agent may do is bounded by its tools (below) and the dials (§9).
+  agent may do is bounded by its tools (below) and the dials (§9). Screening uses **reversible
+  placeholders:** each secret or piece of personal data becomes a stable token (`[EMAIL_1]`) on its
+  way to the model, and the original is restored when the agent writes a file, commits, or shows
+  the developer its answer. The model never sees the value, and code the agent writes back isn't
+  corrupted by placeholders (decided 2026-10-12; screening only the developer's own words would
+  have sent secrets in code to the model).
 - **Cost:** every model call is metered by CafeAI and credited to the command that made it;
-  the web app and `review` show it. The loop doesn't enforce a budget (vision: cost becomes
+  each command shows its own usage when it finishes, and records it in a log on the developer's
+  machine (`~/.cafeai/loop/usage.jsonl`, not in the project: cost data isn't a project artifact),
+  which the web app and `review` show. Tokens for now; cost needs prices, and CafeAI ships no
+  price list (decided 2026-10-12). The loop doesn't enforce a budget (vision: cost becomes
   visible through observability).
 - **Tools,** the only way an agent acts:
 
@@ -240,7 +252,8 @@ carefully the test and validation criteria are reviewed, the better the ladder w
 | `branches` | `per-artifact` (the spec, the plan and each change on a branch of its own) or `single` (one branch for all): a matter of style, neither better | `per-artifact` |
 | `brew.stopAt` | `criterion` (one change per acceptance criterion), `milestone`, `phase` | `criterion` |
 | `brew.commands` | which commands `brew` may run by itself, beyond build and test: `none`, an allowed list, `ask` | `ask` |
-| `models.<command>` | a model id, through CafeAI's providers | one model for all |
+| `models.default` | the model every command uses unless it has its own: `provider:model` | none: a command asks for one |
+| `models.<command>` | a command's own model: `provider:model` | `models.default` |
 | `validation.mutation` | on or off | on |
 | `validation.live` | which environments' live tests `brew` runs | none |
 | `children.depth` | how deep child agents may nest | 1 (children don't spawn children) |
