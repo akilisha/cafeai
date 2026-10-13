@@ -83,6 +83,8 @@ None yet.
 
 - **2026-10-12.** 4.4 is the plan's reading, to confirm in review: it came up in discussion (criterion numbers must stay stable because the milestones track them by number) but was not formally decided.
 
+- **2026-10-12.** 4.4 confirmed by the developer in review.
+
 **Results**
 
 None yet.

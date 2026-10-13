@@ -25,6 +25,8 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 - **2026-10-12.** 1.2 is the plan's reading, to confirm in review: a developer's project and model sign-in sit behind the web app, so it should only be reachable from their own machine.
 
+- **2026-10-12.** 1.2 confirmed by the developer in review.
+
 **Results**
 
 None yet.
