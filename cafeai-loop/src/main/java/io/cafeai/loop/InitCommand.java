@@ -41,9 +41,7 @@ public final class InitCommand {
 
         String defaultBranch;
         if (surface.gitRepository()) {
-            String guess = GitTools.remoteDefault(project).orElse("main");
-            String named = developer.ask("The default branch, where changes are merged? [" + guess + "]");
-            defaultBranch = named == null || named.isBlank() ? guess : named.strip();
+            defaultBranch = Conversation.defaultBranch(project, developer);
         } else {
             developer.say("This folder isn't a git repository. The loop works on branches: every change it makes"
                     + " goes on a branch of its own, through your change process.");
@@ -70,13 +68,8 @@ public final class InitCommand {
         var finish = new InitTools(project, surface.codebase(), developer);
         var options = new Agents.Options(readAllowed, developer, List.of(finish));
         try (Agents.Session session = Agents.session("init", model, project, defaultBranch, new Screen(), options)) {
-            String message = kickoff(surface, readAllowed, defaultBranch, description);
-            while (true) {
-                developer.say(session.ask(message));
-                if (finish.finished()) break;
-                message = developer.ask(">");
-                if (message == null || message.strip().equals("/quit")) break;
-            }
+            Conversation.converse(session, developer, kickoff(surface, readAllowed, defaultBranch, description),
+                    finish::finished);
             developer.say(session.usage().summary());
         }
         return finish.finished() ? 0 : 1;

@@ -51,8 +51,8 @@ class LoopTest {
 
     @Test @DisplayName("a loop command not built yet says where it is planned, and fails")
     void notBuiltYet() {
-        assertThat(loop.run("plan")).isEqualTo(1);
-        assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai plan` isn't built yet").contains("ROADMAP-03 phase 4");
+        assertThat(loop.run("design")).isEqualTo(1);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai design` isn't built yet").contains("ROADMAP-06");
         assertThat(loop.run("brew")).isEqualTo(1);
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-05");
         assertThat(handedOn).isEmpty();

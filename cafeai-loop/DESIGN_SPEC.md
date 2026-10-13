@@ -128,7 +128,7 @@ applies; the loop adds none and removes none (vision principle 1).
 |---|---|---|---|
 | `init` | the codebase, if there is one (after asking permission to read it); the developer's description, in conversation | the design spec | the description leaves a decision open; code and stated intent disagree |
 | `design` | the design spec; the developer's new or changed requirements | an updated design spec; then, if the change affects them, an updated roadmap and milestones | the change contradicts a decision already made |
-| `plan` | the design spec | the roadmap (each phase with numbered acceptance criteria) and its milestones | the spec is too vague to write a testable criterion |
+| `plan` | the design spec and the loop's other artifacts, always (they are its inputs; the developer is told they go to the model); the code, only after asking permission (decided 2026-10-13) | the roadmap (each phase with numbered acceptance criteria) and its milestones, and nothing else: never the spec, so a change to the design goes into the spec first, by the developer or `design` (decided 2026-10-13) | the spec is too vague to write a testable criterion; an answer changes the design |
 | `brew` | the roadmap and milestones, from the first unfinished item; the code | code, tests, evidence in the milestone, changelog; one change per stopping point (§9) | a criterion can't be met as written; validation fails and the fix isn't clear; it reaches its stopping point |
 | `run <target>` | `<target>`: a jar or class file locally, or the platform's own command (`cafeai run oc get pods -o wide -o json`) | the command's result; findings for `review` | — |
 | `review` | the milestones (unticked, deferred, blocked), the open questions, `run`'s findings | a report, and a change adding what it found to the milestones | — |
@@ -200,7 +200,7 @@ Each command is an agent of its own (vision principle 8):
   | Tool | `init` | `design` | `plan` | `brew` | `run` | `review` |
   |---|---|---|---|---|---|---|
   | read files, list, search the project | ✓ | ✓ | ✓ | ✓ | | ✓ |
-  | write files on the working branch | artifacts | artifacts | artifacts | code, tests, artifacts | | artifacts |
+  | write files on the working branch | artifacts | artifacts | roadmaps, milestones, index | code, tests, artifacts | | artifacts |
   | ask the developer | ✓ | ✓ | ✓ | ✓ | | |
   | build and test (Gradle, Maven) | | | | ✓ | | |
   | run commands the dials allow | | | | ✓ | the developer's `<target>` | |

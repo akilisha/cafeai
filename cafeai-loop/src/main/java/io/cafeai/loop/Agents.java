@@ -33,7 +33,16 @@ import java.util.List;
 public final class Agents {
 
     /** What a command's agent may write. */
-    public enum Writes { ARTIFACTS, ANY, NONE }
+    public enum Writes {
+        ARTIFACTS(ProjectFiles.Scope.ARTIFACTS), ROADMAPS(ProjectFiles.Scope.ROADMAPS), ANY(ProjectFiles.Scope.ANY),
+        NONE(ProjectFiles.Scope.NONE);
+
+        private final ProjectFiles.Scope scope;
+
+        Writes(ProjectFiles.Scope scope) {
+            this.scope = scope;
+        }
+    }
 
     /** The interface the agent answers through: one message in, its reply out. */
     public interface CommandAgent {
@@ -45,11 +54,20 @@ public final class Agents {
     /** What a command may write ({@code DESIGN_SPEC.md}, the agents' tool table). */
     public static Writes writes(String command) {
         return switch (command) {
-            case "init", "design", "plan", "review" -> Writes.ARTIFACTS;
+            case "init", "design", "review" -> Writes.ARTIFACTS;
+            case "plan" -> Writes.ROADMAPS;
             case "brew" -> Writes.ANY;
             case "run" -> Writes.NONE;
             default -> throw new IllegalArgumentException("'" + command + "' is not one of the loop's commands");
         };
+    }
+
+    /**
+     * What a command reads whatever the developer answered about reading the project: {@code plan}
+     * the loop's artifacts, its inputs; the others nothing.
+     */
+    public static ProjectFiles.Scope readableAnyway(String command) {
+        return command.equals("plan") ? ProjectFiles.Scope.ARTIFACTS : ProjectFiles.Scope.NONE;
     }
 
     /** A session of {@code command} in the project, with the model the settings name for it. */
@@ -110,8 +128,8 @@ public final class Agents {
             Writes writes = writes(command);
             if (writes == Writes.NONE) return List.copyOf(options.extraTools());
             var git = new GitTools(project, defaultBranch, screen, options::readAllowed, options.developer());
-            var files = new ProjectFiles(project, git::onWorkingBranch, Prompts.stamp(command), screen,
-                    writes == Writes.ARTIFACTS, options::readAllowed);
+            var files = new ProjectFiles(project, git::onWorkingBranch, Prompts.stamp(command), screen, writes.scope,
+                    options::readAllowed, readableAnyway(command));
             var tools = new ArrayList<Object>(List.of(files, git));
             tools.addAll(options.extraTools());
             return tools;

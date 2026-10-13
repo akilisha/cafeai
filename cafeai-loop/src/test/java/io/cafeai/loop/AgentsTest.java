@@ -148,10 +148,12 @@ class AgentsTest {
         assertThatThrownBy(() -> plan.ask("Again.")).hasMessageContaining("has finished");
     }
 
-    @Test @DisplayName("2.2: a command's tools are its own: init's writes are artifacts only")
+    @Test @DisplayName("2.2, 4.2: a command's tools are its own: init's writes are artifacts only, plan's the roadmaps only")
     void artifactsOnly() {
         assertThat(Agents.writes("init")).isEqualTo(Agents.Writes.ARTIFACTS);
-        assertThat(Agents.writes("plan")).isEqualTo(Agents.Writes.ARTIFACTS);
+        assertThat(Agents.writes("plan")).isEqualTo(Agents.Writes.ROADMAPS);
+        assertThat(Agents.readableAnyway("plan")).isEqualTo(io.cafeai.loop.tools.ProjectFiles.Scope.ARTIFACTS);
+        assertThat(Agents.readableAnyway("init")).isEqualTo(io.cafeai.loop.tools.ProjectFiles.Scope.NONE);
         assertThat(Agents.writes("design")).isEqualTo(Agents.Writes.ARTIFACTS);
         assertThat(Agents.writes("review")).isEqualTo(Agents.Writes.ARTIFACTS);
         assertThat(Agents.writes("brew")).isEqualTo(Agents.Writes.ANY);

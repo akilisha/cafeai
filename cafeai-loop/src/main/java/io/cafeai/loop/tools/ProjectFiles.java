@@ -34,17 +34,41 @@ public final class ProjectFiles {
     static final int MAX_MATCHES = 200;
     static final long MAX_SEARCHED_BYTES = 1_000_000;
 
-    /** What the loop calls its artifacts: they carry the stamp of the version and command that wrote them. */
-    private static final Pattern ARTIFACT =
-            Pattern.compile("DESIGN_SPEC\\.md|CHANGELOG\\.md|docs/roadmap/[^/]+\\.md|docs/design/.+\\.md");
+    /**
+     * Parts of the project, by path: what a command may write, and what it may read without the
+     * developer's yes. The loop's artifacts carry the stamp of the version and command that wrote them.
+     */
+    public enum Scope {
+        ANY(".*", "anything"),
+        NONE("(?!)", "nothing"),
+        ARTIFACTS("DESIGN_SPEC\\.md|CHANGELOG\\.md|docs/roadmap/[^/]+\\.md|docs/design/.+\\.md",
+                "the loop's artifacts (DESIGN_SPEC.md, CHANGELOG.md, docs/roadmap/, docs/design/)"),
+        ROADMAPS("docs/roadmap/[^/]+\\.md", "the roadmaps, their milestones and the index (docs/roadmap/); the design"
+                + " spec is the developer's to change (or `cafeai design`'s), then plan runs again");
+
+        private final Pattern paths;
+        private final String description;
+
+        Scope(String paths, String description) {
+            this.paths = Pattern.compile(paths);
+            this.description = description;
+        }
+
+        /** Whether the path, relative to the project's root with '/' between names, is in this scope. */
+        public boolean covers(String relative) {
+            return paths.matcher(relative).matches();
+        }
+    }
+
     private static final Pattern STAMP = Pattern.compile("<!-- cafeai-loop .* -->");
 
     private final Path root;
     private final BooleanSupplier onWorkingBranch;
     private final String stamp;
     private final Screen screen;
-    private final boolean artifactsOnly;
+    private final Scope writable;
     private final BooleanSupplier readAllowed;
+    private final Scope readableAnyway;
 
     /**
      * @param root            the project's root directory
@@ -75,10 +99,21 @@ public final class ProjectFiles {
     /** As above, reading only when {@code readAllowed}: the developer's permission, asked for by {@code init}. */
     public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp, Screen screen, boolean artifactsOnly,
                         BooleanSupplier readAllowed) {
+        this(root, onWorkingBranch, stamp, screen, artifactsOnly ? Scope.ARTIFACTS : Scope.ANY, readAllowed, Scope.NONE);
+    }
+
+    /**
+     * Tools for a command's agent that writes only what is in {@code writable}, and reads only when
+     * {@code readAllowed}, except what is in {@code readableAnyway}, which it reads by path whatever
+     * the answer ({@code plan}: the loop's artifacts, its inputs).
+     */
+    public ProjectFiles(Path root, BooleanSupplier onWorkingBranch, String stamp, Screen screen, Scope writable,
+                        BooleanSupplier readAllowed, Scope readableAnyway) {
         this.readAllowed = readAllowed;
+        this.readableAnyway = readableAnyway;
         this.stamp = stamp;
         this.screen = screen;
-        this.artifactsOnly = artifactsOnly;
+        this.writable = writable;
         try {
             this.root = root.toRealPath();
         } catch (IOException e) {
@@ -89,8 +124,8 @@ public final class ProjectFiles {
 
     @Tool("Reads a file of the project, by its path from the project's root.")
     public String read(@P("the file's path, relative to the project's root") String path) {
-        mayRead();
         Path file = inside(screen.in(path));
+        if (!readAllowed.getAsBoolean() && !readableAnyway.covers(relative(file))) throw notAllowed();
         if (!Files.isRegularFile(file)) throw new IllegalArgumentException("No such file in the project: " + path);
         try {
             return screen.out(Files.readString(file, StandardCharsets.UTF_8));
@@ -166,9 +201,8 @@ public final class ProjectFiles {
         }
         Path file = inside(screen.in(path));
         if (Files.isDirectory(file)) throw new IllegalArgumentException("That's a directory: " + path);
-        if (artifactsOnly && !ARTIFACT.matcher(relative(file)).matches()) {
-            throw new IllegalArgumentException("This command writes only the loop's artifacts (DESIGN_SPEC.md, CHANGELOG.md,"
-                    + " docs/roadmap/, docs/design/), not " + path);
+        if (!writable.covers(relative(file))) {
+            throw new IllegalArgumentException("This command writes only " + writable.description + ", not " + path);
         }
         try {
             Files.createDirectories(file.getParent());
@@ -180,12 +214,18 @@ public final class ProjectFiles {
     }
 
     private void mayRead() {
-        if (!readAllowed.getAsBoolean()) throw new IllegalStateException("The developer hasn't allowed reading the project.");
+        if (!readAllowed.getAsBoolean()) throw notAllowed();
+    }
+
+    private IllegalStateException notAllowed() {
+        return new IllegalStateException(readableAnyway == Scope.NONE ? "The developer hasn't allowed reading the project."
+                : "The developer hasn't allowed reading the project beyond " + readableAnyway.description
+                        + ", which can be read by path.");
     }
 
     /** The content as written: an artifact starts with the stamp, replacing an earlier one. */
     private String stamped(String path, String content) {
-        if (stamp == null || !ARTIFACT.matcher(path).matches()) return content;
+        if (stamp == null || !Scope.ARTIFACTS.covers(path)) return content;
         String body = content;
         int end = body.indexOf('\n');
         if (STAMP.matcher(end < 0 ? body : body.substring(0, end)).matches()) body = end < 0 ? "" : body.substring(end + 1);

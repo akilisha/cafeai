@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -162,6 +163,57 @@ class ProjectFilesTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("only the loop's artifacts");
         assertThatThrownBy(() -> planning.write("README.md", "# Changed")).hasMessageContaining("only the loop's artifacts");
         assertThat(Files.readString(project.resolve("src/main/App.java"))).startsWith("class App {\n");
+    }
+
+    @Test @DisplayName("a scope covers whole paths, not paths that merely contain one")
+    void scopes() {
+        assertThat(ProjectFiles.Scope.ARTIFACTS.covers("DESIGN_SPEC.md")).isTrue();
+        assertThat(ProjectFiles.Scope.ARTIFACTS.covers("docs/design/data/model.md")).isTrue();
+        for (String not : List.of("DESIGN_SPEC.md.bak", "src/DESIGN_SPEC.md", "old/docs/roadmap/ROADMAP-01.md", "docs/roadmap/x.md.txt")) {
+            assertThat(ProjectFiles.Scope.ARTIFACTS.covers(not)).as(not).isFalse();
+            assertThat(ProjectFiles.Scope.ROADMAPS.covers(not)).as(not).isFalse();
+        }
+        assertThat(ProjectFiles.Scope.ROADMAPS.covers("docs/roadmap/ROADMAP-01.md")).isTrue();
+        assertThat(ProjectFiles.Scope.ROADMAPS.covers("DESIGN_SPEC.md")).isFalse();
+        assertThat(ProjectFiles.Scope.ANY.covers("src/main/App.java")).isTrue();
+        assertThat(ProjectFiles.Scope.NONE.covers("DESIGN_SPEC.md")).isFalse();
+    }
+
+    @Test @DisplayName("roadmaps only (plan): the roadmap directory can be written; the spec, other artifacts and code can't")
+    void roadmapsOnly() throws IOException {
+        var planning = new ProjectFiles(project, () -> working, null, io.cafeai.loop.Screen.none(),
+                ProjectFiles.Scope.ROADMAPS, () -> true, ProjectFiles.Scope.NONE);
+        planning.write("docs/roadmap/ROADMAP-01.md", "# ROADMAP-01\n");
+        planning.write("docs/roadmap/README.md", "# Roadmaps\n");
+        for (String refused : List.of("DESIGN_SPEC.md", "CHANGELOG.md", "docs/design/x.md", "docs/roadmap/old/ROADMAP-01.md",
+                "src/main/App.java")) {
+            assertThatThrownBy(() -> planning.write(refused, "x")).as(refused)
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("docs/roadmap/");
+        }
+        assertThatThrownBy(() -> planning.write("DESIGN_SPEC.md", "x")).hasMessageContaining("the developer's to change");
+        assertThat(project.resolve("DESIGN_SPEC.md")).doesNotExist();
+    }
+
+    @Test @DisplayName("without the developer's yes nothing is read, except what is readable anyway (plan: the loop's artifacts), by path")
+    void readableAnyway() throws IOException {
+        Files.writeString(project.resolve("DESIGN_SPEC.md"), "# Spec\n");
+        Files.createDirectories(project.resolve("docs/roadmap"));
+        Files.writeString(project.resolve("docs/roadmap/ROADMAP-01.md"), "# ROADMAP-01\n");
+        var notAllowed = new ProjectFiles(project, () -> working, null, io.cafeai.loop.Screen.none(),
+                ProjectFiles.Scope.ROADMAPS, () -> false, ProjectFiles.Scope.ARTIFACTS);
+        assertThat(notAllowed.read("DESIGN_SPEC.md")).contains("# Spec");
+        assertThat(notAllowed.read("docs/roadmap/ROADMAP-01.md")).contains("# ROADMAP-01");
+        for (String refused : List.of("README.md", "src/main/App.java")) {
+            assertThatThrownBy(() -> notAllowed.read(refused)).as(refused)
+                    .hasMessageContaining("hasn't allowed reading").hasMessageContaining("artifacts");
+        }
+        assertThatThrownBy(() -> notAllowed.list("")).hasMessageContaining("hasn't allowed reading");
+        assertThatThrownBy(() -> notAllowed.search("visit")).hasMessageContaining("hasn't allowed reading");
+        var nothing = new ProjectFiles(project, () -> working, null, io.cafeai.loop.Screen.none(),
+                ProjectFiles.Scope.ARTIFACTS, () -> false, ProjectFiles.Scope.NONE);
+        assertThatThrownBy(() -> nothing.read("DESIGN_SPEC.md")).hasMessageContaining("hasn't allowed reading");
+        assertThat(new ProjectFiles(project, () -> working, null, io.cafeai.loop.Screen.none(),
+                ProjectFiles.Scope.ARTIFACTS, () -> true, ProjectFiles.Scope.NONE).read("README.md")).contains("# Demo");
     }
 
     @Test @DisplayName("what isn't there, isn't a directory, or isn't text says so")

@@ -97,7 +97,7 @@ Mutation-checked.
 
 **Validation criteria:** the developer runs `cafeai plan` on the spec from phase 3's validation.
 
-**Status:** `defined`
+**Status:** `in-progress`
 
 ## Phase 5 — Evals on PetClinic
 

@@ -101,10 +101,10 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **4.1** open
-- **4.2** open
-- **4.3** open
-- **4.4** open
+- **4.1** met: `plan` can't finish until `docs/roadmap/` holds, for each roadmap, the title `# ROADMAP-NN — <topic>`, phases with an objective, acceptance, testing and validation criteria, and a status that is one of the statuses; criteria numbered *phase.criterion*, each once; milestones tracking every criterion by number, and only the roadmap's; the index listing each roadmap with its milestones (`PlanCheck`, the `finish` tool). The agent is told every problem at once. `PlanCheckTest`, `PlanCommandTest` (a first plan, stamped and committed with a yes; out of format, refused). PetClinic's plan from the run by hand, and this module's own roadmaps, pass the check unchanged.
+- **4.2** met for the spec, in the prompt for the rest: `plan` writes only `docs/roadmap/`; the file tools refuse the spec, so an answer that changes the design goes into the spec first, by the developer (or `design`), and `plan` runs again. Stopping to ask where the spec is too vague is `plan.md`'s §2, for validation and phase 5's evals. `PlanCommandTest`, `ProjectFilesTest`, `AgentsTest`.
+- **4.3** met for estimates, in the prompt for the readings: `finish` refuses an estimate or timeline `plan` wrote, and one of the team's it changed; dashes are empty. Flagging its own readings is `plan.md`'s §4, for validation and phase 5's evals. `PlanCheckTest`, `PlanCommandTest`.
+- **4.4** met: planning again, `finish` refuses a criterion removed (one dropped stays, marked cancelled), a criterion renumbered (its text found under another number), a roadmap deleted, and a milestone entry rewritten or removed; a criterion added under a new number is fine. `PlanCheckTest`, `PlanCommandTest` (a removal refused, then an addition accepted).
 
 **Entries**
 
@@ -112,9 +112,21 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 - **2026-10-12.** 4.4 confirmed by the developer in review.
 
+- **2026-10-13.** Two design questions, decided by the developer before the code and written into the spec (The commands; The agents, tools):
+  - `plan` writes only the roadmaps, their milestones and the index, never the spec: an answer that changes the design goes into the spec first, by the developer (by hand until `cafeai design` exists);
+  - `plan` always reads the spec and the loop's other artifacts, its inputs, telling the developer they go to the named model, screened; it asks before reading the code.
+- **2026-10-13.** Readings of the plan's, to confirm in review:
+  - a roadmap `plan` leaves as it was, with its milestones, isn't checked for format: it is the team's history (CafeAI's own roadmaps, written before ARTIFACTS.md, would otherwise all have to be rewritten). The numbers and entries rules still apply to it;
+  - a criterion dropped is kept in the roadmap marked `*(cancelled)*`; ARTIFACTS.md has no per-criterion status in the roadmap;
+  - `plan` stops before asking any model when there is no spec, the spec lacks a section (As built isn't required: a new project has nothing built), or the folder isn't a repository (`init` creates one).
+- **2026-10-13.** `init` and `plan` now share their conversation (the default branch asked, the turns until finished or `/quit`), and their tests share a base, `CommandTestBase`.
+- **2026-10-13.** This phase's validation, the developer running `cafeai plan` on the spec from phase 3's validation, waits for that.
+- **2026-10-13.** The readings above confirmed by the developer in review.
+
 **Results**
 
-None yet.
+- **2026-10-13.** `./gradlew :cafeai-loop:test`: 178 tests, all passing (`PlanCheckTest` 24, `PlanCommandTest` 12, `InitCommandTest` 11, `SurfaceAndSpecTest` 7, `TerminalDeveloperTest` 12, `GitToolsTest` 24, `ProjectFilesTest` 20, `AgentsTest` 11, `LoopTest` 4, `ModelsTest` 5, `ScreenTest` 17, `PromptsTest` 7, `SettingsTest` 24).
+- **2026-10-13.** Mutation testing, 66 mutations across `PlanCheck`, `PlanTools`, `PlanCommand`, `Conversation`, `ProjectFiles` and `Agents`, each verified to apply: 59 caught, 6 survived, and one didn't compile (a bare `continue` leaving code unreachable), rewritten as `if (true) continue` and caught. Every survivor was a gap in the tests; tests were added for each: a criterion kept while a new one says the same isn't renumbered; any dash in an estimate cell is empty; a criterion's text ends at the next item and its spaces are made single; a new project's spec, with no As built, is planned from; a scope covers whole paths only. All re-run: caught. 66 of 66.
 
 ## Phase 5 — Evals on PetClinic
 
