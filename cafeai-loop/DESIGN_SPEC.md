@@ -62,7 +62,7 @@ or reads it from an existing codebase, and every agent follows it.
 | Tests | JUnit 5, AssertJ | 5.14, 3.27 | |
 | Evals | `cafeai-test` | | Recorded model calls (no key, no cost) and evals for each command's prompt. |
 | Mutation testing | open (§14) | | PIT, or a smaller tool of our own. |
-| Web app front end | open (§14) | | Pages served by the CafeAI app; how much script they need is decided in phase 3. |
+| Web app front end | open (§14) | | Pages served by the CafeAI app; how much script they need is decided in phase 4. |
 
 ## 4. Conventions
 
@@ -116,6 +116,25 @@ final, as a finished product's is: this repository's capstone specs keep theirs
 **No hidden state.** Where the project stands is read from the artifacts themselves: the ticked
 and unticked criteria in the milestones, each phase's status in the roadmap. `brew` picks up
 "from the last place in the roadmap" by reading it.
+
+**Collaboration is merging the artifacts** (decided 2026-10-14). What a developer has worked out
+with the AI (decisions, readings confirmed, answers, where the work stands) is in the artifacts,
+reviewed and merged like code; a developer who merges a colleague's branch brings their next
+command up to where the colleague left off, whatever model either of them uses. What stays on a
+machine stays there: the conversation (only what was written into an artifact travels, so an
+unanswered thread is written down as an open question or lost), the recordings, the usage log,
+the sign-ins. For that to hold with several developers at once, the artifacts need merge rules,
+which nothing gives them yet:
+
+- **Numbers:** two branches can each add a criterion 2.3, or a ROADMAP-10. A merge must find the
+  collision, and the branch merging second take the next free numbers before it merges; numbers
+  already merged never change.
+- **Entries:** milestone entries are only ever added, so both sides' entries are kept, in date
+  order.
+- **Decisions:** two branches deciding the same question differently is a design conflict, not a
+  text conflict: the developer decides, through `design`.
+- **What changed:** after a merge, a command says what arrived since this machine last ran one on
+  the project (decisions, answers, readings confirmed, statuses), before it starts.
 
 ## 6. The commands
 
@@ -322,9 +341,10 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
 2. **The module and its runtime:** `cafeai-loop`, the tools, git on a working branch,
    `cafeai-loop.yaml`, the install. `init` and `plan` from the terminal, with the phase 1
    prompts; evals on the PetClinic fixture.
-3. **The web app,** for the conversation and the project at a glance.
-4. **`brew` and the validation ladder,** first with `brew.stopAt: criterion`; evidence written
-   into the milestones.
+3. **`brew` and the validation ladder,** first with `brew.stopAt: criterion`; evidence written
+   into the milestones. Before the web app (decided 2026-10-14): `brew` closes the loop, from the
+   plan to code with evidence, and the web app is a window onto it, needed first by the proof.
+4. **The web app,** for the conversation and the project at a glance.
 5. **`design`, with changes flowing into the roadmap and milestones.**
 6. **`review`.**
 7. **`run`,** locally, then the platform's own commands.
@@ -332,6 +352,8 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
    accepted in phase 1), every criterion met with evidence in its milestones, and the developer
    validates it in the browser (vision §8). Not an OpenAPI document: PetClinic's spec decided
    against one, and the proof can't require what its project decided against.
+9. **Collaboration through merged artifacts** (§5): the merge rules, checked where a team merges,
+   and what changed since a developer last looked; proved with two developers on one project.
 
 ## 13. Practising on itself
 
@@ -357,4 +379,10 @@ This module is built with the method it implements:
 - How `brew` names its branches in this repository, which commits to `main` directly: a
   pattern of its own, or straight to `main` as a dial.
 - The web app's front end: pages served by the CafeAI app, and how much script they need for the
-  conversation and streaming (phase 3).
+  conversation and streaming (phase 4).
+- A `.cafeai/` folder in the project, as `.claude/` and `.copilot/` are for theirs (raised by the
+  developer, 2026-10-14). The recommendation: it holds what is the tool's own and shared by the
+  team, starting with the settings (`cafeai-loop.yaml` as `.cafeai/loop.yaml`); the artifacts stay
+  where they are, at the root and in `docs/`, since they are the team's documents and must be read
+  without CafeAI. What is a machine's own stays in `~/.cafeai/`. Cheap to decide now: only the
+  settings' file name moves.

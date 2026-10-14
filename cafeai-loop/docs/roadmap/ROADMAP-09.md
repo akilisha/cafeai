@@ -4,7 +4,7 @@
 
 **Objective:** the loop builds a real feature in a real codebase, end to end.
 
-**Prerequisites:** ROADMAP-05 phases 1 to 4.
+**Prerequisites:** ROADMAP-04 phases 1 to 4.
 **Inputs:** PetClinic at `feature/roadmaps` (`400ff04`): its design spec, roadmaps and milestones
 from ROADMAP-02.
 

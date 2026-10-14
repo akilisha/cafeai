@@ -4,7 +4,7 @@
 
 **Objective:** what is unfinished, stuck or unanswered is brought back to the developer.
 
-**Prerequisites:** ROADMAP-05 phase 3.
+**Prerequisites:** ROADMAP-04 phase 3.
 
 **Acceptance criteria**
 - **1.1** It reports criteria not met, phases `blocked`, `escalated` or `deferred`, the spec's

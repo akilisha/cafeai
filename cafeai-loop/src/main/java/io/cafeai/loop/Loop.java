@@ -26,10 +26,10 @@ public final class Loop {
         COMMANDS.put("init",   new String[] {"start a product: its design spec", null});
         COMMANDS.put("design", new String[] {"change the design spec", "ROADMAP-06"});
         COMMANDS.put("plan",   new String[] {"roadmaps and milestones from the design spec", null});
-        COMMANDS.put("brew",   new String[] {"build from the roadmap, with evidence", "ROADMAP-05"});
+        COMMANDS.put("brew",   new String[] {"build from the roadmap, with evidence", "ROADMAP-04"});
         COMMANDS.put("run",    new String[] {"run the product, or the platform's own command", "ROADMAP-08"});
         COMMANDS.put("review", new String[] {"bring back what is unfinished, stuck or unanswered", "ROADMAP-07"});
-        COMMANDS.put("loop",   new String[] {"open the web app", "ROADMAP-04"});
+        COMMANDS.put("loop",   new String[] {"open the web app", "ROADMAP-05"});
     }
 
     private final PrintStream out;

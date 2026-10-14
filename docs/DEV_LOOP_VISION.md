@@ -43,6 +43,16 @@ went off the rails. The artifacts are what made it work.
 **The artifacts are the north star.** Without them, a project is built the way projects are built
 today.
 
+**The artifacts are how a team works with AI together.** What has been formalised for teams so
+far (skills, plugins, hooks, MCP servers, routines) shares what the AI can do. What it has worked
+out with a person (the decisions, the open questions, where the work stands) stays in that
+person's sandbox: in a memory, a project or a conversation that nobody else can branch, review or
+merge. In the loop, that state is the artifacts, in the repository, reviewed like code. A
+developer who merges a colleague's branch brings their next command up to where the colleague
+left off, whatever model either of them uses. For several developers at once, the artifacts need
+merge rules of their own: stable numbers, entries kept from both sides, design conflicts decided
+by a person (DESIGN_SPEC.md, The artifacts).
+
 In one sentence:
 
 > CafeAI is an opinionated, Java-native method for building with AI: living project artifacts

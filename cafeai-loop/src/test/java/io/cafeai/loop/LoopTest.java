@@ -54,7 +54,7 @@ class LoopTest {
         assertThat(loop.run("design")).isEqualTo(1);
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai design` isn't built yet").contains("ROADMAP-06");
         assertThat(loop.run("brew")).isEqualTo(1);
-        assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-05");
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-04");
         assertThat(handedOn).isEmpty();
         assertThat(ran).isEmpty();
     }
