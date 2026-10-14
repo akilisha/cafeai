@@ -152,6 +152,19 @@ applies; the loop adds none and removes none (vision principle 1).
 | `run <target>` | `<target>`: a jar or class file locally, or the platform's own command (`cafeai run oc get pods -o wide -o json`) | the command's result; findings for `review` | — |
 | `review` | the milestones (unticked, deferred, blocked), the open questions, `run`'s findings | a report, and a change adding what it found to the milestones | — |
 
+**How `brew` builds** (decided 2026-10-14):
+
+- **The model the developer signed in to does the heavy lifting,** directly: `models.brew`, else
+  `models.default`, through CafeAI's credential lookup, as for every command. `brew` is an agent of
+  the loop's own, coordinating: it picks the first criterion not yet met, gives the model the tools
+  to read, write, build and test, checks the result against the criterion, tests the tests, records
+  the evidence, and commits only with the developer's yes. No other coding tool is involved.
+- **It tests the tests by breaking the code on purpose, targeted:** mutations chosen for what a
+  criterion's tests cover (a condition dropped, a limit moved), each verified to apply and to
+  compile, the tests run, the code restored from a copy. Nothing is added to the project's build.
+- **A branch per phase,** in every project, this one included (which otherwise commits to `main`):
+  merging stays the developer's.
+
 **Uploads** (`init` and `design`): the developer adds material in the conversation (dragged
 into the web app, or `--attach <file>` on the command line). What CafeAI reads, with what it
 already has:
@@ -372,12 +385,6 @@ This module is built with the method it implements:
 
 - How `run` reports what it found for `review`: in the milestones directly, or a log of its
   own that `review` reads.
-- Whether `brew` uses the developer's own coding agent at first (vision §8, first slice) or
-  starts with CafeAI's own agents straight away, now that the agents are cheap to build on
-  CafeAI.
-- The mutation tool: PIT, or a smaller one of our own.
-- How `brew` names its branches in this repository, which commits to `main` directly: a
-  pattern of its own, or straight to `main` as a dial.
 - The web app's front end: pages served by the CafeAI app, and how much script they need for the
   conversation and streaming (phase 4).
 - A `.cafeai/` folder in the project, as `.claude/` and `.copilot/` are for theirs (raised by the

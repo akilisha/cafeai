@@ -238,8 +238,8 @@ To test the whole idea before building all of it:
 2. `cafeai init`: the interview, or reading an existing codebase, producing the design spec.
 3. `cafeai plan`: the roadmap, each phase with numbered acceptance criteria, and its milestones.
 4. The validation ladder, recording evidence in the milestones.
-5. `cafeai brew`, first with the developer's own agent writing the code from the artifacts, then
-   with CafeAI driving the engine itself.
+5. `cafeai brew`: the model the developer signed in to writes the code from the artifacts, with
+   CafeAI coordinating it, criterion by criterion, and recording the evidence.
 
 Each step arrives through the project's change process, like everything after it. A cheap trial before any code:
 run the flow by hand twice, once for an imagined new service and once backwards from an existing

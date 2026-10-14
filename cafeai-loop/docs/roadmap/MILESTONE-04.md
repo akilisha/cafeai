@@ -17,6 +17,7 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 - **2026-10-12.** Planned from DESIGN_SPEC.md (phase 4). Open in the spec, and affecting this roadmap: whether `brew` first uses the developer's own coding agent or CafeAI's agents; the mutation tool (2.2); how `brew` names branches in this repository, which commits to `main` (1.2).
 - **2026-10-14.** Renumbered from ROADMAP-05, before any work began: `brew` comes before the web app (decided by the developer). `brew` closes the loop, from the plan to code with evidence, and is what picks up from merged artifacts; the web app is a window onto it, needed first by ROADMAP-09. The spec's list of phases (DESIGN_SPEC.md, Phases) swapped with it, so earlier entries' "phase 3" and "phase 4" read the other way round now.
+- **2026-10-14.** The three questions left open when this roadmap was planned, decided by the developer and written into the spec (The commands, How `brew` builds): the model the developer signed in to does the coding, directly, with `brew` an agent of the loop's own coordinating it, and no other coding tool involved; the code is broken on purpose by targeted mutations, as this repository's phases were checked, with nothing added to the project's build (2.2); a branch per phase in every project, this one included, merging staying the developer's (1.2).
 
 ## Phase 1 — Picking up where the roadmap stands
 
@@ -44,7 +45,7 @@ None yet.
 
 **Entries**
 
-None yet.
+- **2026-10-14.** How the work divides, agreed with the developer: the model writes the tests and the code; the loop's code makes the tests come first and fail before the code exists, runs the build and the tests itself, applies each mutation the model proposes (verified to compile, the tests run, the code restored from a copy), returns the survivors, and records only what it ran. A reading of the plan's, to confirm when this phase is built: since a model choosing its own mutations could spare its tests, the code also requires mutations covering every changed line the criterion touches.
 
 **Results**
 
