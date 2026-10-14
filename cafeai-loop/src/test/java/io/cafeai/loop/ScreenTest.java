@@ -89,6 +89,12 @@ class ScreenTest {
         assertThat(Screen.none().in("[EMAIL_1]")).isEqualTo("[EMAIL_1]");
     }
 
+    @Test @DisplayName("a screen given a tag uses it, the same every time (the evals' recordings replay)")
+    void givenTag() {
+        assertThat(new Screen("e7a1").out("Mail alice@acme.example")).isEqualTo("Mail [EMAIL_1_e7a1]");
+        assertThat(new Screen("e7a1").out("Mail alice@acme.example")).isEqualTo(new Screen("e7a1").out("Mail alice@acme.example"));
+    }
+
     @Test @DisplayName("null passes through")
     void nulls() {
         assertThat(screen.out(null)).isNull();

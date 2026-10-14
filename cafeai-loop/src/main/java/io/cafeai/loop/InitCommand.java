@@ -6,6 +6,7 @@ import io.cafeai.loop.tools.GitTools;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * {@code cafeai init} from the terminal (ROADMAP-03, phase 3). The conversation is the agent's,
@@ -20,12 +21,19 @@ public final class InitCommand {
     private final Path project;
     private final Developer developer;
     private final Function<Settings, AiProvider> modelFor;
+    private final Supplier<Screen> screens;
 
     /** @param modelFor the model {@code init} uses, from the project's settings ({@link Models#forCommand}) */
     public InitCommand(Path project, Developer developer, Function<Settings, AiProvider> modelFor) {
+        this(project, developer, modelFor, Screen::new);
+    }
+
+    /** With the session's screen from {@code screens}: the evals' is the same every run, so recordings replay. */
+    InitCommand(Path project, Developer developer, Function<Settings, AiProvider> modelFor, Supplier<Screen> screens) {
         this.project = project;
         this.developer = developer;
         this.modelFor = modelFor;
+        this.screens = screens;
     }
 
     /** Runs {@code init}: 0 when the spec is finished, 1 when not, 2 when it can't start. */
@@ -67,7 +75,7 @@ public final class InitCommand {
 
         var finish = new InitTools(project, surface.codebase(), developer);
         var options = new Agents.Options(readAllowed, developer, List.of(finish));
-        try (Agents.Session session = Agents.session("init", model, project, defaultBranch, new Screen(), options)) {
+        try (Agents.Session session = Agents.session("init", model, project, defaultBranch, screens.get(), options)) {
             Conversation.converse(session, developer, kickoff(surface, readAllowed, defaultBranch, description),
                     finish::finished);
             developer.say(session.usage().summary());

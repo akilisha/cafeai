@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * {@code cafeai plan} from the terminal (ROADMAP-03, phase 4): the design spec's intended changes
@@ -26,12 +27,19 @@ public final class PlanCommand {
     private final Path project;
     private final Developer developer;
     private final Function<Settings, AiProvider> modelFor;
+    private final Supplier<Screen> screens;
 
     /** @param modelFor the model {@code plan} uses, from the project's settings ({@link Models#forCommand}) */
     public PlanCommand(Path project, Developer developer, Function<Settings, AiProvider> modelFor) {
+        this(project, developer, modelFor, Screen::new);
+    }
+
+    /** With the session's screen from {@code screens}: the evals' is the same every run, so recordings replay. */
+    PlanCommand(Path project, Developer developer, Function<Settings, AiProvider> modelFor, Supplier<Screen> screens) {
         this.project = project;
         this.developer = developer;
         this.modelFor = modelFor;
+        this.screens = screens;
     }
 
     /** Runs {@code plan}: 0 when the plan is finished, 1 when not, 2 when it can't start. */
@@ -76,7 +84,7 @@ public final class PlanCommand {
         Map<String, String> before = PlanCheck.snapshot(project);
         var finish = new PlanTools(project, before);
         var options = new Agents.Options(readCode, developer, List.of(finish));
-        try (Agents.Session session = Agents.session("plan", model, project, defaultBranch, new Screen(), options)) {
+        try (Agents.Session session = Agents.session("plan", model, project, defaultBranch, screens.get(), options)) {
             Conversation.converse(session, developer, kickoff(readCode, defaultBranch, before), finish::finished);
             developer.say(session.usage().summary());
         }

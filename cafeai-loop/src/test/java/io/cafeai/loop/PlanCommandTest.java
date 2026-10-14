@@ -97,7 +97,9 @@ class PlanCommandTest extends CommandTestBase {
         assertThat(developer.all()).contains("May I read the code as well?").contains("[main]");
         assertThat(requests.getFirst().messages().getLast().toString()).contains("Its default branch: develop.")
                 .contains("Reading the code: allowed").contains("this is the first plan");
-        assertThat(sent()).doesNotContain("/quit");
+        assertThat(requests.stream().flatMap(r -> r.messages().stream())
+                .filter(m -> m instanceof dev.langchain4j.data.message.UserMessage).map(Object::toString))
+                .as("/quit ends the session; it isn't sent").noneMatch(m -> m.contains("/quit"));
         assertThat(developer.all()).contains("cafeai plan:").contains("tokens");
     }
 
@@ -198,5 +200,15 @@ class PlanCommandTest extends CommandTestBase {
         String first = requests.get(4).messages().getLast().toString();
         assertThat(first).as("the removal refused").contains("Not finished").contains("1.2").contains("cancelled");
         assertThat(Files.readString(project.resolve("docs/roadmap/ROADMAP-01.md"))).contains("**1.2**").contains("**2.2**");
+    }
+
+    @Test @DisplayName("the session screens through the screen it is given")
+    void givenScreen() throws IOException {
+        specRepository();
+        developer.answers.addAll(List.of("main", "y", "Mail me at dev@example.com.", "/quit"));
+        script.add(reply("Noted."));
+        script.add(reply("Noted again."));
+        new PlanCommand(project, developer, settings -> new StandIn(), () -> new Screen("beef")).run();
+        assertThat(sent()).contains("[EMAIL_1_beef]").doesNotContain("dev@example.com");
     }
 }

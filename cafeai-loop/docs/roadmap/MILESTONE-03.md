@@ -132,14 +132,46 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **5.1** open
-- **5.2** open
-- **5.3** open
+- **5.1** met: `./gradlew :cafeai-loop:eval` runs `init` from PetClinic's base commit and `plan` from the run by hand's reviewed spec, the developer played by a model briefed with their recorded answers (`BriefedDeveloper`, `eval/petclinic-developer.md`). The checks: the spec's sections, the packages found, the gaps found (nobody signs in; a visit has no time, vet or status), what is built (two builds, three databases), the conventions, decisions kept apart from assumptions; the plan's format, estimates and numbers (`PlanCheck`), a roadmap per design goal, at least 25 criteria with none in vague words, the spec's facts in the criteria, readings flagged to confirm. Two are judged by a model against a rubric. The run by hand passes every check that is code (`PetClinicChecksTest`).
+- **5.2** met: every model call goes through `Replay`; recordings are kept on the machine (`~/.cafeai/loop/evals/<model>/`), and a replay runs with an empty configuration directory, so no key is read and nothing is spent. All three models' evals replay.
+- **5.3** met for Claude Sonnet 5.5, GPT-5.5 and GPT-5.4-mini; open for the rest (see the entries): Ollama ran and couldn't finish; Gemini, Grok, Mistral and Nova wait.
 
 **Entries**
 
-None yet.
+- **2026-10-13.** Decided by the developer before building: the developer in the evals is a model briefed with their recorded answers, since a live agent never asks the same questions in the same order; recordings are made with Claude Sonnet 5.5, and kept outside the repository (they hold PetClinic's code and the whole conversation); live runs against Anthropic, OpenAI and a local Ollama model now, the other providers later. The spend for recording, about $13–24 at first estimate, was the developer's to approve, and they approved it.
+- **2026-10-13.** The developer's answers were recovered from the conversation of 2026-10-12, verbatim, each with its question in short; their corrections are given only once the agent has raised the gaps they answer, so the model playing them can't hand the agent what it should find.
+- **2026-10-13.** The first live runs found four faults in the loop that the stand-in tests couldn't, each fixed with a test:
+  - a command's agent kept only CafeAI's default 20 messages, so reading a codebase it forgot the developer's opening words: it now keeps the whole conversation;
+  - Anthropic's API needs a limit on a reply's length, and without one a command got LangChain4j's 1,024 tokens, too few to write a spec in one tool call: Anthropic models now get 32,000;
+  - a model call had CafeAI's minute; writing a whole spec takes several: ten minutes now;
+  - a reply with nothing in it was kept as it was, and providers refuse it when it is sent back: it is kept as "(no reply)".
+- **2026-10-13.** A fault in CafeAI's `Replay`, not fixed here: a request's key includes the agent's tool list, which Java's reflection orders differently from one run to the next, so an agent with tools can't be replayed reliably. The evals sort the tools before hashing. The fix belongs in `cafeai-test` (sorting the tools in `Cassettes`), a published module: the developer's decision.
+- **2026-10-13.** A limit of CafeAI's Ollama provider, not fixed here: it can't set the context window (`num_ctx`), so Ollama's default of 8,192 tokens applies and a long conversation is silently cut. With `qwen2.5` (7B, mostly on the CPU here), `init` and `plan` both timed out after three attempts of ten minutes. Ollama stays open under 5.3 until the provider can set the window and a machine can run a large enough model.
+- **2026-10-13.** The live `plan` was stricter than the run by hand, and found a conflict the run by hand missed: the spec assumed every existing visit is in the past, but the app accepts visits dated tomorrow or later, so the planned migration would mark future bookings `COMPLETED`. It said so and stopped, as 4.2 asks. The developer decided: visits dated before the migration become `COMPLETED`, later ones `SCHEDULED`, at 09:00, with no vet until reception assigns one. `plan`'s eval starts from the run by hand's spec with that correction (`PetClinic.planSpec()`).
+- **2026-10-13.** `plan.md` changed twice, from what the live runs showed:
+  - once it has stopped for a change to the spec, the run is over: it says so once, and doesn't wait or check the spec again (it had re-checked it turn after turn);
+  - a detail the spec leaves unsettled, which the developer hasn't decided, is planned with `plan`'s own recommendation, flagged in the milestone "to confirm in review" (4.3, as in the run by hand); only the developer's own design decisions, and contradictions it finds between the spec and the code, go to the spec first (4.2).
+- **2026-10-13.** The developer brief changed too: a recommendation is accepted only where the developer's notes say so (the model playing them had accepted recommendations they never gave, and those became design decisions); when only the real developer could go on (a change to the spec), it ends the session; twelve turns at most (from twenty).
+- **2026-10-13.** One developer and one judge for every model under test, Claude Sonnet 5.5 (`-Peval.developer`, `-Peval.judge`): with the model under test playing the developer or grading its own work, a run measured that too (GPT-5.4-mini, playing the developer, quit when its own agent said it would fix the plan).
+- **2026-10-13.** Readings of the plan's, to confirm in review:
+  - `plan` is measured from the run by hand's reviewed spec (with the correction above), not from `init`'s output, so each is measured on its own; 5.1 says "from PetClinic's base commit", which `init` is;
+  - the fixture is PetClinic's `main` at the base commit and its history, without upstream's other branches, which move: a recording replays only if every run sees the same;
+  - a check that is code accepts the run by hand's wording and the live runs' (the packages listed one per line; "only a date and a description"), and was widened twice for that after a live run: the judged checks read for meaning.
+- **2026-10-13.** Spend, from the recordings and the vendors' usage: on Anthropic about $16 in all (recordings kept: about 2.1M input and 0.19M output tokens; the runs set aside after each fault, about 2M input more); on OpenAI, GPT-5.5 1.2M input and 0.04M output tokens, GPT-5.4-mini 0.4M and 0.01M. The OpenAI key was a short-lived one the developer gave for this, passed through the environment only.
+- **2026-10-13.** This phase's validation, the developer comparing an eval run's artifacts with the run by hand, is theirs: `cafeai-loop/build/evals/<model>/` holds each run's artifacts, conversation and report.
+- **2026-10-14.** The readings above, and the change to `plan.md`, confirmed by the developer in review.
 
 **Results**
 
-None yet.
+- **2026-10-13.** `./gradlew :cafeai-loop:eval -Peval.mode=replay -Peval.model=<model> -Peval.petclinic=<clone>`, no key:
+
+  | Model | `init` | `plan` |
+  |---|---|---|
+  | Claude Sonnet 5.5 | 7/7 | 5/6: judged, some criteria leave a limit open ("often enough"); a reading flagged inside a criterion, not in the milestone |
+  | GPT-5.5 | 7/7 | 5/6: judged, several criteria not testable as written |
+  | GPT-5.4-mini | 4/7: no gaps, two conventions missing, decisions and assumptions mixed (judged) | 4/6: the plan out of format (finish refused it), criteria judged untestable |
+  | Ollama `qwen2.5` (7B) | timed out | timed out |
+
+  The checks' own tests: `PetClinicChecksTest`, 6, all passing; every check fails when what it checks is broken on purpose.
+- **2026-10-14.** `./gradlew :cafeai-loop:test`: 186 tests, all passing.
+- **2026-10-14.** Mutation testing of this phase's changes to the loop (the memory, empty replies, the reply limit, the timeout, the screen's tag, the commands' screen), 11 mutations, each verified to apply and compile: 9 caught; the 2 survivors were gaps in the memory's tests (a reply of tool calls only; a reply of blank text), closed with a test and re-run caught.

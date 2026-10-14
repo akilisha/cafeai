@@ -3,6 +3,10 @@ package io.cafeai.loop;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.memory.ChatMemory;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import io.cafeai.core.CafeAI;
 import io.cafeai.core.agents.AgentConfig;
 import io.cafeai.core.ai.AiProvider;
@@ -114,8 +118,11 @@ public final class Agents {
             this.project = project;
             this.screen = screen;
             this.app = CafeAI.create();
+            // The whole conversation, not CafeAI's window of recent messages: reading a codebase, one turn can
+            // call a tool dozens of times, and a window would drop the developer's opening words with them.
             AgentConfig<CommandAgent> config = app.agent(command, CommandAgent.class)
-                    .system(prompt.text()).model(model).memory(MemoryStrategy.inMemory());
+                    .system(prompt.text()).model(model).memory(MemoryStrategy.inMemory())
+                    .configure(services -> services.chatMemory(new WholeConversation()));
             for (Object tool : tools(command, project, defaultBranch, screen, options)) config.tool(tool);
             this.agent = app.agent(command, CommandAgent.class, command);
         }
@@ -135,10 +142,11 @@ public final class Agents {
             return tools;
         }
 
-        /** Says {@code message} to the agent, screened; its reply comes back restored. */
+        /** Says {@code message} to the agent, screened; its reply comes back restored, empty when it said nothing. */
         public String ask(String message) {
             if (closed) throw new IllegalStateException("This session of `cafeai " + command + "` has finished");
-            return screen.in(agent.chat(screen.out(message)));
+            String reply = agent.chat(screen.out(message));
+            return reply == null ? "" : screen.in(reply);
         }
 
         /** The command's model use so far. */
@@ -155,6 +163,27 @@ public final class Agents {
             if (closed) return;
             closed = true;
             usage().record();
+        }
+    }
+
+    /**
+     * A command's memory: the whole conversation. A reply with nothing in it (no text, no tool call) is
+     * kept as "(no reply)": sent back empty on the next turn, providers refuse it (OpenAI wants content,
+     * Anthropic a non-empty text).
+     */
+    static final class WholeConversation implements ChatMemory {
+        static final String NO_REPLY = "(no reply)";
+        private final ChatMemory memory = MessageWindowChatMemory.withMaxMessages(Integer.MAX_VALUE);
+
+        @Override public Object id() { return memory.id(); }
+        @Override public List<ChatMessage> messages() { return memory.messages(); }
+        @Override public void clear() { memory.clear(); }
+
+        @Override
+        public void add(ChatMessage message) {
+            boolean empty = message instanceof AiMessage ai && (ai.text() == null || ai.text().isBlank())
+                    && !ai.hasToolExecutionRequests();
+            memory.add(empty ? AiMessage.from(NO_REPLY) : message);
         }
     }
 

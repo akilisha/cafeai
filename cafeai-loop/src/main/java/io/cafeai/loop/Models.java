@@ -9,6 +9,7 @@ import io.cafeai.core.ai.Nova;
 import io.cafeai.core.ai.Ollama;
 import io.cafeai.core.ai.OpenAI;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +25,22 @@ public final class Models {
 
     private static final Map<String, Function<String, AiProvider>> PROVIDERS = new LinkedHashMap<>();
 
+    /**
+     * The most an Anthropic model may write in one reply. Anthropic's API needs a number, and without
+     * one a command gets LangChain4j's 1,024 tokens: too few to write a design spec or a roadmap in one
+     * tool call, so the reply is cut off before it says anything. Every current Claude model allows this
+     * much; a reply costs only what it writes. The other providers, given none, use the model's own limit.
+     */
+    static final int ANTHROPIC_MAX_OUTPUT = 32_000;
+
+    /**
+     * How long one model call may take. CafeAI's default is a chat call's minute; writing a whole
+     * design spec takes several, and a local model longer still.
+     */
+    static final Duration TIMEOUT = Duration.ofMinutes(10);
+
     static {
-        PROVIDERS.put("anthropic", Anthropic::of);
+        PROVIDERS.put("anthropic", id -> Anthropic.of(id).withMaxTokens(ANTHROPIC_MAX_OUTPUT));
         PROVIDERS.put("openai", OpenAI::of);
         PROVIDERS.put("gemini", Gemini::of);
         PROVIDERS.put("grok", Grok::of);
@@ -53,7 +68,7 @@ public final class Models {
         String problem = problem(id);
         if (problem != null) throw new IllegalArgumentException(problem);
         int colon = id.indexOf(':');
-        return PROVIDERS.get(id.substring(0, colon)).apply(id.substring(colon + 1));
+        return PROVIDERS.get(id.substring(0, colon)).apply(id.substring(colon + 1)).withTimeout(TIMEOUT);
     }
 
     /** What is wrong with {@code id} as {@code provider:model}, or {@code null} when it's well formed. */

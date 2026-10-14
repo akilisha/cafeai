@@ -36,9 +36,18 @@ public class Screen {
     private final Map<String, Integer> counts = new HashMap<>();
 
     public Screen() {
+        this(randomTag());
+    }
+
+    /** A screen whose placeholders carry {@code tag}: the evals' recordings replay only if every run's are the same. */
+    Screen(String tag) {
+        this.tag = tag;
+    }
+
+    private static String randomTag() {
         byte[] random = new byte[2];
         new SecureRandom().nextBytes(random);
-        this.tag = HexFormat.of().formatHex(random);
+        return HexFormat.of().formatHex(random);
     }
 
     /** A screen that changes nothing: for the developer's own tools. */

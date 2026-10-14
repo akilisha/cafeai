@@ -116,4 +116,4 @@ Mutation-checked.
 
 **Validation criteria:** the developer compares an eval run's artifacts with the run by hand.
 
-**Status:** `defined`
+**Status:** `in-progress`

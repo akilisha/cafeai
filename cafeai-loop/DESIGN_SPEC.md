@@ -286,6 +286,11 @@ A CafeAI app the loop starts on localhost: `cafeai loop` opens it in the browser
   its artifacts in that clone, on two local branches: `feature/design-spec` (`DESIGN_SPEC.md`, at
   `aabc476`) and `feature/roadmaps` (`docs/roadmap/`, at `400ff04`). An eval starts from the base
   commit and compares what `init` and `plan` produce with those.
+- **The developer in an eval** is a model briefed with the developer's own recorded answers, since
+  a live agent never asks the same questions in the same order; it accepts only what the answers
+  say, and leaves the rest open. One model plays the developer and one judges, for every model
+  under test, so their results compare (decided 2026-10-13). Recordings stay on the developer's
+  machine, not in the repository: they hold the fixture's code.
 - **The tools** are ordinary Java, tested as such: no write outside the project, no merge, no
   push to a protected branch.
 

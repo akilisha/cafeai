@@ -4,6 +4,7 @@ import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -226,6 +227,60 @@ class AgentsTest {
         }
         assertThat(Agents.Usage.log()).extracting(Agents.Usage::command, Agents.Usage::calls)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("init", 1L), org.assertj.core.groups.Tuple.tuple("plan", 2L));
+    }
+
+    @Test @DisplayName("a command keeps its whole conversation, however many tools a turn calls")
+    void wholeConversation() {
+        int[] calls = {0};
+        answer = r -> {
+            if (++calls[0] <= 30) {
+                return ChatResponse.builder().aiMessage(AiMessage.from(List.of(
+                        dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id("t" + calls[0]).name("list")
+                                .arguments("{\"path\":\"\"}").build()))).tokenUsage(new TokenUsage(10, 5)).build();
+            }
+            return reply("Read.");
+        };
+        try (var init = session("init")) {
+            assertThat(init.ask("Start a product: a recipe site.")).isEqualTo("Read.");
+            init.ask("And now?");
+        }
+        assertThat(requests.getLast().messages()).as("the opening message, after 30 tool calls")
+                .anySatisfy(m -> assertThat(m.toString()).contains("Start a product: a recipe site."));
+        assertThat(requests.getLast().messages().stream().filter(m -> m instanceof ToolExecutionResultMessage)).hasSize(30);
+    }
+
+    @Test @DisplayName("a reply with no text is an empty answer, never null")
+    void noText() {
+        answer = r -> ChatResponse.builder().aiMessage(AiMessage.from(List.of(
+                dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id("x").name("list").arguments("{\"path\":\"\"}").build())))
+                .tokenUsage(new TokenUsage(10, 5)).build();
+        int[] calls = {0};
+        Function<ChatRequest, ChatResponse> toolThenNothing = answer;
+        answer = r -> ++calls[0] == 1 ? toolThenNothing.apply(r)
+                : ChatResponse.builder().aiMessage(AiMessage.builder().build()).tokenUsage(new TokenUsage(10, 5)).build();
+        try (var init = session("init")) {
+            assertThat(init.ask("Go.")).isNotNull().isEmpty();
+            init.ask("Still there?");
+        }
+        assertThat(requests.getLast().messages()).as("no empty reply is sent back: providers refuse one")
+                .noneMatch(m -> m instanceof AiMessage ai && (ai.text() == null || ai.text().isBlank())
+                        && !ai.hasToolExecutionRequests());
+    }
+
+    @Test @DisplayName("the memory keeps a reply that only calls tools as it is; one with nothing in it, as \"(no reply)\"")
+    void memoryKeepsReplies() {
+        var memory = new Agents.WholeConversation();
+        var toolsOnly = AiMessage.from(List.of(dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id("1").name("list")
+                .arguments("{}").build()));
+        memory.add(toolsOnly);
+        memory.add(AiMessage.builder().build());
+        memory.add(AiMessage.from("   "));
+        memory.add(AiMessage.from("Read."));
+        assertThat(memory.messages()).hasSize(4);
+        assertThat(memory.messages().get(0)).isSameAs(toolsOnly);
+        assertThat(((AiMessage) memory.messages().get(1)).text()).isEqualTo(Agents.WholeConversation.NO_REPLY);
+        assertThat(((AiMessage) memory.messages().get(2)).text()).isEqualTo(Agents.WholeConversation.NO_REPLY);
+        assertThat(((AiMessage) memory.messages().get(3)).text()).isEqualTo("Read.");
     }
 
     @Test @DisplayName("the user's message reaches the model as the user's")

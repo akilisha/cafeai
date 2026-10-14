@@ -179,4 +179,13 @@ class InitCommandTest extends CommandTestBase {
         assertThat(status).isEqualTo(2);
         assertThat(developer.all()).contains("models.default").doesNotContain("May I read");
     }
+
+    @Test @DisplayName("the session screens through the screen it is given")
+    void givenScreen() throws IOException {
+        existingRepository();
+        developer.answers.addAll(List.of("main", "y", "Mail me at dev@example.com.", "/quit"));
+        script.add(reply("Noted."));
+        new InitCommand(project, developer, settings -> new StandIn(), () -> new Screen("beef")).run();
+        assertThat(sent()).contains("[EMAIL_1_beef]").doesNotContain("dev@example.com");
+    }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,5 +61,21 @@ class ModelsTest {
         assertThatThrownBy(() -> Models.provider("claude-opus-5-5")).hasMessageContaining("provider:model");
         assertThatThrownBy(() -> Models.provider("acme:x")).hasMessageContaining("anthropic, openai");
         assertThatThrownBy(() -> Models.provider("anthropic:")).hasMessageContaining("provider:model");
+    }
+
+    @Test @DisplayName("an Anthropic model has room to write a whole artifact in one go; the others keep the model's own limit")
+    void outputRoom() {
+        assertThat(Models.provider("anthropic:a-1").maxTokens()).isEqualTo(Models.ANTHROPIC_MAX_OUTPUT);
+        assertThat(Models.ANTHROPIC_MAX_OUTPUT).isGreaterThanOrEqualTo(16_000);
+        assertThat(Models.provider("openai:o-1").maxTokens()).isNull();
+        assertThat(Models.provider("ollama:qwen3:8b").maxTokens()).isNull();
+    }
+
+    @Test @DisplayName("every command model has time to write a whole artifact, not a chat call's minute")
+    void timeToWrite() {
+        for (String id : List.of("anthropic:a-1", "openai:o-1", "gemini:g-1", "ollama:qwen3:8b")) {
+            assertThat(Models.provider(id).timeout()).as(id).isEqualTo(Models.TIMEOUT);
+        }
+        assertThat(Models.TIMEOUT).isGreaterThanOrEqualTo(java.time.Duration.ofMinutes(5));
     }
 }

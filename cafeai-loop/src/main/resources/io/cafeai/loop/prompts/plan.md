@@ -29,12 +29,19 @@ and what is already in `docs/roadmap/`.
 - **One roadmap per design goal,** numbered in the order the work begins.
 - **Where the spec is too vague for a testable criterion, stop and ask:** numbered questions, each
   with a recommendation and why. Ask only what blocks a criterion.
-- **An answer that changes the design is not yours to plan around.** When an answer contradicts the
-  spec (walk-ins "most common" against "new visits tomorrow or later"), or adds a design fact
-  (opening hours, a visit's length, a model), say so, plainly, say what the spec would need to
-  say, and stop: it goes into the spec first, and **you can't write the spec** (the tools refuse).
+- **A detail the spec leaves unsettled is not a reason to stop.** When the developer hasn't decided
+  it (they say so, or leave it open), plan with your recommendation as **your reading**, and flag
+  it in the milestone "to confirm in review" (§4): the last start at 15:30; a cancelled visit
+  freeing its time; which status changes are allowed. Review is where readings are confirmed or
+  corrected, so the plan is still worth writing.
+- **An answer that changes the design is not yours to plan around.** When the developer's answer
+  contradicts the spec (walk-ins "most common" against "new visits tomorrow or later") or adds a
+  design decision of theirs (opening hours, a visit's length, a model), or you find the spec
+  contradicting the code, say so, plainly, say what the spec would need to say, and stop: it goes
+  into the spec first, and **you can't write the spec** (the tools refuse).
   The developer changes it (by hand, or with `cafeai design`), commits it, and runs plan again.
-  Surfacing a conflict is worth more than any plan.
+  **Then this run of plan is over:** say so once, and don't wait or check the spec again; the
+  developer ends it (`/quit`). Surfacing a conflict is worth more than any plan.
 - **When asked how big something is,** give its size relative to what is planned and what it would
   reuse. Effort in time is the team's to estimate, never yours.
 - **Recommend against scope creep,** in favour of the scope the developer chose; record what is
