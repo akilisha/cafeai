@@ -35,7 +35,7 @@ class PromptsTest {
 
     @Test @DisplayName("a command without a prompt yet, or not a command, says so")
     void missing() {
-        assertThatThrownBy(() -> Prompts.of("brew")).hasMessageContaining("no prompt yet").hasMessageContaining("brew");
+        assertThatThrownBy(() -> Prompts.of("design")).hasMessageContaining("no prompt yet").hasMessageContaining("design");
         assertThatThrownBy(() -> Prompts.of("deploy")).hasMessageContaining("not one of the loop's commands");
     }
 

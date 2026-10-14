@@ -4,7 +4,7 @@ Tracks [ROADMAP-04](ROADMAP-04.md). Criteria are referred to by number; the road
 
 | Phase | Status | Estimate | Timeline |
 |---|---|---|---|
-| 1. Picking up where the roadmap stands | `defined` | — | — |
+| 1. Picking up where the roadmap stands | `in-progress` | — | — |
 | 2. Criteria into tests, checked by mutation | `defined` | — | — |
 | 3. Evidence, statuses and the changelog | `defined` | — | — |
 | 4. Stopping | `defined` | — | — |
@@ -23,17 +23,24 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **1.1** open
-- **1.2** open
-- **1.3** open
+- **1.1** met: `Progress` reads where the plan stands from the artifacts alone: every criterion of the loop's roadmaps in number order, done when the milestones say met or waived or the roadmap marks it cancelled, and a phase done when its status is `completed`, `cancelled` or `out-of-scope`; phases `blocked`, `escalated` or `deferred` are skipped and said. `brew` starts from the first criterion left, telling the developer and the model where the plan stands, the criterion, its phase's objective and testing criteria, and what is held back; with nothing left it says so and asks no model. `ProgressTest`, `BrewCommandTest`.
+- **1.2** met: `brew` asks the default branch as `init` and `plan` do, and writes nothing on it (the file tools refuse), with the model told to work on a branch of its own for the phase, named by the project's conventions. `BrewCommandTest`.
+- **1.3** open: met for the reading, in the prompt for the following: the project's `docs/STANDARDS.md` reaches the model in full in its first message, so it is read whatever the model does; without one, the model is told there is none. Following them is `brew.md`'s §1, for validation. `BrewCommandTest`.
 
 **Entries**
 
-None yet.
+- **2026-10-14.** Readings of the plan's, to confirm in review:
+  - `brew` asks before reading and changing the code, every run, saying which model the code goes to, as `init` asks for reading; declined, it stops and sends nothing;
+  - the branch's name is the model's, from the project's conventions; the code holds only that it isn't the default branch (a name chosen by the code would ignore the conventions);
+  - a criterion's state is the first word after its number in the milestones: `met` and `waived` are done, any other word is not. This module's own milestones say more than ARTIFACTS.md's three words in places ("in the prompt, to show in validation" reads as not done, rightly; "met for the sections, in the prompt for the rest" reads as done, though partly not), so the states want keeping to the three, with the rest after them;
+  - until phases 3 and 4 (evidence, and stopping) the session ends with the developer's `/quit`.
+- **2026-10-14.** Reading the real plans: this module's plan, 42 of 100 criteria done, `brew` would start at ROADMAP-03 3.2; PetClinic's, 0 of 43, at its ROADMAP-01 1.1. The count of PetClinic's criteria corrected a miscount in MILESTONE-02.
+- **2026-10-14.** The readings above, decided by the developer in review: `brew` asks no permission, since running it on a project the developer planned is the permission, and asking more would add ceremony; it says which model the code goes to, and stops to ask only at a real fork (`brew.md` §3). The branch's name the model's, confirmed. The criterion states kept to ARTIFACTS.md's words, as the developer agreed: this module's milestones restated, each line now starting with `met`, `waived` or `open` (40 met of 100, the partly met now `open`).
 
 **Results**
 
-None yet.
+- **2026-10-14.** `./gradlew :cafeai-loop:test`: 205 tests, all passing (`ProgressTest` 9, `BrewCommandTest` 10 among them).
+- **2026-10-14.** Mutation testing, 22 mutations across `Progress`, `BrewCommand` and `Loop`, each verified to apply and to compile: 20 caught. Of the 2 survivors, one was a gap (the session's screen given to `brew`, now tested, re-run caught); one is equivalent: the "where it is planned" note of a command in `Loop` is read only for commands not built, so for `brew` no test can tell it.
 
 ## Phase 2 — Criteria into tests, checked by mutation
 

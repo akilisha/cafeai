@@ -163,7 +163,7 @@ class AgentsTest {
 
     @Test @DisplayName("2.2: a command without its prompt yet can't start")
     void noPromptYet() {
-        assertThatThrownBy(() -> session("brew")).hasMessageContaining("no prompt yet");
+        assertThatThrownBy(() -> session("design")).hasMessageContaining("no prompt yet");
     }
 
     @Test @DisplayName("2.4: the developer's words and what the tools read reach the model screened; the answer comes back restored")

@@ -17,7 +17,7 @@ present and absent. Mutation-checked.
 
 **Validation criteria:** the developer runs `brew` on a planned project.
 
-**Status:** `defined`
+**Status:** `in-progress`
 
 ## Phase 2 — Criteria into tests, checked by mutation
 

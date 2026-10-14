@@ -30,10 +30,10 @@ public record PlanCheck(List<String> problems) {
 
     private static final Pattern ROADMAP_FILE = Pattern.compile("ROADMAP-(\\d+)\\.md");
     private static final Pattern TITLE = Pattern.compile("# ROADMAP-(\\d+)\\s+[—–-]\\s+\\S.*");
-    private static final Pattern PHASE = Pattern.compile("(?m)^## Phase (\\d+)\\b.*$");
-    private static final Pattern SECTION = Pattern.compile("(?m)^## ");
-    private static final Pattern CRITERION = Pattern.compile("(?m)^[-*]\\s+\\*\\*(\\d+)\\.(\\d+)\\*\\*(.*)$");
-    private static final Pattern STATUS = Pattern.compile("(?m)^\\*\\*Status:?\\*\\*:?\\s*`?([A-Za-z-]+)`?");
+    static final Pattern PHASE = Pattern.compile("(?m)^## Phase (\\d+)\\b.*$");
+    static final Pattern SECTION = Pattern.compile("(?m)^## ");
+    static final Pattern CRITERION = Pattern.compile("(?m)^[-*]\\s+\\*\\*(\\d+)\\.(\\d+)\\*\\*(.*)$");
+    static final Pattern STATUS = Pattern.compile("(?m)^\\*\\*Status:?\\*\\*:?\\s*`?([A-Za-z-]+)`?");
     private static final Pattern ENTRY = Pattern.compile("(?m)^[-*]\\s+\\*\\*\\d{4}-\\d{2}-\\d{2}\\.?\\*\\*.*$");
     private static final Map<String, Pattern> REQUIRED = new LinkedHashMap<>();
 

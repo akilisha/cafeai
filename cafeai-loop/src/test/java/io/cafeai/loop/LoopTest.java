@@ -53,8 +53,8 @@ class LoopTest {
     void notBuiltYet() {
         assertThat(loop.run("design")).isEqualTo(1);
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("`cafeai design` isn't built yet").contains("ROADMAP-06");
-        assertThat(loop.run("brew")).isEqualTo(1);
-        assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-04");
+        assertThat(loop.run("review")).isEqualTo(1);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("ROADMAP-07");
         assertThat(handedOn).isEmpty();
         assertThat(ran).isEmpty();
     }

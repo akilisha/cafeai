@@ -44,7 +44,7 @@ None yet.
 
 **Entries**
 
-None yet.
+- **2026-10-14.** A correction: PetClinic's plan at `400ff04` has 43 criteria, not 44 as 2.2 says (21, 17 and 5 in its three roadmaps), counted by `brew`'s reading of the plan (ROADMAP-04, 1.1) and confirmed by hand.
 
 **Results**
 

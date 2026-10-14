@@ -26,7 +26,7 @@ public final class Loop {
         COMMANDS.put("init",   new String[] {"start a product: its design spec", null});
         COMMANDS.put("design", new String[] {"change the design spec", "ROADMAP-06"});
         COMMANDS.put("plan",   new String[] {"roadmaps and milestones from the design spec", null});
-        COMMANDS.put("brew",   new String[] {"build from the roadmap, with evidence", "ROADMAP-04"});
+        COMMANDS.put("brew",   new String[] {"build from the roadmap, with evidence", null});
         COMMANDS.put("run",    new String[] {"run the product, or the platform's own command", "ROADMAP-08"});
         COMMANDS.put("review", new String[] {"bring back what is unfinished, stuck or unanswered", "ROADMAP-07"});
         COMMANDS.put("loop",   new String[] {"open the web app", "ROADMAP-05"});
@@ -50,7 +50,8 @@ public final class Loop {
                 new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8)), System.out);
         Map<String, IntSupplier> built = Map.of(
                 "init", () -> new InitCommand(here, developer, settings -> Models.forCommand(settings, "init")).run(),
-                "plan", () -> new PlanCommand(here, developer, settings -> Models.forCommand(settings, "plan")).run());
+                "plan", () -> new PlanCommand(here, developer, settings -> Models.forCommand(settings, "plan")).run(),
+                "brew", () -> new BrewCommand(here, developer, settings -> Models.forCommand(settings, "brew")).run());
         int status = new Loop(System.out, System.err, CafeLogin::main, built).run(args);
         System.exit(status);
     }
