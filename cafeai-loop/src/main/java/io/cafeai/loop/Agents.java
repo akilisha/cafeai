@@ -25,6 +25,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Each command an agent of its own (ROADMAP-03, phase 2; {@code DESIGN_SPEC.md}, The agents): its
@@ -95,9 +97,19 @@ public final class Agents {
      * permission), who is asked before each commit ({@code null}: nobody), and tools of the
      * command's own (for {@code init}, {@code finish}).
      */
-    public record Options(boolean readAllowed, Developer developer, List<Object> extraTools) {
+    public record Options(boolean readAllowed, Developer developer, List<Object> extraTools,
+                          Function<String, String> writeGate) {
         public static final Options DEFAULT = new Options(true, null, List.of());
-        public Options { extraTools = List.copyOf(extraTools); }
+
+        public Options {
+            extraTools = List.copyOf(extraTools);
+            Objects.requireNonNull(writeGate, "writeGate");
+        }
+
+        /** No gate on writing beyond the command's own scope. */
+        public Options(boolean readAllowed, Developer developer, List<Object> extraTools) {
+            this(readAllowed, developer, extraTools, path -> null);
+        }
     }
 
     /** One command's conversation with its agent. Closing it records its use. */
@@ -136,7 +148,7 @@ public final class Agents {
             if (writes == Writes.NONE) return List.copyOf(options.extraTools());
             var git = new GitTools(project, defaultBranch, screen, options::readAllowed, options.developer());
             var files = new ProjectFiles(project, git::onWorkingBranch, Prompts.stamp(command), screen, writes.scope,
-                    options::readAllowed, readableAnyway(command));
+                    options::readAllowed, readableAnyway(command)).writeGate(options.writeGate());
             var tools = new ArrayList<Object>(List.of(files, git));
             tools.addAll(options.extraTools());
             return tools;

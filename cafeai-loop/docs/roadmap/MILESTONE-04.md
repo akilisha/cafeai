@@ -5,7 +5,7 @@ Tracks [ROADMAP-04](ROADMAP-04.md). Criteria are referred to by number; the road
 | Phase | Status | Estimate | Timeline |
 |---|---|---|---|
 | 1. Picking up where the roadmap stands | `in-progress` | — | — |
-| 2. Criteria into tests, checked by mutation | `defined` | — | — |
+| 2. Criteria into tests, checked by mutation | `in-progress` | — | — |
 | 3. Evidence, statuses and the changelog | `defined` | — | — |
 | 4. Stopping | `defined` | — | — |
 | 5. Real dependencies | `defined` | — | — |
@@ -46,17 +46,27 @@ Estimates and timelines are the team's own, added here when the team makes them.
 
 **Criteria**
 
-- **2.1** open
-- **2.2** open
-- **2.3** open
+- **2.1** met: the code of a criterion can't be written until its tests have been run by the loop and seen failing (`testsFirst`; the file tools refuse writes under `src/main/` until then, through `brew`'s write gate); tests that pass before the code, and runs where no test ran, don't count; then the same tests must pass (`testsPass`). `BrewToolsTest`, `BrewCommandTest` (end to end: the code refused before its tests), `BuildTest`.
+- **2.2** met: `mutate` applies a mutation the model proposes to the code, checks it compiles, runs the criterion's tests and restores the code from a copy, whatever happens; a mutation that survives blocks `done` until it is caught by stronger tests, or waived, with its reason, as one no test could see. `done` also requires every changed stretch of the code (since the default branch, new files whole) to have been broken by a caught mutation made on the code as it is now. `BrewToolsTest`, `BrewCommandTest` (a weak test, exposed by a surviving mutation, made stronger), `GitToolsTest`.
+- **2.3** open: removing tests that add no value is in the prompt (`brew.md` §2): the code can't tell such a test from a needed one. For validation.
 
 **Entries**
 
 - **2026-10-14.** How the work divides, agreed with the developer: the model writes the tests and the code; the loop's code makes the tests come first and fail before the code exists, runs the build and the tests itself, applies each mutation the model proposes (verified to compile, the tests run, the code restored from a copy), returns the survivors, and records only what it ran. A reading of the plan's, to confirm when this phase is built: since a model choosing its own mutations could spare its tests, the code also requires mutations covering every changed line the criterion touches.
+- **2026-10-14.** Built. Readings of the plan's, to confirm in review:
+  - the covering rule is by changed stretch, not by line: each stretch of the code changed since the default branch needs at least one caught mutation in it, made on the code as it is now (a mutation made before the code changed again doesn't count); a deletion leaves no line to break, so it needs none;
+  - a mutation that survives because no test could see it (a comment, a log message, an equivalent change) is waived with its reason, which phase 3 records with the evidence; one that was caught can't be waived, and a waiver goes once its mutation is caught;
+  - the tests are `src/test/java/`, the code `src/main/`, as Gradle and Maven lay a Java project out; the build is the project's own, Gradle's wrapper before Maven where a project has both (PetClinic does), so a criterion is checked by one of its builds, not both;
+  - one criterion a session: `done` ends it, until phase 4 decides where `brew` stops.
+- **2026-10-14.** Found while building: a test class with no test in it makes Gradle fail ("No tests found for given includes") and Maven pass with none run; either would have unlocked the code, or passed it, with no test run. A run where no test ran now counts as neither.
+- **2026-10-14.** The real build, tried on a throwaway copy of PetClinic at its base commit: compiling, and running `VisitControllerTests` through Gradle's wrapper, passed in 50 seconds. A risk this makes plain: every mutation runs the build, so a criterion with ten mutations costs some ten minutes of builds on a project of PetClinic's size.
+- **2026-10-14.** A risk: the code is restored from a copy kept in memory; if the process is killed in the middle of a mutation, the mutated file stays as it is, on the working branch. `git diff` shows it.
+- **2026-10-15.** The readings above confirmed by the developer in review.
 
 **Results**
 
-None yet.
+- **2026-10-14.** `./gradlew :cafeai-loop:test`: 233 tests, all passing (`BrewToolsTest` 18, `BuildTest` 7, `BrewCommandTest` 12 among them).
+- **2026-10-14.** Mutation testing, 46 mutations across `BrewTools`, `Build`, `GitTools`, `ProjectFiles`, `Agents` and `BrewCommand`, each verified to apply and to compile: 36 caught; the 10 survivors were gaps in the tests (the order of the tools; waivers; the covering rule by line; the output's length; a file that isn't Java; the session ending on done), each closed with a test and re-run caught. 46 of 46.
 
 ## Phase 3 — Evidence, statuses and the changelog
 

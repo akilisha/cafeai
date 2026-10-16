@@ -34,7 +34,7 @@ present and absent. Mutation-checked.
 
 **Validation criteria:** the developer reads the tests written for a criterion.
 
-**Status:** `defined`
+**Status:** `in-progress`
 
 ## Phase 3 — Evidence, statuses and the changelog
 

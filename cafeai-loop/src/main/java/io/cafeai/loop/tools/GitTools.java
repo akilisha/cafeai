@@ -7,17 +7,22 @@ import io.cafeai.loop.Developer;
 import io.cafeai.loop.Screen;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -35,7 +40,7 @@ public final class GitTools {
 
     /** The only git subcommands the loop runs. Not merge, push, rebase, reset, checkout or a bare switch. */
     static final Set<String> ALLOWED = Set.of("symbolic-ref", "status", "check-ref-format", "switch", "add", "commit",
-            "log", "for-each-ref");
+            "log", "for-each-ref", "diff");
 
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final String NOT_ALLOWED = "The developer hasn't allowed reading the project.";
@@ -188,6 +193,41 @@ public final class GitTools {
         git(commit.toArray(String[]::new));
         return git("log", "-1", "--format=%h").strip();
     }
+
+    /**
+     * The lines changed under {@code folder} since the default branch, in the working tree, by file
+     * (relative, with '/'): each a range of the file's lines now, first to last. A new file is changed
+     * whole; a deletion leaves no line to name, so it holds none. For {@code brew}: where the code a
+     * criterion changed is, so each change can be broken on purpose.
+     */
+    public Map<String, List<int[]>> changedLines(String folder) {
+        var changed = new TreeMap<String, List<int[]>>();
+        String file = null;
+        for (String line : git("diff", "-U0", "--no-color", "--no-ext-diff", defaultBranch, "--", folder).split("\\R")) {
+            if (line.startsWith("+++ ")) {
+                file = line.equals("+++ /dev/null") ? null : line.substring(line.indexOf('/') + 1);
+            } else if (line.startsWith("@@") && file != null) {
+                Matcher m = HUNK.matcher(line);
+                if (!m.find()) continue;
+                int start = Integer.parseInt(m.group(1));
+                int count = m.group(2) == null ? 1 : Integer.parseInt(m.group(2));
+                if (count > 0) changed.computeIfAbsent(file, f -> new ArrayList<>()).add(new int[] {start, start + count - 1});
+            }
+        }
+        for (String line : git("status", "--porcelain", "--untracked-files=all", "--", folder).split("\\R")) {
+            if (!line.startsWith("?? ")) continue;
+            String path = line.substring(3).strip();
+            try {
+                long lines = Files.readAllLines(root.resolve(path)).size();
+                if (lines > 0) changed.put(path, List.of(new int[] {1, (int) lines}));
+            } catch (IOException e) {
+                throw new UncheckedIOException("Could not read " + path, e);
+            }
+        }
+        return changed;
+    }
+
+    private static final Pattern HUNK = Pattern.compile("^@@ -\\S+ \\+(\\d+)(?:,(\\d+))? @@");
 
     /** Runs an allowed git subcommand in the project, or refuses; a failure is reported with git's words. */
     String git(String... args) {

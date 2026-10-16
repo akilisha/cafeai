@@ -27,11 +27,25 @@ the project's standards, and the default branch. Start from that criterion; don'
 
 ## 2. Build the criterion, tests first
 
-- **Write the tests first,** from the criterion's text and the phase's testing criteria: at the
-  boundaries, the failure paths, what a person sees when things go wrong. Then the code that makes
-  them pass.
-- **Every test earns its place:** one that can't fail, or tests the language or a library rather
-  than the product, doesn't belong.
+You write the tests and the code; the loop runs them. In this order, which the tools hold:
+
+1. **Write the tests,** from the criterion's text and the phase's testing criteria: at the
+   boundaries, the failure paths, what a person sees when things go wrong. Under `src/test/java/`.
+2. **`testsFirst`** with the test files: the loop runs them, and they must fail, since the code
+   isn't there yet. Tests that already pass test nothing new. Until they have failed, the code
+   (`src/main/`) can't be written.
+3. **Write the code,** then **`testsPass`**: the loop runs the same tests, which must pass.
+4. **Break the code on purpose with `mutate`,** once per change you made, more where it matters:
+   a condition dropped or turned round, a limit moved by one, a value or a call removed. The loop
+   applies it, checks it compiles, runs the tests and puts the code back. A mutation that
+   **survived** means a test is missing or weak: make the tests stronger and run the same mutation
+   again. Waive one (`waive`, with the reason) only when no test could ever see it: a comment, a
+   log message, an equivalent change.
+5. **`done`:** the loop checks the tests still pass, nothing survived unwaived, and every change to
+   the code has been broken on purpose since it last changed; if not, it says what is missing.
+
+- **Every test earns its place:** one that can't fail, duplicates another, or tests the language or
+  a library rather than the product, is removed, not kept for its numbers.
 - **Keep to the criterion.** Not the next one, not an improvement nobody asked for.
 
 ## 3. Stop and ask when you should

@@ -17,7 +17,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -69,6 +71,7 @@ public final class ProjectFiles {
     private final Scope writable;
     private final BooleanSupplier readAllowed;
     private final Scope readableAnyway;
+    private Function<String, String> writeGate = path -> null;
 
     /**
      * @param root            the project's root directory
@@ -204,6 +207,8 @@ public final class ProjectFiles {
         if (!writable.covers(relative(file))) {
             throw new IllegalArgumentException("This command writes only " + writable.description + ", not " + path);
         }
+        String refused = writeGate.apply(relative(file));
+        if (refused != null) throw new IllegalStateException(refused);
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, stamped(relative(file), screen.in(content)), StandardCharsets.UTF_8);
@@ -215,6 +220,15 @@ public final class ProjectFiles {
 
     private void mayRead() {
         if (!readAllowed.getAsBoolean()) throw notAllowed();
+    }
+
+    /**
+     * Refuses a write when {@code gate} gives a reason (it gets the path, relative to the root, with '/'), as
+     * {@code brew}'s tests-first rule does; set before the tools are given to an agent.
+     */
+    public ProjectFiles writeGate(Function<String, String> gate) {
+        this.writeGate = Objects.requireNonNull(gate, "gate");
+        return this;
     }
 
     private IllegalStateException notAllowed() {

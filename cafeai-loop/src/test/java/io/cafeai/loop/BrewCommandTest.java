@@ -3,8 +3,12 @@ package io.cafeai.loop;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.cafeai.core.internal.Cli;
+import io.cafeai.loop.tools.Build;
+
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static io.cafeai.loop.PlanCheckTest.INDEX;
@@ -13,14 +17,34 @@ import static io.cafeai.loop.PlanCheckTest.ROADMAP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ROADMAP-04, phase 1: {@code cafeai brew} picks up where the roadmap stands, on a branch, with the
- * project's standards. A stand-in model and a scripted developer, against real git.
+ * ROADMAP-04, phases 1 and 2: {@code cafeai brew} picks up where the roadmap stands, on a branch, with
+ * the project's standards, and builds the criterion tests first, the code broken on purpose. A
+ * stand-in model, a scripted developer and a stand-in build, against real git: the build's tests
+ * pass when the code holds the limit ({@code LIMIT = 1024;}), and, once a test checks it, the comment.
  */
-@DisplayName("cafeai brew: picking up where the roadmap stands")
+@DisplayName("cafeai brew: picking up where the roadmap stands, and building tests first")
 class BrewCommandTest extends CommandTestBase {
 
+    static final String TEST = "src/test/java/org/acme/VisitTests.java";
+    static final String CODE = "src/main/java/org/acme/Visit.java";
+
     int brew() {
-        return new BrewCommand(project, developer, settings -> new StandIn()).run();
+        return new BrewCommand(project, developer, settings -> new StandIn(), Screen::new,
+                p -> Build.of(p, this::build)).run();
+    }
+
+    /** The stand-in build, deciding from the files what the project's would. */
+    private Cli.Result build(List<String> command) {
+        try {
+            Path code = project.resolve(CODE), test = project.resolve(TEST);
+            String text = Files.isRegularFile(code) ? Files.readString(code) : "";
+            if (command.contains("testClasses")) return new Cli.Result(0, "BUILD SUCCESSFUL", "");
+            boolean strong = Files.isRegularFile(test) && Files.readString(test).contains("checks the comment");
+            boolean passes = Files.isRegularFile(test) && text.contains("LIMIT = 1024;") && (!strong || text.contains("// notes"));
+            return passes ? new Cli.Result(0, "BUILD SUCCESSFUL", "") : new Cli.Result(1, "VisitTests FAILED", "BUILD FAILED");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /** A repository with a committed spec and plan. */
@@ -31,6 +55,7 @@ class BrewCommandTest extends CommandTestBase {
         Files.writeString(project.resolve("docs/roadmap/ROADMAP-01.md"), ROADMAP);
         Files.writeString(project.resolve("docs/roadmap/MILESTONE-01.md"), milestone);
         Files.writeString(project.resolve("docs/roadmap/README.md"), INDEX);
+        Files.writeString(project.resolve(System.getProperty("os.name").toLowerCase().startsWith("windows") ? "gradlew.bat" : "gradlew"), "");
         raw("add", ".");
         raw("commit", "-m", "Add the spec and the plan");
     }
@@ -104,7 +129,7 @@ class BrewCommandTest extends CommandTestBase {
         planned(MILESTONE);
         developer.answers.addAll(List.of("main", "/quit"));
         script.add(reply("Starting 1.1."));
-        assertThat(brew()).isZero();
+        assertThat(brew()).as("ended with /quit, not done").isEqualTo(1);
         assertThat(developer.all()).doesNotContain("May I").contains("Building with stand-in-model");
         assertThat(requests).isNotEmpty();
     }
@@ -149,5 +174,41 @@ class BrewCommandTest extends CommandTestBase {
         script.add(reply("Noted again."));
         new BrewCommand(project, developer, settings -> new StandIn(), () -> new Screen("beef")).run();
         assertThat(sent()).contains("[EMAIL_1_beef]").doesNotContain("dev@example.com");
+    }
+
+    @Test @DisplayName("no build it knows: brew says so, and stops")
+    void noBuild() throws IOException {
+        planned(MILESTONE);
+        int status = new BrewCommand(project, developer, settings -> new StandIn(), Screen::new, p -> java.util.Optional.empty()).run();
+        assertThat(status).isEqualTo(2);
+        assertThat(developer.all()).contains("Gradle or Maven");
+        assertThat(requests).isEmpty();
+    }
+
+    @Test @DisplayName("2.1, 2.2: a criterion end to end: code refused before its tests; a weak test caught by a surviving mutation and made stronger; done")
+    void endToEnd() throws IOException {
+        planned(MILESTONE);
+        developer.answers.addAll(List.of("main", "/quit"));
+        String code = "package org.acme;\nclass Visit {\n    static final int LIMIT = 1024;\n    // notes\n}\n";
+        script.add(tool("startBranch", "{\"name\":\"feature/notes\"}"));
+        script.add(write(CODE, code));
+        script.add(write(TEST, "class VisitTests {}"));
+        script.add(tool("testsFirst", "{\"tests\":[\"" + TEST + "\"]}"));
+        script.add(write(CODE, code));
+        script.add(tool("testsPass", "{}"));
+        script.add(tool("mutate", "{\"path\":\"" + CODE + "\",\"find\":\"LIMIT = 1024;\",\"replace\":\"LIMIT = 1025;\",\"why\":\"the limit moved\"}"));
+        script.add(tool("mutate", "{\"path\":\"" + CODE + "\",\"find\":\"// notes\",\"replace\":\"// other\",\"why\":\"the comment changed\"}"));
+        script.add(tool("done", "{\"summary\":\"the notes' limit\"}"));
+        script.add(write(TEST, "class VisitTests { /* checks the comment */ }"));
+        script.add(tool("mutate", "{\"path\":\"" + CODE + "\",\"find\":\"// notes\",\"replace\":\"// other\",\"why\":\"the comment changed\"}"));
+        script.add(tool("done", "{\"summary\":\"the notes' limit\"}"));
+        script.add(reply("1.1 is built."));
+        assertThat(brew()).isZero();
+        String results = toolResults();
+        assertThat(results).contains("Tests first").contains("The tests fail, as they should").contains("The tests pass")
+                .contains("Survived").contains("Not done").contains("Done: the notes' limit");
+        assertThat(Files.readString(project.resolve(CODE))).as("restored after every mutation").isEqualTo(code);
+        assertThat(kickoff()).contains("Its build: Gradle");
+        assertThat(developer.heard.stream().filter(">"::equals).count()).as("done ends it; nothing more is asked").isZero();
     }
 }

@@ -179,4 +179,22 @@ class GitToolsTest {
         assertThat(tools.onWorkingBranch()).isFalse();
         assertThat(new GitTools(repo, "main").onWorkingBranch()).as("with the wrong default named").isTrue();
     }
+
+    @Test @DisplayName("the lines changed under a folder since the default branch: changed, added, new files whole; deletions hold none")
+    void changedLines() throws IOException {
+        Path main = Files.createDirectories(repo.resolve("src/main/java"));
+        Files.writeString(main.resolve("Visit.java"), "a\nb\nc\nd\ne\n");
+        Files.writeString(main.resolve("Gone.java"), "x\ny\n");
+        raw("add", ".");
+        raw("commit", "-m", "Visit");
+        git.startBranch("feature/time");
+        Files.writeString(main.resolve("Visit.java"), "a\nB\nc\ne\nf\ng\n");
+        Files.writeString(main.resolve("Owner.java"), "o\np\nq\n");
+        Files.writeString(main.resolve("Gone.java"), "x\n");
+        Files.writeString(repo.resolve("README.md"), "# Changed\n");
+        var changed = git.changedLines("src/main");
+        assertThat(changed).containsOnlyKeys("src/main/java/Visit.java", "src/main/java/Owner.java");
+        assertThat(changed.get("src/main/java/Visit.java")).containsExactly(new int[] {2, 2}, new int[] {5, 6});
+        assertThat(changed.get("src/main/java/Owner.java")).containsExactly(new int[] {1, 3});
+    }
 }

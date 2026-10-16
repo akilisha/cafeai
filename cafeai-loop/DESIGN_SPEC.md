@@ -264,9 +264,9 @@ How `brew` keeps the project on course (vision principle 2):
 2. **Tests, checked by mutation.** For each criterion `brew` writes tests, then breaks the code
    on purpose and checks the tests fail; a test that still passes is rewritten or removed.
    Every test earns its place: tests that add no value (duplicates, tests of the language or a
-   library, tests that can't fail) are removed, not kept for coverage (`ARTIFACTS.md`). (Tooling:
-   PIT where the build allows it; otherwise the targeted mutations this repository used for
-   `cafeai login`.)
+   library, tests that can't fail) are removed, not kept for coverage (`ARTIFACTS.md`). The
+   mutations are targeted, as this repository's phases were checked, with nothing added to the
+   project's build (§6, How `brew` builds).
 3. **Real dependencies, where configured.** Live tests against real services, switched on per
    environment, as `GoogleApplicationDefaultLiveTest` and its siblings are.
 4. **Evidence in the milestones.** Each criterion met is recorded by its number, pointing to its
