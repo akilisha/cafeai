@@ -1,12 +1,10 @@
 // ============================================================
 //  The `cafeai` command, installed from source.
 //
-//  Applied by a module that provides the command (cafeai-cli: login,
-//  logout, status; cafeai-loop: those and the development loop's).
-//  The module sets application.mainClass; this script names the
-//  command, sets its JVM options, and adds `install`, which puts it
-//  in ~/.cafeai/cli (bin/ goes on the PATH). Installing from another
-//  module replaces what is there.
+//  Applied by the module that provides the command (cafeai-cli: login,
+//  logout, status). The module sets application.mainClass; this script
+//  names the command, sets its JVM options, and adds `install`, which
+//  puts it in ~/.cafeai/cli (bin/ goes on the PATH).
 // ============================================================
 
 apply plugin: 'application'

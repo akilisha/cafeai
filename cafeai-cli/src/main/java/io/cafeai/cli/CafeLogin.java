@@ -176,7 +176,7 @@ public final class CafeLogin {
         return 2;
     }
 
-    /** The help for login, logout and status; the development loop prints it after its own. */
+    /** The help for login, logout and status. */
     public static void help(PrintStream to) {
         to.println("Usage:");
         to.println("  cafeai login claude      sign in to the Claude Console (Anthropic's ant CLI, no key)");

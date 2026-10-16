@@ -21,7 +21,6 @@ include(
     'cafeai-sentinel',
     'cafeai-test',
     'cafeai-cli',
-    'cafeai-loop',
     'cafeai-examples'
 )
 
